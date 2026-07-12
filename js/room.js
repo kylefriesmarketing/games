@@ -53,10 +53,8 @@
   var floorM = texMat("assets/tex/carpet.jpg", 0x6b5a48, 0.98, 4, 3);
   var floor = new THREE.Mesh(new THREE.PlaneGeometry(9, 7), floorM);
   floor.rotation.x = -Math.PI / 2; floor.receiveShadow = true; scene.add(floor);
-  var rug = new THREE.Mesh(new THREE.CircleGeometry(1.4, 40), mat(0x27506b, 0.95));
+  var rug = new THREE.Mesh(new THREE.CircleGeometry(1.45, 48), texMat("assets/tex/rug.jpg", 0x27506b, 0.95, 1, 1));
   rug.rotation.x = -Math.PI / 2; rug.position.set(0.1, 0.012, 1.0); rug.receiveShadow = true; scene.add(rug);
-  var rugRing = new THREE.Mesh(new THREE.RingGeometry(1.4, 1.52, 40), mat(0x8a4d5e, 0.95));
-  rugRing.rotation.x = -Math.PI / 2; rugRing.position.set(0.1, 0.012, 1.0); scene.add(rugRing);
   var wallM = mat(0x38404f, 0.95);
   var back = box(9, 3.4, 0.1, wallM); back.position.set(0, 1.7, -2.6); scene.add(back);
   var left = box(0.1, 3.4, 7, wallM); left.position.set(-3.6, 1.7, 0); scene.add(left);
@@ -306,11 +304,146 @@
   [tv, screen, vhs, stand].forEach(function (m) { clickable(m, "the channel guide", toListView, "the TV — every channel we have (list view)"); });
   crt.position.set(3.0, 0, -1.35); crt.rotation.y = -0.7; scene.add(crt);
 
-  /* ---- glow stars on the ceiling (pure 90s) --------------------------------- */
-  for (var s = 0; s < 14; s++) {
-    var st = new THREE.Mesh(new THREE.CircleGeometry(0.03, 6), new THREE.MeshBasicMaterial({ color: 0xb8ffc9 }));
+  /* ---- glow stars on the ceiling (pure 90s, breathing) ---------------------- */
+  var stars = [];
+  for (var s = 0; s < 16; s++) {
+    var st = new THREE.Mesh(new THREE.CircleGeometry(0.03, 6),
+      new THREE.MeshBasicMaterial({ color: 0xb8ffc9, transparent: true, opacity: 0.7 }));
     st.position.set((Math.random() - 0.5) * 6, 3.32, (Math.random() - 0.5) * 4);
-    st.rotation.x = Math.PI / 2; scene.add(st);
+    st.rotation.x = Math.PI / 2; st.userData.phase = Math.random() * 6.28;
+    scene.add(st); stars.push(st);
+  }
+
+  /* ---- THE NEON SIGN (generated) above the bookshelf ------------------------ */
+  var neonLight = new THREE.PointLight(0xff5aa8, 0.0, 6, 1.8);
+  neonLight.position.set(-1.3, 2.85, -2.2); scene.add(neonLight);
+  var neonMesh = null;
+  texLoader.load("assets/tex/neon.png", function (t) {
+    t.anisotropy = 8;
+    neonMesh = new THREE.Mesh(new THREE.PlaneGeometry(1.9, 1.07),
+      new THREE.MeshBasicMaterial({ map: t, blending: THREE.AdditiveBlending, transparent: true, depthWrite: false }));
+    neonMesh.position.set(-1.3, 2.9, -2.5);
+    scene.add(neonMesh);
+    neonLight.intensity = 1.1;
+  });
+
+  /* ---- THE LAVA LAMP on a little nightstand --------------------------------- */
+  var nstand = new THREE.Group();
+  var nsTop = box(0.5, 0.06, 0.42, woodM); nsTop.position.y = 0.52; nstand.add(nsTop);
+  var nsBody = box(0.44, 0.46, 0.36, woodMSide); nsBody.position.y = 0.26; nstand.add(nsBody);
+  var lava = new THREE.Group();
+  var lvBase = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.085, 0.1, 18), mat(0x8a8f98, 0.3)); lvBase.position.y = 0.6; lava.add(lvBase);
+  var lvCap = new THREE.Mesh(new THREE.CylinderGeometry(0.028, 0.05, 0.07, 18), mat(0x8a8f98, 0.3)); lvCap.position.y = 1.03; lava.add(lvCap);
+  var lvGlass = new THREE.Mesh(new THREE.CylinderGeometry(0.052, 0.082, 0.36, 18, 1, true),
+    new THREE.MeshStandardMaterial({ color: 0xff7d5a, roughness: 0.15, transparent: true, opacity: 0.28, side: THREE.DoubleSide }));
+  lvGlass.position.y = 0.83; lava.add(lvGlass);
+  var blobs = [];
+  for (var bi = 0; bi < 5; bi++) {
+    var blob = new THREE.Mesh(new THREE.SphereGeometry(0.018 + Math.random() * 0.02, 12, 10),
+      new THREE.MeshStandardMaterial({ color: 0xff4d7d, emissive: 0xff2d63, emissiveIntensity: 1.6, roughness: 0.3 }));
+    blob.userData = { phase: Math.random() * 6.28, speed: 0.25 + Math.random() * 0.3 };
+    lava.add(blob); blobs.push(blob);
+  }
+  var lavaLight = new THREE.PointLight(0xff5a7d, 0.8, 3.2, 2); lavaLight.position.set(0, 0.9, 0); lava.add(lavaLight);
+  var lavaOn = true;
+  [lvBase, lvCap, lvGlass].forEach(function (m) {
+    clickable(m, "the lava lamp", function () {
+      lavaOn = !lavaOn;
+      lavaLight.intensity = lavaOn ? 0.8 : 0.05;
+      blobs.forEach(function (b) { b.material.emissiveIntensity = lavaOn ? 1.6 : 0.15; });
+    }, "the lava lamp — groovy");
+  });
+  nstand.add(lava);
+  nstand.position.set(0.55, 0, -2.25); scene.add(nstand);
+
+  /* ---- STRING LIGHTS under the wallpaper border ------------------------------ */
+  var bulbs = [], bulbCols = [0xff6a5a, 0xffd166, 0x8ad7ff, 0x7be08a, 0xc79bff];
+  for (var li = 0; li < 13; li++) {
+    var bx = -4.1 + li * 0.68, sag = 0.1 * Math.sin((li % 4) / 3 * Math.PI);
+    var bulb = new THREE.Mesh(new THREE.SphereGeometry(0.026, 10, 8),
+      new THREE.MeshBasicMaterial({ color: bulbCols[li % 5], transparent: true, opacity: 0.9 }));
+    bulb.position.set(bx, 2.42 - sag, -2.5);
+    bulb.userData.phase = li * 0.7;
+    scene.add(bulb); bulbs.push(bulb);
+  }
+
+  /* ---- THE BOOMBOX: synth lo-fi + rain (WebAudio, no files) ------------------ */
+  var boom = new THREE.Group();
+  var bbBody = box(0.56, 0.24, 0.17, mat(0x23262c, 0.45)); bbBody.position.y = 0.12; boom.add(bbBody);
+  [-0.17, 0.17].forEach(function (x) {
+    var spk = new THREE.Mesh(new THREE.CylinderGeometry(0.085, 0.085, 0.02, 20), mat(0x101216, 0.6));
+    spk.rotation.x = Math.PI / 2; spk.position.set(x, 0.12, 0.085); boom.add(spk);
+    var cone = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.055, 0.015, 14), mat(0x3a3f48, 0.5));
+    cone.rotation.x = Math.PI / 2; cone.position.set(x, 0.12, 0.093); boom.add(cone);
+  });
+  var deck = box(0.14, 0.08, 0.02, mat(0x3a3f48, 0.4)); deck.position.set(0, 0.13, 0.086); boom.add(deck);
+  var audioOn = false, ac = null, acNodes = null;
+  function buildAudio() {
+    ac = new (window.AudioContext || window.webkitAudioContext)();
+    var master = ac.createGain(); master.gain.value = 0.5; master.connect(ac.destination);
+    // rain: looped white noise, band-shaped
+    var len = ac.sampleRate * 2, buf = ac.createBuffer(1, len, ac.sampleRate), d = buf.getChannelData(0);
+    for (var i = 0; i < len; i++) d[i] = Math.random() * 2 - 1;
+    var rain = ac.createBufferSource(); rain.buffer = buf; rain.loop = true;
+    var lp = ac.createBiquadFilter(); lp.type = "lowpass"; lp.frequency.value = 1400;
+    var hp = ac.createBiquadFilter(); hp.type = "highpass"; hp.frequency.value = 300;
+    var rg = ac.createGain(); rg.gain.value = 0.05;
+    rain.connect(lp); lp.connect(hp); hp.connect(rg); rg.connect(master); rain.start();
+    // pad: two detuned triangles under a slow filter
+    var padF = ac.createBiquadFilter(); padF.type = "lowpass"; padF.frequency.value = 420;
+    var pg = ac.createGain(); pg.gain.value = 0.035; padF.connect(pg); pg.connect(master);
+    [110, 110.6, 165].forEach(function (f) {
+      var o = ac.createOscillator(); o.type = "triangle"; o.frequency.value = f;
+      var og = ac.createGain(); og.gain.value = 0.33; o.connect(og); og.connect(padF); o.start();
+    });
+    var lfo = ac.createOscillator(); lfo.frequency.value = 0.06;
+    var lfoG = ac.createGain(); lfoG.gain.value = 180;
+    lfo.connect(lfoG); lfoG.connect(padF.frequency); lfo.start();
+    acNodes = { master: master };
+  }
+  function rumble() { // thunder, if the box is on
+    if (!ac || !audioOn) return;
+    var len = ac.sampleRate * 1.4, buf = ac.createBuffer(1, len, ac.sampleRate), d = buf.getChannelData(0);
+    for (var i = 0; i < len; i++) d[i] = (Math.random() * 2 - 1) * (1 - i / len);
+    var src = ac.createBufferSource(); src.buffer = buf;
+    var f = ac.createBiquadFilter(); f.type = "lowpass"; f.frequency.value = 120;
+    var g = ac.createGain(); g.gain.value = 0.22;
+    src.connect(f); f.connect(g); g.connect(acNodes.master); src.start();
+  }
+  var powerLED = new THREE.Mesh(new THREE.SphereGeometry(0.012, 8, 8),
+    new THREE.MeshBasicMaterial({ color: 0x552222 }));
+  powerLED.position.set(0, 0.215, 0.088); boom.add(powerLED);
+  boom.children.forEach(function (m) {
+    clickable(m, "the boombox", function () {
+      if (!ac) buildAudio();
+      audioOn = !audioOn;
+      if (audioOn) { ac.resume(); powerLED.material.color.set(0xff3b30); }
+      else { ac.suspend(); powerLED.material.color.set(0x552222); }
+    }, "the boombox — rain and low songs");
+  });
+  boom.position.set(-0.95, 0, 1.6); boom.rotation.y = 0.4; scene.add(boom);
+
+  /* ---- DUST MOTES in the lamplight ------------------------------------------- */
+  var moteGeo = new THREE.BufferGeometry(), moteN = 60, motePos = new Float32Array(moteN * 3);
+  for (var mi = 0; mi < moteN; mi++) {
+    motePos[mi * 3] = -2.6 + Math.random() * 1.6;
+    motePos[mi * 3 + 1] = 0.8 + Math.random() * 1.2;
+    motePos[mi * 3 + 2] = -1.4 + Math.random() * 1.6;
+  }
+  moteGeo.setAttribute("position", new THREE.BufferAttribute(motePos, 3));
+  var motes = new THREE.Points(moteGeo, new THREE.PointsMaterial({ color: 0xffd9a0, size: 0.014, transparent: true, opacity: 0.45, depthWrite: false }));
+  scene.add(motes);
+
+  /* ---- lightning state -------------------------------------------------------- */
+  var flash = 0, nextFlash = 12 + Math.random() * 20;
+  var rainCtx = rainT.image.getContext("2d");
+  function drawRain(bright) {
+    var g = rainCtx, w = 256, h = 320;
+    g.fillStyle = bright ? "#3a4f78" : "#0d1626"; g.fillRect(0, 0, w, h);
+    g.strokeStyle = "rgba(180,205,240," + (bright ? 0.7 : 0.35) + ")";
+    for (var i = 0; i < 46; i++) { var x = Math.random() * w, y = Math.random() * h; g.beginPath(); g.moveTo(x, y); g.lineTo(x - 3, y + 14 + Math.random() * 10); g.stroke(); }
+    g.fillStyle = "rgba(230,240,255,0.5)"; g.beginPath(); g.arc(w * 0.72, h * 0.2, 16, 0, 7); g.fill();
+    rainT.needsUpdate = true;
   }
 
   /* ---- the notebook panel (DOM): reads the sibling games' saves ------------- */
@@ -369,9 +502,10 @@
     renderer.setSize(window.innerWidth, window.innerHeight);
   });
 
-  var frameCount = 0;
+  var frameCount = 0, lastT = performance.now() / 1000;
   function tick() {
     requestAnimationFrame(tick);
+    var t = performance.now() / 1000, dt = Math.min(t - lastT, 0.1); lastT = t;
     camera.position.x += ((mouse.x * 0.5) - camera.position.x) * 0.04;
     camera.position.y += ((1.7 + mouse.y * 0.22) - camera.position.y) * 0.04;
     camera.lookAt(lookAt);
@@ -385,6 +519,41 @@
       staticT.needsUpdate = true;
       crtLight.intensity = 0.5 + Math.random() * 0.35;
     }
+    // lava blobs rise and fall, slow and thick
+    if (lavaOn) for (var lb = 0; lb < blobs.length; lb++) {
+      var b = blobs[lb], ph = t * b.userData.speed + b.userData.phase;
+      b.position.y = 0.72 + 0.13 * Math.sin(ph);
+      b.position.x = 0.012 * Math.sin(ph * 1.7);
+      b.position.z = 0.012 * Math.cos(ph * 1.3);
+      var sq = 1 + 0.25 * Math.sin(ph * 2.3);
+      b.scale.set(1 / Math.sqrt(sq), sq, 1 / Math.sqrt(sq));
+    }
+    // string lights twinkle; stars breathe; motes drift
+    for (var bu = 0; bu < bulbs.length; bu++) bulbs[bu].material.opacity = 0.55 + 0.4 * Math.sin(t * 1.6 + bulbs[bu].userData.phase);
+    for (var si = 0; si < stars.length; si++) stars[si].material.opacity = 0.45 + 0.35 * Math.sin(t * 0.5 + stars[si].userData.phase);
+    var mp = motes.geometry.attributes.position;
+    for (var mo = 0; mo < moteN; mo++) {
+      var y = mp.getY(mo) + dt * 0.03 * (0.5 + Math.sin(mo));
+      if (y > 2.1) y = 0.8;
+      mp.setY(mo, y);
+      mp.setX(mo, mp.getX(mo) + dt * 0.01 * Math.sin(t * 0.4 + mo));
+    }
+    mp.needsUpdate = true;
+    // neon hum: tiny flicker, and a rare stutter
+    if (neonMesh) {
+      var hum = 0.96 + 0.04 * Math.sin(t * 11) * Math.sin(t * 1.3);
+      if (Math.random() < 0.002) hum *= 0.4;
+      neonMesh.material.opacity = hum;
+      neonLight.intensity = 1.1 * hum;
+    }
+    // the storm outside
+    nextFlash -= dt;
+    if (nextFlash <= 0) { flash = 1; nextFlash = 14 + Math.random() * 26; rumble(); }
+    if (flash > 0.01) {
+      flash *= Math.pow(0.02, dt); // fast decay
+      moon.intensity = 0.4 + flash * 2.2;
+      if ((frameCount & 1) === 0) drawRain(flash > 0.25);
+    } else if ((frameCount % 6) === 0) drawRain(false);
     var o = pickAt();
     if (o !== hovered) {
       if (hovered && hovered.material && hovered.material.emissive && hovered !== shade && hovered !== screen && hovered !== pcScreen) hovered.material.emissiveIntensity = 0;
