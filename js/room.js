@@ -52,6 +52,11 @@ import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
   var woodM = texMat("assets/tex/wood.jpg", 0x8a6a42, 0.75, 1, 1);
   var woodMSide = texMat("assets/tex/wood.jpg", 0x8a6a42, 0.75, 0.35, 1);
 
+  var pick = []; // clickable meshes
+  function clickable(mesh, name, action, hint) { mesh.userData = { name: name, action: action, hint: hint || "click to open" }; pick.push(mesh); return mesh; }
+  function go(url) { return function () { window.location.href = url; }; }
+  var BASE = "https://kylefriesmarketing.github.io/";
+
   /* ---- generated GLB hero props --------------------------------------------- */
   var dracoL = new DRACOLoader(); dracoL.setDecoderPath("assets/lib/draco/");
   var gltfL = new GLTFLoader(); gltfL.setDRACOLoader(dracoL);
@@ -81,6 +86,7 @@ import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
   floor.rotation.x = -Math.PI / 2; floor.receiveShadow = true; scene.add(floor);
   var rug = new THREE.Mesh(new THREE.CircleGeometry(1.45, 48), texMat("assets/tex/rug.jpg", 0x27506b, 0.95, 1, 1));
   rug.rotation.x = -Math.PI / 2; rug.position.set(0.1, 0.012, 1.0); rug.receiveShadow = true; scene.add(rug);
+  clickable(rug, "the rug", null, "the rug — the whole galaxy, floor version");
   var wallM = texMat("assets/tex/wallpaper.jpg", 0x38404f, 0.95, 3.4, 1.3);
   var wallMSide = texMat("assets/tex/wallpaper.jpg", 0x38404f, 0.95, 2.6, 1.3);
   var back = box(9, 3.4, 0.1, wallM); back.position.set(0, 1.7, -2.6); scene.add(back);
@@ -103,6 +109,7 @@ import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
   var winPane = new THREE.Mesh(new THREE.PlaneGeometry(1.4, 1.7),
     new THREE.MeshBasicMaterial({ map: rainT, transparent: true, depthWrite: false }));
   winPane.position.set(2.35, 1.95, -2.515); scene.add(winPane);
+  clickable(winPane, "the window", null, "the window — still raining out there");
   var frameM = mat(0x2a2019, 0.8);
   [[2.35, 2.85, 1.64, 0.10], [2.35, 1.05, 1.64, 0.10]].forEach(function (b) { // top + bottom rails
     var m = box(b[2], b[3], 0.09, frameM); m.position.set(b[0], b[1], -2.51); scene.add(m);
@@ -120,10 +127,7 @@ import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
   var crtLight = new THREE.PointLight(0x7db4ff, 0.7, 4, 2); crtLight.position.set(2.3, 1.0, -1.4); scene.add(crtLight);
   var shelfGlow = new THREE.PointLight(0xffd9a0, 0.55, 5, 2); shelfGlow.position.set(-1.3, 1.8, -1.4); scene.add(shelfGlow);
 
-  var pick = []; // clickable meshes
-  function clickable(mesh, name, action, hint) { mesh.userData = { name: name, action: action, hint: hint || "click to open" }; pick.push(mesh); return mesh; }
-  function go(url) { return function () { window.location.href = url; }; }
-  var BASE = "https://kylefriesmarketing.github.io/";
+  // (pick/clickable/go/BASE are declared up with the helpers, before the room shell)
 
   /* ---- THE BOOKSHELF: flat on the back wall, spines to the camera --------- */
   var shelfG = new THREE.Group();
@@ -198,7 +202,7 @@ import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
   var cW = 1.35, cH = 0.62, cD = 0.8;
   var chestBody = box(cW, cH, cD, woodM); chestBody.position.y = cH / 2; chest.add(chestBody);
   // painted front panel (generated art)
-  var frontM = texMat("assets/tex/chest_front.png", 0x7a4326, 0.7, 1, 1);
+  var frontM = texMat("assets/tex/chest_front.jpg", 0x7a4326, 0.7, 1, 1);
   var front = new THREE.Mesh(new THREE.PlaneGeometry(cW - 0.08, cH - 0.1), frontM);
   front.position.set(0, cH / 2, cD / 2 + 0.006); chest.add(front);
   // dark interior + rounded open lid (half-cylinder), hinged at the back
@@ -248,7 +252,7 @@ import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
   var mon = box(0.62, 0.5, 0.5, beige); mon.position.y = 1.14; pc.add(mon);
   var monFoot = box(0.3, 0.07, 0.3, beigeDark); monFoot.position.y = 0.855; pc.add(monFoot);
   var monNeck = box(0.18, 0.06, 0.18, beigeDark); monNeck.position.y = 0.91; pc.add(monNeck);
-  var screenM = texMat("assets/tex/screen_c3d.png", 0x0e3a34, 0.3, 1, 1);
+  var screenM = texMat("assets/tex/screen_c3d.jpg", 0x0e3a34, 0.3, 1, 1);
   screenM.emissive = new THREE.Color(0x2a5a4a); screenM.emissiveIntensity = 0.35;
   var pcScreen = new THREE.Mesh(new THREE.PlaneGeometry(0.5, 0.38), screenM);
   pcScreen.position.set(0, 1.14, 0.253); pc.add(pcScreen);
@@ -368,6 +372,47 @@ import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
     new THREE.MeshStandardMaterial({ color: 0xfff4dc, roughness: 0.4, emissive: 0xffe9c2, emissiveIntensity: 0.25 }));
   fanGlobe.position.y = 2.9; fan.add(fanGlobe);
   fan.position.set(0.4, 0, 0.3); scene.add(fan);
+
+  /* ---- the wall clock (it tells YOUR time) ------------------------------------ */
+  var clockG = new THREE.Group();
+  var clockRim = new THREE.Mesh(new THREE.CircleGeometry(0.175, 36), mat(0x2a2019, 0.6));
+  var clockFace = new THREE.Mesh(new THREE.CircleGeometry(0.155, 36),
+    new THREE.MeshStandardMaterial({ color: 0xf2ead8, roughness: 0.9 }));
+  clockFace.position.z = 0.004; clockG.add(clockRim); clockG.add(clockFace);
+  for (var ci = 0; ci < 12; ci++) {
+    var tk = new THREE.Mesh(new THREE.PlaneGeometry(ci % 3 ? 0.008 : 0.014, 0.03),
+      new THREE.MeshBasicMaterial({ color: 0x333333 }));
+    var ang = ci / 12 * Math.PI * 2;
+    tk.position.set(Math.sin(ang) * 0.13, Math.cos(ang) * 0.13, 0.006);
+    tk.rotation.z = -ang; clockG.add(tk);
+  }
+  function clockHand(len, w, col, z) {
+    var g = new THREE.Group();
+    var m = new THREE.Mesh(new THREE.PlaneGeometry(w, len), new THREE.MeshBasicMaterial({ color: col }));
+    m.position.y = len / 2 - 0.012; g.add(m); g.position.z = z; clockG.add(g); return g;
+  }
+  var hourHand = clockHand(0.08, 0.012, 0x222222, 0.008);
+  var minHand = clockHand(0.125, 0.008, 0x222222, 0.010);
+  var secHand = clockHand(0.13, 0.003, 0xc0392b, 0.012);
+  clockG.position.set(2.35, 3.08, -2.53); scene.add(clockG);
+  clickable(clockFace, "the clock", null, "the clock — it really is that time");
+
+  /* ---- the door (left wall; the rest of the house is out there) --------------- */
+  var doorM = mat(0x4a3524, 0.75);
+  var doorSlab = box(0.05, 2.05, 0.92, doorM); doorSlab.position.set(-3.56, 1.025, 2.1); scene.add(doorSlab);
+  [[2.09, 0.08, 1.06, 2.1], [1.02, 2.12, 0.08, 1.62], [1.02, 2.12, 0.08, 2.58]].forEach(function (j) {
+    var m = box(0.09, j[1], j[2], mat(0x2a2019, 0.8)); m.position.set(-3.53, j[0], j[3]); scene.add(m);
+  });
+  var knob = new THREE.Mesh(new THREE.SphereGeometry(0.028, 12, 10),
+    new THREE.MeshStandardMaterial({ color: 0xb08d3f, roughness: 0.3, metalness: 0.6 }));
+  knob.position.set(-3.52, 1.0, 1.78); scene.add(knob);
+  var spill = new THREE.Mesh(new THREE.PlaneGeometry(0.9, 0.09),
+    new THREE.MeshBasicMaterial({ color: 0xffc98a, transparent: true, opacity: 0.32, blending: THREE.AdditiveBlending, depthWrite: false }));
+  spill.rotation.x = -Math.PI / 2; spill.rotation.z = Math.PI / 2;
+  spill.position.set(-3.47, 0.013, 2.1); scene.add(spill);
+  [doorSlab, knob].forEach(function (m) {
+    clickable(m, "the door", null, "the door — the rest of the house can wait");
+  });
 
   /* ---- THE NEON SIGN (generated) above the bookshelf ------------------------ */
   var neonLight = new THREE.PointLight(0xff5aa8, 0.0, 6, 1.8);
@@ -606,6 +651,7 @@ import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
   comforter.position.set(0, 0.43, 0.14); comforter.castShadow = comforter.receiveShadow = true; bed.add(comforter);
   var pillow = box(0.62, 0.14, 0.34, mat(0xe8e4da, 0.95)); pillow.position.set(0, 0.42, -0.68); pillow.rotation.x = -0.08; bed.add(pillow);
   bed.position.set(2.93, 0, 1.0); bed.rotation.y = -0.09; scene.add(bed); // deep enough to sit inside the frame
+  bed.children.forEach(function (m) { clickable(m, "the bed", null, "the bed — five more minutes"); });
 
   /* ---- generated hero props: the clutter that makes it a real room ----------- */
   function propTip(name, hint) {
@@ -624,14 +670,15 @@ import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
 
   /* ---- THE SOLAR SYSTEM POSTER (back wall, between shelf and window) ---------- */
   var posterM = new THREE.MeshStandardMaterial({ color: 0x2a3040, roughness: 0.9 });
-  texLoader.load("assets/tex/solar_poster.png", function (t) { t.anisotropy = 8; posterM.map = t; posterM.color.set(0xffffff); posterM.needsUpdate = true; });
+  texLoader.load("assets/tex/solar_poster.jpg", function (t) { t.anisotropy = 8; posterM.map = t; posterM.color.set(0xffffff); posterM.needsUpdate = true; });
   var solar = new THREE.Mesh(new THREE.PlaneGeometry(0.78, 1.04), posterM);
   solar.position.set(0.78, 1.98, -2.53); solar.rotation.z = -0.02; // taped up a little crooked
   scene.add(solar);
+  clickable(solar, "the poster", null, "the solar system — you are here");
 
   /* ---- the TV flips between static and Saturday cartoons ---------------------- */
   var cartoonT = null, tvCartoon = false, tvFlip = 6 + Math.random() * 6;
-  texLoader.load("assets/tex/tv_cartoon.png", function (t) { t.anisotropy = 4; cartoonT = t; });
+  texLoader.load("assets/tex/tv_cartoon.jpg", function (t) { t.anisotropy = 4; cartoonT = t; });
 
   /* ---- the notebook panel (DOM): reads the sibling games' saves ------------- */
   function readSave(key, fn) {
@@ -730,6 +777,12 @@ import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
       b.scale.set(1 / Math.sqrt(sq), sq, 1 / Math.sqrt(sq));
     }
     fanBlades.rotation.y += dt * 2.1;
+    var nowD = new Date();
+    var nowS = nowD.getSeconds() + nowD.getMilliseconds() / 1000;
+    var nowM = nowD.getMinutes() + nowS / 60;
+    secHand.rotation.z = -nowS / 60 * Math.PI * 2;
+    minHand.rotation.z = -nowM / 60 * Math.PI * 2;
+    hourHand.rotation.z = -((nowD.getHours() % 12) + nowM / 60) / 12 * Math.PI * 2;
     // string lights twinkle; stars breathe; motes drift
     for (var bu = 0; bu < bulbs.length; bu++) bulbs[bu].material.opacity = 0.55 + 0.4 * Math.sin(t * 1.6 + bulbs[bu].userData.phase);
     for (var si = 0; si < stars.length; si++) stars[si].material.opacity = 0.45 + 0.35 * Math.sin(t * 0.5 + stars[si].userData.phase);
