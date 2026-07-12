@@ -21,8 +21,8 @@
 
   var scene = new THREE.Scene();
   scene.background = new THREE.Color(0x0a0c12);
-  var camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 0.1, 50);
-  camera.position.set(0, 1.7, 4.6);
+  var camera = new THREE.PerspectiveCamera(55, window.innerWidth / window.innerHeight, 0.1, 50);
+  camera.position.set(0, 1.72, 4.9);
   var lookAt = new THREE.Vector3(0, 1.2, -0.4);
   camera.lookAt(lookAt);
 
@@ -66,17 +66,26 @@
   skirt.position.set(0, 0.07, -2.54); scene.add(skirt);
 
   /* ---- window: the street below, behind live rain streaks ------------------ */
+  // Wall front face is z=-2.55, stripe -2.54. Layering back→front: photo -2.53,
+  // rain -2.515, frame bars proud at -2.51 (they embed into the wall, never coplanar).
   var winViewM = new THREE.MeshBasicMaterial({ color: 0xb8c2d6 }); // placeholder tint; texture loads over it
   winViewM.color.setRGB(1.25, 1.25, 1.325); // resting lift — the photo is a dark night shot
   texLoader.load("assets/tex/window_view.jpg", function (t) { t.anisotropy = 8; winViewM.map = t; winViewM.needsUpdate = true; });
-  var winView = new THREE.Mesh(new THREE.PlaneGeometry(1.4, 1.7), winViewM);
-  winView.position.set(2.35, 1.95, -2.542); scene.add(winView); // must sit in front of the backing box face at z=-2.55
+  var winView = new THREE.Mesh(new THREE.PlaneGeometry(1.44, 1.74), winViewM);
+  winView.position.set(2.35, 1.95, -2.53); scene.add(winView);
   var rainT = canvasTex(256, 320, function (g) { g.clearRect(0, 0, 256, 320); });
   var winPane = new THREE.Mesh(new THREE.PlaneGeometry(1.4, 1.7),
     new THREE.MeshBasicMaterial({ map: rainT, transparent: true, depthWrite: false }));
-  winPane.position.set(2.35, 1.95, -2.53); scene.add(winPane);
-  var winFrame = box(1.6, 1.9, 0.06, mat(0x2a2019, 0.8)); winFrame.position.set(2.35, 1.95, -2.58); scene.add(winFrame);
-  var winBar = box(0.05, 1.7, 0.07, mat(0x2a2019, 0.8)); winBar.position.set(2.35, 1.95, -2.55); scene.add(winBar);
+  winPane.position.set(2.35, 1.95, -2.515); scene.add(winPane);
+  var frameM = mat(0x2a2019, 0.8);
+  [[2.35, 2.85, 1.64, 0.10], [2.35, 1.05, 1.64, 0.10]].forEach(function (b) { // top + bottom rails
+    var m = box(b[2], b[3], 0.09, frameM); m.position.set(b[0], b[1], -2.51); scene.add(m);
+  });
+  [1.62, 3.08].forEach(function (x) { // side jambs
+    var m = box(0.10, 1.9, 0.09, frameM); m.position.set(x, 1.95, -2.51); scene.add(m);
+  });
+  var winBar = box(0.05, 1.7, 0.07, frameM); winBar.position.set(2.35, 1.95, -2.505); scene.add(winBar);
+  var sill = box(1.8, 0.07, 0.22, frameM); sill.position.set(2.35, 0.985, -2.47); scene.add(sill);
 
   /* ---- lights ------------------------------------------------------------ */
   scene.add(new THREE.AmbientLight(0x2c3440, 1.0));
@@ -316,6 +325,23 @@
     scene.add(st); stars.push(st);
   }
 
+  /* ---- ceiling fan (lazy summer spin) ---------------------------------------- */
+  var fan = new THREE.Group();
+  var fanRod = box(0.045, 0.3, 0.045, mat(0x3a3226, 0.6)); fanRod.position.y = 3.25; fan.add(fanRod);
+  var fanHub = new THREE.Mesh(new THREE.CylinderGeometry(0.09, 0.11, 0.12, 16), mat(0x40382c, 0.5));
+  fanHub.position.y = 3.06; fanHub.castShadow = true; fan.add(fanHub);
+  var fanBlades = new THREE.Group(); fanBlades.position.y = 2.99;
+  for (var fb = 0; fb < 4; fb++) {
+    var bl = box(0.62, 0.018, 0.14, mat(0x6b5844, 0.8));
+    bl.position.x = 0.38; bl.rotation.z = 0.06;
+    var arm = new THREE.Group(); arm.rotation.y = fb * Math.PI / 2; arm.add(bl); fanBlades.add(arm);
+  }
+  fan.add(fanBlades);
+  var fanGlobe = new THREE.Mesh(new THREE.SphereGeometry(0.07, 12, 10),
+    new THREE.MeshStandardMaterial({ color: 0xfff4dc, roughness: 0.4, emissive: 0xffe9c2, emissiveIntensity: 0.25 }));
+  fanGlobe.position.y = 2.9; fan.add(fanGlobe);
+  fan.position.set(0.4, 0, 0.3); scene.add(fan);
+
   /* ---- THE NEON SIGN (generated) above the bookshelf ------------------------ */
   var neonLight = new THREE.PointLight(0xff5aa8, 0.0, 6, 1.8);
   neonLight.position.set(-1.3, 2.85, -2.2); scene.add(neonLight);
@@ -462,13 +488,13 @@
     [sheetSideM, sheetSideM, sheetTopM, sheetSideM, sheetSideM, sheetSideM]);
   comforter.position.set(0, 0.43, 0.14); comforter.castShadow = comforter.receiveShadow = true; bed.add(comforter);
   var pillow = box(0.62, 0.14, 0.34, mat(0xe8e4da, 0.95)); pillow.position.set(0, 0.42, -0.68); pillow.rotation.x = -0.08; bed.add(pillow);
-  bed.position.set(2.9, 0, 1.35); bed.rotation.y = -0.06; scene.add(bed);
+  bed.position.set(2.93, 0, 1.0); bed.rotation.y = -0.09; scene.add(bed); // deep enough to sit inside the frame
 
-  /* ---- THE SOLAR SYSTEM POSTER (left wall, above the desk) -------------------- */
+  /* ---- THE SOLAR SYSTEM POSTER (back wall, between shelf and window) ---------- */
   var posterM = new THREE.MeshStandardMaterial({ color: 0x2a3040, roughness: 0.9 });
   texLoader.load("assets/tex/solar_poster.png", function (t) { t.anisotropy = 8; posterM.map = t; posterM.color.set(0xffffff); posterM.needsUpdate = true; });
   var solar = new THREE.Mesh(new THREE.PlaneGeometry(0.78, 1.04), posterM);
-  solar.position.set(-3.54, 2.1, -0.55); solar.rotation.y = Math.PI / 2; solar.rotation.z = 0.015;
+  solar.position.set(0.78, 1.98, -2.53); solar.rotation.z = -0.02; // taped up a little crooked
   scene.add(solar);
 
   /* ---- the TV flips between static and Saturday cartoons ---------------------- */
@@ -535,8 +561,9 @@
   function tick() {
     requestAnimationFrame(tick);
     var t = performance.now() / 1000, dt = Math.min(t - lastT, 0.1); lastT = t;
-    camera.position.x += ((mouse.x * 0.5) - camera.position.x) * 0.04;
-    camera.position.y += ((1.7 + mouse.y * 0.22) - camera.position.y) * 0.04;
+    camera.position.x += ((mouse.x * 0.55) - camera.position.x) * 0.04;
+    camera.position.y += ((1.72 + mouse.y * 0.24) - camera.position.y) * 0.04;
+    lookAt.x += ((mouse.x * 1.25) - lookAt.x) * 0.04; // pan the gaze — the bed and side walls come into view
     camera.lookAt(lookAt);
     // the TV surfs between dead air and Saturday cartoons
     tvFlip -= dt;
@@ -569,6 +596,7 @@
       var sq = 1 + 0.25 * Math.sin(ph * 2.3);
       b.scale.set(1 / Math.sqrt(sq), sq, 1 / Math.sqrt(sq));
     }
+    fanBlades.rotation.y += dt * 2.1;
     // string lights twinkle; stars breathe; motes drift
     for (var bu = 0; bu < bulbs.length; bu++) bulbs[bu].material.opacity = 0.55 + 0.4 * Math.sin(t * 1.6 + bulbs[bu].userData.phase);
     for (var si = 0; si < stars.length; si++) stars[si].material.opacity = 0.45 + 0.35 * Math.sin(t * 0.5 + stars[si].userData.phase);
