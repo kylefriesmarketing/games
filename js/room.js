@@ -615,11 +615,11 @@ import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
     propTip("the beanbag", "the beanbag — best seat in the house"));
   prop("assets/props/trex.glb", 0.3, 1.05, 0, 0.72, -0.55,
     propTip("rex", "rex — he guards the toy chest"));
-  prop("assets/props/skate.glb", 0.78, -3.42, 0, 0.55, 1.45, function (wrap) {
-    wrap.rotateOnWorldAxis(new THREE.Vector3(0, 0, 1), 0.14); // top leans into the left wall
+  prop("assets/props/skate.glb", 0.78, -3.33, 0, 0.55, 1.45, function (wrap) {
+    wrap.rotateOnWorldAxis(new THREE.Vector3(0, 0, 1), 0.10); // top rests against the left wall (inner face x=-3.55)
     propTip("the skateboard", "the skateboard — one day, the driveway")(wrap);
   });
-  prop("assets/props/globe.glb", 0.36, -2.95, 0.815, -1.08, -0.3,
+  prop("assets/props/globe.glb", 0.36, -2.26, 0.815, -0.75, -0.3, // desk-local (0, 0.10) — verified on the rotated slab
     propTip("the globe", "the globe — somewhere better, probably"));
 
   /* ---- THE SOLAR SYSTEM POSTER (back wall, between shelf and window) ---------- */
