@@ -619,6 +619,15 @@ import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
   });
   boom.position.set(-0.95, 0, 1.6); boom.rotation.y = 0.4; scene.add(boom);
 
+  /* ---- the entry: camera dolly in + the tape starts (click unlocked audio) ---- */
+  var introT = -1, INTRO = 3.2;
+  window.__roomEnter = function () {
+    introT = 0;
+    if (!ac) buildAudio();
+    audioOn = true; ac.resume(); powerLED.material.color.set(0xff3b30);
+  };
+  if (window.__entered) window.__roomEnter(); // card clicked before this module loaded
+
   /* ---- DUST MOTES in the lamplight ------------------------------------------- */
   var moteGeo = new THREE.BufferGeometry(), moteN = 60, motePos = new Float32Array(moteN * 3);
   for (var mi = 0; mi < moteN; mi++) {
@@ -768,8 +777,15 @@ import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
   function tick() {
     requestAnimationFrame(tick);
     var t = performance.now() / 1000, dt = Math.min(t - lastT, 0.1); lastT = t;
-    camera.position.x += ((mouse.x * 0.55) - camera.position.x) * 0.04;
-    camera.position.y += ((1.72 + mouse.y * 0.24) - camera.position.y) * 0.04;
+    var baseX = mouse.x * 0.55, baseY = 1.72 + mouse.y * 0.24;
+    if (introT >= 0 && introT < 1) { // the dolly in from the doorway
+      introT = Math.min(1, introT + dt / INTRO);
+      var ke = 1 - Math.pow(1 - introT, 3);
+      camera.position.set(baseX * ke, 2.6 + (baseY - 2.6) * ke, 7.4 + (4.9 - 7.4) * ke);
+    } else {
+      camera.position.x += (baseX - camera.position.x) * 0.04;
+      camera.position.y += (baseY - camera.position.y) * 0.04;
+    }
     lookAt.x += ((mouse.x * 1.25) - lookAt.x) * 0.04; // pan the gaze — the bed and side walls come into view
     camera.lookAt(lookAt);
     // the TV surfs between dead air and Saturday cartoons
