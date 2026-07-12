@@ -55,25 +55,27 @@
   floor.rotation.x = -Math.PI / 2; floor.receiveShadow = true; scene.add(floor);
   var rug = new THREE.Mesh(new THREE.CircleGeometry(1.45, 48), texMat("assets/tex/rug.jpg", 0x27506b, 0.95, 1, 1));
   rug.rotation.x = -Math.PI / 2; rug.position.set(0.1, 0.012, 1.0); rug.receiveShadow = true; scene.add(rug);
-  var wallM = mat(0x38404f, 0.95);
+  var wallM = texMat("assets/tex/wallpaper.jpg", 0x38404f, 0.95, 3.4, 1.3);
+  var wallMSide = texMat("assets/tex/wallpaper.jpg", 0x38404f, 0.95, 2.6, 1.3);
   var back = box(9, 3.4, 0.1, wallM); back.position.set(0, 1.7, -2.6); scene.add(back);
-  var left = box(0.1, 3.4, 7, wallM); left.position.set(-3.6, 1.7, 0); scene.add(left);
-  var right = box(0.1, 3.4, 7, wallM); right.position.set(3.6, 1.7, 0); scene.add(right);
+  var left = box(0.1, 3.4, 7, wallMSide); left.position.set(-3.6, 1.7, 0); scene.add(left);
+  var right = box(0.1, 3.4, 7, wallMSide); right.position.set(3.6, 1.7, 0); scene.add(right);
   var stripe = new THREE.Mesh(new THREE.PlaneGeometry(9, 0.28), mat(0x8a4d5e, 0.95)); // 90s wallpaper border
   stripe.position.set(0, 2.6, -2.54); scene.add(stripe);
   var skirt = new THREE.Mesh(new THREE.PlaneGeometry(9, 0.14), mat(0x2a2019, 0.85));
   skirt.position.set(0, 0.07, -2.54); scene.add(skirt);
 
-  /* ---- window with night rain (back wall, right) -------------------------- */
-  var rainT = canvasTex(256, 320, function (g, w, h) {
-    g.fillStyle = "#0d1626"; g.fillRect(0, 0, w, h);
-    g.strokeStyle = "rgba(180,205,240,0.35)";
-    for (var i = 0; i < 46; i++) { var x = Math.random() * w, y = Math.random() * h; g.beginPath(); g.moveTo(x, y); g.lineTo(x - 3, y + 14 + Math.random() * 10); g.stroke(); }
-    g.fillStyle = "rgba(230,240,255,0.5)"; g.beginPath(); g.arc(w * 0.72, h * 0.2, 16, 0, 7); g.fill();
-  });
-  var winPane = new THREE.Mesh(new THREE.PlaneGeometry(1.4, 1.7), new THREE.MeshBasicMaterial({ map: rainT }));
+  /* ---- window: the street below, behind live rain streaks ------------------ */
+  var winViewM = new THREE.MeshBasicMaterial({ color: 0xb8c2d6 }); // placeholder tint; texture loads over it
+  winViewM.color.setRGB(1.25, 1.25, 1.325); // resting lift — the photo is a dark night shot
+  texLoader.load("assets/tex/window_view.jpg", function (t) { t.anisotropy = 8; winViewM.map = t; winViewM.needsUpdate = true; });
+  var winView = new THREE.Mesh(new THREE.PlaneGeometry(1.4, 1.7), winViewM);
+  winView.position.set(2.35, 1.95, -2.542); scene.add(winView); // must sit in front of the backing box face at z=-2.55
+  var rainT = canvasTex(256, 320, function (g) { g.clearRect(0, 0, 256, 320); });
+  var winPane = new THREE.Mesh(new THREE.PlaneGeometry(1.4, 1.7),
+    new THREE.MeshBasicMaterial({ map: rainT, transparent: true, depthWrite: false }));
   winPane.position.set(2.35, 1.95, -2.53); scene.add(winPane);
-  var winFrame = box(1.6, 1.9, 0.06, mat(0x2a2019, 0.8)); winFrame.position.set(2.35, 1.95, -2.57); scene.add(winFrame);
+  var winFrame = box(1.6, 1.9, 0.06, mat(0x2a2019, 0.8)); winFrame.position.set(2.35, 1.95, -2.58); scene.add(winFrame);
   var winBar = box(0.05, 1.7, 0.07, mat(0x2a2019, 0.8)); winBar.position.set(2.35, 1.95, -2.55); scene.add(winBar);
 
   /* ---- lights ------------------------------------------------------------ */
@@ -439,12 +441,39 @@
   var rainCtx = rainT.image.getContext("2d");
   function drawRain(bright) {
     var g = rainCtx, w = 256, h = 320;
-    g.fillStyle = bright ? "#3a4f78" : "#0d1626"; g.fillRect(0, 0, w, h);
-    g.strokeStyle = "rgba(180,205,240," + (bright ? 0.7 : 0.35) + ")";
-    for (var i = 0; i < 46; i++) { var x = Math.random() * w, y = Math.random() * h; g.beginPath(); g.moveTo(x, y); g.lineTo(x - 3, y + 14 + Math.random() * 10); g.stroke(); }
-    g.fillStyle = "rgba(230,240,255,0.5)"; g.beginPath(); g.arc(w * 0.72, h * 0.2, 16, 0, 7); g.fill();
+    g.clearRect(0, 0, w, h);
+    g.strokeStyle = "rgba(200,220,250," + (bright ? 0.8 : 0.4) + ")";
+    g.lineWidth = 1.4;
+    for (var i = 0; i < 44; i++) { var x = Math.random() * w, y = Math.random() * h; g.beginPath(); g.moveTo(x, y); g.lineTo(x - 3, y + 14 + Math.random() * 10); g.stroke(); }
+    // clinging droplets
+    g.fillStyle = "rgba(210,228,255,0.35)";
+    for (var dnum = 0; dnum < 8; dnum++) { g.beginPath(); g.arc(Math.random() * w, Math.random() * h, 1 + Math.random() * 2, 0, 7); g.fill(); }
     rainT.needsUpdate = true;
   }
+
+  /* ---- THE BED: space comforter, right side ---------------------------------- */
+  var bed = new THREE.Group();
+  var headboard = box(1.05, 0.85, 0.07, woodMSide); headboard.position.set(0, 0.42, -0.98); bed.add(headboard);
+  var footboard = box(1.05, 0.45, 0.06, woodMSide); footboard.position.set(0, 0.22, 0.98); bed.add(footboard);
+  var bedbase = box(1.0, 0.22, 1.95, woodM); bedbase.position.y = 0.22; bed.add(bedbase);
+  var sheetTopM = texMat("assets/tex/bedsheet.jpg", 0x1e2a52, 0.95, 1, 1.8);
+  var sheetSideM = mat(0x1e2a52, 0.95);
+  var comforter = new THREE.Mesh(new THREE.BoxGeometry(1.04, 0.2, 1.6),
+    [sheetSideM, sheetSideM, sheetTopM, sheetSideM, sheetSideM, sheetSideM]);
+  comforter.position.set(0, 0.43, 0.14); comforter.castShadow = comforter.receiveShadow = true; bed.add(comforter);
+  var pillow = box(0.62, 0.14, 0.34, mat(0xe8e4da, 0.95)); pillow.position.set(0, 0.42, -0.68); pillow.rotation.x = -0.08; bed.add(pillow);
+  bed.position.set(2.9, 0, 1.35); bed.rotation.y = -0.06; scene.add(bed);
+
+  /* ---- THE SOLAR SYSTEM POSTER (left wall, above the desk) -------------------- */
+  var posterM = new THREE.MeshStandardMaterial({ color: 0x2a3040, roughness: 0.9 });
+  texLoader.load("assets/tex/solar_poster.png", function (t) { t.anisotropy = 8; posterM.map = t; posterM.color.set(0xffffff); posterM.needsUpdate = true; });
+  var solar = new THREE.Mesh(new THREE.PlaneGeometry(0.78, 1.04), posterM);
+  solar.position.set(-3.54, 2.1, -0.55); solar.rotation.y = Math.PI / 2; solar.rotation.z = 0.015;
+  scene.add(solar);
+
+  /* ---- the TV flips between static and Saturday cartoons ---------------------- */
+  var cartoonT = null, tvCartoon = false, tvFlip = 6 + Math.random() * 6;
+  texLoader.load("assets/tex/tv_cartoon.png", function (t) { t.anisotropy = 4; cartoonT = t; });
 
   /* ---- the notebook panel (DOM): reads the sibling games' saves ------------- */
   function readSave(key, fn) {
@@ -509,7 +538,18 @@
     camera.position.x += ((mouse.x * 0.5) - camera.position.x) * 0.04;
     camera.position.y += ((1.7 + mouse.y * 0.22) - camera.position.y) * 0.04;
     camera.lookAt(lookAt);
-    if ((frameCount++ & 3) === 0) { // TV static flicker
+    // the TV surfs between dead air and Saturday cartoons
+    tvFlip -= dt;
+    if (tvFlip <= 0 && cartoonT) {
+      tvCartoon = !tvCartoon;
+      screen.material.map = tvCartoon ? cartoonT : staticT;
+      screen.material.needsUpdate = true;
+      crtLight.color.set(tvCartoon ? 0xffd9a0 : 0x7db4ff);
+      tvFlip = tvCartoon ? 9 + Math.random() * 8 : 3 + Math.random() * 4;
+    }
+    if (tvCartoon) {
+      crtLight.intensity = 0.72 + 0.08 * Math.sin(t * 9);
+    } else if ((frameCount & 3) === 0) { // static flicker
       var d = staticCtx.createImageData(128, 96);
       for (var i = 0; i < d.data.length; i += 4) {
         var v = (Math.random() * 255) | 0;
@@ -519,6 +559,7 @@
       staticT.needsUpdate = true;
       crtLight.intensity = 0.5 + Math.random() * 0.35;
     }
+    frameCount++;
     // lava blobs rise and fall, slow and thick
     if (lavaOn) for (var lb = 0; lb < blobs.length; lb++) {
       var b = blobs[lb], ph = t * b.userData.speed + b.userData.phase;
@@ -552,6 +593,8 @@
     if (flash > 0.01) {
       flash *= Math.pow(0.02, dt); // fast decay
       moon.intensity = 0.4 + flash * 2.2;
+      var wv = 1.25 + flash * 1.5; // photo is a dark night shot — lift it so the streetlamp reads
+      winViewM.color.setRGB(wv, wv, wv * 1.06);
       if ((frameCount & 1) === 0) drawRain(flash > 0.25);
     } else if ((frameCount % 6) === 0) drawRain(false);
     var o = pickAt();
