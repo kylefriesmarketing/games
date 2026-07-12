@@ -149,8 +149,10 @@ a.game,.foot a{touch-action:manipulation;-webkit-tap-highlight-color:transparent
   </div>
 </div>
 
-<script src="https://unpkg.com/three@0.160.0/build/three.min.js"></script>
-<script src="js/room.js"></script>
+<script type="importmap">
+{ "imports": { "three": "./assets/lib/three.module.js", "three/addons/": "./assets/lib/jsm/" } }
+</script>
+<script type="module" src="js/room.js"></script>
 <script>
 document.getElementById("list-toggle").addEventListener("click", function(){ document.body.classList.add("listing"); });
 document.getElementById("room-return").addEventListener("click", function(e){ e.preventDefault(); document.body.classList.remove("listing"); });

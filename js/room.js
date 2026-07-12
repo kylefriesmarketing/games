@@ -4,11 +4,14 @@
  * chest holds the RTS, the brain on the desk is Brainrot Inc, the beige PC is
  * Chameleon 3D, the TV is the channel guide (list view), and the notebook
  * knows your progress across every game on this origin.
- * Three.js primitives + generated textures — no model files, no build step.
+ * Three.js primitives + generated textures + a few generated GLB hero props.
+ * ES module: three + loaders resolve via the importmap in index.html.
  * ========================================================================== */
-(function () {
-  if (!window.THREE) { document.body.classList.add("no3d"); return; }
+import * as THREE from "three";
+import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
+import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
 
+(function () {
   var renderer;
   try {
     renderer = new THREE.WebGLRenderer({ antialias: true });
@@ -48,6 +51,29 @@
   }
   var woodM = texMat("assets/tex/wood.jpg", 0x8a6a42, 0.75, 1, 1);
   var woodMSide = texMat("assets/tex/wood.jpg", 0x8a6a42, 0.75, 0.35, 1);
+
+  /* ---- generated GLB hero props --------------------------------------------- */
+  var dracoL = new DRACOLoader(); dracoL.setDecoderPath("assets/lib/draco/");
+  var gltfL = new GLTFLoader(); gltfL.setDRACOLoader(dracoL);
+  // Load a GLB, scale it to height h, sit its base at local y=0, place at (x,y,z).
+  function prop(url, h, x, y, z, rotY, onReady) {
+    gltfL.load(url, function (g) {
+      var root = g.scene;
+      root.traverse(function (o) { if (o.isMesh) { o.castShadow = o.receiveShadow = true; } });
+      var bb = new THREE.Box3().setFromObject(root);
+      var size = bb.getSize(new THREE.Vector3());
+      var s = h / (size.y || 1);
+      root.scale.setScalar(s);
+      bb.setFromObject(root);
+      var ctr = bb.getCenter(new THREE.Vector3());
+      root.position.set(-ctr.x, -bb.min.y, -ctr.z);
+      var wrap = new THREE.Group();
+      wrap.add(root);
+      wrap.position.set(x, y, z); wrap.rotation.y = rotY || 0;
+      scene.add(wrap);
+      if (onReady) onReady(wrap, root);
+    });
+  }
 
   /* ---- the room shell ---------------------------------------------------- */
   var floorM = texMat("assets/tex/carpet.jpg", 0x6b5a48, 0.98, 4, 3);
@@ -417,17 +443,107 @@
     var hp = ac.createBiquadFilter(); hp.type = "highpass"; hp.frequency.value = 300;
     var rg = ac.createGain(); rg.gain.value = 0.05;
     rain.connect(lp); lp.connect(hp); hp.connect(rg); rg.connect(master); rain.start();
-    // pad: two detuned triangles under a slow filter
-    var padF = ac.createBiquadFilter(); padF.type = "lowpass"; padF.frequency.value = 420;
-    var pg = ac.createGain(); pg.gain.value = 0.035; padF.connect(pg); pg.connect(master);
-    [110, 110.6, 165].forEach(function (f) {
-      var o = ac.createOscillator(); o.type = "triangle"; o.frequency.value = f;
-      var og = ac.createGain(); og.gain.value = 0.33; o.connect(og); og.connect(padF); o.start();
+    // the tape: an 8-bar lofi loop rendered offline once, then looped forever
+    renderTune(ac.sampleRate, function (buf) {
+      var tape = ac.createBufferSource(); tape.buffer = buf; tape.loop = true;
+      var tg = ac.createGain(); tg.gain.value = 0.42;
+      tape.connect(tg); tg.connect(master); tape.start();
     });
-    var lfo = ac.createOscillator(); lfo.frequency.value = 0.06;
-    var lfoG = ac.createGain(); lfoG.gain.value = 180;
-    lfo.connect(lfoG); lfoG.connect(padF.frequency); lfo.start();
     acNodes = { master: master };
+  }
+  // Composes the boombox tape: 72bpm swung lofi, Dm7-G7-Cmaj7-Am7, two bars each.
+  function renderTune(sampleRate, done) {
+    var beat = 60 / 72, bar = beat * 4, lenS = bar * 8;
+    var oc = new OfflineAudioContext(2, Math.ceil(lenS * sampleRate), sampleRate);
+    var warm = oc.createBiquadFilter(); warm.type = "lowpass"; warm.frequency.value = 3800;
+    var out = oc.createGain(); out.gain.value = 0.9;
+    out.connect(warm); warm.connect(oc.destination);
+    function env(g, t, a, peak, d) {
+      g.gain.setValueAtTime(0, t);
+      g.gain.linearRampToValueAtTime(peak, t + a);
+      g.gain.exponentialRampToValueAtTime(0.001, t + a + d);
+    }
+    function tone(f, t, dur, peak, type, pan) { // EP-ish: fundamental + soft octave shimmer
+      var o = oc.createOscillator(); o.type = type || "sine"; o.frequency.value = f;
+      var o2 = oc.createOscillator(); o2.frequency.value = f * 2.003;
+      var g = oc.createGain(), g2 = oc.createGain();
+      var p = oc.createStereoPanner(); p.pan.value = pan || 0; p.connect(out);
+      env(g, t, 0.012, peak, dur); env(g2, t, 0.012, peak * 0.28, dur * 0.6);
+      o.connect(g); g.connect(p); o2.connect(g2); g2.connect(p);
+      o.start(t); o.stop(t + dur + 0.2); o2.start(t); o2.stop(t + dur + 0.2);
+    }
+    function noiseSrc(dur) {
+      var b = oc.createBuffer(1, Math.ceil(dur * sampleRate), sampleRate), d = b.getChannelData(0);
+      for (var i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
+      var s = oc.createBufferSource(); s.buffer = b; return s;
+    }
+    function kick(t) {
+      var o = oc.createOscillator(); o.frequency.setValueAtTime(140, t);
+      o.frequency.exponentialRampToValueAtTime(48, t + 0.11);
+      var g = oc.createGain(); env(g, t, 0.004, 0.5, 0.22);
+      o.connect(g); g.connect(out); o.start(t); o.stop(t + 0.4);
+    }
+    function snare(t) {
+      var n = noiseSrc(0.16);
+      var f = oc.createBiquadFilter(); f.type = "bandpass"; f.frequency.value = 1900; f.Q.value = 0.8;
+      var g = oc.createGain(); env(g, t, 0.002, 0.16, 0.13);
+      n.connect(f); f.connect(g); g.connect(out); n.start(t);
+      var o = oc.createOscillator(); o.frequency.value = 185;
+      var og = oc.createGain(); env(og, t, 0.002, 0.1, 0.08);
+      o.connect(og); og.connect(out); o.start(t); o.stop(t + 0.2);
+    }
+    function hat(t, loud) {
+      var n = noiseSrc(0.05);
+      var f = oc.createBiquadFilter(); f.type = "highpass"; f.frequency.value = 7200;
+      var g = oc.createGain(); env(g, t, 0.001, loud ? 0.05 : 0.028, 0.035);
+      n.connect(f); f.connect(g); g.connect(out); n.start(t);
+    }
+    (function vinyl() { // sparse crackle across the whole tape
+      var b = oc.createBuffer(1, Math.ceil(lenS * sampleRate), sampleRate), d = b.getChannelData(0);
+      for (var i = 0; i < d.length; i++) if (Math.random() < 0.00012) d[i] = (Math.random() * 2 - 1) * 0.6;
+      var s = oc.createBufferSource(); s.buffer = b;
+      var f = oc.createBiquadFilter(); f.type = "lowpass"; f.frequency.value = 5200;
+      var g = oc.createGain(); g.gain.value = 0.5;
+      s.connect(f); f.connect(g); g.connect(out); s.start(0);
+    })();
+    var N = { A1: 55, C2: 65.41, D2: 73.42, G2: 98, A2: 110,
+              C3: 130.81, D3: 146.83, E3: 164.81, F3: 174.61, G3: 196, A3: 220, B3: 246.94,
+              C4: 261.63, D4: 293.66, E4: 329.63, G4: 392, A4: 440 };
+    var chords = [
+      { b: N.D2, v: [N.D3, N.F3, N.A3, N.C4] },  // Dm7
+      { b: N.G2, v: [N.D3, N.F3, N.G3, N.B3] },  // G7
+      { b: N.C2, v: [N.C3, N.E3, N.G3, N.B3] },  // Cmaj7
+      { b: N.A1, v: [N.A2, N.C3, N.E3, N.G3] }   // Am7
+    ];
+    var sw = beat * 0.08; // the swing push
+    chords.forEach(function (ch, c) {
+      var t0 = c * bar * 2;
+      ch.v.forEach(function (f, vi) { // rolled chord on the one, softer answer mid-phrase
+        var pan = (vi - 1.5) * 0.22;
+        tone(f, t0 + 0.001 + vi * 0.014, 2.4, 0.075, "sine", pan);
+        tone(f, t0 + bar + beat * 1.5 + sw + vi * 0.01, 1.6, 0.05, "sine", pan);
+      });
+      [0, beat * 2, bar, bar + beat * 2].forEach(function (bt, i) { // bass on 1 and 3
+        tone(ch.b, t0 + bt + 0.001, i % 2 ? 0.5 : 0.7, 0.17, "sine", 0);
+      });
+      for (var b2 = 0; b2 < 2; b2++) {
+        var bt0 = t0 + b2 * bar;
+        kick(bt0); kick(bt0 + beat * 2);
+        if (b2 === 1 && c === 3) kick(bt0 + beat * 3.5 + sw); // fill into the loop seam
+        snare(bt0 + beat); snare(bt0 + beat * 3);
+        for (var e = 0; e < 8; e++) hat(bt0 + e * beat * 0.5 + (e % 2 ? sw : 0), e % 4 === 0);
+      }
+    });
+    [ // the melody drifts in for the back half
+      { t: bar * 4 + beat * 0.5 + sw, f: N.E4, d: 0.9 },
+      { t: bar * 4 + beat * 2, f: N.D4, d: 1.4 },
+      { t: bar * 5 + beat * 1.5 + sw, f: N.B3, d: 1.1 },
+      { t: bar * 6 + beat * 0.5 + sw, f: N.G4, d: 0.8 },
+      { t: bar * 6 + beat * 2, f: N.E4, d: 1.6 },
+      { t: bar * 7 + beat * 1.5 + sw, f: N.A4, d: 0.7 },
+      { t: bar * 7 + beat * 2.5 + sw, f: N.G4, d: 1.8 }
+    ].forEach(function (m) { tone(m.f, m.t, m.d, 0.055, "triangle", 0.15); });
+    oc.startRendering().then(done);
   }
   function rumble() { // thunder, if the box is on
     if (!ac || !audioOn) return;
@@ -447,7 +563,7 @@
       audioOn = !audioOn;
       if (audioOn) { ac.resume(); powerLED.material.color.set(0xff3b30); }
       else { ac.suspend(); powerLED.material.color.set(0x552222); }
-    }, "the boombox — rain and low songs");
+    }, "the boombox — a lofi tape and the rain");
   });
   boom.position.set(-0.95, 0, 1.6); boom.rotation.y = 0.4; scene.add(boom);
 
@@ -489,6 +605,21 @@
   comforter.position.set(0, 0.43, 0.14); comforter.castShadow = comforter.receiveShadow = true; bed.add(comforter);
   var pillow = box(0.62, 0.14, 0.34, mat(0xe8e4da, 0.95)); pillow.position.set(0, 0.42, -0.68); pillow.rotation.x = -0.08; bed.add(pillow);
   bed.position.set(2.93, 0, 1.0); bed.rotation.y = -0.09; scene.add(bed); // deep enough to sit inside the frame
+
+  /* ---- generated hero props: the clutter that makes it a real room ----------- */
+  function propTip(name, hint) {
+    return function (wrap) { wrap.traverse(function (o) { if (o.isMesh) clickable(o, name, null, hint); }); };
+  }
+  prop("assets/props/bean.glb", 0.62, -2.05, 0, 1.2, 0.95,
+    propTip("the beanbag", "the beanbag — best seat in the house"));
+  prop("assets/props/trex.glb", 0.3, 1.05, 0, 0.72, -0.55,
+    propTip("rex", "rex — he guards the toy chest"));
+  prop("assets/props/skate.glb", 0.78, -3.42, 0, 0.55, 1.45, function (wrap) {
+    wrap.rotateOnWorldAxis(new THREE.Vector3(0, 0, 1), 0.14); // top leans into the left wall
+    propTip("the skateboard", "the skateboard — one day, the driveway")(wrap);
+  });
+  prop("assets/props/globe.glb", 0.36, -2.95, 0.815, -1.08, -0.3,
+    propTip("the globe", "the globe — somewhere better, probably"));
 
   /* ---- THE SOLAR SYSTEM POSTER (back wall, between shelf and window) ---------- */
   var posterM = new THREE.MeshStandardMaterial({ color: 0x2a3040, roughness: 0.9 });
@@ -645,5 +776,5 @@
   scene.updateMatrixWorld(true);
   renderer.render(scene, camera);
   tick();
-  window.__room = { scene: scene, camera: camera, pick: pick, ray: ray }; // debug hook
+  window.__room = { scene: scene, camera: camera, pick: pick, ray: ray, THREE: THREE }; // debug hook (THREE: modules hide the global)
 })();
