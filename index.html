@@ -3,30 +3,69 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>THE SHELF — games by Kyle Fries</title>
-<meta name="description" content="Branching-story games: SOUTH, Still Breathing, Nine Circles, Choose Wisely.">
+<title>THE ROOM — games by Kyle Fries</title>
+<meta name="description" content="A 90s bedroom you can click. The bookshelf holds the stories, the toy chest holds the RTS, the notebook knows your progress. Every object is a doorway.">
 <meta name="theme-color" content="#05070a">
 <meta property="og:type" content="website">
-<meta property="og:title" content="THE SHELF — four ways to lose yourself">
-<meta property="og:description" content="Free browser games, all story and consequence: a polar epic where the win is everyone, a survival thriller built from true ordeals, a descent through Dante's Hell, and a shop that remembers you.">
+<meta property="og:title" content="THE ROOM — every object is a doorway">
+<meta property="og:description" content="A clickable 3D 90s bedroom: four branching stories on the bookshelf, an RTS in the toy chest, a CRT humming with what's coming. Free, in your browser.">
 <meta property="og:url" content="https://kylefriesmarketing.github.io/games/">
 <meta property="og:image" content="https://kylefriesmarketing.github.io/games/assets/og.jpg">
 <meta property="og:image:width" content="1200">
 <meta property="og:image:height" content="630">
 <meta name="twitter:card" content="summary_large_image">
-<meta name="twitter:title" content="THE SHELF — four ways to lose yourself">
-<meta name="twitter:description" content="Free browser games, all story and consequence: a polar epic where the win is everyone, a survival thriller built from true ordeals, a descent through Dante's Hell, and a shop that remembers you.">
+<meta name="twitter:title" content="THE ROOM — every object is a doorway">
+<meta name="twitter:description" content="A clickable 3D 90s bedroom: four branching stories on the bookshelf, an RTS in the toy chest, a CRT humming with what's coming.">
 <meta name="twitter:image" content="https://kylefriesmarketing.github.io/games/assets/og.jpg">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect x='4' y='6' width='24' height='3' fill='%23c9a35c'/%3E%3Crect x='4' y='14' width='24' height='3' fill='%23e6603a'/%3E%3Crect x='4' y='22' width='24' height='3' fill='%238fb8d6'/%3E%3C/svg%3E">
 <style>
 :root{--ink:#05070a;--bone:#e7e3d8;--dim:#a9a99c;--faint:#5f6a72;--line:#1d2833}
 *{box-sizing:border-box;margin:0;padding:0}
-body{background:var(--ink);color:var(--bone);min-height:100vh;
-  font-family:"Iowan Old Style","Palatino Linotype",Palatino,Georgia,serif;
-  display:flex;flex-direction:column;align-items:center;padding:8vh 20px 60px}
+html,body{height:100%}
+body{background:var(--ink);color:var(--bone);overflow:hidden;
+  font-family:"Iowan Old Style","Palatino Linotype",Palatino,Georgia,serif}
+
+/* ---- the 3D room ---- */
+#room{position:fixed;inset:0}
+#room canvas{display:block}
+.hud{position:fixed;top:18px;left:22px;z-index:5;pointer-events:none}
+.hud .eyebrow{font-family:"Inter","Segoe UI",system-ui,sans-serif;font-size:10px;
+  letter-spacing:.3em;text-transform:uppercase;color:var(--faint)}
+.hud h1{font-family:"Inter","Segoe UI",system-ui,sans-serif;font-weight:800;
+  font-size:26px;letter-spacing:.06em;margin-top:4px;text-shadow:0 2px 12px rgba(0,0,0,.7)}
+.hud .hint{font-size:12px;color:var(--dim);font-style:italic;margin-top:4px}
+#list-toggle{position:fixed;top:22px;right:22px;z-index:6;font-family:"Inter",sans-serif;
+  font-size:10px;letter-spacing:.16em;text-transform:uppercase;color:var(--dim);
+  background:rgba(10,14,20,.6);border:1px solid var(--line);border-radius:6px;
+  padding:8px 12px;cursor:pointer}
+#list-toggle:hover{color:var(--bone);border-color:var(--dim)}
+#tip{position:fixed;z-index:7;transform:translate(-50%,-100%);pointer-events:none;
+  font-family:"Inter",sans-serif;font-size:12px;letter-spacing:.04em;color:var(--bone);
+  background:rgba(8,12,18,.88);border:1px solid var(--line);border-radius:6px;
+  padding:7px 11px;opacity:0;transition:opacity .18s;white-space:nowrap}
+#tip.show{opacity:1}
+
+/* ---- the notebook panel ---- */
+#notebook{position:fixed;inset:0;z-index:20;display:none;align-items:center;justify-content:center;
+  background:rgba(5,7,10,.72)}
+#notebook.open{display:flex}
+.nb-card{width:min(420px,92vw);background:#efe6d0;color:#3a2e20;border-radius:4px;
+  padding:26px 28px;box-shadow:0 30px 80px rgba(0,0,0,.6);transform:rotate(-.6deg)}
+.nb-card h2{font-size:18px;letter-spacing:.08em;margin-bottom:14px;border-bottom:1px dashed #b7a888;padding-bottom:8px}
+.nb-row{display:flex;justify-content:space-between;gap:14px;padding:7px 0;font-size:15px;border-bottom:1px dotted #cfc0a0}
+.nb-row b{font-family:"Inter",sans-serif;font-size:12.5px;letter-spacing:.03em}
+#nb-close{margin-top:16px;font-family:"Inter",sans-serif;font-size:11px;letter-spacing:.14em;
+  text-transform:uppercase;background:none;border:1px solid #b7a888;border-radius:5px;
+  padding:8px 14px;cursor:pointer;color:#5a4632}
+
+/* ---- fallback / list view (the old shelf) ---- */
+#shelf-view{display:none;position:fixed;inset:0;z-index:15;overflow-y:auto;background:var(--ink);
+  flex-direction:column;align-items:center;padding:8vh 20px calc(60px + env(safe-area-inset-bottom,0px))}
+body.no3d #shelf-view,body.listing #shelf-view{display:flex}
+body.no3d #room,body.no3d .hud,body.no3d #list-toggle{display:none}
 .eyebrow{font-family:"Inter","Segoe UI",system-ui,sans-serif;font-size:11px;
   letter-spacing:.3em;text-transform:uppercase;color:var(--faint)}
-h1{font-family:"Inter","Segoe UI",system-ui,sans-serif;font-weight:800;
+#shelf-view h1{font-family:"Inter","Segoe UI",system-ui,sans-serif;font-weight:800;
   font-size:clamp(30px,6vw,52px);letter-spacing:.04em;margin:10px 0 6px}
 .sub{color:var(--dim);font-style:italic;margin-bottom:6vh;text-align:center;max-width:520px;line-height:1.6}
 .shelf{display:flex;flex-direction:column;gap:16px;width:min(680px,100%)}
@@ -40,47 +79,81 @@ a.game:hover{transform:translateY(-2px);border-color:var(--acc);
 .g-tag{font-family:"Inter","Segoe UI",system-ui,sans-serif;font-size:10.5px;letter-spacing:.14em;
   text-transform:uppercase;color:var(--acc);margin:2px 0 6px}
 .g-hook{font-size:14.5px;color:var(--dim);line-height:1.5}
-.new{font-family:"Inter",sans-serif;font-size:9.5px;font-weight:700;letter-spacing:.12em;color:#05070a;
-  background:var(--acc);border-radius:3px;padding:2px 7px;margin-left:10px;vertical-align:2px}
 .foot{margin-top:7vh;font-family:"Inter",sans-serif;font-size:11px;color:var(--faint);letter-spacing:.06em}
 .foot a{color:var(--dim)}
 a.game,.foot a{touch-action:manipulation;-webkit-tap-highlight-color:transparent}
-body{padding-bottom:calc(60px + env(safe-area-inset-bottom,0px))}
 @media (prefers-reduced-motion: reduce){ a.game{transition:none} a.game:hover{transform:none} }
 </style>
 </head>
 <body>
-<div class="eyebrow">four ways to lose yourself</div>
-<h1>THE SHELF</h1>
-<p class="sub">Branching stories. Everything here runs in your browser — no installs, no accounts, nothing but choices and their consequences.</p>
 
-<div class="shelf">
-  <a class="game" style="--acc:#e0a84a" href="https://kylefriesmarketing.github.io/south/">
-    <svg class="emb" viewBox="0 0 24 24" fill="none" stroke="#e0a84a" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v15M12 18c-3 0-5.5 1-7 3h14c-1.5-2-4-3-7-3Z"/><path d="M12 5l6 5H6Z" fill="#e0a84a" stroke="none" opacity=".85"/><path d="M6 13h12"/></svg>
-    <div><div class="g-name">SOUTH<span class="new">NEW</span></div>
-    <div class="g-tag">polar epic · antarctica 1915 · you are the boss</div>
-    <div class="g-hook">The ship is crushed, the ice is drifting, and twenty-seven men are reading your face to learn whether they live. The only true ending is all of them.</div></div>
-  </a>
-  <a class="game" style="--acc:#e6603a" href="https://kylefriesmarketing.github.io/still-breathing/">
-    <svg class="emb" viewBox="0 0 24 24" fill="none" stroke="#e6603a" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3c-1.1 3-2.6 4.7-3.9 6.4C6.8 11.1 6 12.7 6 14.5 6 18 8.7 20.5 12 20.5s6-2.5 6-6c0-1.8-.8-3.4-2.1-5.1C14.6 7.7 13.1 6 12 3Z"/><path d="M12 12.6c-1.5 1.2-2.3 2.3-2.3 3.5 0 1.4 1 2.4 2.3 2.4s2.3-1 2.3-2.4c0-1.2-.8-2.3-2.3-3.5Z" fill="#e6603a" stroke="none"/></svg>
-    <div><div class="g-name">STILL BREATHING</div>
-    <div class="g-tag">survival thriller · six true ordeals</div>
-    <div class="g-hook">A plane down in the white. A raft on the whole Atlantic. A boulder, a lost trail, a cut rope, a desert. Every deadly choice is a real survival myth — grounded in the ones who came back.</div></div>
-  </a>
-  <a class="game" style="--acc:#c9a35c" href="https://kylefriesmarketing.github.io/nine-circles/">
-    <svg class="emb" viewBox="0 0 24 24" fill="none" stroke="#c9a35c" stroke-width="1.4"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5.5"/><circle cx="12" cy="12" r="1.8" fill="#c9a35c" stroke="none"/></svg>
-    <div><div class="g-name">NINE CIRCLES</div>
-    <div class="g-tag">a descent · after Dante</div>
-    <div class="g-hook">Walk down through Hell with a dead poet. Carry three names. Keep the star lit. Feel it, and walk on.</div></div>
-  </a>
-  <a class="game" style="--acc:#8fb8d6" href="https://kylefriesmarketing.github.io/choose-wisely/">
-    <svg class="emb" viewBox="0 0 24 24" fill="none" stroke="#8fb8d6" stroke-width="1.6" stroke-linecap="round"><path d="M5 21V7l7-4 7 4v14"/><path d="M9 21v-6h6v6"/><circle cx="12" cy="10" r="1.4" fill="#8fb8d6" stroke="none"/></svg>
-    <div><div class="g-name">CHOOSE WISELY</div>
-    <div class="g-tag">branching storybook · the shop remembers</div>
-    <div class="g-hook">A corner shop with five aisles and forty-one endings. Bring your friend home. The shop remembers you between visits — and it lies at high haunt.</div></div>
-  </a>
+<!-- ===== THE 3D ROOM ===== -->
+<div id="room" aria-hidden="true"></div>
+<div class="hud">
+  <div class="eyebrow">every object is a doorway</div>
+  <h1>THE ROOM</h1>
+  <div class="hint">click the books · the chest · the notebook · the lamp</div>
+</div>
+<button id="list-toggle" type="button">list view</button>
+<div id="tip"></div>
+
+<!-- the notebook: your progress across every game (same-origin saves) -->
+<div id="notebook">
+  <div class="nb-card">
+    <h2>what i finished</h2>
+    <div class="nb-body"></div>
+    <button id="nb-close" type="button">put it back</button>
+  </div>
 </div>
 
-<div class="foot">made with stubbornness · <a href="https://github.com/kylefriesmarketing">github</a></div>
+<!-- ===== LIST VIEW / NO-WEBGL FALLBACK (the old shelf) ===== -->
+<div id="shelf-view">
+  <div class="eyebrow">five ways to lose yourself</div>
+  <h1>THE SHELF</h1>
+  <p class="sub">Branching stories and one toybox war. Everything here runs in your browser — no installs, no accounts, nothing but choices and their consequences.</p>
+  <div class="shelf">
+    <a class="game" style="--acc:#e0a84a" href="https://kylefriesmarketing.github.io/south/">
+      <svg class="emb" viewBox="0 0 24 24" fill="none" stroke="#e0a84a" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v15M12 18c-3 0-5.5 1-7 3h14c-1.5-2-4-3-7-3Z"/><path d="M12 5l6 5H6Z" fill="#e0a84a" stroke="none" opacity=".85"/><path d="M6 13h12"/></svg>
+      <div><div class="g-name">SOUTH</div>
+      <div class="g-tag">polar epic · antarctica 1915 · you are the boss</div>
+      <div class="g-hook">The ship is crushed, the ice is drifting, and twenty-seven men are reading your face to learn whether they live. The only true ending is all of them.</div></div>
+    </a>
+    <a class="game" style="--acc:#e6603a" href="https://kylefriesmarketing.github.io/still-breathing/">
+      <svg class="emb" viewBox="0 0 24 24" fill="none" stroke="#e6603a" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3c-1.1 3-2.6 4.7-3.9 6.4C6.8 11.1 6 12.7 6 14.5 6 18 8.7 20.5 12 20.5s6-2.5 6-6c0-1.8-.8-3.4-2.1-5.1C14.6 7.7 13.1 6 12 3Z"/><path d="M12 12.6c-1.5 1.2-2.3 2.3-2.3 3.5 0 1.4 1 2.4 2.3 2.4s2.3-1 2.3-2.4c0-1.2-.8-2.3-2.3-3.5Z" fill="#e6603a" stroke="none"/></svg>
+      <div><div class="g-name">STILL BREATHING</div>
+      <div class="g-tag">survival thriller · six true ordeals</div>
+      <div class="g-hook">A plane down in the white. A raft on the whole Atlantic. A boulder, a lost trail, a cut rope, a desert. Every deadly choice is a real survival myth — grounded in the ones who came back.</div></div>
+    </a>
+    <a class="game" style="--acc:#c9a35c" href="https://kylefriesmarketing.github.io/nine-circles/">
+      <svg class="emb" viewBox="0 0 24 24" fill="none" stroke="#c9a35c" stroke-width="1.4"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5.5"/><circle cx="12" cy="12" r="1.8" fill="#c9a35c" stroke="none"/></svg>
+      <div><div class="g-name">NINE CIRCLES</div>
+      <div class="g-tag">a descent · after Dante</div>
+      <div class="g-hook">Walk down through Hell with a dead poet. Carry three names. Keep the star lit. Feel it, and walk on.</div></div>
+    </a>
+    <a class="game" style="--acc:#8fb8d6" href="https://kylefriesmarketing.github.io/choose-wisely/">
+      <svg class="emb" viewBox="0 0 24 24" fill="none" stroke="#8fb8d6" stroke-width="1.6" stroke-linecap="round"><path d="M5 21V7l7-4 7 4v14"/><path d="M9 21v-6h6v6"/><circle cx="12" cy="10" r="1.4" fill="#8fb8d6" stroke="none"/></svg>
+      <div><div class="g-name">CHOOSE WISELY</div>
+      <div class="g-tag">branching storybook · the shop remembers</div>
+      <div class="g-hook">A corner shop where every gift takes something back. Fifty-six endings. The shop remembers you between visits — and it lies at high haunt.</div></div>
+    </a>
+    <a class="game" style="--acc:#7be08a" href="https://kylefriesmarketing.github.io/toybox-tactics/">
+      <svg class="emb" viewBox="0 0 24 24" fill="none" stroke="#7be08a" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="10" width="16" height="10" rx="1.5"/><path d="M4 13h16M9 10V7a3 3 0 0 1 6 0v3"/></svg>
+      <div><div class="g-name">AGE OF TOYS</div>
+      <div class="g-tag">real-time strategy · the toybox war</div>
+      <div class="g-hook">Nine maps, plastic armies, and a bathtub naval theatre. The floor is the front line.</div></div>
+    </a>
+  </div>
+  <div class="foot">
+    coming soon: BRAINROT INC · CHAMELEON 3D &nbsp;·&nbsp;
+    <a href="#" id="room-return">back to the room</a>
+  </div>
+</div>
+
+<script src="https://unpkg.com/three@0.160.0/build/three.min.js"></script>
+<script src="js/room.js"></script>
+<script>
+document.getElementById("list-toggle").addEventListener("click", function(){ document.body.classList.add("listing"); });
+document.getElementById("room-return").addEventListener("click", function(e){ e.preventDefault(); document.body.classList.remove("listing"); });
+</script>
 </body>
 </html>
