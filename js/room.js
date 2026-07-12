@@ -60,6 +60,7 @@ import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
   /* ---- generated GLB hero props --------------------------------------------- */
   var dracoL = new DRACOLoader(); dracoL.setDecoderPath("assets/lib/draco/");
   var gltfL = new GLTFLoader(); gltfL.setDRACOLoader(dracoL);
+  var mixers = []; // AnimationMixers for rigged props, stepped in tick()
   // Load a GLB, scale it to height h, sit its base at local y=0, place at (x,y,z).
   function prop(url, h, x, y, z, rotY, onReady) {
     gltfL.load(url, function (g) {
@@ -76,6 +77,11 @@ import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
       wrap.add(root);
       wrap.position.set(x, y, z); wrap.rotation.y = rotY || 0;
       scene.add(wrap);
+      if (g.animations && g.animations.length) {
+        var mx = new THREE.AnimationMixer(root);
+        mx.clipAction(g.animations[0]).play();
+        mixers.push(mx);
+      }
       if (onReady) onReady(wrap, root);
     });
   }
@@ -667,6 +673,27 @@ import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
   });
   prop("assets/props/globe.glb", 0.36, -2.26, 0.815, -0.75, -0.3, // desk-local (0, 0.10) — verified on the rotated slab
     propTip("the globe", "the globe — somewhere better, probably"));
+  var robotWrap = null, robotAng = 0; // he patrols the rug, forever
+  prop("assets/props/robot.glb", 0.42, 0.1 + Math.sin(0) * 0.9, 0, 1.0 + Math.cos(0) * 0.9, Math.PI / 2, function (wrap) {
+    robotWrap = wrap;
+    propTip("the robot", "the robot — wound up in 1994, still going")(wrap);
+  });
+
+  /* ---- coming-soon posters, not hung yet (leaning under the window) ----------- */
+  function leaningPoster(tex, x, z, rotY, name, hint) {
+    var g = new THREE.Group();
+    var backing = box(0.56, 0.82, 0.02, mat(0xe8e2d4, 0.9)); backing.position.y = 0.41; g.add(backing);
+    var m = new THREE.MeshStandardMaterial({ color: 0x333944, roughness: 0.85 });
+    texLoader.load(tex, function (t) { t.anisotropy = 8; m.map = t; m.color.set(0xffffff); m.needsUpdate = true; });
+    var art = new THREE.Mesh(new THREE.PlaneGeometry(0.52, 0.78), m);
+    art.position.set(0, 0.41, 0.012); g.add(art);
+    g.position.set(x, 0, z); g.rotation.y = rotY;
+    g.rotateOnAxis(new THREE.Vector3(1, 0, 0), -0.1); // leans back on the wall
+    scene.add(g);
+    [backing, art].forEach(function (mm) { clickable(mm, name, null, hint); });
+  }
+  leaningPoster("assets/tex/poster_brainrot.jpg", 1.25, -2.42, 0.12, "BRAINROT INC", "BRAINROT INC — coming to the room"); // left of the window; the TV hides the right corner
+  leaningPoster("assets/tex/poster_c3d.jpg", 2.86, -2.38, -0.1, "CHAMELEON 3D", "CHAMELEON 3D — coming to the room");
 
   /* ---- THE SOLAR SYSTEM POSTER (back wall, between shelf and window) ---------- */
   var posterM = new THREE.MeshStandardMaterial({ color: 0x2a3040, roughness: 0.9 });
@@ -777,6 +804,13 @@ import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
       b.scale.set(1 / Math.sqrt(sq), sq, 1 / Math.sqrt(sq));
     }
     fanBlades.rotation.y += dt * 2.1;
+    for (var mi = 0; mi < mixers.length; mi++) mixers[mi].update(dt);
+    if (robotWrap) { // wind-up tin robot: circles the rug with a little waddle-rock
+      robotAng += dt * 0.32;
+      robotWrap.position.set(0.1 + Math.sin(robotAng) * 0.9, 0, 1.0 + Math.cos(robotAng) * 0.9);
+      robotWrap.rotation.y = robotAng + Math.PI / 2;
+      robotWrap.rotation.z = Math.sin(t * 6.5) * 0.045; // the shuffle
+    }
     var nowD = new Date();
     var nowS = nowD.getSeconds() + nowD.getMilliseconds() / 1000;
     var nowM = nowD.getMinutes() + nowS / 60;
