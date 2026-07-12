@@ -162,12 +162,13 @@ import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
     { t: "STILL BREATHING", c: 0x9a3b1e, url: BASE + "still-breathing/", tip: "STILL BREATHING — four true ordeals" },
     { t: "NINE CIRCLES", c: 0x8a6a24, url: BASE + "nine-circles/", tip: "NINE CIRCLES — a descent" },
     { t: "CHOOSE WISELY", c: 0x53386b, url: BASE + "choose-wisely/", tip: "CHOOSE WISELY — the shop remembers you" },
+    { t: "NOBODY", c: 0xc96f3b, url: BASE + "nobody/", tip: "NOBODY — the Odyssey; argue with the poem" },
   ];
   var DECOR = [0x3b4a55, 0x5e3a3a, 0x39543e, 0x584a2e, 0x46485e, 0x2f3e4a, 0x64513a];
   // two rows; playable books stand tall and slightly proud of the row
   [0, 1].forEach(function (row) {
     var y = boardY[row], xCursor = -caseW / 2 + 0.22, d = 0;
-    var order = row === 0 ? [null, PLAY[2], null, PLAY[3], null, null]
+    var order = row === 0 ? [null, PLAY[2], null, PLAY[3], PLAY[4], null]
                           : [null, PLAY[0], null, null, PLAY[1], null];
     order.forEach(function (slot) {
       if (slot) {
@@ -643,6 +644,7 @@ import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
       ["Nine Circles", readSave("nc_persist", function (m) { return countOf(m.endings); }), null],
       ["Still Breathing", readSave("sb_persist", function (m) { return countOf(m.endings); }), null],
       ["SOUTH", readSave("south_persist", function (m) { return countOf(m.endings); }), null],
+      ["NOBODY", readSave("nobody_persist", function (m) { return countOf(m.endings); }), null],
     ];
     var html = rows.map(function (r) {
       var v = r[1] == null ? "not started" : r[1] + (r[2] ? " / " + r[2] : "") + " endings";
