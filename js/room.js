@@ -621,8 +621,9 @@ import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
 
   /* ---- the entry: camera dolly in + the tape starts (click unlocked audio) ---- */
   var introT = -1, INTRO = 3.2;
+  var noMotion = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
   window.__roomEnter = function () {
-    introT = 0;
+    introT = noMotion ? 1 : 0; // reduced motion skips the dolly, keeps the music
     if (!ac) buildAudio();
     audioOn = true; ac.resume(); powerLED.material.color.set(0xff3b30);
   };

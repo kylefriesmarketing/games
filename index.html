@@ -19,6 +19,7 @@
 <meta name="twitter:description" content="A clickable 3D 90s bedroom: five stories on the bookshelf, an RTS in the toy chest, a robot on patrol. Free, in your browser.">
 <meta name="twitter:image" content="https://kylefriesmarketing.github.io/games/media/og-room.jpg">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%2305070a'/%3E%3Crect x='9' y='6' width='14' height='20' rx='2' fill='none' stroke='%23ff5aa8' stroke-width='2.2'/%3E%3Ccircle cx='19.5' cy='16' r='1.6' fill='%23ff5aa8'/%3E%3C/svg%3E">
+<link rel="preload" as="image" href="media/room-hero.jpg">
 <style>
 :root{--ink:#05070a;--bone:#e7e3d8;--dim:#a9a99c;--faint:#5f6a72;--line:#1d2833}
 *{box-sizing:border-box;margin:0;padding:0}
@@ -110,6 +111,7 @@ body.no3d #enter,body.listing #enter{display:none}
 </style>
 </head>
 <body>
+<noscript><style>#enter,#room,.hud,#list-toggle{display:none!important}#shelf-view{display:flex!important}</style></noscript>
 
 <!-- ===== THE 3D ROOM ===== -->
 <div id="room" aria-hidden="true"></div>
