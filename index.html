@@ -20,6 +20,15 @@
 <meta name="twitter:image" content="https://kylefriesmarketing.github.io/games/media/og-room.jpg">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%2305070a'/%3E%3Crect x='9' y='6' width='14' height='20' rx='2' fill='none' stroke='%23ff5aa8' stroke-width='2.2'/%3E%3Ccircle cx='19.5' cy='16' r='1.6' fill='%23ff5aa8'/%3E%3C/svg%3E">
 <link rel="preload" as="image" href="media/room-hero.jpg">
+<!-- the import map MUST precede the modulepreloads: preloaded modules resolve
+     their bare "three" imports the moment they're parsed -->
+<script type="importmap">
+{ "imports": { "three": "./assets/lib/three.module.min.js", "three/addons/": "./assets/lib/jsm/" } }
+</script>
+<link rel="modulepreload" href="assets/lib/three.module.min.js">
+<link rel="modulepreload" href="assets/lib/jsm/loaders/GLTFLoader.js">
+<link rel="modulepreload" href="assets/lib/jsm/loaders/DRACOLoader.js">
+<link rel="modulepreload" href="assets/lib/jsm/utils/BufferGeometryUtils.js">
 <style>
 :root{--ink:#05070a;--bone:#e7e3d8;--dim:#a9a99c;--faint:#5f6a72;--line:#1d2833}
 *{box-sizing:border-box;margin:0;padding:0}
@@ -84,6 +93,10 @@ a.game:hover{transform:translateY(-2px);border-color:var(--acc);
 .foot{margin-top:7vh;font-family:"Inter",sans-serif;font-size:11px;color:var(--faint);letter-spacing:.06em}
 .foot a{color:var(--dim)}
 a.game,.foot a{touch-action:manipulation;-webkit-tap-highlight-color:transparent}
+.g-done{font-family:"Inter","Segoe UI",system-ui,sans-serif;font-size:10.5px;letter-spacing:.12em;
+  text-transform:uppercase;color:var(--acc,#7be08a);margin-top:6px;opacity:.85}
+a.game:focus-visible,#list-toggle:focus-visible,#nb-close:focus-visible,.foot a:focus-visible,#enter:focus-visible{
+  outline:2px solid #ff5aa8;outline-offset:3px}
 @media (prefers-reduced-motion: reduce){ a.game{transition:none} a.game:hover{transform:none} }
 
 /* ---- the entry card (first thing everyone sees; also the audio-unlock) ---- */
@@ -192,9 +205,6 @@ body.no3d #enter,body.listing #enter{display:none}
   </div>
 </div>
 
-<script type="importmap">
-{ "imports": { "three": "./assets/lib/three.module.js", "three/addons/": "./assets/lib/jsm/" } }
-</script>
 <script type="module" src="js/room.js"></script>
 <script>
 document.getElementById("list-toggle").addEventListener("click", function(){ document.body.classList.add("listing"); });
@@ -210,6 +220,43 @@ document.getElementById("room-return").addEventListener("click", function(e){ e.
   }
   enterEl.addEventListener("click", stepInside);
   window.addEventListener("keydown", function(e){ if (e.key === "Enter" || e.key === " ") stepInside(); });
+})();
+(function(){ // progress badges on the shelf — the same saves the notebook reads
+  function saved(key){ try { return JSON.parse(localStorage.getItem(key)||"null"); } catch(e){ return null; } }
+  function n(o){ return o==null ? 0 : (Array.isArray(o) ? o.length : Object.keys(o).length); }
+  function endings(key, field, total){
+    return function(){
+      var s = saved(key); if (!s) return null;
+      var c = n(field ? s[field] : s.endings);
+      return c ? c + (total ? " / " + total : "") + " endings" : null;
+    };
+  }
+  var badge = {
+    "south/": endings("south_persist"),
+    "still-breathing/": endings("sb_persist"),
+    "nine-circles/": endings("nc_persist"),
+    "choose-wisely/": endings("chooseWisely.meta.v2", "endingsFound", 56),
+    "nobody/": endings("nobody_persist"),
+    "toybox-tactics/": function(){
+      var p = saved("tt-campaign"); if (!p) return null;
+      var ids = ["naptime","sandbox","bathtub","hill","finale","crumbs","sofa","canyonrun",
+                 "nightlight","shelfking","tagged","boxed","bargain","stranger","wayhome"], c = 0;
+      ids.forEach(function(id){ if (p[id]) c++; });
+      return c ? c + " / 15 missions" : null;
+    }
+  };
+  document.querySelectorAll("#shelf-view a.game").forEach(function(a){
+    for (var suffix in badge) {
+      if (a.href.slice(-suffix.length) === suffix) {
+        var txt = badge[suffix]();
+        if (txt) {
+          var d = document.createElement("div");
+          d.className = "g-done"; d.textContent = "✓ " + txt;
+          a.querySelector("div:last-child").appendChild(d);
+        }
+      }
+    }
+  });
 })();
 </script>
 </body>

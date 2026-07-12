@@ -17,7 +17,9 @@ import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
     renderer = new THREE.WebGLRenderer({ antialias: true });
   } catch (e) { document.body.classList.add("no3d"); return; }
   renderer.setSize(window.innerWidth, window.innerHeight);
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+  // phones render fewer pixels; nobody can tell on a 6" screen and the fans thank us
+  var coarse = window.matchMedia && window.matchMedia("(pointer: coarse)").matches;
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, coarse ? 1.5 : 2));
   renderer.shadowMap.enabled = true;
   renderer.shadowMap.type = THREE.PCFSoftShadowMap;
   document.getElementById("room").appendChild(renderer.domElement);
@@ -56,6 +58,24 @@ import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
   function clickable(mesh, name, action, hint) { mesh.userData = { name: name, action: action, hint: hint || "click to open" }; pick.push(mesh); return mesh; }
   function go(url) { return function () { window.location.href = url; }; }
   var BASE = "https://kylefriesmarketing.github.io/";
+
+  /* ---- reading the sibling games' saves (same origin) ------------------------ */
+  function readSave(key, fn) {
+    try { var v = localStorage.getItem(key); return v ? fn(JSON.parse(v)) : null; } catch (e) { return null; }
+  }
+  function countOf(x) { return x == null ? null : (Array.isArray(x) ? x.length : Object.keys(x).length); }
+  // Age of Toys: 15 storybook missions on the shelf, three secret pages beyond it.
+  var TT_IDS = ["naptime", "sandbox", "bathtub", "hill", "finale",
+                "crumbs", "sofa", "canyonrun", "nightlight", "shelfking",
+                "tagged", "boxed", "bargain", "stranger", "wayhome"];
+  function ttCampaign() {
+    var p = readSave("tt-campaign", function (m) { return m; }) || {};
+    var done = 0;
+    TT_IDS.forEach(function (id) { if (p[id]) done++; });
+    var secrets = 0;
+    ["midnight", "alliance", "zero"].forEach(function (id) { if (p[id]) secrets++; });
+    return { done: done, secrets: secrets, started: Object.keys(p).length > 0 };
+  }
 
   /* ---- generated GLB hero props --------------------------------------------- */
   var dracoL = new DRACOLoader(); dracoL.setDecoderPath("assets/lib/draco/");
@@ -127,7 +147,7 @@ import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
   var sill = box(1.8, 0.07, 0.22, frameM); sill.position.set(2.35, 0.985, -2.47); scene.add(sill);
 
   /* ---- lights ------------------------------------------------------------ */
-  scene.add(new THREE.AmbientLight(0x2c3440, 1.0));
+  var amb = new THREE.AmbientLight(0x2c3440, 1.0); scene.add(amb);
   var moon = new THREE.DirectionalLight(0x7d9cc4, 0.4); moon.position.set(2.4, 3.5, 1.0); scene.add(moon);
   var lampLight = new THREE.PointLight(0xffc27d, 1.5, 9, 1.5); lampLight.position.set(-2.4, 1.6, -0.2); lampLight.castShadow = true; scene.add(lampLight);
   var crtLight = new THREE.PointLight(0x7db4ff, 0.7, 4, 2); crtLight.position.set(2.3, 1.0, -1.4); scene.add(crtLight);
@@ -239,9 +259,114 @@ import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
   soldier.position.set(0.32, cH + 0.08, -0.1); soldier.rotation.z = -0.5; soldier.castShadow = true; chest.add(soldier);
   var block1 = box(0.15, 0.15, 0.15, mat(0xc9a23a, 0.7)); block1.position.set(0.95, 0.075, 0.55); block1.rotation.y = 0.5; chest.add(block1);
   var block2 = box(0.13, 0.13, 0.13, mat(0x3c7ab5, 0.7)); block2.position.set(1.12, 0.065, 0.3); chest.add(block2);
-  chest.children.forEach(function (m) { clickable(m, "AGE OF TOYS", go(BASE + "toybox-tactics/"), "AGE OF TOYS — the toybox RTS"); });
-  [robot, lidG].forEach(function (g) { g.children.forEach(function (m) { clickable(m, "AGE OF TOYS", go(BASE + "toybox-tactics/"), "AGE OF TOYS — the toybox RTS"); }); });
+  // the chest knows how the war is going (same-origin campaign save)
+  var ttNow = ttCampaign();
+  var chestHint = "AGE OF TOYS — the toybox RTS";
+  if (ttNow.done >= TT_IDS.length) chestHint = "AGE OF TOYS — all " + TT_IDS.length + " missions won";
+  else if (ttNow.started) chestHint = "AGE OF TOYS — " + ttNow.done + " / " + TT_IDS.length + " missions · the war goes on";
+  chest.children.forEach(function (m) { clickable(m, "AGE OF TOYS", go(BASE + "toybox-tactics/"), chestHint); });
+  [robot, lidG].forEach(function (g) { g.children.forEach(function (m) { clickable(m, "AGE OF TOYS", go(BASE + "toybox-tactics/"), chestHint); }); });
+  // a campaign in progress smolders inside the open chest; a finished one shines
+  var chestGlowBase = ttNow.done >= TT_IDS.length ? 1.3 : (ttNow.started ? 0.85 : 0);
+  var chestGlow = new THREE.PointLight(ttNow.done >= TT_IDS.length ? 0xffd76a : 0xff9d45, chestGlowBase, 2.4, 2);
+  chestGlow.position.set(0, cH + 0.22, -0.1); chest.add(chestGlow);
+  var chestGlowDisc = null;
+  if (chestGlowBase > 0) {
+    chestGlowDisc = new THREE.Mesh(new THREE.CircleGeometry(0.3, 20),
+      new THREE.MeshBasicMaterial({
+        map: canvasTex(64, 64, function (g, w, h) {
+          var rad = g.createRadialGradient(w / 2, h / 2, 2, w / 2, h / 2, w / 2);
+          rad.addColorStop(0, "rgba(255,205,110,0.9)"); rad.addColorStop(1, "rgba(255,150,60,0)");
+          g.fillStyle = rad; g.fillRect(0, 0, w, h);
+        }),
+        transparent: true, blending: THREE.AdditiveBlending, depthWrite: false,
+      }));
+    chestGlowDisc.rotation.x = -Math.PI / 2;
+    chestGlowDisc.position.set(0, cH + 0.02, -0.1); chest.add(chestGlowDisc);
+  }
   chest.position.set(1.75, 0, 0.15); chest.rotation.y = -0.38; scene.add(chest);
+
+  /* ---- THE RUG WAR: two plastic armies, frozen mid-battle ------------------- */
+  // Set up on the galaxy rug the way the Kid left them. Hovering wakes the
+  // battle: they waddle in place, muzzles flash. Clicking joins the war.
+  var war = new THREE.Group();
+  var warHint = ttNow.started
+    ? "the rug war — " + ttNow.done + " / " + TT_IDS.length + " missions · take command"
+    : "the rug war — AGE OF TOYS, set up and waiting";
+  var greenM = new THREE.MeshStandardMaterial({ color: 0x3d6b35, roughness: 0.55 });
+  var tanM = new THREE.MeshStandardMaterial({ color: 0xc2a36b, roughness: 0.55 });
+  var warFigs = [], warFlashes = [], warPuffs = [];
+  // one molded plastic figure: base + everything above it leaning as one piece
+  function armyMan(m, pose) {
+    var g = new THREE.Group();
+    var base = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.056, 0.014, 12), m);
+    base.position.y = 0.007; base.castShadow = true; g.add(base);
+    var fig = new THREE.Group(); g.add(fig);
+    var legs = box(0.034, 0.05, 0.022, m); legs.position.y = 0.039; fig.add(legs);
+    var torso = box(0.042, 0.052, 0.028, m); torso.position.y = 0.092; fig.add(torso);
+    var head = new THREE.Mesh(new THREE.SphereGeometry(0.017, 8, 8), m); head.position.y = 0.132; head.castShadow = true; fig.add(head);
+    var helmet = new THREE.Mesh(new THREE.SphereGeometry(0.021, 8, 6, 0, Math.PI * 2, 0, Math.PI / 2), m);
+    helmet.position.y = 0.131; fig.add(helmet);
+    var arms = box(0.06, 0.016, 0.016, m); arms.position.set(0.012, 0.105, 0.024); arms.rotation.y = -0.45; fig.add(arms);
+    var rifle = box(0.01, 0.012, 0.1, m); rifle.position.set(0.016, 0.11, 0.05); fig.add(rifle);
+    if (pose === "kneel") { fig.scale.y = 0.8; fig.rotation.x = 0.1; }
+    if (pose === "charge") { fig.rotation.x = 0.3; }
+    return { g: g, fig: fig };
+  }
+  // a crossed pair of additive planes at the rifle tip; blinks while the war is awake
+  function muzzle(fig) {
+    var fm = new THREE.MeshBasicMaterial({ color: 0xffd76a, transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false });
+    var f1 = new THREE.Mesh(new THREE.PlaneGeometry(0.055, 0.022), fm);
+    f1.position.set(0.016, 0.11, 0.105); f1.userData.skip = true;
+    var f2 = f1.clone(); f2.rotation.z = Math.PI / 2; f2.userData.skip = true;
+    fig.add(f1); fig.add(f2);
+    warFlashes.push(fm);
+  }
+  // (x, z, facing jitter, pose, has muzzle flash, knocked over)
+  var GREEN_LINE = [
+    [-0.20, -0.18, 0.15, "aim", true, false],
+    [-0.27, 0.00, -0.1, "kneel", true, false],
+    [-0.20, 0.17, 0.25, "charge", false, false],
+    [-0.33, 0.09, 0.0, "aim", false, false],
+    [-0.09, 0.07, 0.5, "aim", false, true],
+  ];
+  var TAN_LINE = [
+    [0.20, -0.10, -0.2, "aim", true, false],
+    [0.28, 0.06, 0.1, "kneel", true, false],
+    [0.21, 0.20, -0.3, "charge", false, false],
+    [0.34, -0.06, 0.05, "aim", false, false],
+    [0.08, -0.15, -0.6, "aim", false, true],
+  ];
+  function deploy(line, m, facing) {
+    line.forEach(function (s) {
+      var man = armyMan(m, s[3]);
+      man.g.position.set(s[0], 0, s[1]);
+      man.g.rotation.y = facing + s[2];
+      var baseZ = 0;
+      if (s[5]) { baseZ = 1.42; man.g.rotation.z = baseZ; man.g.position.y = 0.012; } // knocked flat, base and all
+      else if (s[4]) muzzle(man.fig);
+      warFigs.push({ g: man.g, phase: Math.random() * 6.28, baseZ: baseZ, fallen: s[5] });
+      war.add(man.g);
+    });
+  }
+  deploy(GREEN_LINE, greenM, Math.PI / 2);
+  deploy(TAN_LINE, tanM, -Math.PI / 2);
+  // cotton-ball smoke over no-man's-land — frozen, like the rest of the battle
+  for (var wp = 0; wp < 3; wp++) {
+    var puff = new THREE.Mesh(new THREE.SphereGeometry(0.028 + wp * 0.008, 10, 8),
+      new THREE.MeshStandardMaterial({ color: 0xb9bec7, roughness: 1, transparent: true, opacity: 0.42 }));
+    puff.position.set(-0.04 + wp * 0.05, 0.06 + wp * 0.035, -0.02 + wp * 0.04);
+    puff.scale.y = 0.75; puff.userData.skip = true;
+    warPuffs.push(puff); war.add(puff);
+  }
+  war.traverse(function (o) {
+    if (o.isMesh && !o.userData.skip) {
+      clickable(o, "THE RUG WAR", go(BASE + "toybox-tactics/"), warHint);
+      o.userData.war = true;
+    }
+  });
+  war.position.set(0.1, 0.013, 1.0); war.rotation.y = 0.32; scene.add(war);
+  var warHeat = 0;
 
   /* ---- THE DESK: computer, brain, notebook, lamp (left side) --------------- */
   var desk = new THREE.Group();
@@ -270,6 +395,49 @@ import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
     }), roughness: 0.7,
   }));
   kbKeys.rotation.x = -Math.PI / 2 + 0.06; kbKeys.position.set(0, 0.854, 0.33); pc.add(kbKeys);
+  // the PC runs a screensaver if you poke it (it has nothing better to do yet)
+  var ssCanvas = document.createElement("canvas"); ssCanvas.width = 256; ssCanvas.height = 192;
+  var ssCtx = ssCanvas.getContext("2d");
+  var ssT = new THREE.CanvasTexture(ssCanvas);
+  var ssM = new THREE.MeshBasicMaterial({ map: ssT });
+  var ssMode = 0; // 0: the C3D splash · 1: starfield · 2: the bouncing logo
+  var ssStars = [];
+  for (var sst = 0; sst < 70; sst++) ssStars.push({ x: Math.random() - 0.5, y: Math.random() - 0.5, z: 0.15 + Math.random() * 0.85 });
+  var ssLogo = { x: 40, y: 60, vx: 46, vy: 36, hue: 130 };
+  function cycleScreen() {
+    ssMode = (ssMode + 1) % 3;
+    pcScreen.material = ssMode ? ssM : screenM;
+    clickSfx(ssMode ? 1900 : 1300);
+  }
+  function drawScreensaver(dt2) {
+    var g = ssCtx, w = 256, h = 192;
+    if (ssMode === 1) { // flying through the wallpaper stars
+      g.fillStyle = "rgba(4,6,12,0.35)"; g.fillRect(0, 0, w, h);
+      g.fillStyle = "#dfe6ff";
+      for (var i = 0; i < ssStars.length; i++) {
+        var st = ssStars[i];
+        st.z -= dt2 * 0.35;
+        if (st.z < 0.06) { st.x = Math.random() - 0.5; st.y = Math.random() - 0.5; st.z = 1; }
+        var px = w / 2 + st.x / st.z * w * 0.9, py = h / 2 + st.y / st.z * h * 0.9;
+        var r = Math.min(2.6, 0.4 / st.z);
+        if (px > 0 && px < w && py > 0 && py < h) g.fillRect(px, py, r, r);
+      }
+    } else { // the logo roams, kisses a corner once an epoch
+      g.fillStyle = "#06080c"; g.fillRect(0, 0, w, h);
+      var lw = 92, lh = 34;
+      ssLogo.x += ssLogo.vx * dt2; ssLogo.y += ssLogo.vy * dt2;
+      if (ssLogo.x < 0 || ssLogo.x > w - lw) { ssLogo.vx *= -1; ssLogo.x = Math.max(0, Math.min(w - lw, ssLogo.x)); ssLogo.hue = (ssLogo.hue + 67) % 360; }
+      if (ssLogo.y < 0 || ssLogo.y > h - lh) { ssLogo.vy *= -1; ssLogo.y = Math.max(0, Math.min(h - lh, ssLogo.y)); ssLogo.hue = (ssLogo.hue + 67) % 360; }
+      g.strokeStyle = "hsl(" + ssLogo.hue + ",80%,60%)"; g.lineWidth = 2;
+      g.strokeRect(ssLogo.x, ssLogo.y, lw, lh);
+      g.fillStyle = "hsl(" + ssLogo.hue + ",80%,70%)";
+      g.font = "bold 17px monospace"; g.textAlign = "center"; g.textBaseline = "middle";
+      g.fillText("C3D", ssLogo.x + lw / 2, ssLogo.y + lh / 2 + 1);
+    }
+    g.fillStyle = "rgba(0,0,0,0.18)"; // cheap scanlines
+    for (var sl = 0; sl < h; sl += 4) g.fillRect(0, sl, w, 1);
+    ssT.needsUpdate = true;
+  }
   pc.position.set(0.35, 0, -0.12); pc.rotation.y = -0.12; desk.add(pc);
   var tower = box(0.24, 0.62, 0.6, beige); tower.position.set(1.28, 0.31, -0.05); desk.add(tower);
   var towerSlots = new THREE.Mesh(new THREE.PlaneGeometry(0.18, 0.3), new THREE.MeshStandardMaterial({
@@ -279,7 +447,7 @@ import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
     }), roughness: 0.6,
   }));
   towerSlots.position.set(1.28, 0.42, 0.256); desk.add(towerSlots);
-  [mon, pcScreen, kb, tower].forEach(function (m) { clickable(m, "CHAMELEON 3D", null, "CHAMELEON 3D — coming soon to the room"); });
+  [mon, pcScreen, kb, tower].forEach(function (m) { clickable(m, "CHAMELEON 3D", cycleScreen, "CHAMELEON 3D — coming soon · click for the screensaver"); });
 
   // the brain on the desk — BRAINROT INC (coming soon)
   var brainG = new THREE.Group();
@@ -318,6 +486,7 @@ import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
       lampOn = !lampOn;
       lampLight.intensity = lampOn ? 1.5 : 0.12;
       shade.material.emissiveIntensity = lampOn ? 0.9 : 0.05;
+      clickSfx(lampOn ? 1900 : 1300);
     }, "the lamp — click it");
   });
 
@@ -457,6 +626,7 @@ import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
       lavaOn = !lavaOn;
       lavaLight.intensity = lavaOn ? 0.8 : 0.05;
       blobs.forEach(function (b) { b.material.emissiveIntensity = lavaOn ? 1.6 : 0.15; });
+      clickSfx(lavaOn ? 1700 : 1200);
     }, "the lava lamp — groovy");
   });
   nstand.add(lava);
@@ -493,7 +663,7 @@ import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
     var rain = ac.createBufferSource(); rain.buffer = buf; rain.loop = true;
     var lp = ac.createBiquadFilter(); lp.type = "lowpass"; lp.frequency.value = 1400;
     var hp = ac.createBiquadFilter(); hp.type = "highpass"; hp.frequency.value = 300;
-    var rg = ac.createGain(); rg.gain.value = 0.05;
+    var rg = ac.createGain(); rg.gain.value = phase.rainG; // the hour decides how hard it pours
     rain.connect(lp); lp.connect(hp); hp.connect(rg); rg.connect(master); rain.start();
     // the tape: an 8-bar lofi loop rendered offline once, then looped forever
     renderTune(ac.sampleRate, function (buf) {
@@ -501,7 +671,7 @@ import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
       var tg = ac.createGain(); tg.gain.value = 0.42;
       tape.connect(tg); tg.connect(master); tape.start();
     });
-    acNodes = { master: master };
+    acNodes = { master: master, rain: rg };
   }
   // Composes the boombox tape: 72bpm swung lofi, Dm7-G7-Cmaj7-Am7, two bars each.
   function renderTune(sampleRate, done) {
@@ -597,14 +767,36 @@ import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
     ].forEach(function (m) { tone(m.f, m.t, m.d, 0.055, "triangle", 0.15); });
     oc.startRendering().then(done);
   }
-  function rumble() { // thunder, if the box is on
+  // thunder, if the box is on. strength ~1 = overhead crack, ~0.3 = far grumble
+  function rumble(strength) {
     if (!ac || !audioOn) return;
-    var len = ac.sampleRate * 1.4, buf = ac.createBuffer(1, len, ac.sampleRate), d = buf.getChannelData(0);
+    var s = strength == null ? 1 : strength;
+    var secs = 1.0 + (1 - s) * 1.3; // distant thunder rolls longer
+    var len = ac.sampleRate * secs, buf = ac.createBuffer(1, len, ac.sampleRate), d = buf.getChannelData(0);
     for (var i = 0; i < len; i++) d[i] = (Math.random() * 2 - 1) * (1 - i / len);
     var src = ac.createBufferSource(); src.buffer = buf;
-    var f = ac.createBiquadFilter(); f.type = "lowpass"; f.frequency.value = 120;
-    var g = ac.createGain(); g.gain.value = 0.22;
+    var f = ac.createBiquadFilter(); f.type = "lowpass"; f.frequency.value = 70 + 80 * s;
+    var g = ac.createGain(); g.gain.value = 0.08 + 0.17 * s;
     src.connect(f); f.connect(g); g.connect(acNodes.master); src.start();
+  }
+  function clickSfx(freq) { // a dry little switch tick
+    if (!ac || !audioOn) return;
+    var o = ac.createOscillator(); o.type = "square"; o.frequency.value = freq || 1600;
+    var g = ac.createGain();
+    g.gain.setValueAtTime(0.035, ac.currentTime);
+    g.gain.exponentialRampToValueAtTime(0.0001, ac.currentTime + 0.04);
+    o.connect(g); g.connect(acNodes.master); o.start(); o.stop(ac.currentTime + 0.06);
+  }
+  function ratchetSfx() { // winding the robot: five quick spring clicks
+    if (!ac || !audioOn) return;
+    for (var i = 0; i < 5; i++) {
+      var t0 = ac.currentTime + i * 0.065;
+      var o = ac.createOscillator(); o.type = "square"; o.frequency.value = 540 + i * 55;
+      var g = ac.createGain();
+      g.gain.setValueAtTime(0.03, t0);
+      g.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.035);
+      o.connect(g); g.connect(acNodes.master); o.start(t0); o.stop(t0 + 0.05);
+    }
   }
   var powerLED = new THREE.Mesh(new THREE.SphereGeometry(0.012, 8, 8),
     new THREE.MeshBasicMaterial({ color: 0x552222 }));
@@ -628,6 +820,10 @@ import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
     audioOn = true; ac.resume(); powerLED.material.color.set(0xff3b30);
   };
   if (window.__entered) window.__roomEnter(); // card clicked before this module loaded
+  document.addEventListener("visibilitychange", function () { // the tape pauses when you leave
+    if (!ac || !audioOn) return;
+    if (document.hidden) ac.suspend(); else ac.resume();
+  });
 
   /* ---- DUST MOTES in the lamplight ------------------------------------------- */
   var moteGeo = new THREE.BufferGeometry(), moteN = 60, motePos = new Float32Array(moteN * 3);
@@ -640,15 +836,62 @@ import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
   var motes = new THREE.Points(moteGeo, new THREE.PointsMaterial({ color: 0xffd9a0, size: 0.014, transparent: true, opacity: 0.45, depthWrite: false }));
   scene.add(motes);
 
+  /* ---- the room follows your clock -------------------------------------------- */
+  // Four moods keyed to the visitor's real hour. Each phase sets the ambient
+  // wash, the "moon" (which doubles as daylight), the window's lift, how hard
+  // it rains (streaks + audio), how the TV behaves, and how often the storm
+  // flashes. ?hour=23 in the URL pins a phase for tinkering.
+  var PHASES = {
+    day:     { amb: 0x4a5468, ambI: 1.3,  moonC: 0xbcc8da, moonI: 0.8,  lift: 1.85, liftB: 1.0,  stars: 0.12, streaks: 36, rainG: 0.04,  test: false, fMin: 20, fRnd: 30, on: [13, 9], off: [2, 3] },
+    dusk:    { amb: 0x4a3c40, ambI: 1.15, moonC: 0xe8935a, moonI: 0.55, lift: 1.5,  liftB: 0.94, stars: 0.3,  streaks: 44, rainG: 0.05,  test: false, fMin: 16, fRnd: 26, on: [9, 8],  off: [3, 4] },
+    evening: { amb: 0x2c3440, ambI: 1.0,  moonC: 0x7d9cc4, moonI: 0.4,  lift: 1.25, liftB: 1.06, stars: 0.45, streaks: 44, rainG: 0.05,  test: false, fMin: 14, fRnd: 26, on: [9, 8],  off: [3, 4] },
+    night:   { amb: 0x1e2634, ambI: 0.85, moonC: 0x8fb4e8, moonI: 0.52, lift: 0.92, liftB: 1.1,  stars: 0.78, streaks: 64, rainG: 0.085, test: true,  fMin: 8,  fRnd: 14, on: [7, 5],  off: [4, 5] },
+  };
+  var HOUR_DEBUG = (function () {
+    var m = /[?&]hour=(\d+)/.exec(location.search);
+    return m ? parseInt(m[1], 10) % 24 : null;
+  })();
+  function roomHour() { return HOUR_DEBUG != null ? HOUR_DEBUG : new Date().getHours(); }
+  function phaseFor(h) {
+    if (h >= 6 && h < 17) return PHASES.day;      // gray rainy afternoon
+    if (h >= 17 && h < 20) return PHASES.dusk;    // the last warm light
+    if (h >= 20) return PHASES.evening;           // after bedtime (the classic room)
+    return PHASES.night;                          // the dead of night
+  }
+  var phase = PHASES.evening, phaseHour = -1;
+  function applyPhase() {
+    var h = roomHour();
+    if (h === phaseHour) return;
+    phaseHour = h;
+    var p = phaseFor(h);
+    if (p === phase && amb.intensity === p.ambI) return;
+    phase = p;
+    amb.color.set(p.amb); amb.intensity = p.ambI;
+    moon.color.set(p.moonC); moon.intensity = p.moonI;
+    winViewM.color.setRGB(p.lift, p.lift, p.lift * p.liftB);
+    if (acNodes && acNodes.rain) acNodes.rain.gain.value = p.rainG;
+  }
+  applyPhase();
+  // late-night TV has nothing on: SMPTE-ish bars where the cartoons would be
+  var testT = canvasTex(128, 96, function (g, w, h) {
+    ["#c0c0c0", "#c0c000", "#00c0c0", "#00c000", "#c000c0", "#c00000", "#0000c0"].forEach(function (c, i) {
+      g.fillStyle = c; g.fillRect(Math.floor(i * w / 7), 0, Math.ceil(w / 7) + 1, Math.floor(h * 0.72));
+    });
+    g.fillStyle = "#101018"; g.fillRect(0, Math.floor(h * 0.72), w, h);
+    g.fillStyle = "#9a9aa8"; g.font = "bold 11px monospace"; g.textAlign = "center";
+    g.fillText("OFF AIR", w / 2, h * 0.88);
+  });
+
   /* ---- lightning state -------------------------------------------------------- */
   var flash = 0, nextFlash = 12 + Math.random() * 20;
+  var thunderIn = -1, thunderStrength = 1; // the gap between the light and the sound
   var rainCtx = rainT.image.getContext("2d");
   function drawRain(bright) {
     var g = rainCtx, w = 256, h = 320;
     g.clearRect(0, 0, w, h);
     g.strokeStyle = "rgba(200,220,250," + (bright ? 0.8 : 0.4) + ")";
     g.lineWidth = 1.4;
-    for (var i = 0; i < 44; i++) { var x = Math.random() * w, y = Math.random() * h; g.beginPath(); g.moveTo(x, y); g.lineTo(x - 3, y + 14 + Math.random() * 10); g.stroke(); }
+    for (var i = 0; i < phase.streaks; i++) { var x = Math.random() * w, y = Math.random() * h; g.beginPath(); g.moveTo(x, y); g.lineTo(x - 3, y + 14 + Math.random() * 10); g.stroke(); }
     // clinging droplets
     g.fillStyle = "rgba(210,228,255,0.35)";
     for (var dnum = 0; dnum < 8; dnum++) { g.beginPath(); g.arc(Math.random() * w, Math.random() * h, 1 + Math.random() * 2, 0, 7); g.fill(); }
@@ -684,9 +927,27 @@ import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
   prop("assets/props/globe.glb", 0.36, -2.26, 0.815, -0.75, -0.3, // desk-local (0, 0.10) — verified on the rotated slab
     propTip("the globe", "the globe — somewhere better, probably"));
   var robotWrap = null, robotAng = 0; // he patrols the rug, forever
+  var robotDir = 1, robotBoost = 0, keyG = null, keyFast = 0;
+  function windRobot() { // a turn of the key: a burst of speed, and he changes his mind
+    robotBoost = Math.min(robotBoost + 1.2, 3);
+    robotDir *= -1;
+    keyFast = 0.7;
+    ratchetSfx();
+  }
   prop("assets/props/robot.glb", 0.42, 0.1 + Math.sin(0) * 0.9, 0, 1.0 + Math.cos(0) * 0.9, Math.PI / 2, function (wrap) {
     robotWrap = wrap;
-    propTip("the robot", "the robot — wound up in 1994, still going")(wrap);
+    // the wind-up key in his back, turning as slowly as he walks
+    keyG = new THREE.Group();
+    var keyM = mat(0x9a9fa8, 0.35);
+    var shaft = new THREE.Mesh(new THREE.CylinderGeometry(0.009, 0.009, 0.07, 8), keyM);
+    shaft.rotation.x = Math.PI / 2; shaft.position.z = -0.035; keyG.add(shaft);
+    [-1, 1].forEach(function (side) {
+      var lobe = new THREE.Mesh(new THREE.TorusGeometry(0.024, 0.008, 8, 14), keyM);
+      lobe.position.set(side * 0.028, 0, -0.072); keyG.add(lobe);
+    });
+    keyG.position.set(0, 0.27, -0.1);
+    wrap.add(keyG);
+    wrap.traverse(function (o) { if (o.isMesh) clickable(o, "the robot", windRobot, "the robot — wound up in 1994 · wind him again"); });
   });
 
   /* ---- coming-soon posters, not hung yet (leaning under the window) ----------- */
@@ -718,10 +979,6 @@ import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
   texLoader.load("assets/tex/tv_cartoon.jpg", function (t) { t.anisotropy = 4; cartoonT = t; });
 
   /* ---- the notebook panel (DOM): reads the sibling games' saves ------------- */
-  function readSave(key, fn) {
-    try { var v = localStorage.getItem(key); return v ? fn(JSON.parse(v)) : null; } catch (e) { return null; }
-  }
-  function countOf(x) { return x == null ? null : (Array.isArray(x) ? x.length : Object.keys(x).length); }
   function showNotebook() {
     var rows = [
       ["Choose Wisely", readSave("chooseWisely.meta.v2", function (m) { return countOf(m.endingsFound); }), 56],
@@ -734,6 +991,17 @@ import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
       var v = r[1] == null ? "not started" : r[1] + (r[2] ? " / " + r[2] : "") + " endings";
       return "<div class='nb-row'><span>" + r[0] + "</span><b>" + v + "</b></div>";
     }).join("");
+    // Age of Toys writes a whole campaign, not endings — it gets its own line
+    var tt = ttCampaign();
+    var stories = readSave("tt-achievements", countOf);
+    var ttText;
+    if (!tt.started && !stories) ttText = "not started";
+    else {
+      ttText = tt.done + " / " + TT_IDS.length + " missions";
+      if (tt.secrets) ttText += " +" + tt.secrets + " secret";
+      if (stories) ttText += " · " + stories + (stories === 1 ? " story" : " stories");
+    }
+    html += "<div class='nb-row'><span>Age of Toys</span><b>" + ttText + "</b></div>";
     var panel = document.getElementById("notebook");
     panel.querySelector(".nb-body").innerHTML = html;
     panel.classList.add("open");
@@ -745,12 +1013,14 @@ import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
   /* ---- picking / hover / parallax -------------------------------------------- */
   var ray = new THREE.Raycaster(), mouse = new THREE.Vector2(-2, -2), hovered = null;
   var tip = document.getElementById("tip");
+  var pointerMovedAt = -10; // idle from the start, until a real pointer shows up
   function setPointer(e) {
     var t = e.touches ? e.touches[0] : e;
     if (!t) return;
     mouse.x = (t.clientX / window.innerWidth) * 2 - 1;
     mouse.y = -(t.clientY / window.innerHeight) * 2 + 1;
     tip.style.left = t.clientX + "px"; tip.style.top = (t.clientY - 14) + "px";
+    pointerMovedAt = performance.now() / 1000;
   }
   window.addEventListener("pointermove", setPointer, { passive: true });
   function pickAt() {
@@ -768,6 +1038,46 @@ import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
     }
   });
 
+  /* ---- keyboard: Tab walks the room, Enter opens, Esc puts things back -------- */
+  var kbTargets = null, kbCount = 0, kbIndex = -1, kbFocus = null;
+  function kbList() { // one entry per named thing; prefer the mesh that does something
+    if (kbTargets && kbCount === pick.length) return kbTargets;
+    var seen = {};
+    kbTargets = []; kbCount = pick.length;
+    pick.forEach(function (m) {
+      var n = m.userData.name;
+      if (seen[n] === undefined) { seen[n] = kbTargets.length; kbTargets.push(m); }
+      else if (!kbTargets[seen[n]].userData.action && m.userData.action) kbTargets[seen[n]] = m;
+    });
+    return kbTargets;
+  }
+  var kbV = new THREE.Vector3();
+  function kbShow(m) {
+    kbFocus = m;
+    m.getWorldPosition(kbV); kbV.project(camera);
+    tip.style.left = ((kbV.x * 0.5 + 0.5) * window.innerWidth) + "px";
+    tip.style.top = ((-kbV.y * 0.5 + 0.5) * window.innerHeight - 14) + "px";
+    tip.textContent = m.userData.hint; tip.classList.add("show");
+  }
+  window.addEventListener("keydown", function (e) {
+    if (e.key === "Escape") {
+      document.getElementById("notebook").classList.remove("open");
+      document.body.classList.remove("listing");
+      return;
+    }
+    if (document.body.classList.contains("listing")) return; // the list has native tab order
+    if (e.key === "Tab") {
+      e.preventDefault();
+      var L = kbList();
+      if (!L.length) return;
+      kbIndex = (kbIndex + (e.shiftKey ? -1 : 1) + L.length) % L.length;
+      kbShow(L[kbIndex]);
+    } else if ((e.key === "Enter" || e.key === " ") && kbFocus) {
+      var ec = document.getElementById("enter");
+      if ((!ec || ec.classList.contains("gone")) && kbFocus.userData.action) kbFocus.userData.action();
+    }
+  });
+
   window.addEventListener("resize", function () {
     camera.aspect = window.innerWidth / window.innerHeight;
     camera.updateProjectionMatrix();
@@ -778,7 +1088,11 @@ import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
   function tick() {
     requestAnimationFrame(tick);
     var t = performance.now() / 1000, dt = Math.min(t - lastT, 0.1); lastT = t;
-    var baseX = mouse.x * 0.55, baseY = 1.72 + mouse.y * 0.24;
+    // with no pointer to follow (phones, or just resting), take a slow look around
+    var idle = t - pointerMovedAt > 6;
+    var mx = idle ? Math.sin(t * 0.07) * 0.4 : mouse.x;
+    var my = idle ? Math.sin(t * 0.05 + 2) * 0.18 : mouse.y;
+    var baseX = mx * 0.55, baseY = 1.72 + my * 0.24;
     if (introT >= 0 && introT < 1) { // the dolly in from the doorway
       introT = Math.min(1, introT + dt / INTRO);
       var ke = 1 - Math.pow(1 - introT, 3);
@@ -787,16 +1101,18 @@ import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
       camera.position.x += (baseX - camera.position.x) * 0.04;
       camera.position.y += (baseY - camera.position.y) * 0.04;
     }
-    lookAt.x += ((mouse.x * 1.25) - lookAt.x) * 0.04; // pan the gaze — the bed and side walls come into view
+    lookAt.x += ((mx * 1.25) - lookAt.x) * 0.04; // pan the gaze — the bed and side walls come into view
     camera.lookAt(lookAt);
-    // the TV surfs between dead air and Saturday cartoons
+    if ((frameCount % 120) === 0) applyPhase(); // the room checks the clock
+    // the TV surfs between dead air and whatever's on at this hour
     tvFlip -= dt;
     if (tvFlip <= 0 && cartoonT) {
       tvCartoon = !tvCartoon;
-      screen.material.map = tvCartoon ? cartoonT : staticT;
+      screen.material.map = tvCartoon ? (phase.test ? testT : cartoonT) : staticT;
       screen.material.needsUpdate = true;
-      crtLight.color.set(tvCartoon ? 0xffd9a0 : 0x7db4ff);
-      tvFlip = tvCartoon ? 9 + Math.random() * 8 : 3 + Math.random() * 4;
+      crtLight.color.set(tvCartoon ? (phase.test ? 0xc8c8e0 : 0xffd9a0) : 0x7db4ff);
+      tvFlip = tvCartoon ? phase.on[0] + Math.random() * phase.on[1]
+                         : phase.off[0] + Math.random() * phase.off[1];
     }
     if (tvCartoon) {
       crtLight.intensity = 0.72 + 0.08 * Math.sin(t * 9);
@@ -823,10 +1139,39 @@ import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
     fanBlades.rotation.y += dt * 2.1;
     for (var mi = 0; mi < mixers.length; mi++) mixers[mi].update(dt);
     if (robotWrap) { // wind-up tin robot: circles the rug with a little waddle-rock
-      robotAng += dt * 0.32;
+      robotBoost *= Math.pow(0.5, dt / 2.5); // the spring unwinds
+      if (robotBoost < 0.02) robotBoost = 0;
+      robotAng += dt * 0.32 * robotDir * (1 + robotBoost);
       robotWrap.position.set(0.1 + Math.sin(robotAng) * 0.9, 0, 1.0 + Math.cos(robotAng) * 0.9);
-      robotWrap.rotation.y = robotAng + Math.PI / 2;
-      robotWrap.rotation.z = Math.sin(t * 6.5) * 0.045; // the shuffle
+      robotWrap.rotation.y = robotAng + robotDir * Math.PI / 2;
+      robotWrap.rotation.z = Math.sin(t * 6.5 * (1 + robotBoost * 0.5)) * 0.045; // the shuffle
+      if (keyG) {
+        keyFast -= dt;
+        keyG.rotation.z -= dt * (keyFast > 0 ? 22 : 1.4 + robotBoost * 7); // winding spins it hard
+      }
+    }
+    if (ssMode && (frameCount & 1) === 0) drawScreensaver(dt * 2); // the PC dreams at half rate
+    // the rug war wakes while you watch it, freezes when you look away
+    warHeat += (((hovered && hovered.userData.war) ? 1 : 0) - warHeat) * Math.min(1, dt * 5);
+    if (warHeat > 0.01) {
+      for (var wf = 0; wf < warFigs.length; wf++) {
+        var fg = warFigs[wf];
+        if (fg.fallen) continue;
+        fg.g.rotation.z = fg.baseZ + Math.sin(t * 9 + fg.phase) * 0.1 * warHeat; // plastic waddle
+        fg.g.position.y = Math.abs(Math.sin(t * 9 + fg.phase)) * 0.006 * warHeat;
+      }
+      for (var wm = 0; wm < warFlashes.length; wm++) {
+        var fm2 = warFlashes[wm];
+        fm2.opacity = (Math.random() < 0.1 && warHeat > 0.3) ? warHeat : fm2.opacity * 0.55;
+      }
+      for (var wu = 0; wu < warPuffs.length; wu++) {
+        warPuffs[wu].position.y += Math.sin(t * 1.7 + wu * 2) * 0.0003 * warHeat;
+        warPuffs[wu].rotation.y += dt * 0.4 * warHeat;
+      }
+    }
+    if (chestGlowBase > 0) { // the campaign smolders in the chest
+      chestGlow.intensity = chestGlowBase * (0.82 + 0.22 * Math.sin(t * 2.1));
+      if (chestGlowDisc) chestGlowDisc.material.opacity = 0.75 + 0.25 * Math.sin(t * 2.1);
     }
     var nowD = new Date();
     var nowS = nowD.getSeconds() + nowD.getMilliseconds() / 1000;
@@ -836,7 +1181,7 @@ import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
     hourHand.rotation.z = -((nowD.getHours() % 12) + nowM / 60) / 12 * Math.PI * 2;
     // string lights twinkle; stars breathe; motes drift
     for (var bu = 0; bu < bulbs.length; bu++) bulbs[bu].material.opacity = 0.55 + 0.4 * Math.sin(t * 1.6 + bulbs[bu].userData.phase);
-    for (var si = 0; si < stars.length; si++) stars[si].material.opacity = 0.45 + 0.35 * Math.sin(t * 0.5 + stars[si].userData.phase);
+    for (var si = 0; si < stars.length; si++) stars[si].material.opacity = phase.stars + 0.35 * Math.sin(t * 0.5 + stars[si].userData.phase);
     var mp = motes.geometry.attributes.position;
     for (var mo = 0; mo < moteN; mo++) {
       var y = mp.getY(mo) + dt * 0.03 * (0.5 + Math.sin(mo));
@@ -852,17 +1197,23 @@ import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
       neonMesh.material.opacity = hum;
       neonLight.intensity = 1.1 * hum;
     }
-    // the storm outside
+    // the storm outside — light first, thunder when the distance allows
     nextFlash -= dt;
-    if (nextFlash <= 0) { flash = 1; nextFlash = 14 + Math.random() * 26; rumble(); }
+    if (nextFlash <= 0) {
+      flash = 1; nextFlash = phase.fMin + Math.random() * phase.fRnd;
+      thunderStrength = 0.25 + Math.random() * 0.75;
+      thunderIn = 0.15 + (1 - thunderStrength) * 2.2; // nearer strikes speak sooner
+    }
+    if (thunderIn > 0) { thunderIn -= dt; if (thunderIn <= 0) rumble(thunderStrength); }
     if (flash > 0.01) {
       flash *= Math.pow(0.02, dt); // fast decay
-      moon.intensity = 0.4 + flash * 2.2;
-      var wv = 1.25 + flash * 1.5; // photo is a dark night shot — lift it so the streetlamp reads
-      winViewM.color.setRGB(wv, wv, wv * 1.06);
+      moon.intensity = phase.moonI + flash * 2.2;
+      var wv = phase.lift + flash * 1.5; // photo is a dark night shot — lift it so the streetlamp reads
+      winViewM.color.setRGB(wv, wv, wv * phase.liftB);
       if ((frameCount & 1) === 0) drawRain(flash > 0.25);
     } else if ((frameCount % 6) === 0) drawRain(false);
-    var o = pickAt();
+    // raycast every frame only while the pointer is live; coast otherwise
+    var o = (t - pointerMovedAt < 0.35 || (frameCount & 3) === 0) ? pickAt() : hovered;
     if (o !== hovered) {
       if (hovered && hovered.material && hovered.material.emissive && hovered !== shade && hovered !== screen && hovered !== pcScreen) hovered.material.emissiveIntensity = 0;
       hovered = o;
