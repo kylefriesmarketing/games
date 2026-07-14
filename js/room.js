@@ -1353,7 +1353,7 @@ import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
       ["Still Breathing", readSave("sb_persist", function (m) { return countOf(m.endings); }), null],
       ["SOUTH", readSave("south_persist", function (m) { return countOf(m.endings); }), null],
       ["NOBODY", readSave("nobody_persist", function (m) { return countOf(m.endings); }), null],
-      ["CURIOUSER", readSave("alice_persist", function (m) { return countOf(m.wakings); }), 6],
+      ["CURIOUSER", readSave("alice_persist", function (m) { return countOf(m.wakings); }), 8],
     ];
     var html = rows.map(function (r) {
       return nbRow(r[0], r[1] == null ? "not started" : r[1] + (r[2] ? " / " + r[2] : "") + " endings");
