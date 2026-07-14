@@ -1310,11 +1310,11 @@ import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
     { x: -1.1, z: 2.05, act: "fidget" },             // at the island's shore
     { x: -1.35, z: 0.4, act: "idle" },               // the desk
     { x: -1.25, z: -1.65, act: "idle" },             // the shelf
-    { x: -1.95, z: 1.4, act: "sit", seat: 4, y: 0.08, yaw: 0.9 }, // in the beanbag (hips land on the bag's center)
+    { x: -2.0, z: 1.52, act: "sit", seat: 4, y: 0.1, yaw: 0 }, // nestled in the beanbag, legs out the front toward the room
     { x: 2.12, z: 1.05, act: "bed", seat: 1 }        // the bedside → climb up and lie down (may enter the bed's circle)
   ];
   // side: where he stands; up: hoisted onto the mattress edge; lie: head on the pillow
-  var KID_BED = { sideX: 2.12, sideZ: 1.05, upX: 2.62, upY: 0.42, x: 2.9, y: 0.12, z: 0.85 };
+  var KID_BED = { sideX: 2.12, sideZ: 1.05, upX: 2.62, upY: 0.42, x: 2.9, y: 0.04, z: 0.88 };
   // furniture he must walk AROUND, not through (circles in floor-plane; kid body ~0.18)
   var KID_R = 0.18;
   var KID_OBSTACLES = [
