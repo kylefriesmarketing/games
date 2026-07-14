@@ -621,6 +621,7 @@ import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
   scene.add(gLava);
   gLamp = glow(0xffb14d, -2.4, 1.62, -0.18, 0.95, 0.95, 0.4);    // the desk lamp
   scene.add(gLamp);
+  scene.add(glow(0x8fb8ff, 2.7, 0.82, -0.98, 0.9, 0.72, 0.4));   // the CRT screen
 
   /* ---- the calendar has opinions ---------------------------------------------- */
   // December: the string lights go red-green-gold and a paper snowflake hits the

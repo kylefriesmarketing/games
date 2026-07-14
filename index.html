@@ -70,6 +70,10 @@ body{background:var(--ink);color:var(--bone);overflow:hidden;
 
 /* ---- the 3D room ---- */
 #room{position:fixed;inset:0}
+/* cinematic edge darkening over the 3D view (hidden in list/no-3d) */
+#vignette{position:fixed;inset:0;z-index:2;pointer-events:none;
+  background:radial-gradient(ellipse 78% 78% at 50% 46%,transparent 55%,rgba(3,4,8,.55) 100%)}
+body.listing #vignette,body.no3d #vignette{display:none}
 #room canvas{display:block}
 .hud{position:fixed;top:18px;left:22px;z-index:5;pointer-events:none}
 .hud .eyebrow{font-family:"Inter","Segoe UI",system-ui,sans-serif;font-size:10px;
@@ -165,6 +169,7 @@ body.no3d #enter,body.listing #enter{display:none}
 
 <!-- ===== THE 3D ROOM ===== -->
 <div id="room" aria-hidden="true"></div>
+<div id="vignette" aria-hidden="true"></div>
 
 <!-- ===== THE ENTRY CARD (flagship first impression + audio-unlock gesture) ===== -->
 <div id="enter" role="button" tabindex="0" aria-label="Step inside the room">
