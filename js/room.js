@@ -378,7 +378,7 @@ import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
   var drawer = box(0.9, 0.16, 0.06, woodMSide); drawer.position.set(-0.5, 0.66, 0.44); desk.add(drawer);
   var knob = new THREE.Mesh(new THREE.SphereGeometry(0.025, 10, 10), mat(0xc9a23a, 0.35)); knob.position.set(-0.5, 0.66, 0.49); desk.add(knob);
 
-  // the beige 90s computer — CHAMELEON 3D (coming soon)
+  // the beige 90s computer — CHAMELEON 3D (live via the kylefriesmarketing/chameleon mirror)
   var pc = new THREE.Group();
   var beige = mat(0xd6cdb4, 0.55), beigeDark = mat(0xbfb59a, 0.6);
   var mon = box(0.62, 0.5, 0.5, beige); mon.position.y = 1.14; pc.add(mon);
@@ -448,7 +448,8 @@ import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
     }), roughness: 0.6,
   }));
   towerSlots.position.set(1.28, 0.42, 0.256); desk.add(towerSlots);
-  [mon, pcScreen, kb, tower].forEach(function (m) { clickable(m, "CHAMELEON 3D", cycleScreen, "CHAMELEON 3D — Dumb Tony's building it · click for the screensaver"); });
+  var CHAMELEON_URL = "https://kylefriesmarketing.github.io/chameleon/chameleon3d.html";
+  [mon, pcScreen, kb, tower].forEach(function (m) { clickable(m, "CHAMELEON 3D", go(CHAMELEON_URL), "CHAMELEON 3D — Dumb Tony's kitchen crawl · click to play"); });
 
   // the brain on the desk — BRAINROT INC (coming soon)
   var brainG = new THREE.Group();
@@ -1074,7 +1075,7 @@ import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
     [backing, art].forEach(function (mm) { clickable(mm, name, action || null, hint); });
   }
   leaningPoster("assets/tex/poster_brainrot.jpg", 1.25, -2.42, 0.12, "BRAINROT", "BRAINROT: RISE OF THE MEME — click to play (Dumb Tony's)", go("https://dumb-tony.github.io/GameRepos/brainrot/")); // left of the window; the TV hides the right corner
-  leaningPoster("assets/tex/poster_c3d.jpg", 2.86, -2.38, -0.1, "CHAMELEON 3D", "CHAMELEON 3D — Dumb Tony's building it right now");
+  leaningPoster("assets/tex/poster_c3d.jpg", 2.86, -2.38, -0.1, "CHAMELEON 3D", "CHAMELEON 3D — click to play (Dumb Tony's)", go("https://kylefriesmarketing.github.io/chameleon/chameleon3d.html"));
 
   /* ---- THE SOLAR SYSTEM POSTER (back wall, between shelf and window) ---------- */
   var posterM = new THREE.MeshStandardMaterial({ color: 0x2a3040, roughness: 0.9 });

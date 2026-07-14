@@ -16,7 +16,7 @@ in the room is real and everything is clickable:
 | **The toy chest** — it smolders while a campaign is underway | [AGE OF TOYS](https://kylefriesmarketing.github.io/toybox-tactics/) — a storybook RTS |
 | **The army men on the rug** — frozen mid-battle, until you look | the same war, up close; hover and they waddle, muzzles flashing |
 | **The brain on the desk** (and its poster) | [BRAINROT: RISE OF THE MEME](https://dumb-tony.github.io/GameRepos/brainrot/) — by Dumb Tony, live in the shared [GameRepos](https://github.com/Dumb-Tony/GameRepos) |
-| **The beige PC** | CHAMELEON 3D — Dumb Tony's building it (poke it for the screensaver) |
+| **The beige PC** (and its poster) | [CHAMELEON 3D](https://kylefriesmarketing.github.io/chameleon/chameleon3d.html) — Dumb Tony's kitchen crawl, mirrored public at [kylefriesmarketing/chameleon](https://github.com/kylefriesmarketing/chameleon) |
 | **The channel guide** also carries | [TIDEBOUND](https://dumb-tony.github.io/GameRepos/tidebound/) — Tony's island survival novel |
 | **The notebook** | a real multi-page notebook: endings found, the campaign act by act, your lifetime war record |
 | **The TV** | the channel guide (plain list view, with your progress on each spine) |
