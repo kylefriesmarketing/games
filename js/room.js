@@ -934,11 +934,28 @@ import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
   /* ---- the entry: camera dolly in + the tape starts (click unlocked audio) ---- */
   var introT = -1, INTRO = 3.2, kidGreet = false; // kidGreet: wave hello once we're inside
   var noMotion = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  // Touch devices get no hover tooltips, so a first-time phone visitor can't tell the
+  // room is full of doorways — show one tasteful, self-fading hint (once per device).
+  function showTouchHint() {
+    if (!(window.matchMedia && window.matchMedia("(hover: none)").matches)) return;
+    try { if (localStorage.getItem("room-tap-hint")) return; localStorage.setItem("room-tap-hint", "1"); } catch (e) { }
+    var h = document.createElement("div");
+    h.textContent = "every object is a doorway — tap around";
+    h.setAttribute("style", "position:fixed;left:50%;bottom:8%;transform:translateX(-50%);z-index:8;" +
+      "pointer-events:none;font-family:'Inter',system-ui,sans-serif;font-size:13px;letter-spacing:.03em;" +
+      "color:#e7e3d8;background:rgba(8,12,18,.82);border:1px solid rgba(120,130,150,.35);border-radius:999px;" +
+      "padding:9px 16px;opacity:0;transition:opacity .6s;max-width:82vw;text-align:center");
+    document.body.appendChild(h);
+    setTimeout(function () { h.style.opacity = "1"; }, 3600);   // after the dolly settles
+    setTimeout(function () { h.style.opacity = "0"; }, 8600);
+    setTimeout(function () { if (h.parentNode) h.parentNode.removeChild(h); }, 9400);
+  }
   window.__roomEnter = function () {
     introT = noMotion ? 1 : 0; // reduced motion skips the dolly, keeps the music
     if (!ac) buildAudio();
     audioOn = true; ac.resume(); powerLED.material.color.set(0xff3b30);
     kidGreet = true; // he looks up and waves as you walk in
+    showTouchHint();
     var last = null;
     try { last = localStorage.getItem("room-knock"); } catch (e) { /* private mode */ }
     if (KNOCK_DEBUG || last !== new Date().toDateString()) {
