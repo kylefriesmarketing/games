@@ -997,27 +997,29 @@ import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
     rainT.needsUpdate = true;
   }
 
-  /* ---- THE BED: space comforter, right side ---------------------------------- */
-  var bed = new THREE.Group();
-  var headboard = box(1.05, 0.85, 0.07, woodMSide); headboard.position.set(0, 0.42, -0.98); bed.add(headboard);
-  var footboard = box(1.05, 0.45, 0.06, woodMSide); footboard.position.set(0, 0.22, 0.98); bed.add(footboard);
-  var bedbase = box(1.0, 0.22, 1.95, woodM); bedbase.position.y = 0.22; bed.add(bedbase);
-  var sheetTopM = texMat("assets/tex/bedsheet.jpg", 0x1e2a52, 0.95, 1, 1.8);
-  var sheetSideM = mat(0x1e2a52, 0.95);
-  var comforter = new THREE.Mesh(new THREE.BoxGeometry(1.04, 0.2, 1.6),
-    [sheetSideM, sheetSideM, sheetTopM, sheetSideM, sheetSideM, sheetSideM]);
-  comforter.position.set(0, 0.43, 0.14); comforter.castShadow = comforter.receiveShadow = true; bed.add(comforter);
-  var pillow = box(0.62, 0.14, 0.34, mat(0xe8e4da, 0.95)); pillow.position.set(0, 0.42, -0.68); pillow.rotation.x = -0.08; bed.add(pillow);
-  bed.position.set(2.93, 0, 1.0); bed.rotation.y = -0.09; scene.add(bed); // deep enough to sit inside the frame
+  /* ---- THE BED: generated frame + star comforter, right side ------------------ */
   // five more minutes: the bed actually means it. The lights ease down, somebody
   // snores, the robot tiptoes. Click again to get up early — or don't.
   var napUntil = -1, nap = 0, nextSnore = 0;
-  bed.children.forEach(function (m) {
-    clickable(m, "the bed", function () {
-      var now = performance.now() / 1000;
-      if (napUntil > now) { napUntil = -1; clickSfx(1500); } // okay, okay — up
-      else { napUntil = now + 12; nextSnore = now + 1.8; clickSfx(800); }
-    }, "the bed — five more minutes");
+  function napToggle() {
+    var now = performance.now() / 1000;
+    if (napUntil > now) { napUntil = -1; clickSfx(1500); } // okay, okay — up
+    else { napUntil = now + 12; nextSnore = now + 1.8; clickSfx(800); }
+  }
+  var bed = new THREE.Group();
+  bed.position.set(3.02, 0, 1.1); bed.rotation.y = -0.05; scene.add(bed);
+  var BED_LEN = 1.42, BED_YAW = 0; // long axis runs front-to-back (z); fit to the corner slot
+  gltfL.load("assets/props/bed.glb", function (g) {
+    var root = g.scene;
+    root.traverse(function (o) { if (o.isMesh) { o.castShadow = o.receiveShadow = true; } });
+    var bb = new THREE.Box3().setFromObject(root), sz = bb.getSize(new THREE.Vector3());
+    root.scale.setScalar(BED_LEN / (Math.max(sz.x, sz.z) || 1)); // scale by the long horizontal axis
+    root.rotation.y = BED_YAW;
+    bed.add(root); bed.updateMatrixWorld(true);
+    bb.setFromObject(root); var ctr = bb.getCenter(new THREE.Vector3());
+    bed.worldToLocal(ctr);
+    root.position.set(root.position.x - ctr.x, root.position.y - (bb.min.y - bed.position.y), root.position.z - ctr.z);
+    root.traverse(function (o) { if (o.isMesh) clickable(o, "the bed", napToggle, "the bed — five more minutes"); });
   });
 
   /* ---- generated hero props: the clutter that makes it a real room ----------- */
@@ -1037,6 +1039,9 @@ import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
   });
   prop("assets/props/globe.glb", 0.36, -2.26, 0.815, -0.75, -0.3, // desk-local (0, 0.10) — verified on the rotated slab
     propTip("the globe", "the globe — somewhere better, probably"));
+  var CHAIR_YAW = 1.05 + Math.PI; // faces back toward the desk; tuned after render
+  prop("assets/props/chair.glb", 0.82, -1.86, 0, -0.32, CHAIR_YAW,
+    propTip("the chair", "the desk chair — worn in just right"));
   var robotWrap = null, robotAng = 0; // he patrols the rug, forever
   var robotDir = 1, robotBoost = 0, keyG = null, keyFast = 0;
   function windRobot() { // a turn of the key: a burst of speed, and he changes his mind
@@ -1174,7 +1179,7 @@ import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
     { x: 0.35, z: 1.35 },  // the rug (with the robot)
     { x: 2.3, z: -0.75 },  // the TV
     { x: -1.1, z: 2.05 },  // at the island's shore
-    { x: -1.6, z: 0.15 },  // the desk
+    { x: -1.35, z: 0.4 },  // the desk (clear of the new chair obstacle)
     { x: -1.25, z: -1.65 } // the shelf
   ];
   // furniture he must walk AROUND, not through (circles in floor-plane; kid body ~0.18)
@@ -1185,7 +1190,8 @@ import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
     { x: -2.35, z: -0.8, r: 0.82 },  // the desk
     { x: -1.9, z: 2.45, r: 0.5 },    // the island
     { x: -2.05, z: 1.2, r: 0.42 },   // the beanbag
-    { x: 3.0, z: -1.35, r: 0.55 }    // the TV stand
+    { x: 3.0, z: -1.35, r: 0.55 },   // the TV stand
+    { x: -1.86, z: -0.32, r: 0.34 }  // the desk chair
   ];
   // One avoidance step toward (tx,tz): steer around obstacles, then hard-clamp out
   // of any we'd still penetrate. Returns remaining distance to the target.
