@@ -1742,6 +1742,7 @@ import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
           setKidAction(act, 0.35);
           kidState.ignoreObs = -1;
           kidState.targetY = (kidState.station && kidState.station.y) || 0;
+          kidState.glanceT = 2.5 + Math.random() * 4; // first look-at-you a beat after he settles
           kidState.mode = "act";
           kidState.t = (act === "dance" ? 11 : act === "sit" ? 8 : 3.5) + Math.random() * 5;
         }
@@ -1752,6 +1753,13 @@ import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
       var actNow = kidState.station && kidState.station.act;
       if (actNow === "sit") kidFace(kidState.station.yaw != null ? kidState.station.yaw : 0.35, 3); // sink back, face the room
       else if (actNow === "dance") kidFace(0.1, 2); // face the room while he grooves
+      else if (actNow === "idle") { // every few seconds he glances at whoever's watching, then looks away again
+        kidState.glanceT -= dt;
+        if (kidState.glanceT <= 0) {
+          kidFace(Math.atan2(camera.position.x - kid.position.x, camera.position.z - kid.position.z), 2.2);
+          if (kidState.glanceT <= -2) kidState.glanceT = 4 + Math.random() * 4;
+        }
+      }
       // if the boombox stops mid-dance, wander off
       if (actNow === "dance" && !audioOn) kidState.t = Math.min(kidState.t, 0.5);
       if (kidState.t <= 0) { kidState.targetY = 0; kidState.mode = "roam"; kidPickStation(); }
