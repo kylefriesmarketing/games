@@ -17,7 +17,8 @@ in the room is real and everything is clickable:
 | **The army men on the rug** — frozen mid-battle, until you look | the same war, up close; hover and they waddle, muzzles flashing |
 | **The brain on the desk** (and its poster) | [BRAINROT: RISE OF THE MEME](https://dumb-tony.github.io/GameRepos/brainrot/) — by Dumb Tony, live in the shared [GameRepos](https://github.com/Dumb-Tony/GameRepos) |
 | **The beige PC** (and its poster) | [CHAMELEON 3D](https://kylefriesmarketing.github.io/chameleon/chameleon3d.html) — Dumb Tony's kitchen crawl, mirrored public at [kylefriesmarketing/chameleon](https://github.com/kylefriesmarketing/chameleon) |
-| **The channel guide** also carries | [TIDEBOUND](https://dumb-tony.github.io/GameRepos/tidebound/) — Tony's island survival novel |
+| **The toy island** (palm tree and all) and its book on the shelf | [TIDEBOUND](https://dumb-tony.github.io/GameRepos/tidebound/) — Tony's island survival novel |
+| **The kid** | that's his room. He plays with everything until you click a doorway — then he walks over and opens it for you while the camera leans in |
 | **The notebook** | a real multi-page notebook: endings found, the campaign act by act, your lifetime war record |
 | **The TV** | the channel guide (plain list view, with your progress on each spine) |
 | **The boombox** | a composed lofi tape under the rain — no audio files, all synthesized |

@@ -57,7 +57,7 @@ import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
 
   var pick = []; // clickable meshes
   function clickable(mesh, name, action, hint) { mesh.userData = { name: name, action: action, hint: hint || "click to open" }; pick.push(mesh); return mesh; }
-  function go(url) { return function () { window.location.href = url; }; }
+  function go(url) { var f = function () { window.location.href = url; }; f.__nav = url; return f; } // __nav marks doorway actions — THE KID walks to those
   var BASE = "https://kylefriesmarketing.github.io/";
 
   /* ---- reading the sibling games' saves (same origin) ------------------------ */
@@ -194,13 +194,14 @@ import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
     { t: "NINE CIRCLES", c: 0x8a6a24, url: BASE + "nine-circles/", tip: "NINE CIRCLES — a descent" },
     { t: "CHOOSE WISELY", c: 0x53386b, url: BASE + "choose-wisely/", tip: "CHOOSE WISELY — the shop remembers you" },
     { t: "NOBODY", c: 0xc96f3b, url: BASE + "nobody/", tip: "NOBODY — the Odyssey; argue with the poem" },
+    { t: "TIDEBOUND", c: 0x2e6f63, url: "https://dumb-tony.github.io/GameRepos/tidebound/", tip: "TIDEBOUND — the island that isn't on any chart (Dumb Tony's)" },
   ];
   var DECOR = [0x3b4a55, 0x5e3a3a, 0x39543e, 0x584a2e, 0x46485e, 0x2f3e4a, 0x64513a];
   // two rows; playable books stand tall and slightly proud of the row
   [0, 1].forEach(function (row) {
     var y = boardY[row], xCursor = -caseW / 2 + 0.22, d = 0;
     var order = row === 0 ? [null, PLAY[2], null, PLAY[3], PLAY[4], null]
-                          : [null, PLAY[0], null, null, PLAY[1], null];
+                          : [null, PLAY[0], PLAY[5], null, PLAY[1], null];
     order.forEach(function (slot) {
       if (slot) {
         var bw = 0.24, bh = 0.8;
@@ -1075,7 +1076,140 @@ import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
     [backing, art].forEach(function (mm) { clickable(mm, name, action || null, hint); });
   }
   leaningPoster("assets/tex/poster_brainrot.jpg", 1.25, -2.42, 0.12, "BRAINROT", "BRAINROT: RISE OF THE MEME — click to play (Dumb Tony's)", go("https://dumb-tony.github.io/GameRepos/brainrot/")); // left of the window; the TV hides the right corner
-  leaningPoster("assets/tex/poster_c3d.jpg", 2.86, -2.38, -0.1, "CHAMELEON 3D", "CHAMELEON 3D — click to play (Dumb Tony's)", go("https://kylefriesmarketing.github.io/chameleon/chameleon3d.html"));
+  (function wallPosterC3D() { // hung properly on the back wall, left of the shelf — dead-on to the camera
+    var g = new THREE.Group();
+    var backing = box(0.56, 0.82, 0.02, mat(0xe8e2d4, 0.9)); g.add(backing);
+    var m = new THREE.MeshStandardMaterial({ color: 0x333944, roughness: 0.85 });
+    texLoader.load("assets/tex/poster_c3d.jpg", function (t) { t.anisotropy = 8; m.map = t; m.color.set(0xffffff); m.needsUpdate = true; });
+    var art = new THREE.Mesh(new THREE.PlaneGeometry(0.52, 0.78), m);
+    art.position.z = 0.012; g.add(art);
+    g.position.set(-3.05, 1.9, -2.53); g.rotation.z = 0.018; // taped a touch crooked, like the rest
+    scene.add(g);
+    [backing, art].forEach(function (mm) {
+      clickable(mm, "CHAMELEON 3D", go("https://kylefriesmarketing.github.io/chameleon/chameleon3d.html"), "CHAMELEON 3D — click to play (Dumb Tony's)");
+    });
+  })();
+
+  /* ---- TIDEBOUND: a toy island on the floor (palm tree and all) --------------- */
+  var island = new THREE.Group();
+  var sea = new THREE.Mesh(new THREE.CylinderGeometry(0.42, 0.46, 0.07, 28),
+    new THREE.MeshStandardMaterial({ color: 0x2e7d9e, roughness: 0.35 }));
+  sea.position.y = 0.035; sea.castShadow = sea.receiveShadow = true; island.add(sea);
+  var sand = new THREE.Mesh(new THREE.SphereGeometry(0.26, 20, 14), mat(0xd9c186, 0.95));
+  sand.scale.set(1, 0.42, 1); sand.position.y = 0.07; sand.castShadow = true; island.add(sand);
+  var trunkM = mat(0x8a6242, 0.85);
+  [[0, 0.16, 0.12], [0.025, 0.29, 0.22], [0.062, 0.41, 0.3]].forEach(function (s, si) {
+    var seg = new THREE.Mesh(new THREE.CylinderGeometry(0.02 - si * 0.003, 0.026 - si * 0.003, 0.15, 8), trunkM);
+    seg.position.set(s[0], s[1], 0); seg.rotation.z = -s[2]; seg.castShadow = true; island.add(seg);
+  });
+  var frondM = new THREE.MeshStandardMaterial({ color: 0x3f7d3a, roughness: 0.8, side: THREE.DoubleSide });
+  for (var fi = 0; fi < 6; fi++) {
+    var frond = new THREE.Mesh(new THREE.PlaneGeometry(0.055, 0.24), frondM);
+    var fg = new THREE.Group();
+    frond.position.y = -0.1; frond.rotation.x = -0.9; fg.add(frond);
+    fg.position.set(0.095, 0.5, 0); fg.rotation.y = fi / 6 * Math.PI * 2;
+    island.add(fg);
+  }
+  [[0.06, 0.44, 0.03], [0.115, 0.43, -0.025]].forEach(function (cc) {
+    var nut = new THREE.Mesh(new THREE.SphereGeometry(0.02, 8, 8), mat(0x5a4630, 0.9));
+    nut.position.set(cc[0], cc[1], cc[2]); island.add(nut);
+  });
+  island.position.set(-1.9, 0, 2.45); island.rotation.y = 0.5; scene.add(island);
+  island.traverse(function (o) {
+    if (o.isMesh) clickable(o, "TIDEBOUND", go("https://dumb-tony.github.io/GameRepos/tidebound/"), "TIDEBOUND — the island that isn't on any chart (Dumb Tony's)");
+  });
+
+  /* ==== THE KID: he lives here. He plays with everything until you ask for
+   * something — then he walks over and opens it for you, and the camera leans
+   * in while the game loads. White vinyl toy, bandage, camo beanie, logo tee. == */
+  var kid = new THREE.Group();
+  var vinylM = mat(0xf2efe8, 0.55);
+  var teeT = canvasTex(128, 128, function (g, w, h) {
+    g.fillStyle = "#5a7a44"; g.fillRect(0, 0, w, h);           // the green tee
+    g.strokeStyle = "#efe8d2"; g.lineWidth = 3;
+    g.beginPath(); g.arc(w * 0.75, h * 0.5, 22, 0, 6.29); g.stroke(); // logo ring (faces +z after wrap)
+    g.fillStyle = "#d8cba6"; g.beginPath(); g.arc(w * 0.75, h * 0.5, 18, 0, 6.29); g.fill();
+    g.fillStyle = "#7a5c3e"; g.fillRect(w * 0.75 - 13, h * 0.5 + 2, 26, 8); // the couch
+    g.fillStyle = "#3d5a8a"; g.fillRect(w * 0.75 - 8, h * 0.5 - 5, 6, 8);   // the two of them
+    g.fillStyle = "#4a7a55"; g.fillRect(w * 0.75 + 2, h * 0.5 - 5, 6, 8);
+    g.fillStyle = "#2b2b22"; g.fillRect(w * 0.75 - 12, h * 0.5 - 14, 24, 7); // the TV
+    g.fillStyle = "#efe8d2"; g.font = "bold 9px sans-serif"; g.textAlign = "center";
+    g.fillText("GAMING CO.", w * 0.75, h * 0.5 + 27);
+  });
+  var teeM = new THREE.MeshStandardMaterial({ map: teeT, roughness: 0.9 });
+  var torso = new THREE.Mesh(new THREE.CylinderGeometry(0.115, 0.135, 0.3, 16), teeM);
+  torso.position.y = 0.62; torso.castShadow = true; kid.add(torso);
+  var head = new THREE.Mesh(new THREE.SphereGeometry(0.105, 18, 14), vinylM);
+  head.position.y = 0.93; head.castShadow = true; kid.add(head);
+  var bandage = new THREE.Mesh(new THREE.BoxGeometry(0.075, 0.022, 0.012), mat(0xd8c49a, 0.8));
+  bandage.position.set(0.012, 0.925, 0.098); bandage.rotation.z = 0.28; kid.add(bandage);
+  var beanie = new THREE.Mesh(new THREE.SphereGeometry(0.112, 16, 12), mat(0x6b6a4f, 0.9));
+  beanie.scale.set(1, 0.62, 1); beanie.position.y = 0.985; kid.add(beanie);
+  var brim = new THREE.Mesh(new THREE.CylinderGeometry(0.113, 0.113, 0.035, 16), mat(0x5d5c44, 0.9));
+  brim.position.y = 0.945; kid.add(brim);
+  function kidLimb(px, py, len, r0, r1, colM, footed) {
+    var g = new THREE.Group(); g.position.set(px, py, 0);
+    var seg = new THREE.Mesh(new THREE.CylinderGeometry(r0, r1, len, 10), colM);
+    seg.position.y = -len / 2; seg.castShadow = true; g.add(seg);
+    if (footed) {
+      var shoe = new THREE.Mesh(new THREE.BoxGeometry(0.075, 0.05, 0.14), mat(0x2b2b28, 0.7));
+      shoe.position.set(0, -len - 0.02, 0.03); shoe.castShadow = true; g.add(shoe);
+    } else {
+      var hand = new THREE.Mesh(new THREE.SphereGeometry(0.034, 10, 8), vinylM);
+      hand.position.y = -len - 0.01; g.add(hand);
+    }
+    kid.add(g); return g;
+  }
+  var cargoM = mat(0x8a7d5a, 0.95);
+  var legL = kidLimb(-0.062, 0.47, 0.4, 0.05, 0.056, cargoM, true);
+  var legR = kidLimb(0.062, 0.47, 0.4, 0.05, 0.056, cargoM, true);
+  var armL = kidLimb(-0.15, 0.75, 0.28, 0.03, 0.027, vinylM, false);
+  var armR = kidLimb(0.15, 0.75, 0.28, 0.03, 0.027, vinylM, false);
+  kid.position.set(0.75, 0, 1.95); scene.add(kid);
+  kid.traverse(function (o) { if (o.isMesh) clickable(o, "the kid", null, "that's the kid — this is his room"); });
+
+  var KID_STATIONS = [ // open-floor spots by things worth poking
+    { x: 1.15, z: 0.75 },  // the chest
+    { x: -0.7, z: 1.95 },  // the boombox
+    { x: -1.55, z: 1.25 }, // the beanbag
+    { x: 0.35, z: 1.35 },  // the rug (with the robot)
+    { x: 2.3, z: -0.75 },  // the TV
+    { x: -1.5, z: 2.3 },   // the island
+    { x: -1.6, z: 0.15 },  // the desk
+    { x: -1.25, z: -1.65 } // the shelf
+  ];
+  var kidState = { mode: "roam", t: 0, tx: 0.35, tz: 1.35, phase: 0 };
+  function kidPickStation() {
+    var s = KID_STATIONS[(Math.random() * KID_STATIONS.length) | 0];
+    kidState.tx = s.x + (Math.random() - 0.5) * 0.2;
+    kidState.tz = s.z + (Math.random() - 0.5) * 0.2;
+  }
+  var pendingNav = null, navTarget = null;
+  var zoomT = -1, zoomFrom = new THREE.Vector3(), zoomTo = new THREE.Vector3(),
+      zoomLookFrom = new THREE.Vector3(), zoomLookTo = new THREE.Vector3();
+  function kidSummon(mesh) {
+    if (pendingNav) return;
+    pendingNav = mesh.userData.action; navTarget = mesh;
+    var c = new THREE.Box3().setFromObject(mesh).getCenter(new THREE.Vector3());
+    var dir = new THREE.Vector3(0.15 - c.x, 0, 0.9 - c.z); dir.y = 0; // pull toward open floor
+    if (dir.lengthSq() < 0.01) dir.set(0, 0, 1);
+    dir.normalize();
+    kidState.tx = c.x + dir.x * 0.55; kidState.tz = c.z + dir.z * 0.55;
+    kidState.mode = "summon"; kidState.t = 0;
+    setTimeout(function () { if (pendingNav) { var f = pendingNav; pendingNav = null; f(); } }, 4800); // failsafe — the door opens even if the tab hides
+  }
+  function kidStartZoom() {
+    var bb = new THREE.Box3().setFromObject(navTarget);
+    var ctr = bb.getCenter(new THREE.Vector3()), sz = bb.getSize(new THREE.Vector3());
+    var d = Math.max(0.55, sz.length() * 1.05);
+    var dir = camera.position.clone().sub(ctr); dir.y = 0;
+    if (dir.lengthSq() < 0.01) dir.set(0, 0, 1);
+    dir.normalize();
+    zoomFrom.copy(camera.position); zoomLookFrom.copy(lookAt);
+    zoomTo.copy(ctr).addScaledVector(dir, d); zoomTo.y = ctr.y + 0.16;
+    zoomLookTo.copy(ctr);
+    zoomT = 0;
+  }
 
   /* ---- THE SOLAR SYSTEM POSTER (back wall, between shelf and window) ---------- */
   var posterM = new THREE.MeshStandardMaterial({ color: 0x2a3040, roughness: 0.9 });
@@ -1186,7 +1320,10 @@ import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
   window.addEventListener("pointerdown", function (e) {
     setPointer(e);
     var o = pickAt();
-    if (o && o.userData.action) o.userData.action();
+    if (o && o.userData.action) {
+      if (o.userData.action.__nav) kidSummon(o); // doorways go through the kid
+      else o.userData.action();
+    }
     else if (o) {
       tip.textContent = o.userData.hint; tip.classList.add("show");
       setTimeout(function () { tip.classList.remove("show"); }, 1600);
@@ -1229,7 +1366,10 @@ import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
       kbShow(L[kbIndex]);
     } else if ((e.key === "Enter" || e.key === " ") && kbFocus) {
       var ec = document.getElementById("enter");
-      if ((!ec || ec.classList.contains("gone")) && kbFocus.userData.action) kbFocus.userData.action();
+      if ((!ec || ec.classList.contains("gone")) && kbFocus.userData.action) {
+        if (kbFocus.userData.action.__nav) kidSummon(kbFocus);
+        else kbFocus.userData.action();
+      }
     }
   });
 
@@ -1248,16 +1388,66 @@ import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
     var mx = idle ? Math.sin(t * 0.07) * 0.4 : mouse.x;
     var my = idle ? Math.sin(t * 0.05 + 2) * 0.18 : mouse.y;
     var baseX = mx * 0.55, baseY = 1.72 + my * 0.24;
-    if (introT >= 0 && introT < 1) { // the dolly in from the doorway
-      introT = Math.min(1, introT + dt / INTRO);
-      var ke = 1 - Math.pow(1 - introT, 3);
-      camera.position.set(baseX * ke, 2.6 + (baseY - 2.6) * ke, 7.4 + (4.9 - 7.4) * ke);
+    if (zoomT >= 0) { // the kid opened something: lean in while it loads
+      zoomT = Math.min(1, zoomT + dt / 1.15);
+      var kz = zoomT * zoomT * (3 - 2 * zoomT);
+      camera.position.lerpVectors(zoomFrom, zoomTo, kz);
+      lookAt.lerpVectors(zoomLookFrom, zoomLookTo, kz);
+      camera.lookAt(lookAt);
+      if (zoomT >= 1 && pendingNav) { var navF = pendingNav; pendingNav = null; navF(); }
     } else {
-      camera.position.x += (baseX - camera.position.x) * 0.04;
-      camera.position.y += (baseY - camera.position.y) * 0.04;
+      if (introT >= 0 && introT < 1) { // the dolly in from the doorway
+        introT = Math.min(1, introT + dt / INTRO);
+        var ke = 1 - Math.pow(1 - introT, 3);
+        camera.position.set(baseX * ke, 2.6 + (baseY - 2.6) * ke, 7.4 + (4.9 - 7.4) * ke);
+      } else {
+        camera.position.x += (baseX - camera.position.x) * 0.04;
+        camera.position.y += (baseY - camera.position.y) * 0.04;
+      }
+      lookAt.x += ((mx * 1.25) - lookAt.x) * 0.04; // pan the gaze — the bed and side walls come into view
+      camera.lookAt(lookAt);
     }
-    lookAt.x += ((mx * 1.25) - lookAt.x) * 0.04; // pan the gaze — the bed and side walls come into view
-    camera.lookAt(lookAt);
+    // THE KID: roams and pokes at things; summoned, he walks over and opens the door
+    kidState.phase += dt * (kidState.mode === "summon" ? 10 : 6.2);
+    if (kidState.mode === "roam" || kidState.mode === "summon") {
+      var kdx = kidState.tx - kid.position.x, kdz = kidState.tz - kid.position.z;
+      var kdist = Math.sqrt(kdx * kdx + kdz * kdz);
+      var ksp = kidState.mode === "summon" ? 1.2 : 0.5;
+      if (kdist > 0.06) {
+        kid.position.x += kdx / kdist * ksp * dt;
+        kid.position.z += kdz / kdist * ksp * dt;
+        var kwant = Math.atan2(kdx, kdz), kdr = kwant - kid.rotation.y;
+        while (kdr > Math.PI) kdr -= Math.PI * 2; while (kdr < -Math.PI) kdr += Math.PI * 2;
+        kid.rotation.y += kdr * Math.min(1, dt * 9);
+        var ksw = Math.sin(kidState.phase);
+        legL.rotation.x = ksw * 0.55; legR.rotation.x = -ksw * 0.55;
+        armL.rotation.x = -ksw * 0.38; armR.rotation.x = ksw * 0.38;
+        kid.position.y = Math.abs(Math.cos(kidState.phase)) * 0.015;
+      } else {
+        legL.rotation.x *= 0.75; legR.rotation.x *= 0.75;
+        armL.rotation.x *= 0.75; armR.rotation.x *= 0.75;
+        kid.position.y *= 0.75;
+        if (kidState.mode === "summon") { kidState.mode = "open"; kidState.t = 0; }
+        else { kidState.mode = "play"; kidState.t = 2.5 + Math.random() * 4.5; }
+      }
+    } else if (kidState.mode === "play") { // crouched over something, poking it
+      kidState.t -= dt;
+      armR.rotation.x = -0.85 + Math.sin(t * 2.3) * 0.28;
+      kid.rotation.x = -0.07;
+      if (kidState.t <= 0) {
+        kid.rotation.x = 0; armR.rotation.x = 0;
+        kidState.mode = "roam"; kidPickStation();
+      }
+    } else if (kidState.mode === "open") { // reaching for the thing you asked for
+      kidState.t += dt;
+      var kop = Math.min(1, kidState.t / 0.38);
+      armR.rotation.x = -1.5 * kop;
+      kid.rotation.x = -0.13 * kop;
+      if (kidState.t >= 0.55) { kidState.mode = "stand"; kidStartZoom(); }
+    } else if (kidState.mode === "stand" && !pendingNav && zoomT < 0) {
+      kid.rotation.x = 0; armR.rotation.x = 0; // failsafe fired without us — recover
+      kidState.mode = "roam"; kidPickStation();
+    }
     if ((frameCount % 120) === 0) applyPhase(); // the room checks the clock
     // five more minutes: while the bed has you, the whole room breathes lower
     nap += (((t < napUntil) ? 1 : 0) - nap) * Math.min(1, dt * 1.8);
