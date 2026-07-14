@@ -718,8 +718,11 @@ import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
       new THREE.MeshBasicMaterial({ color: bulbCols[li % 5], transparent: true, opacity: 0.9 }));
     bulb.position.set(bx, 2.42 - sag, -2.5);
     bulb.userData.phase = li * 0.7;
+    var bglow = glow(bulbCols[li % 5], bx, 2.42 - sag, -2.48, 0.16, 0.16, 0.5);
+    bulb.userData.glow = bglow; scene.add(bglow); // little halo so each bulb reads as lit
     scene.add(bulb); bulbs.push(bulb);
   }
+  scene.add(glow(0xffb060, 1.95, 2.28, -2.5, 0.55, 0.55, 0.45)); // the streetlamp out the window
 
   /* ---- THE BOOMBOX: synth lo-fi + rain (WebAudio, no files) ------------------ */
   var boom = new THREE.Group();
@@ -1791,7 +1794,11 @@ import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
     minHand.rotation.z = -nowM / 60 * Math.PI * 2;
     hourHand.rotation.z = -((nowD.getHours() % 12) + nowM / 60) / 12 * Math.PI * 2;
     // string lights twinkle; stars breathe; motes drift
-    for (var bu = 0; bu < bulbs.length; bu++) bulbs[bu].material.opacity = (0.55 + 0.4 * Math.sin(t * twinkleRate + bulbs[bu].userData.phase)) * (0.35 + 0.65 * dim);
+    for (var bu = 0; bu < bulbs.length; bu++) {
+      var bop = (0.55 + 0.4 * Math.sin(t * twinkleRate + bulbs[bu].userData.phase)) * (0.35 + 0.65 * dim);
+      bulbs[bu].material.opacity = bop;
+      if (bulbs[bu].userData.glow) bulbs[bu].userData.glow.material.opacity = bop * 0.6; // halo twinkles too
+    }
     for (var si = 0; si < stars.length; si++) stars[si].material.opacity = phase.stars + 0.35 * Math.sin(t * 0.5 + stars[si].userData.phase);
     var mp = motes.geometry.attributes.position;
     for (var mo = 0; mo < moteN; mo++) {
