@@ -1068,16 +1068,22 @@ import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
   var swPlate = box(0.03, 0.14, 0.09, mat(0xeae4d6, 0.6)); swPlate.position.set(-3.55, 1.32, 1.62); scene.add(swPlate);
   var swNub = box(0.03, 0.05, 0.035, mat(0x3a3a3a, 0.4)); swNub.position.set(-3.53, 1.32, 1.62); scene.add(swNub);
   var lightMode = 0; // 0 = follow the clock, 1 = day (bright), 2 = night (dark)
-  function cycleLights() {
-    lightMode = (lightMode + 1) % 3;
+  try { var _lm = parseInt(localStorage.getItem("room-light"), 10); if (_lm === 1 || _lm === 2) lightMode = _lm; } catch (e) { /* private mode */ }
+  function applyLightMode() {
     phaseOverride = lightMode === 1 ? "day" : lightMode === 2 ? "night" : null;
     phaseHour = -1; applyPhase();
     swNub.position.y = 1.32 + (lightMode === 1 ? 0.028 : lightMode === 2 ? -0.028 : 0);
     var hint = lightMode === 1 ? "the light switch — day" : lightMode === 2 ? "the light switch — night" : "the light switch — follows your clock";
     swPlate.userData.hint = swNub.userData.hint = hint;
+  }
+  function cycleLights() {
+    lightMode = (lightMode + 1) % 3;
+    applyLightMode();
+    try { localStorage.setItem("room-light", String(lightMode)); } catch (e) { /* private mode */ }
     if (typeof clickSfx === "function") clickSfx(lightMode ? 1500 : 1000);
   }
   [swPlate, swNub].forEach(function (m) { clickable(m, "the light switch", cycleLights, "the light switch — day, night, or follow your clock"); });
+  if (lightMode) applyLightMode(); // restore the mood the visitor last chose
   // late-night TV has nothing on: SMPTE-ish bars where the cartoons would be
   var testT = canvasTex(128, 96, function (g, w, h) {
     ["#c0c0c0", "#c0c000", "#00c0c0", "#00c000", "#c000c0", "#c00000", "#0000c0"].forEach(function (c, i) {
