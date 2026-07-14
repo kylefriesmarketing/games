@@ -1537,6 +1537,31 @@ import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
     }
   });
 
+  // Shared hover/focus highlight — a warm emissive on a CLONED material (never the shared
+  // originals like woodM). Used by both the mouse and the keyboard so focus is visible.
+  var HL = new THREE.Color(0xffc27d);
+  function highlightOn(o) {
+    if (!o || o.userData.__origMat) return;
+    if (o === shade || o === screen || o === pcScreen) return; // these own their emissive
+    var m = o.material; if (!m) return;
+    if (Array.isArray(m)) { // multi-material things (the books, the notebook) — glow every face
+      if (!m.length || m[0].emissive === undefined) return;
+      o.userData.__origMat = m;
+      o.material = m.map(function (mm) {
+        var c = mm.clone();
+        if (c.emissive !== undefined) { c.emissive = HL; c.emissiveIntensity = 0.22; }
+        return c;
+      });
+    } else {
+      if (m.emissive === undefined) return;
+      o.userData.__origMat = m;
+      var hm = m.clone(); hm.emissive = HL; hm.emissiveIntensity = 0.28; o.material = hm;
+    }
+  }
+  function highlightOff(o) {
+    if (o && o.userData.__origMat) { o.material = o.userData.__origMat; o.userData.__origMat = null; }
+  }
+
   /* ---- keyboard: Tab walks the room, Enter opens, Esc puts things back -------- */
   var kbTargets = null, kbCount = 0, kbIndex = -1, kbFocus = null;
   function kbList() { // one entry per named thing; prefer the mesh that does something
@@ -1552,7 +1577,9 @@ import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
   }
   var kbV = new THREE.Vector3();
   function kbShow(m) {
+    if (kbFocus && kbFocus !== m) highlightOff(kbFocus);
     kbFocus = m;
+    highlightOn(m); // glow the focused thing, not just its tooltip
     m.getWorldPosition(kbV); kbV.project(camera);
     tip.style.left = ((kbV.x * 0.5 + 0.5) * window.innerWidth) + "px";
     tip.style.top = ((-kbV.y * 0.5 + 0.5) * window.innerHeight - 14) + "px";
@@ -1850,20 +1877,12 @@ import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
     // raycast every frame only while the pointer is live; coast otherwise
     var o = (t - pointerMovedAt < 0.35 || (frameCount & 3) === 0) ? pickAt() : hovered;
     if (o !== hovered) {
-      // Highlight on a CLONED material so we never mutate shared ones (woodM is used by
-      // the chest, TV stand, bookshelf, desk, bed, nightstand — mutating it lit them all up).
-      if (hovered && hovered.userData.__origMat) { hovered.material = hovered.userData.__origMat; hovered.userData.__origMat = null; }
+      highlightOff(hovered);
       hovered = o;
       document.body.style.cursor = o ? "pointer" : "default";
       if (o) {
         tip.textContent = o.userData.hint; tip.classList.add("show");
-        if (o !== shade && o !== screen && o !== pcScreen &&
-            o.material && !Array.isArray(o.material) && o.material.emissive !== undefined) {
-          o.userData.__origMat = o.material;
-          var hm = o.material.clone();
-          hm.emissive = new THREE.Color(0xffc27d); hm.emissiveIntensity = 0.28;
-          o.material = hm;
-        }
+        highlightOn(o);
       } else tip.classList.remove("show");
     }
     renderer.render(scene, camera);
