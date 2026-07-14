@@ -243,7 +243,7 @@ import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
   lidCapL.position.x = -cW / 2; lidCapL.rotation.y = -Math.PI / 2; lidG.add(lidCapL);
   var lidCapR = lidCapL.clone(); lidCapR.position.x = cW / 2; lidCapR.rotation.y = Math.PI / 2; lidG.add(lidCapR);
   lidG.position.set(0, cH, -cD / 2);           // hinge along the back edge
-  lidG.rotation.x = -2.35;                      // thrown open against the back
+  lidG.rotation.x = -2.35;                      // thrown open (the chest sits far enough off the wall that the lid clears)
   chest.add(lidG);
   // metal bands + latch
   [-cW / 3, cW / 3].forEach(function (x) {
@@ -276,7 +276,7 @@ import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
     chestGlowDisc.rotation.x = -Math.PI / 2;
     chestGlowDisc.position.set(0, cH + 0.02, -0.1); chest.add(chestGlowDisc);
   }
-  chest.position.set(2.15, 0, -2.1); chest.rotation.y = 0; scene.add(chest); // under the window, front to the room (open lid leans on the wall, hidden)
+  chest.position.set(1.45, 0, -1.73); chest.rotation.y = 0; scene.add(chest); // left of the window, off the wall so the open lid clears it, clear of the nightstand
 
   /* ---- THE RUG WAR: two plastic armies, frozen mid-battle ------------------- */
   // Set up on the galaxy rug the way the Kid left them. Hovering wakes the
@@ -1031,7 +1031,7 @@ import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
   }
   prop("assets/props/bean.glb", 0.62, -2.05, 0, 1.2, 0.95,
     propTip("the beanbag", "the beanbag — best seat in the house"));
-  prop("assets/props/trex.glb", 0.3, 1.55, 0, -1.55, 0.5, // moved to guard the relocated chest, facing the room
+  prop("assets/props/trex.glb", 0.3, 0.95, 0, -1.35, 0.7, // guards the relocated chest, facing the room
     propTip("rex", "rex — he guards the toy chest"));
   prop("assets/props/skate.glb", 0.78, -3.33, 0, 0.55, 1.45, function (wrap) {
     wrap.rotateOnWorldAxis(new THREE.Vector3(0, 0, 1), 0.10); // top rests against the left wall (inner face x=-3.55)
@@ -1066,7 +1066,7 @@ import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
     wrap.traverse(function (o) { if (o.isMesh) clickable(o, "the robot", windRobot, "the robot — wound up in 1994 · wind him again"); });
   });
 
-  /* ---- BRAINROT poster: hung on the right wall above the bed ------------------ */
+  /* ---- BRAINROT poster: hung on the left wall ------------------------------- */
   (function wallPosterBrainrot() {
     var g = new THREE.Group();
     var backing = box(0.56, 0.82, 0.02, mat(0xe8e2d4, 0.9)); g.add(backing);
@@ -1074,7 +1074,7 @@ import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
     texLoader.load("assets/tex/poster_brainrot.jpg", function (t) { t.anisotropy = 8; m.map = t; m.color.set(0xffffff); m.needsUpdate = true; });
     var art = new THREE.Mesh(new THREE.PlaneGeometry(0.52, 0.78), m);
     art.position.z = 0.012; g.add(art);
-    g.position.set(3.53, 1.72, -0.15); g.rotation.y = -Math.PI / 2; g.rotation.z = -0.02; // faces into the room off the right wall
+    g.position.set(-3.53, 1.75, 0.35); g.rotation.y = Math.PI / 2; g.rotation.z = 0.02; // faces into the room off the left wall
     scene.add(g);
     [backing, art].forEach(function (mm) {
       clickable(mm, "BRAINROT", go("https://dumb-tony.github.io/GameRepos/brainrot/"), "BRAINROT: RISE OF THE MEME — click to play (Dumb Tony's)");
@@ -1173,7 +1173,7 @@ import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
   });
 
   var KID_STATIONS = [ // open-floor spots by things worth poking (all clear of KID_OBSTACLES)
-    { x: 1.85, z: -1.25 }, // in front of the chest (under the window)
+    { x: 1.4, z: -1.0 },   // in front of the chest
     { x: 2.05, z: 1.7 },   // right side, between the bed and the rug
     { x: -1.4, z: 1.45 },  // by the beanbag
     { x: 0.35, z: 1.35 },  // the rug (with the robot)
@@ -1185,7 +1185,7 @@ import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
   // furniture he must walk AROUND, not through (circles in floor-plane; kid body ~0.18)
   var KID_R = 0.18;
   var KID_OBSTACLES = [
-    { x: 2.15, z: -2.1, r: 0.6 },    // the toy chest (now against the back wall)
+    { x: 1.45, z: -1.85, r: 0.62 },  // the toy chest (left of the window, off the wall)
     { x: 2.93, z: 1.0, r: 0.82 },    // the bed
     { x: -2.35, z: -0.8, r: 0.82 },  // the desk
     { x: -1.9, z: 2.45, r: 0.5 },    // the island
