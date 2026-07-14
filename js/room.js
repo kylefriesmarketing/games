@@ -1322,7 +1322,8 @@ import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
     if (!ev.persisted) return;
     zoomT = -1; pendingNav = null; navTarget = null;
     introT = 1; // settle instantly; no re-dolly
-    camera.position.set(0, 1.72, 4.9);
+    frameForAspect();
+    camera.position.set(0, 1.72, camRestZ);
     lookAt.set(0, 1.2, -0.4);
     camera.lookAt(lookAt);
     kidState.mode = "roam"; kidState.via = false; kidState.ignoreObs = -1; kidState.targetY = 0;
@@ -1508,9 +1509,20 @@ import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
     }
   });
 
+  // Portrait phones see a thin vertical slice at FOV 55 — widen the lens and pull
+  // the camera back so the whole room fits on a narrow screen.
+  var camRestZ = 4.9;
+  function frameForAspect() {
+    var a = window.innerWidth / window.innerHeight;
+    if (a < 0.65) { camera.fov = 74; camRestZ = 6.9; }
+    else if (a < 0.9) { camera.fov = 66; camRestZ = 5.9; }
+    else if (a < 1.25) { camera.fov = 60; camRestZ = 5.3; }
+    else { camera.fov = 55; camRestZ = 4.9; }
+    camera.aspect = a; camera.updateProjectionMatrix();
+  }
+  frameForAspect();
   window.addEventListener("resize", function () {
-    camera.aspect = window.innerWidth / window.innerHeight;
-    camera.updateProjectionMatrix();
+    frameForAspect();
     renderer.setSize(window.innerWidth, window.innerHeight);
   });
 
@@ -1534,10 +1546,11 @@ import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
       if (introT >= 0 && introT < 1) { // the dolly in from the doorway
         introT = Math.min(1, introT + dt / INTRO);
         var ke = 1 - Math.pow(1 - introT, 3);
-        camera.position.set(baseX * ke, 2.6 + (baseY - 2.6) * ke, 7.4 + (4.9 - 7.4) * ke);
+        camera.position.set(baseX * ke, 2.6 + (baseY - 2.6) * ke, (camRestZ + 2.5) + (camRestZ - (camRestZ + 2.5)) * ke);
       } else {
         camera.position.x += (baseX - camera.position.x) * 0.04;
         camera.position.y += (baseY - camera.position.y) * 0.04;
+        camera.position.z += (camRestZ - camera.position.z) * 0.04; // settle to the aspect-aware distance
       }
       lookAt.x += ((mx * 1.25) - lookAt.x) * 0.04; // pan the gaze — the bed and side walls come into view
       camera.lookAt(lookAt);
