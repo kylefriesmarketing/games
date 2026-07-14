@@ -907,7 +907,13 @@ import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
       else { ac.suspend(); powerLED.material.color.set(0x552222); }
     }, "the boombox — a lofi tape and the rain");
   });
-  boom.position.set(-0.95, 0, 1.6); boom.rotation.y = 0.4; scene.add(boom);
+  // up on its own wall shelf over the bed head (right wall), angled into the room
+  var bShelf = box(0.75, 0.045, 0.28, woodM); bShelf.position.set(3.41, 1.6, 0.35); scene.add(bShelf);
+  [0.12, 0.58].forEach(function (bz) {
+    var bracket = box(0.035, 0.16, 0.2, mat(0x2a2019, 0.8));
+    bracket.position.set(3.5, 1.5, bz); scene.add(bracket);
+  });
+  boom.position.set(3.41, 1.623, 0.35); boom.rotation.y = -Math.PI / 2 + 0.12; scene.add(boom);
 
   /* ---- the entry: camera dolly in + the tape starts (click unlocked audio) ---- */
   var introT = -1, INTRO = 3.2;
@@ -1170,7 +1176,7 @@ import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
 
   var KID_STATIONS = [ // open-floor spots by things worth poking
     { x: 1.15, z: 0.75 },  // the chest
-    { x: -0.7, z: 1.95 },  // the boombox
+    { x: 2.15, z: 0.32 },  // under the boombox shelf, beside the bed head
     { x: -1.55, z: 1.25 }, // the beanbag
     { x: 0.35, z: 1.35 },  // the rug (with the robot)
     { x: 2.3, z: -0.75 },  // the TV
