@@ -225,9 +225,9 @@ import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
   });
   shelfG.position.set(-1.3, 0, -2.32); scene.add(shelfG);
 
-  /* ---- THE TOY CHEST v2: Age of Toys (right-center floor) ------------------ */
+  /* ---- THE TOY CHEST v2: Age of Toys (against the back wall, under the window) --- */
   var chest = new THREE.Group();
-  var cW = 1.35, cH = 0.62, cD = 0.8;
+  var cW = 1.05, cH = 0.5, cD = 0.62;
   var chestBody = box(cW, cH, cD, woodM); chestBody.position.y = cH / 2; chest.add(chestBody);
   // painted front panel (generated art)
   var frontM = texMat("assets/tex/chest_front.jpg", 0x7a4326, 0.7, 1, 1);
@@ -276,7 +276,7 @@ import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
     chestGlowDisc.rotation.x = -Math.PI / 2;
     chestGlowDisc.position.set(0, cH + 0.02, -0.1); chest.add(chestGlowDisc);
   }
-  chest.position.set(1.75, 0, 0.15); chest.rotation.y = -0.38; scene.add(chest);
+  chest.position.set(2.15, 0, -2.1); chest.rotation.y = 0; scene.add(chest); // under the window, front to the room (open lid leans on the wall, hidden)
 
   /* ---- THE RUG WAR: two plastic armies, frozen mid-battle ------------------- */
   // Set up on the galaxy rug the way the Kid left them. Hovering wakes the
@@ -898,12 +898,12 @@ import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
     }, "the boombox — a lofi tape and the rain");
   });
   // up on its own wall shelf over the bed head (right wall), angled into the room
-  var bShelf = box(0.75, 0.045, 0.28, woodM); bShelf.position.set(3.41, 1.6, 0.35); scene.add(bShelf);
+  var bShelf = box(0.75, 0.045, 0.28, woodM); bShelf.position.set(3.41, 1.35, 0.35); scene.add(bShelf);
   [0.12, 0.58].forEach(function (bz) {
     var bracket = box(0.035, 0.16, 0.2, mat(0x2a2019, 0.8));
-    bracket.position.set(3.5, 1.5, bz); scene.add(bracket);
+    bracket.position.set(3.5, 1.25, bz); scene.add(bracket);
   });
-  boom.position.set(3.41, 1.623, 0.35); boom.rotation.y = -Math.PI / 2 + 0.12; scene.add(boom);
+  boom.position.set(3.41, 1.373, 0.35); boom.rotation.y = -Math.PI / 2 + 0.12; scene.add(boom);
 
   /* ---- the entry: camera dolly in + the tape starts (click unlocked audio) ---- */
   var introT = -1, INTRO = 3.2;
@@ -1007,8 +1007,8 @@ import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
     else { napUntil = now + 12; nextSnore = now + 1.8; clickSfx(800); }
   }
   var bed = new THREE.Group();
-  bed.position.set(3.02, 0, 1.1); bed.rotation.y = -0.05; scene.add(bed);
-  var BED_LEN = 1.42, BED_YAW = 0; // long axis runs front-to-back (z); fit to the corner slot
+  bed.position.set(2.92, 0, 1.1); bed.rotation.y = -0.05; scene.add(bed);
+  var BED_LEN = 1.72, BED_YAW = 0; // long axis runs front-to-back (z); the chest moved off the wall so it can grow
   gltfL.load("assets/props/bed.glb", function (g) {
     var root = g.scene;
     root.traverse(function (o) { if (o.isMesh) { o.castShadow = o.receiveShadow = true; } });
@@ -1031,7 +1031,7 @@ import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
   }
   prop("assets/props/bean.glb", 0.62, -2.05, 0, 1.2, 0.95,
     propTip("the beanbag", "the beanbag — best seat in the house"));
-  prop("assets/props/trex.glb", 0.3, 1.38, 0, 1.02, -0.9, // clear of the robot's 0.9 orbit ring, watching the patrol
+  prop("assets/props/trex.glb", 0.3, 1.55, 0, -1.55, 0.5, // moved to guard the relocated chest, facing the room
     propTip("rex", "rex — he guards the toy chest"));
   prop("assets/props/skate.glb", 0.78, -3.33, 0, 0.55, 1.45, function (wrap) {
     wrap.rotateOnWorldAxis(new THREE.Vector3(0, 0, 1), 0.10); // top rests against the left wall (inner face x=-3.55)
@@ -1066,20 +1066,20 @@ import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
     wrap.traverse(function (o) { if (o.isMesh) clickable(o, "the robot", windRobot, "the robot — wound up in 1994 · wind him again"); });
   });
 
-  /* ---- coming-soon posters, not hung yet (leaning under the window) ----------- */
-  function leaningPoster(tex, x, z, rotY, name, hint, action) {
+  /* ---- BRAINROT poster: hung on the right wall above the bed ------------------ */
+  (function wallPosterBrainrot() {
     var g = new THREE.Group();
-    var backing = box(0.56, 0.82, 0.02, mat(0xe8e2d4, 0.9)); backing.position.y = 0.41; g.add(backing);
+    var backing = box(0.56, 0.82, 0.02, mat(0xe8e2d4, 0.9)); g.add(backing);
     var m = new THREE.MeshStandardMaterial({ color: 0x333944, roughness: 0.85 });
-    texLoader.load(tex, function (t) { t.anisotropy = 8; m.map = t; m.color.set(0xffffff); m.needsUpdate = true; });
+    texLoader.load("assets/tex/poster_brainrot.jpg", function (t) { t.anisotropy = 8; m.map = t; m.color.set(0xffffff); m.needsUpdate = true; });
     var art = new THREE.Mesh(new THREE.PlaneGeometry(0.52, 0.78), m);
-    art.position.set(0, 0.41, 0.012); g.add(art);
-    g.position.set(x, 0, z); g.rotation.y = rotY;
-    g.rotateOnAxis(new THREE.Vector3(1, 0, 0), -0.1); // leans back on the wall
+    art.position.z = 0.012; g.add(art);
+    g.position.set(3.53, 1.72, -0.15); g.rotation.y = -Math.PI / 2; g.rotation.z = -0.02; // faces into the room off the right wall
     scene.add(g);
-    [backing, art].forEach(function (mm) { clickable(mm, name, action || null, hint); });
-  }
-  leaningPoster("assets/tex/poster_brainrot.jpg", 1.25, -2.42, 0.12, "BRAINROT", "BRAINROT: RISE OF THE MEME — click to play (Dumb Tony's)", go("https://dumb-tony.github.io/GameRepos/brainrot/")); // left of the window; the TV hides the right corner
+    [backing, art].forEach(function (mm) {
+      clickable(mm, "BRAINROT", go("https://dumb-tony.github.io/GameRepos/brainrot/"), "BRAINROT: RISE OF THE MEME — click to play (Dumb Tony's)");
+    });
+  })();
   (function wallPosterC3D() { // hung properly on the back wall, left of the shelf — dead-on to the camera
     var g = new THREE.Group();
     var backing = box(0.56, 0.82, 0.02, mat(0xe8e2d4, 0.9)); g.add(backing);
@@ -1173,7 +1173,7 @@ import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
   });
 
   var KID_STATIONS = [ // open-floor spots by things worth poking (all clear of KID_OBSTACLES)
-    { x: 1.05, z: 1.0 },   // in front of the chest
+    { x: 1.85, z: -1.25 }, // in front of the chest (under the window)
     { x: 2.05, z: 1.7 },   // right side, between the bed and the rug
     { x: -1.4, z: 1.45 },  // by the beanbag
     { x: 0.35, z: 1.35 },  // the rug (with the robot)
@@ -1185,7 +1185,7 @@ import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
   // furniture he must walk AROUND, not through (circles in floor-plane; kid body ~0.18)
   var KID_R = 0.18;
   var KID_OBSTACLES = [
-    { x: 1.75, z: 0.15, r: 0.75 },   // the toy chest  <- the reported glitch
+    { x: 2.15, z: -2.1, r: 0.6 },    // the toy chest (now against the back wall)
     { x: 2.93, z: 1.0, r: 0.82 },    // the bed
     { x: -2.35, z: -0.8, r: 0.82 },  // the desk
     { x: -1.9, z: 2.45, r: 0.5 },    // the island
