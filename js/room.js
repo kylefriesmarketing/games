@@ -537,6 +537,27 @@ import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
     st.rotation.x = Math.PI / 2; st.userData.phase = Math.random() * 6.28;
     scene.add(st); stars.push(st);
   }
+  // a rare shooting star streaks across the ceiling — make a wish
+  var streakTex = canvasTex(128, 40, function (g, w, h) {
+    g.clearRect(0, 0, w, h);
+    var lg = g.createLinearGradient(0, 0, w, 0); // tapering tail → bright head (right)
+    lg.addColorStop(0, "rgba(200,230,255,0)");
+    lg.addColorStop(0.78, "rgba(214,236,255,0.6)");
+    lg.addColorStop(1, "rgba(255,255,255,0.95)");
+    g.fillStyle = lg;
+    g.beginPath(); g.moveTo(0, h / 2);
+    g.quadraticCurveTo(w * 0.6, h * 0.14, w, h * 0.5);
+    g.quadraticCurveTo(w * 0.6, h * 0.86, 0, h * 0.5);
+    g.closePath(); g.fill();
+    var rg = g.createRadialGradient(w * 0.9, h / 2, 0, w * 0.9, h / 2, h * 0.62); // the head
+    rg.addColorStop(0, "rgba(255,255,255,1)"); rg.addColorStop(1, "rgba(255,255,255,0)");
+    g.fillStyle = rg; g.fillRect(w * 0.55, 0, w * 0.45, h);
+  });
+  var shootStar = new THREE.Sprite(new THREE.SpriteMaterial({
+    map: streakTex, color: 0xdff0ff, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, opacity: 0,
+  }));
+  shootStar.scale.set(0.85, 0.19, 1); shootStar.position.set(0, 3.34, 0); scene.add(shootStar);
+  var shootT = -1, shootNext = 6 + Math.random() * 16, shootFrom = new THREE.Vector3(), shootTo = new THREE.Vector3();
 
   /* ---- ceiling fan (lazy summer spin) ---------------------------------------- */
   var fan = new THREE.Group();
@@ -1853,6 +1874,19 @@ import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
       if (bulbs[bu].userData.glow) bulbs[bu].userData.glow.material.opacity = bop * 0.6; // halo twinkles too
     }
     for (var si = 0; si < stars.length; si++) stars[si].material.opacity = phase.stars + 0.35 * Math.sin(t * 0.5 + stars[si].userData.phase);
+    if (shootT < 0) { // launch a shooting star now and then
+      shootNext -= dt;
+      if (shootNext <= 0) {
+        shootT = 0; shootNext = 22 + Math.random() * 40;
+        shootFrom.set(-2.8 - Math.random(), 3.34, -1.8 + Math.random());
+        shootTo.set(2.8 + Math.random(), 3.34, 0.4 + Math.random() * 1.2);
+      }
+    } else {
+      shootT = Math.min(1, shootT + dt / 0.75);
+      shootStar.position.lerpVectors(shootFrom, shootTo, shootT);
+      shootStar.material.opacity = Math.sin(shootT * Math.PI);
+      if (shootT >= 1) { shootT = -1; shootStar.material.opacity = 0; }
+    }
     var mp = motes.geometry.attributes.position;
     for (var mo = 0; mo < moteN; mo++) {
       var y = mp.getY(mo) + dt * 0.03 * (0.5 + Math.sin(mo));
