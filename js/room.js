@@ -266,9 +266,12 @@ import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
   lidG.position.set(0, cH, 0);                 // centered on the chest top
   lidG.rotation.x = 0;                          // domed lid, closed
   chest.add(lidG);
-  // metal bands + latch
+  // metal bands (up the body AND arcing over the domed lid) + latch
+  var bandM = mat(0x2c2c30, 0.4);
   [-cW / 3, cW / 3].forEach(function (x) {
-    var band = box(0.06, cH + 0.02, cD + 0.02, mat(0x2c2c30, 0.4)); band.position.set(x, cH / 2, 0); chest.add(band);
+    var band = box(0.06, cH + 0.02, cD + 0.02, bandM); band.position.set(x, cH / 2, 0); chest.add(band);
+    var strap = new THREE.Mesh(new THREE.CylinderGeometry(cD / 2 + 0.008, cD / 2 + 0.008, 0.06, 22, 1, false, 0, Math.PI), bandM);
+    strap.rotation.z = Math.PI / 2; strap.position.set(x, cH, 0); chest.add(strap); // over the dome
   });
   var latch = box(0.1, 0.12, 0.03, mat(0xc9a23a, 0.35)); latch.position.set(0, cH - 0.08, cD / 2 + 0.02); chest.add(latch);
   // (the peeking toys and spilled blocks are gone — the chest keeps its wars inside)
