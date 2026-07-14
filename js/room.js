@@ -1670,14 +1670,19 @@ import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
     // raycast every frame only while the pointer is live; coast otherwise
     var o = (t - pointerMovedAt < 0.35 || (frameCount & 3) === 0) ? pickAt() : hovered;
     if (o !== hovered) {
-      if (hovered && hovered.material && hovered.material.emissive && hovered !== shade && hovered !== screen && hovered !== pcScreen) hovered.material.emissiveIntensity = 0;
+      // Highlight on a CLONED material so we never mutate shared ones (woodM is used by
+      // the chest, TV stand, bookshelf, desk, bed, nightstand — mutating it lit them all up).
+      if (hovered && hovered.userData.__origMat) { hovered.material = hovered.userData.__origMat; hovered.userData.__origMat = null; }
       hovered = o;
       document.body.style.cursor = o ? "pointer" : "default";
       if (o) {
         tip.textContent = o.userData.hint; tip.classList.add("show");
-        if (o.material && o.material.emissive !== undefined && o !== shade && o !== screen && o !== pcScreen) {
-          o.material.emissive = new THREE.Color(0xffc27d);
-          o.material.emissiveIntensity = 0.28;
+        if (o !== shade && o !== screen && o !== pcScreen &&
+            o.material && !Array.isArray(o.material) && o.material.emissive !== undefined) {
+          o.userData.__origMat = o.material;
+          var hm = o.material.clone();
+          hm.emissive = new THREE.Color(0xffc27d); hm.emissiveIntensity = 0.28;
+          o.material = hm;
         }
       } else tip.classList.remove("show");
     }
