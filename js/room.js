@@ -1,9 +1,10 @@
 /* ============================================================================
  * THE ROOM — a 90s bedroom you can click. Every object is a doorway:
  * the bookshelf holds the stories (spines out, like a real shelf), the toy
- * chest holds the RTS, the brain on the desk is Brainrot Inc, the beige PC is
- * Chameleon 3D, the TV is the channel guide (list view), and the notebook
- * knows your progress across every game on this origin.
+ * chest holds the RTS, the brain on the desk opens Dumb Tony's BRAINROT
+ * (live in the shared GameRepos), the beige PC is Chameleon 3D (coming soon),
+ * the TV is the channel guide (list view), and the notebook knows your
+ * progress across every game on this origin.
  * Three.js primitives + generated textures + a few generated GLB hero props.
  * ES module: three + loaders resolve via the importmap in index.html.
  * ========================================================================== */
@@ -447,7 +448,7 @@ import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
     }), roughness: 0.6,
   }));
   towerSlots.position.set(1.28, 0.42, 0.256); desk.add(towerSlots);
-  [mon, pcScreen, kb, tower].forEach(function (m) { clickable(m, "CHAMELEON 3D", cycleScreen, "CHAMELEON 3D — coming soon · click for the screensaver"); });
+  [mon, pcScreen, kb, tower].forEach(function (m) { clickable(m, "CHAMELEON 3D", cycleScreen, "CHAMELEON 3D — Dumb Tony's building it · click for the screensaver"); });
 
   // the brain on the desk — BRAINROT INC (coming soon)
   var brainG = new THREE.Group();
@@ -471,7 +472,8 @@ import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
   bL.position.y = bR.position.y = 0.99; brainG.add(bL); brainG.add(bR);
   var stem = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.045, 0.09, 10), mat(0xc4747e, 0.5));
   stem.position.set(0, 0.9, -0.02); stem.rotation.x = 0.3; brainG.add(stem);
-  brainG.children.forEach(function (m) { clickable(m, "BRAINROT INC", null, "BRAINROT INC — coming soon to the room"); });
+  var BRAINROT_URL = "https://dumb-tony.github.io/GameRepos/brainrot/";
+  brainG.children.forEach(function (m) { clickable(m, "BRAINROT", go(BRAINROT_URL), "BRAINROT: RISE OF THE MEME — Dumb Tony's mind-plague strategy"); });
   brainG.position.set(-0.42, 0, 0.05); desk.add(brainG);
 
   // lamp (click = toggle)
@@ -1059,7 +1061,7 @@ import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
   });
 
   /* ---- coming-soon posters, not hung yet (leaning under the window) ----------- */
-  function leaningPoster(tex, x, z, rotY, name, hint) {
+  function leaningPoster(tex, x, z, rotY, name, hint, action) {
     var g = new THREE.Group();
     var backing = box(0.56, 0.82, 0.02, mat(0xe8e2d4, 0.9)); backing.position.y = 0.41; g.add(backing);
     var m = new THREE.MeshStandardMaterial({ color: 0x333944, roughness: 0.85 });
@@ -1069,10 +1071,10 @@ import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
     g.position.set(x, 0, z); g.rotation.y = rotY;
     g.rotateOnAxis(new THREE.Vector3(1, 0, 0), -0.1); // leans back on the wall
     scene.add(g);
-    [backing, art].forEach(function (mm) { clickable(mm, name, null, hint); });
+    [backing, art].forEach(function (mm) { clickable(mm, name, action || null, hint); });
   }
-  leaningPoster("assets/tex/poster_brainrot.jpg", 1.25, -2.42, 0.12, "BRAINROT INC", "BRAINROT INC — coming to the room"); // left of the window; the TV hides the right corner
-  leaningPoster("assets/tex/poster_c3d.jpg", 2.86, -2.38, -0.1, "CHAMELEON 3D", "CHAMELEON 3D — coming to the room");
+  leaningPoster("assets/tex/poster_brainrot.jpg", 1.25, -2.42, 0.12, "BRAINROT", "BRAINROT: RISE OF THE MEME — click to play (Dumb Tony's)", go("https://dumb-tony.github.io/GameRepos/brainrot/")); // left of the window; the TV hides the right corner
+  leaningPoster("assets/tex/poster_c3d.jpg", 2.86, -2.38, -0.1, "CHAMELEON 3D", "CHAMELEON 3D — Dumb Tony's building it right now");
 
   /* ---- THE SOLAR SYSTEM POSTER (back wall, between shelf and window) ---------- */
   var posterM = new THREE.MeshStandardMaterial({ color: 0x2a3040, roughness: 0.9 });

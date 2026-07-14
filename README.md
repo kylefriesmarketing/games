@@ -15,7 +15,9 @@ in the room is real and everything is clickable:
 | **The bookshelf** — five books standing proud of the row | [CHOOSE WISELY](https://kylefriesmarketing.github.io/choose-wisely/) · [NINE CIRCLES](https://kylefriesmarketing.github.io/nine-circles/) · [STILL BREATHING](https://kylefriesmarketing.github.io/still-breathing/) · [SOUTH](https://kylefriesmarketing.github.io/south/) · [NOBODY](https://kylefriesmarketing.github.io/nobody/) |
 | **The toy chest** — it smolders while a campaign is underway | [AGE OF TOYS](https://kylefriesmarketing.github.io/toybox-tactics/) — a storybook RTS |
 | **The army men on the rug** — frozen mid-battle, until you look | the same war, up close; hover and they waddle, muzzles flashing |
-| **The beige PC** and **the brain on the desk** | CHAMELEON 3D and BRAINROT INC — coming soon (the PC runs a screensaver if you poke it) |
+| **The brain on the desk** (and its poster) | [BRAINROT: RISE OF THE MEME](https://dumb-tony.github.io/GameRepos/brainrot/) — by Dumb Tony, live in the shared [GameRepos](https://github.com/Dumb-Tony/GameRepos) |
+| **The beige PC** | CHAMELEON 3D — Dumb Tony's building it (poke it for the screensaver) |
+| **The channel guide** also carries | [TIDEBOUND](https://dumb-tony.github.io/GameRepos/tidebound/) — Tony's island survival novel |
 | **The notebook** | a real multi-page notebook: endings found, the campaign act by act, your lifetime war record |
 | **The TV** | the channel guide (plain list view, with your progress on each spine) |
 | **The boombox** | a composed lofi tape under the rain — no audio files, all synthesized |
