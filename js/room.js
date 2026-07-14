@@ -255,8 +255,7 @@ import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
   var frontM = texMat("assets/tex/chest_front.jpg", 0x7a4326, 0.7, 1, 1);
   var front = new THREE.Mesh(new THREE.PlaneGeometry(cW - 0.08, cH - 0.1), frontM);
   front.position.set(0, cH / 2, cD / 2 + 0.006); chest.add(front);
-  // dark interior + rounded open lid (half-cylinder), hinged at the back
-  var interior = box(cW - 0.1, 0.05, cD - 0.1, mat(0x14100c, 1)); interior.position.y = cH - 0.03; chest.add(interior);
+  // rounded lid, closed and centered on top (a proper treasure/toy chest dome)
   var lidG = new THREE.Group();
   var lid = new THREE.Mesh(new THREE.CylinderGeometry(cD / 2, cD / 2, cW, 22, 1, false, 0, Math.PI), woodM);
   lid.rotation.z = Math.PI / 2; lid.castShadow = true;
@@ -264,8 +263,8 @@ import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
   var lidCapL = new THREE.Mesh(new THREE.CircleGeometry(cD / 2, 22, 0, Math.PI), woodMSide);
   lidCapL.position.x = -cW / 2; lidCapL.rotation.y = -Math.PI / 2; lidG.add(lidCapL);
   var lidCapR = lidCapL.clone(); lidCapR.position.x = cW / 2; lidCapR.rotation.y = Math.PI / 2; lidG.add(lidCapR);
-  lidG.position.set(0, cH, -cD / 2);           // hinge along the back edge
-  lidG.rotation.x = -0.95;                      // propped half-open — the thrown-back angle read as a weird fin from the front
+  lidG.position.set(0, cH, 0);                 // centered on the chest top
+  lidG.rotation.x = 0;                          // domed lid, closed
   chest.add(lidG);
   // metal bands + latch
   [-cW / 3, cW / 3].forEach(function (x) {
