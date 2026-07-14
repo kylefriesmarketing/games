@@ -55,6 +55,26 @@ import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
   var woodM = texMat("assets/tex/wood.jpg", 0x8a6a42, 0.75, 1, 1);
   var woodMSide = texMat("assets/tex/wood.jpg", 0x8a6a42, 0.75, 0.35, 1);
 
+  // Cheap "bloom": a soft additive halo billboard around each bright source. Sprites
+  // always face the camera, so the glow reads right from every angle without a
+  // post-processing pass (which would reroute the whole render path and cost mobile).
+  var glowTex = canvasTex(128, 128, function (g, w, h) {
+    var rad = g.createRadialGradient(w / 2, h / 2, 0, w / 2, h / 2, w / 2);
+    rad.addColorStop(0, "rgba(255,255,255,0.9)");
+    rad.addColorStop(0.35, "rgba(255,255,255,0.28)");
+    rad.addColorStop(1, "rgba(255,255,255,0)");
+    g.fillStyle = rad; g.fillRect(0, 0, w, h);
+  });
+  function glow(color, x, y, z, sx, sy, op) {
+    var s = new THREE.Sprite(new THREE.SpriteMaterial({
+      map: glowTex, color: color, transparent: true, blending: THREE.AdditiveBlending,
+      depthWrite: false, opacity: op == null ? 0.45 : op,
+    }));
+    s.position.set(x, y, z); s.scale.set(sx, sy || sx, 1);
+    return s;
+  }
+  var gLava = null, gLamp = null; // halos wired to the lava/lamp on-off toggles
+
   var pick = []; // clickable meshes
   function clickable(mesh, name, action, hint) { mesh.userData = { name: name, action: action, hint: hint || "click to open" }; pick.push(mesh); return mesh; }
   function go(url) { var f = function () { window.location.href = url; }; f.__nav = url; return f; } // __nav marks doorway actions — THE KID walks to those
@@ -470,6 +490,7 @@ import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
       lampOn = !lampOn;
       lampLight.intensity = lampOn ? 1.5 : 0.12;
       shade.material.emissiveIntensity = lampOn ? 0.9 : 0.05;
+      if (gLamp) gLamp.material.opacity = lampOn ? 0.4 : 0;
       clickSfx(lampOn ? 1900 : 1300);
     }, "the lamp — click it");
   });
@@ -593,6 +614,14 @@ import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
     neonLight.intensity = 1.1;
   });
 
+  /* ---- soft bloom halos on the bright sources (billboards, additive) ---------- */
+  scene.add(glow(0xff5aa8, -1.3, 2.86, -2.46, 2.7, 1.5, 0.5));   // the neon sign
+  scene.add(glow(0xff4d7d, -2.52, 1.0, -0.38, 0.85, 0.85, 0.5)); // the Brainrot brain
+  gLava = glow(0xff5a7d, 0.55, 0.86, -2.16, 0.7, 0.95, 0.55);    // the lava lamp
+  scene.add(gLava);
+  gLamp = glow(0xffb14d, -2.4, 1.62, -0.18, 0.95, 0.95, 0.4);    // the desk lamp
+  scene.add(gLamp);
+
   /* ---- the calendar has opinions ---------------------------------------------- */
   // December: the string lights go red-green-gold and a paper snowflake hits the
   // window. Late October: pumpkin lights, and the lava lamp runs slime. July 11:
@@ -667,6 +696,7 @@ import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
     clickable(m, "the lava lamp", function () {
       lavaOn = !lavaOn;
       lavaLight.intensity = lavaOn ? 0.8 : 0.05;
+      if (gLava) gLava.material.opacity = lavaOn ? 0.55 : 0;
       blobs.forEach(function (b) { b.material.emissiveIntensity = lavaOn ? 1.6 : 0.15; });
       clickSfx(lavaOn ? 1700 : 1200);
     }, "the lava lamp — groovy");
