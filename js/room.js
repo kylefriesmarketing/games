@@ -102,6 +102,26 @@ import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
   var dracoL = new DRACOLoader(); dracoL.setDecoderPath("assets/lib/draco/");
   var gltfL = new GLTFLoader(); gltfL.setDRACOLoader(dracoL);
   var mixers = []; // AnimationMixers for rigged props, stepped in tick()
+  // Generated props ease in instead of popping when their GLB finishes loading.
+  var fadeIns = [];
+  function fadeInObject(root) {
+    var mats = [];
+    root.traverse(function (o) {
+      if (!o.isMesh || !o.material) return;
+      (Array.isArray(o.material) ? o.material : [o.material]).forEach(function (m) {
+        if (m && !m.__fading) { m.__fading = true; m.__wasTransparent = m.transparent; m.transparent = true; m.opacity = 0; mats.push(m); }
+      });
+    });
+    if (!mats.length) return;
+    var entry = { mats: mats, t: 0 };
+    fadeIns.push(entry);
+    setTimeout(function () { // safety: never leave a prop invisible if the tab was backgrounded (rAF paused)
+      if (entry.t >= 1) return;
+      entry.t = 1;
+      for (var i = 0; i < mats.length; i++) { mats[i].opacity = 1; mats[i].transparent = mats[i].__wasTransparent; mats[i].__fading = false; }
+      var ix = fadeIns.indexOf(entry); if (ix >= 0) fadeIns.splice(ix, 1);
+    }, 1600);
+  }
   // Load a GLB, scale it to height h, sit its base at local y=0, place at (x,y,z).
   function prop(url, h, x, y, z, rotY, onReady) {
     gltfL.load(url, function (g) {
@@ -118,6 +138,7 @@ import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
       wrap.add(root);
       wrap.position.set(x, y, z); wrap.rotation.y = rotY || 0;
       scene.add(wrap);
+      fadeInObject(root);
       if (g.animations && g.animations.length) {
         var mx = new THREE.AnimationMixer(root);
         mx.clipAction(g.animations[0]).play();
@@ -475,7 +496,7 @@ import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
     root.scale.setScalar(0.3 / (Math.max(sz.x, sz.y, sz.z) || 1)); // toy-sized, shards included
     bb.setFromObject(root); var ctr = bb.getCenter(new THREE.Vector3());
     root.position.set(-ctr.x, 0.875 - bb.min.y, -ctr.z); // centered on the stand
-    brainG.add(root);
+    brainG.add(root); fadeInObject(root);
     root.traverse(function (o) { if (o.isMesh) clickable(o, "BRAINROT", go(BRAINROT_URL), BRAINROT_HINT); });
   });
   brainG.position.set(-0.42, 0, 0.05); desk.add(brainG);
@@ -1805,6 +1826,11 @@ import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
     }
     fanBlades.rotation.y += dt * 2.1;
     for (var mi = 0; mi < mixers.length; mi++) mixers[mi].update(dt);
+    for (var fi = fadeIns.length - 1; fi >= 0; fi--) { // props ease in as they finish loading
+      var fin = fadeIns[fi]; fin.t = Math.min(1, fin.t + dt / 0.6);
+      for (var fm = 0; fm < fin.mats.length; fm++) fin.mats[fm].opacity = fin.t;
+      if (fin.t >= 1) { fin.mats.forEach(function (m) { m.transparent = m.__wasTransparent; m.__fading = false; }); fadeIns.splice(fi, 1); }
+    }
     // the boombox thumps its cones to the tape (72bpm = 1.2 beats/s)
     var thump = audioOn ? Math.pow(Math.max(0, Math.sin(t * Math.PI * 1.2)), 6) : 0;
     for (var bc = 0; bc < boomCones.length; bc++) {
