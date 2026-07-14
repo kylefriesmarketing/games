@@ -245,7 +245,7 @@ import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
   lidCapL.position.x = -cW / 2; lidCapL.rotation.y = -Math.PI / 2; lidG.add(lidCapL);
   var lidCapR = lidCapL.clone(); lidCapR.position.x = cW / 2; lidCapR.rotation.y = Math.PI / 2; lidG.add(lidCapR);
   lidG.position.set(0, cH, -cD / 2);           // hinge along the back edge
-  lidG.rotation.x = -2.35;                      // thrown open (the chest sits far enough off the wall that the lid clears)
+  lidG.rotation.x = -0.95;                      // propped half-open — the thrown-back angle read as a weird fin from the front
   chest.add(lidG);
   // metal bands + latch
   [-cW / 3, cW / 3].forEach(function (x) {
@@ -287,64 +287,50 @@ import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
   var warHint = ttNow.started
     ? "the rug war — " + ttNow.done + " / " + TT_IDS.length + " missions · take command"
     : "the rug war — AGE OF TOYS, set up and waiting";
-  var greenM = new THREE.MeshStandardMaterial({ color: 0x3d6b35, roughness: 0.55 });
-  var tanM = new THREE.MeshStandardMaterial({ color: 0xc2a36b, roughness: 0.55 });
-  var warFigs = [], warFlashes = [], warPuffs = [];
-  // one molded plastic figure: base + everything above it leaning as one piece
-  function armyMan(m, pose) {
-    var g = new THREE.Group();
-    var base = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.056, 0.014, 12), m);
-    base.position.y = 0.007; base.castShadow = true; g.add(base);
-    var fig = new THREE.Group(); g.add(fig);
-    var legs = box(0.034, 0.05, 0.022, m); legs.position.y = 0.039; fig.add(legs);
-    var torso = box(0.042, 0.052, 0.028, m); torso.position.y = 0.092; fig.add(torso);
-    var head = new THREE.Mesh(new THREE.SphereGeometry(0.017, 8, 8), m); head.position.y = 0.132; head.castShadow = true; fig.add(head);
-    var helmet = new THREE.Mesh(new THREE.SphereGeometry(0.021, 8, 6, 0, Math.PI * 2, 0, Math.PI / 2), m);
-    helmet.position.y = 0.131; fig.add(helmet);
-    var arms = box(0.06, 0.016, 0.016, m); arms.position.set(0.012, 0.105, 0.024); arms.rotation.y = -0.45; fig.add(arms);
-    var rifle = box(0.01, 0.012, 0.1, m); rifle.position.set(0.016, 0.11, 0.05); fig.add(rifle);
-    if (pose === "kneel") { fig.scale.y = 0.8; fig.rotation.x = 0.1; }
-    if (pose === "charge") { fig.rotation.x = 0.3; }
-    return { g: g, fig: fig };
-  }
-  // a crossed pair of additive planes at the rifle tip; blinks while the war is awake
-  function muzzle(fig) {
-    var fm = new THREE.MeshBasicMaterial({ color: 0xffd76a, transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false });
-    var f1 = new THREE.Mesh(new THREE.PlaneGeometry(0.055, 0.022), fm);
-    f1.position.set(0.016, 0.11, 0.105); f1.userData.skip = true;
-    var f2 = f1.clone(); f2.rotation.z = Math.PI / 2; f2.userData.skip = true;
-    fig.add(f1); fig.add(f2);
-    warFlashes.push(fm);
-  }
-  // (x, z, facing jitter, pose, has muzzle flash, knocked over)
-  var GREEN_LINE = [
-    [-0.20, -0.18, 0.15, "aim", true, false],
-    [-0.27, 0.00, -0.1, "kneel", true, false],
-    [-0.20, 0.17, 0.25, "charge", false, false],
-    [-0.33, 0.09, 0.0, "aim", false, false],
-    [-0.09, 0.07, 0.5, "aim", false, true],
-  ];
-  var TAN_LINE = [
-    [0.20, -0.10, -0.2, "aim", true, false],
-    [0.28, 0.06, 0.1, "kneel", true, false],
-    [0.21, 0.20, -0.3, "charge", false, false],
-    [0.34, -0.06, 0.05, "aim", false, false],
-    [0.08, -0.15, -0.6, "aim", false, true],
-  ];
-  function deploy(line, m, facing) {
-    line.forEach(function (s) {
-      var man = armyMan(m, s[3]);
-      man.g.position.set(s[0], 0, s[1]);
-      man.g.rotation.y = facing + s[2];
-      var baseZ = 0;
-      if (s[5]) { baseZ = 1.42; man.g.rotation.z = baseZ; man.g.position.y = 0.012; } // knocked flat, base and all
-      else if (s[4]) muzzle(man.fig);
-      warFigs.push({ g: man.g, phase: Math.random() * 6.28, baseZ: baseZ, fallen: s[5] });
-      war.add(man.g);
+  var warFigs = [], warFlashes = [], warPuffs = []; // (tick block keys off these; GLB men idle on their own)
+  // Real Age of Toys units, toy-sized. The infantry idles are skinned meshy rigs:
+  // they render at their AUTHORED height with no transform (the kid taught us),
+  // so scale is one empirical constant — never bbox-normalize a skinned mesh.
+  var WAR_SCALE = 0.16 / 1.7;
+  function warUnit(url, x, z, rotY, opts) {
+    opts = opts || {};
+    gltfL.load(url, function (g) {
+      var root = g.scene;
+      root.traverse(function (o) { if (o.isMesh) { o.castShadow = o.receiveShadow = true; } });
+      var wrap = new THREE.Group();
+      if (opts.static) { // the tank is a plain mesh — bbox normalize is safe here
+        var bb = new THREE.Box3().setFromObject(root), sz = bb.getSize(new THREE.Vector3());
+        root.scale.setScalar((opts.h || 0.1) / (sz.y || 1));
+        bb.setFromObject(root); var c = bb.getCenter(new THREE.Vector3());
+        root.position.set(-c.x, -bb.min.y, -c.z);
+      } else {
+        root.scale.setScalar(WAR_SCALE);
+      }
+      wrap.add(root);
+      wrap.position.set(x, 0, z); wrap.rotation.y = rotY;
+      if (opts.fallen) { wrap.rotation.z = 1.42; wrap.position.y = 0.012; } // knocked flat
+      war.add(wrap);
+      if (g.animations && g.animations.length) { // the units breathe their in-game idles
+        var umx = new THREE.AnimationMixer(root);
+        umx.clipAction(g.animations[0]).play();
+        umx.setTime(Math.random() * 2); // desync the sway
+        mixers.push(umx);
+      }
+      root.traverse(function (o) {
+        if (o.isMesh) { clickable(o, "THE RUG WAR", go(BASE + "toybox-tactics/"), warHint); o.userData.war = true; }
+      });
     });
   }
-  deploy(GREEN_LINE, greenM, Math.PI / 2);
-  deploy(TAN_LINE, tanM, -Math.PI / 2);
+  // the green line vs the scouts' line, with armor in support
+  warUnit("assets/props/army_soldier.glb", -0.20, -0.18, Math.PI / 2 + 0.15);
+  warUnit("assets/props/army_soldier.glb", -0.27, 0.00, Math.PI / 2 - 0.1);
+  warUnit("assets/props/army_bazooka.glb", -0.33, 0.09, Math.PI / 2);
+  warUnit("assets/props/army_soldier.glb", -0.09, 0.07, Math.PI / 2 + 0.5, { fallen: true });
+  warUnit("assets/props/army_tank.glb", -0.52, -0.05, Math.PI / 2 - 0.08, { static: true, h: 0.12 });
+  warUnit("assets/props/army_archer.glb", 0.20, -0.10, -Math.PI / 2 - 0.2);
+  warUnit("assets/props/army_scout.glb", 0.28, 0.06, -Math.PI / 2 + 0.1);
+  warUnit("assets/props/army_archer.glb", 0.34, -0.06, -Math.PI / 2 + 0.05);
+  warUnit("assets/props/army_scout.glb", 0.08, -0.15, -Math.PI / 2 - 0.6, { fallen: true });
   // cotton-ball smoke over no-man's-land — frozen, like the rest of the battle
   for (var wp = 0; wp < 3; wp++) {
     var puff = new THREE.Mesh(new THREE.SphereGeometry(0.028 + wp * 0.008, 10, 8),
@@ -1188,7 +1174,11 @@ import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
      ["lie", "assets/props/kid_lie.glb"], ["fidget", "assets/props/kid_fidget.glb"]]
       .forEach(function (p) {
         gltfL.load(p[1], function (cg) {
-          if (cg.animations && cg.animations[0]) kidActions[p[0]] = kidMixer.clipAction(cg.animations[0], root);
+          if (cg.animations && cg.animations[0]) {
+            var act = kidMixer.clipAction(cg.animations[0], root);
+            if (p[0] === "lie") { act.setLoop(THREE.LoopOnce, 1); act.clampWhenFinished = true; } // lie down once, stay down
+            kidActions[p[0]] = act;
+          }
         });
       });
   });
@@ -1202,10 +1192,11 @@ import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
     { x: -1.1, z: 2.05, act: "fidget" },             // at the island's shore
     { x: -1.35, z: 0.4, act: "idle" },               // the desk
     { x: -1.25, z: -1.65, act: "idle" },             // the shelf
-    { x: -1.78, z: 1.24, act: "sit", seat: 4, y: 0.12 }, // in the beanbag (obstacle #4)
-    { x: 2.85, z: 2.15, act: "bed" }                 // the foot of the bed → climb on and lie down
+    { x: -1.95, z: 1.4, act: "sit", seat: 4, y: 0.08, yaw: 0.9 }, // in the beanbag (hips land on the bag's center)
+    { x: 2.12, z: 1.05, act: "bed", seat: 1 }        // the bedside → climb up and lie down (may enter the bed's circle)
   ];
-  var KID_BED = { x: 2.9, y: 0.12, z: 0.85, footZ: 2.15 }; // where he lies (head to the pillow), and the floor spot he climbs from
+  // side: where he stands; up: hoisted onto the mattress edge; lie: head on the pillow
+  var KID_BED = { sideX: 2.12, sideZ: 1.05, upX: 2.62, upY: 0.42, x: 2.9, y: 0.12, z: 0.85 };
   // furniture he must walk AROUND, not through (circles in floor-plane; kid body ~0.18)
   var KID_R = 0.18;
   var KID_OBSTACLES = [
@@ -1319,6 +1310,19 @@ import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
     zoomLookTo.copy(ctr);
     zoomT = 0;
   }
+  // Hitting BACK from a game restores this page from the bfcache exactly as it was
+  // left: camera zoomed into a book, kid mid-reach. Reset the shot and the kid.
+  window.addEventListener("pageshow", function (ev) {
+    if (!ev.persisted) return;
+    zoomT = -1; pendingNav = null; navTarget = null;
+    introT = 1; // settle instantly; no re-dolly
+    camera.position.set(0, 1.72, 4.9);
+    lookAt.set(0, 1.2, -0.4);
+    camera.lookAt(lookAt);
+    kidState.mode = "roam"; kidState.via = false; kidState.ignoreObs = -1; kidState.targetY = 0;
+    kid.position.y = 0; kid.rotation.x = 0;
+    kidPickStation();
+  });
 
   /* ---- THE SOLAR SYSTEM POSTER (back wall, between shelf and window) ---------- */
   var posterM = new THREE.MeshStandardMaterial({ color: 0x2a3040, roughness: 0.9 });
@@ -1375,6 +1379,11 @@ import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
       if (sl.beeSeen) slText += " · ★ Sussex";
     }
     html += nbRow("Elementary", slText);
+    // Tony's games live on his origin — their saves can't be read from here,
+    // but the notebook should still know every game in the room.
+    html += nbRow("Brainrot", "on Tony's shelf");
+    html += nbRow("Tidebound", "on Tony's shelf");
+    html += nbRow("Chameleon 3D", "kitchen prototype");
     nbPages.push({ title: "what i finished", html: html });
     if (tt.started || stories) { // the war, act by act
       var p = readSave("tt-campaign", function (m) { return m; }) || {};
@@ -1540,6 +1549,7 @@ import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
       var kdist = kidStep(dt, summoned ? 1.2 : 0.55);
       kidState.walkT += dt;
       var arrived = kdist <= 0.08, stuck = kidState.walkT > (summoned ? 3.2 : 10);
+      if (kid.position.y > 0.01) kid.position.y += (0 - kid.position.y) * Math.min(1, dt * 3); // hop down if a click pulled him off the bed
       if (!arrived && !stuck) {
         kidFace(Math.atan2(kidState.faceX, kidState.faceZ), 9);
       } else if (arrived && kidState.via) { // reached the hub — press on to the real target
@@ -1559,26 +1569,32 @@ import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
     } else if (kidState.mode === "act") { // sitting / idling / fidgeting where he stopped
       kidState.t -= dt;
       kid.position.y += ((kidState.targetY || 0) - kid.position.y) * Math.min(1, dt * 4);
-      if (kidState.station && kidState.station.act === "sit") kidFace(0.35, 3); // sink back, face the room
+      if (kidState.station && kidState.station.act === "sit") kidFace(kidState.station.yaw || 0.35, 3); // sink back, face the room
       if (kidState.t <= 0) { kidState.targetY = 0; kidState.mode = "roam"; kidPickStation(); }
-    } else if (kidState.mode === "toBed") { // clamber from the foot of the bed onto the mattress
+    } else if (kidState.mode === "toBed") { // hoist up at the bedside — over the rail, not through it
       setKidAction("idle", 0.3);
-      kid.position.x += (KID_BED.x - kid.position.x) * Math.min(1, dt * 1.7);
-      kid.position.y += (KID_BED.y - kid.position.y) * Math.min(1, dt * 1.7);
-      kid.position.z += (KID_BED.z - kid.position.z) * Math.min(1, dt * 1.7);
-      kidFace(0, 3); // the lie clip already puts his head toward -z (the pillow)
-      if (Math.abs(kid.position.x - KID_BED.x) < 0.04 && Math.abs(kid.position.z - KID_BED.z) < 0.05) {
-        setKidAction("lie", 0.5); kidState.mode = "onBed"; kidState.t = 9 + Math.random() * 6;
+      kid.position.x += (KID_BED.upX - kid.position.x) * Math.min(1, dt * 1.4);
+      kid.position.y += (KID_BED.upY - kid.position.y) * Math.min(1, dt * 2.6); // up first, then over the rail
+      kidFace(0, 5); // turn to lie head-toward-the-pillow (the clip lies along -z)
+      if (kid.position.y > KID_BED.upY - 0.05) { kidState.mode = "bedSlide"; }
+    } else if (kidState.mode === "bedSlide") { // scoot to the middle and settle down
+      kid.position.x += (KID_BED.x - kid.position.x) * Math.min(1, dt * 2);
+      kid.position.y += (KID_BED.y - kid.position.y) * Math.min(1, dt * 1.4);
+      kid.position.z += (KID_BED.z - kid.position.z) * Math.min(1, dt * 2);
+      kidFace(0, 5);
+      if (Math.abs(kid.position.x - KID_BED.x) < 0.05 && Math.abs(kid.position.z - KID_BED.z) < 0.06) {
+        kid.rotation.y = 0;
+        setKidAction("lie", 0.45); kidState.mode = "onBed"; kidState.t = 10 + Math.random() * 6;
       }
     } else if (kidState.mode === "onBed") {
       kidState.t -= dt;
       if (kidState.t <= 0) { kidState.mode = "offBed"; setKidAction("idle", 0.4); }
-    } else if (kidState.mode === "offBed") { // slide back down to the floor
-      kid.position.x += (KID_BED.x - kid.position.x) * Math.min(1, dt * 2);
-      kid.position.y += (0 - kid.position.y) * Math.min(1, dt * 2);
-      kid.position.z += (KID_BED.footZ - kid.position.z) * Math.min(1, dt * 2);
-      if (Math.abs(kid.position.z - KID_BED.footZ) < 0.06 && kid.position.y < 0.05) {
-        kid.position.y = 0; kidState.mode = "roam"; kidPickStation();
+    } else if (kidState.mode === "offBed") { // slide back off at the bedside
+      kid.position.x += (KID_BED.sideX - kid.position.x) * Math.min(1, dt * 2);
+      kid.position.y += (0 - kid.position.y) * Math.min(1, dt * 2.4);
+      kid.position.z += (KID_BED.sideZ - kid.position.z) * Math.min(1, dt * 2);
+      if (Math.abs(kid.position.x - KID_BED.sideX) < 0.06 && kid.position.y < 0.05) {
+        kid.position.y = 0; kidState.ignoreObs = -1; kidState.mode = "roam"; kidPickStation();
       }
     } else if (kidState.mode === "open") { // reaching for the thing you asked for
       kidState.t += dt;
@@ -1600,9 +1616,12 @@ import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
     tvFlip -= dt;
     if (tvFlip <= 0 && cartoonT) {
       tvCartoon = !tvCartoon;
-      screen.material.map = tvCartoon ? (phase.test ? testT : cartoonT) : staticT;
+      // Late night used to be ALL test pattern — anyone playing after midnight never saw
+      // the cartoons. Now the test card is just an occasional late-night beat.
+      var showTest = phase.test && Math.random() < 0.3;
+      screen.material.map = tvCartoon ? (showTest ? testT : cartoonT) : staticT;
       screen.material.needsUpdate = true;
-      crtLight.color.set(tvCartoon ? (phase.test ? 0xc8c8e0 : 0xffd9a0) : 0x7db4ff);
+      crtLight.color.set(tvCartoon ? (showTest ? 0xc8c8e0 : 0xffd9a0) : 0x7db4ff);
       tvFlip = tvCartoon ? phase.on[0] + Math.random() * phase.on[1]
                          : phase.off[0] + Math.random() * phase.off[1];
     }
