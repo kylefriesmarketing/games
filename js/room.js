@@ -442,30 +442,32 @@ import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
   var CHAMELEON_URL = "https://kylefriesmarketing.github.io/chameleon/chameleon3d.html";
   [mon, pcScreen, kb, tower].forEach(function (m) { clickable(m, "CHAMELEON 3D", go(CHAMELEON_URL), "CHAMELEON 3D — Dumb Tony's kitchen crawl · click to play"); });
 
-  // the brain on the desk — BRAINROT INC (coming soon)
+  // the brain on the desk — BRAINROT (generated neon brain, glows its own colors)
   var brainG = new THREE.Group();
-  var brainStand = new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.19, 0.06, 20), woodMSide); brainStand.position.y = 0.845; brainG.add(brainStand);
-  function hemisphere(side) {
-    var geo = new THREE.SphereGeometry(0.13, 24, 18);
-    var pos = geo.attributes.position, v = new THREE.Vector3();
-    for (var i = 0; i < pos.count; i++) {
-      v.fromBufferAttribute(pos, i);
-      var n = Math.sin(v.x * 41 + v.y * 29) * Math.cos(v.y * 37 + v.z * 31) * 0.011 // wrinkles
-            + Math.sin(v.z * 53 + v.x * 23) * 0.008;
-      v.addScaledVector(v.clone().normalize(), n);
-      pos.setXYZ(i, v.x * 0.82, v.y * 0.8, v.z * 1.12);
-    }
-    geo.computeVertexNormals();
-    var h = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ color: 0xd88a94, roughness: 0.38 }));
-    h.position.x = side * 0.055; h.castShadow = true;
-    return h;
-  }
-  var bL = hemisphere(-1), bR = hemisphere(1);
-  bL.position.y = bR.position.y = 0.99; brainG.add(bL); brainG.add(bR);
-  var stem = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.045, 0.09, 10), mat(0xc4747e, 0.5));
-  stem.position.set(0, 0.9, -0.02); stem.rotation.x = 0.3; brainG.add(stem);
   var BRAINROT_URL = "https://dumb-tony.github.io/GameRepos/brainrot/";
-  brainG.children.forEach(function (m) { clickable(m, "BRAINROT", go(BRAINROT_URL), "BRAINROT: RISE OF THE MEME — Dumb Tony's mind-plague strategy"); });
+  var BRAINROT_HINT = "BRAINROT: RISE OF THE MEME — Dumb Tony's mind-plague strategy";
+  var brainStand = new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.19, 0.06, 20), woodMSide); brainStand.position.y = 0.845; brainG.add(brainStand);
+  clickable(brainStand, "BRAINROT", go(BRAINROT_URL), BRAINROT_HINT);
+  var brainGlow = new THREE.PointLight(0xff3bd0, 0.5, 1.1, 2); brainGlow.position.set(0, 1.02, 0); brainG.add(brainGlow);
+  gltfL.load("assets/props/brain.glb", function (g) {
+    var root = g.scene;
+    root.traverse(function (o) {
+      if (o.isMesh) {
+        o.castShadow = o.receiveShadow = true;
+        if (o.material && o.material.emissive !== undefined) { // let the neon paint self-illuminate
+          if (o.material.map) o.material.emissiveMap = o.material.map;
+          o.material.emissive = new THREE.Color(0xffffff); o.material.emissiveIntensity = 0.45;
+          o.material.needsUpdate = true;
+        }
+      }
+    });
+    var bb = new THREE.Box3().setFromObject(root), sz = bb.getSize(new THREE.Vector3());
+    root.scale.setScalar(0.3 / (Math.max(sz.x, sz.y, sz.z) || 1)); // toy-sized, shards included
+    bb.setFromObject(root); var ctr = bb.getCenter(new THREE.Vector3());
+    root.position.set(-ctr.x, 0.875 - bb.min.y, -ctr.z); // centered on the stand
+    brainG.add(root);
+    root.traverse(function (o) { if (o.isMesh) clickable(o, "BRAINROT", go(BRAINROT_URL), BRAINROT_HINT); });
+  });
   brainG.position.set(-0.42, 0, 0.05); desk.add(brainG);
 
   // lamp (click = toggle)
