@@ -1205,7 +1205,7 @@ import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
     { x: -1.78, z: 1.24, act: "sit", seat: 4, y: 0.12 }, // in the beanbag (obstacle #4)
     { x: 2.85, z: 2.15, act: "bed" }                 // the foot of the bed → climb on and lie down
   ];
-  var KID_BED = { x: 2.9, y: 0.52, z: 1.05, footZ: 2.15 }; // where he lies, and the floor spot he climbs from
+  var KID_BED = { x: 2.9, y: 0.12, z: 0.85, footZ: 2.15 }; // where he lies (head to the pillow), and the floor spot he climbs from
   // furniture he must walk AROUND, not through (circles in floor-plane; kid body ~0.18)
   var KID_R = 0.18;
   var KID_OBSTACLES = [
@@ -1566,7 +1566,7 @@ import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
       kid.position.x += (KID_BED.x - kid.position.x) * Math.min(1, dt * 1.7);
       kid.position.y += (KID_BED.y - kid.position.y) * Math.min(1, dt * 1.7);
       kid.position.z += (KID_BED.z - kid.position.z) * Math.min(1, dt * 1.7);
-      kidFace(Math.PI, 3); // head toward the headboard (-z)
+      kidFace(0, 3); // the lie clip already puts his head toward -z (the pillow)
       if (Math.abs(kid.position.x - KID_BED.x) < 0.04 && Math.abs(kid.position.z - KID_BED.z) < 0.05) {
         setKidAction("lie", 0.5); kidState.mode = "onBed"; kidState.t = 9 + Math.random() * 6;
       }
