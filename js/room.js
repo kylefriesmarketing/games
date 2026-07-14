@@ -1167,21 +1167,87 @@ import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
     }
   });
 
-  var KID_STATIONS = [ // open-floor spots by things worth poking
-    { x: 1.15, z: 0.75 },  // the chest
-    { x: 2.15, z: 0.32 },  // under the boombox shelf, beside the bed head
-    { x: -1.55, z: 1.25 }, // the beanbag
+  var KID_STATIONS = [ // open-floor spots by things worth poking (all clear of KID_OBSTACLES)
+    { x: 1.05, z: 1.0 },   // in front of the chest
+    { x: 2.05, z: 1.7 },   // right side, between the bed and the rug
+    { x: -1.4, z: 1.45 },  // by the beanbag
     { x: 0.35, z: 1.35 },  // the rug (with the robot)
     { x: 2.3, z: -0.75 },  // the TV
-    { x: -1.1, z: 2.05 },  // at the island's shore (diorama spans x -2.44..-1.36)
+    { x: -1.1, z: 2.05 },  // at the island's shore
     { x: -1.6, z: 0.15 },  // the desk
     { x: -1.25, z: -1.65 } // the shelf
   ];
-  var kidState = { mode: "roam", t: 0, tx: 0.35, tz: 1.35, phase: 0 };
+  // furniture he must walk AROUND, not through (circles in floor-plane; kid body ~0.18)
+  var KID_R = 0.18;
+  var KID_OBSTACLES = [
+    { x: 1.75, z: 0.15, r: 0.75 },   // the toy chest  <- the reported glitch
+    { x: 2.93, z: 1.0, r: 0.82 },    // the bed
+    { x: -2.35, z: -0.8, r: 0.82 },  // the desk
+    { x: -1.9, z: 2.45, r: 0.5 },    // the island
+    { x: -2.05, z: 1.2, r: 0.42 },   // the beanbag
+    { x: 3.0, z: -1.35, r: 0.55 }    // the TV stand
+  ];
+  // One avoidance step toward (tx,tz): steer around obstacles, then hard-clamp out
+  // of any we'd still penetrate. Returns remaining distance to the target.
+  function kidStep(dt, speed) {
+    var kdx = kidState.tx - kid.position.x, kdz = kidState.tz - kid.position.z;
+    var kdist = Math.sqrt(kdx * kdx + kdz * kdz);
+    if (kdist < 0.001) return 0;
+    var dx = kdx / kdist, dz = kdz / kdist; // desired heading
+    for (var oi = 0; oi < KID_OBSTACLES.length; oi++) {
+      var o = KID_OBSTACLES[oi];
+      var ox = o.x - kid.position.x, oz = o.z - kid.position.z;
+      var od = Math.sqrt(ox * ox + oz * oz), infl = o.r + KID_R + 0.45;
+      if (od > 0.001 && od < infl) {
+        var ax = ox / od, az = oz / od, ahead = ax * dx + az * dz;
+        if (ahead > 0) { // obstacle is in front of where we want to go — slide past it
+          var px = -az, pz = ax;
+          if (px * dx + pz * dz < 0) { px = az; pz = -ax; } // pick the side facing the target
+          var push = (infl - od) / infl * (0.6 + ahead);
+          dx += px * push; dz += pz * push;
+        }
+      }
+    }
+    var dl = Math.sqrt(dx * dx + dz * dz) || 1; dx /= dl; dz /= dl;
+    var step = Math.min(speed * dt, kdist);
+    var nx = kid.position.x + dx * step, nz = kid.position.z + dz * step;
+    for (var ci = 0; ci < KID_OBSTACLES.length; ci++) { // never end a frame inside one
+      var oc = KID_OBSTACLES[ci], cx = nx - oc.x, cz = nz - oc.z;
+      var cd = Math.sqrt(cx * cx + cz * cz), minD = oc.r + KID_R;
+      if (cd < minD && cd > 0.001) { nx = oc.x + cx / cd * minD; nz = oc.z + cz / cd * minD; }
+    }
+    kidState.faceX = nx - kid.position.x; kidState.faceZ = nz - kid.position.z; // face travel
+    kid.position.x = nx; kid.position.z = nz;
+    return kdist;
+  }
+  var kidState = { mode: "roam", t: 0, tx: 0.35, tz: 1.35, phase: 0, walkT: 0, faceX: 0, faceZ: 1,
+    via: false, fx: 0, fz: 0 };
+  var KID_HUB = { x: 0.3, z: 1.35 }; // clear rug-center staging point
+  // Does the straight line a->b pass through any furniture? (the chest nearly touches the
+  // bed, so the right-side corridor is a dead end greedy avoidance can wedge in.)
+  function kidPathBlocked(ax, az, bx, bz) {
+    var dx = bx - ax, dz = bz - az, len = Math.sqrt(dx * dx + dz * dz) || 1, n = Math.ceil(len / 0.15);
+    for (var s = 1; s < n; s++) {
+      var t = s / n, px = ax + dx * t, pz = az + dz * t;
+      for (var o = 0; o < KID_OBSTACLES.length; o++) {
+        var O = KID_OBSTACLES[o];
+        if (Math.sqrt((px - O.x) * (px - O.x) + (pz - O.z) * (pz - O.z)) < O.r + KID_R - 0.02) return true;
+      }
+    }
+    return false;
+  }
+  // Head for (x,z); if the direct line is blocked, stage through the open hub first.
+  function kidGoto(x, z) {
+    var nearHub = Math.abs(kid.position.x - KID_HUB.x) < 0.25 && Math.abs(kid.position.z - KID_HUB.z) < 0.25;
+    if (!nearHub && kidPathBlocked(kid.position.x, kid.position.z, x, z)) {
+      kidState.tx = KID_HUB.x; kidState.tz = KID_HUB.z; kidState.fx = x; kidState.fz = z; kidState.via = true;
+    } else {
+      kidState.tx = x; kidState.tz = z; kidState.via = false;
+    }
+  }
   function kidPickStation() {
     var s = KID_STATIONS[(Math.random() * KID_STATIONS.length) | 0];
-    kidState.tx = s.x + (Math.random() - 0.5) * 0.2;
-    kidState.tz = s.z + (Math.random() - 0.5) * 0.2;
+    kidGoto(s.x + (Math.random() - 0.5) * 0.2, s.z + (Math.random() - 0.5) * 0.2);
   }
   var pendingNav = null, navTarget = null;
   var zoomT = -1, zoomFrom = new THREE.Vector3(), zoomTo = new THREE.Vector3(),
@@ -1189,12 +1255,20 @@ import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
   function kidSummon(mesh) {
     if (pendingNav) return;
     pendingNav = mesh.userData.action; navTarget = mesh;
-    var c = new THREE.Box3().setFromObject(mesh).getCenter(new THREE.Vector3());
-    var dir = new THREE.Vector3(0.15 - c.x, 0, 0.9 - c.z); dir.y = 0; // pull toward open floor
+    var box = new THREE.Box3().setFromObject(mesh);
+    var c = box.getCenter(new THREE.Vector3()), sz = box.getSize(new THREE.Vector3());
+    var dir = new THREE.Vector3(0.35 - c.x, 0, 1.0 - c.z); dir.y = 0; // pull toward open floor
     if (dir.lengthSq() < 0.01) dir.set(0, 0, 1);
     dir.normalize();
-    kidState.tx = c.x + dir.x * 0.55; kidState.tz = c.z + dir.z * 0.55;
-    kidState.mode = "summon"; kidState.t = 0;
+    var standoff = Math.max(sz.x, sz.z) * 0.5 + 0.4; // stop clear of the object, not inside it
+    var tx = c.x + dir.x * standoff, tz = c.z + dir.z * standoff;
+    for (var oi = 0; oi < KID_OBSTACLES.length; oi++) { // and clear of any OTHER furniture
+      var o = KID_OBSTACLES[oi], mx = tx - o.x, mz = tz - o.z;
+      var md = Math.sqrt(mx * mx + mz * mz), need = o.r + KID_R + 0.05;
+      if (md < need && md > 0.001) { tx = o.x + mx / md * need; tz = o.z + mz / md * need; }
+    }
+    kidState.mode = "summon"; kidState.t = 0; kidState.walkT = 0;
+    kidGoto(tx, tz); // stage through the hub if the chest (or anything) is in the way
     setTimeout(function () { if (pendingNav) { var f = pendingNav; pendingNav = null; f(); } }, 4800); // failsafe — the door opens even if the tab hides
   }
   function kidStartZoom() {
@@ -1409,26 +1483,31 @@ import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
     // THE KID: roams and pokes at things; summoned, he walks over and opens the door
     kidState.phase += dt * (kidState.mode === "summon" ? 10 : 6.2);
     if (kidState.mode === "roam" || kidState.mode === "summon") {
-      var kdx = kidState.tx - kid.position.x, kdz = kidState.tz - kid.position.z;
-      var kdist = Math.sqrt(kdx * kdx + kdz * kdz);
-      var ksp = kidState.mode === "summon" ? 1.2 : 0.5;
-      if (kdist > 0.06) {
+      var summoned = kidState.mode === "summon";
+      var kdist = kidStep(dt, summoned ? 1.2 : 0.5);
+      kidState.walkT += dt;
+      // arrive at the target, or give up if wedged (watchdog): summoned kids MUST open
+      var arrived = kdist <= 0.08;
+      var stuck = kidState.walkT > (summoned ? 3.2 : 9);
+      if (!arrived && !stuck) {
         kidWalking = true;
-        kid.position.x += kdx / kdist * ksp * dt;
-        kid.position.z += kdz / kdist * ksp * dt;
-        var kwant = Math.atan2(kdx, kdz), kdr = kwant - kid.rotation.y;
+        var kwant = Math.atan2(kidState.faceX, kidState.faceZ), kdr = kwant - kid.rotation.y;
         while (kdr > Math.PI) kdr -= Math.PI * 2; while (kdr < -Math.PI) kdr += Math.PI * 2;
         kid.rotation.y += kdr * Math.min(1, dt * 9);
         var ksw = Math.sin(kidState.phase);
         legL.rotation.x = ksw * 0.55; legR.rotation.x = -ksw * 0.55;
         armL.rotation.x = -ksw * 0.38; armR.rotation.x = ksw * 0.38;
         kid.position.y = Math.abs(Math.cos(kidState.phase)) * 0.015;
+      } else if (arrived && kidState.via) { // reached the hub — press on to the real target
+        kidState.via = false; kidState.walkT = 0;
+        kidState.tx = kidState.fx; kidState.tz = kidState.fz;
       } else {
         kidWalking = false;
         legL.rotation.x *= 0.75; legR.rotation.x *= 0.75;
         armL.rotation.x *= 0.75; armR.rotation.x *= 0.75;
         kid.position.y *= 0.75;
-        if (kidState.mode === "summon") { kidState.mode = "open"; kidState.t = 0; }
+        kidState.walkT = 0; kidState.via = false;
+        if (summoned) { kidState.mode = "open"; kidState.t = 0; }
         else { kidState.mode = "play"; kidState.t = 2.5 + Math.random() * 4.5; }
       }
     } else if (kidState.mode === "play") { // crouched over something, poking it
@@ -1603,5 +1682,6 @@ import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
   scene.updateMatrixWorld(true);
   renderer.render(scene, camera);
   tick();
-  window.__room = { scene: scene, camera: camera, renderer: renderer, pick: pick, ray: ray, THREE: THREE }; // debug hook (THREE: modules hide the global)
+  window.__room = { scene: scene, camera: camera, renderer: renderer, pick: pick, ray: ray, THREE: THREE, // debug hook (THREE: modules hide the global)
+    kid: kid, kidState: kidState, kidStep: kidStep, kidGoto: kidGoto, kidObstacles: KID_OBSTACLES, kidStations: KID_STATIONS };
 })();
