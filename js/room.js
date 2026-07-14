@@ -896,12 +896,13 @@ import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
   boom.position.set(3.41, 1.373, 0.35); boom.rotation.y = -Math.PI / 2 + 0.12; scene.add(boom);
 
   /* ---- the entry: camera dolly in + the tape starts (click unlocked audio) ---- */
-  var introT = -1, INTRO = 3.2;
+  var introT = -1, INTRO = 3.2, kidGreet = false; // kidGreet: wave hello once we're inside
   var noMotion = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
   window.__roomEnter = function () {
     introT = noMotion ? 1 : 0; // reduced motion skips the dolly, keeps the music
     if (!ac) buildAudio();
     audioOn = true; ac.resume(); powerLED.material.color.set(0xff3b30);
+    kidGreet = true; // he looks up and waves as you walk in
     var last = null;
     try { last = localStorage.getItem("room-knock"); } catch (e) { /* private mode */ }
     if (KNOCK_DEBUG || last !== new Date().toDateString()) {
@@ -1171,12 +1172,13 @@ import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
       kidActions.walk.play(); kidCur = kidActions.walk; kidActionName = "walk";
     }
     [["idle", "assets/props/kid_idle.glb"], ["sit", "assets/props/kid_sit.glb"],
-     ["lie", "assets/props/kid_lie.glb"], ["fidget", "assets/props/kid_fidget.glb"]]
+     ["lie", "assets/props/kid_lie.glb"], ["fidget", "assets/props/kid_fidget.glb"],
+     ["dance", "assets/props/kid_dance.glb"], ["wave", "assets/props/kid_wave.glb"]]
       .forEach(function (p) {
         gltfL.load(p[1], function (cg) {
           if (cg.animations && cg.animations[0]) {
             var act = kidMixer.clipAction(cg.animations[0], root);
-            if (p[0] === "lie") { act.setLoop(THREE.LoopOnce, 1); act.clampWhenFinished = true; } // lie down once, stay down
+            if (p[0] === "lie" || p[0] === "wave") { act.setLoop(THREE.LoopOnce, 1); act.clampWhenFinished = true; }
             kidActions[p[0]] = act;
           }
         });
@@ -1269,8 +1271,12 @@ import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
       kidState.tx = x; kidState.tz = z; kidState.via = false;
     }
   }
+  var KID_DANCE = { x: 0.6, z: 1.62, act: "dance" }; // clear patch of rug (not on the army men), facing the room
   function kidPickStation() {
-    var s = KID_STATIONS[(Math.random() * KID_STATIONS.length) | 0];
+    // when the boombox is going, he can't help himself — dance on the rug
+    var s = (audioOn && kidActions.dance && Math.random() < 0.45)
+      ? KID_DANCE
+      : KID_STATIONS[(Math.random() * KID_STATIONS.length) | 0];
     kidState.station = s;
     kidState.ignoreObs = (s.seat == null) ? -1 : s.seat; // may sit on the beanbag
     var jx = s.seat == null ? (Math.random() - 0.5) * 0.2 : 0;
@@ -1543,7 +1549,17 @@ import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
       while (kdr > Math.PI) kdr -= Math.PI * 2; while (kdr < -Math.PI) kdr += Math.PI * 2;
       kid.rotation.y += kdr * Math.min(1, dt * (rate || 6));
     }
-    if (kidState.mode === "roam" || kidState.mode === "summon") {
+    // he waves hello when you first step into the room (once the clip is ready)
+    if (kidGreet && kidActions.wave && !pendingNav && zoomT < 0 &&
+        kidState.mode !== "onBed" && kidState.mode !== "toBed" && kidState.mode !== "bedSlide") {
+      kidGreet = false; kidState.mode = "greet"; kidState.t = 0;
+      kid.position.y = 0; setKidAction("wave", 0.2);
+    }
+    if (kidState.mode === "greet") {
+      kidState.t += dt;
+      kidFace(Math.atan2(-kid.position.x, 4.9 - kid.position.z), 5); // turn to the doorway/camera
+      if (kidState.t > 2.6) { kidState.mode = "roam"; kidPickStation(); }
+    } else if (kidState.mode === "roam" || kidState.mode === "summon") {
       var summoned = kidState.mode === "summon";
       setKidAction("walk", 0.2);
       var kdist = kidStep(dt, summoned ? 1.2 : 0.55);
@@ -1563,13 +1579,18 @@ import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
           setKidAction(act, 0.35);
           kidState.ignoreObs = -1;
           kidState.targetY = (kidState.station && kidState.station.y) || 0;
-          kidState.mode = "act"; kidState.t = (act === "sit" ? 8 : 3.5) + Math.random() * 5;
+          kidState.mode = "act";
+          kidState.t = (act === "dance" ? 11 : act === "sit" ? 8 : 3.5) + Math.random() * 5;
         }
       }
-    } else if (kidState.mode === "act") { // sitting / idling / fidgeting where he stopped
+    } else if (kidState.mode === "act") { // sitting / idling / fidgeting / dancing where he stopped
       kidState.t -= dt;
       kid.position.y += ((kidState.targetY || 0) - kid.position.y) * Math.min(1, dt * 4);
-      if (kidState.station && kidState.station.act === "sit") kidFace(kidState.station.yaw || 0.35, 3); // sink back, face the room
+      var actNow = kidState.station && kidState.station.act;
+      if (actNow === "sit") kidFace(kidState.station.yaw || 0.35, 3); // sink back, face the room
+      else if (actNow === "dance") kidFace(0.1, 2); // face the room while he grooves
+      // if the boombox stops mid-dance, wander off
+      if (actNow === "dance" && !audioOn) kidState.t = Math.min(kidState.t, 0.5);
       if (kidState.t <= 0) { kidState.targetY = 0; kidState.mode = "roam"; kidPickStation(); }
     } else if (kidState.mode === "toBed") { // hoist up at the bedside — over the rail, not through it
       setKidAction("idle", 0.3);
