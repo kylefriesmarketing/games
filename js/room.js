@@ -1024,6 +1024,9 @@ import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
   function propTip(name, hint) {
     return function (wrap) { wrap.traverse(function (o) { if (o.isMesh) clickable(o, name, null, hint); }); };
   }
+  function propDoor(name, hint, url) { // a generated prop that is also a doorway
+    return function (wrap) { wrap.traverse(function (o) { if (o.isMesh) clickable(o, name, go(url), hint); }); };
+  }
   prop("assets/props/bean.glb", 0.62, -2.05, 0, 1.2, 0.95,
     propTip("the beanbag", "the beanbag — best seat in the house"));
   prop("assets/props/trex.glb", 0.3, 1.38, 0, 1.02, -0.9, // clear of the robot's 0.9 orbit ring, watching the patrol
@@ -1086,34 +1089,9 @@ import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
     });
   })();
 
-  /* ---- TIDEBOUND: a toy island on the floor (palm tree and all) --------------- */
-  var island = new THREE.Group();
-  var sea = new THREE.Mesh(new THREE.CylinderGeometry(0.42, 0.46, 0.07, 28),
-    new THREE.MeshStandardMaterial({ color: 0x2e7d9e, roughness: 0.35 }));
-  sea.position.y = 0.035; sea.castShadow = sea.receiveShadow = true; island.add(sea);
-  var sand = new THREE.Mesh(new THREE.SphereGeometry(0.26, 20, 14), mat(0xd9c186, 0.95));
-  sand.scale.set(1, 0.42, 1); sand.position.y = 0.07; sand.castShadow = true; island.add(sand);
-  var trunkM = mat(0x8a6242, 0.85);
-  [[0, 0.16, 0.12], [0.025, 0.29, 0.22], [0.062, 0.41, 0.3]].forEach(function (s, si) {
-    var seg = new THREE.Mesh(new THREE.CylinderGeometry(0.02 - si * 0.003, 0.026 - si * 0.003, 0.15, 8), trunkM);
-    seg.position.set(s[0], s[1], 0); seg.rotation.z = -s[2]; seg.castShadow = true; island.add(seg);
-  });
-  var frondM = new THREE.MeshStandardMaterial({ color: 0x3f7d3a, roughness: 0.8, side: THREE.DoubleSide });
-  for (var fi = 0; fi < 6; fi++) {
-    var frond = new THREE.Mesh(new THREE.PlaneGeometry(0.055, 0.24), frondM);
-    var fg = new THREE.Group();
-    frond.position.y = -0.1; frond.rotation.x = -0.9; fg.add(frond);
-    fg.position.set(0.095, 0.5, 0); fg.rotation.y = fi / 6 * Math.PI * 2;
-    island.add(fg);
-  }
-  [[0.06, 0.44, 0.03], [0.115, 0.43, -0.025]].forEach(function (cc) {
-    var nut = new THREE.Mesh(new THREE.SphereGeometry(0.02, 8, 8), mat(0x5a4630, 0.9));
-    nut.position.set(cc[0], cc[1], cc[2]); island.add(nut);
-  });
-  island.position.set(-1.9, 0, 2.45); island.rotation.y = 0.5; scene.add(island);
-  island.traverse(function (o) {
-    if (o.isMesh) clickable(o, "TIDEBOUND", go("https://dumb-tony.github.io/GameRepos/tidebound/"), "TIDEBOUND — the island that isn't on any chart (Dumb Tony's)");
-  });
+  /* ---- TIDEBOUND: a toy island diorama on the floor (generated) --------------- */
+  prop("assets/props/island.glb", 0.62, -1.9, 0, 2.45, 0.5,
+    propDoor("TIDEBOUND", "TIDEBOUND — the island that isn't on any chart (Dumb Tony's)", "https://dumb-tony.github.io/GameRepos/tidebound/"));
 
   /* ==== THE KID: he lives here. He plays with everything until you ask for
    * something — then he walks over and opens it for you, and the camera leans
@@ -1164,13 +1142,38 @@ import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
   kid.position.set(0.75, 0, 1.95); scene.add(kid);
   kid.traverse(function (o) { if (o.isMesh) clickable(o, "the kid", null, "that's the kid — this is his room"); });
 
+  // If the rigged, walk-animated version exists, he upgrades himself in place.
+  // The primitive stand-in above stays as the fallback when this load fails.
+  var kidMixer = null, kidWalking = false;
+  gltfL.load("assets/props/kid.glb", function (g) {
+    var root = g.scene;
+    root.traverse(function (o) { if (o.isMesh) { o.castShadow = o.receiveShadow = true; } });
+    for (var pi = pick.length - 1; pi >= 0; pi--) { // retire the stand-in's clickables
+      if (pick[pi].userData.name === "the kid") pick.splice(pi, 1);
+    }
+    while (kid.children.length) kid.remove(kid.children[0]);
+    kid.add(root);
+    // The rig is authored to render at height_meters (1.3) with NO transform on
+    // the glTF scene, feet at the origin. Do not "normalize" it — every analytic
+    // attempt fought the armature's scale conventions and lost (see memory).
+    // One empirical constant for this asset: target 1.05m over authored 1.3m.
+    root.scale.setScalar(1.05 / 1.3);
+    root.position.set(0, 0, 0);
+    window.__kidRoot = root; // debug handle for scale/anchor checks
+    root.traverse(function (o) { if (o.isMesh) clickable(o, "the kid", null, "that's the kid — this is his room"); });
+    if (g.animations && g.animations.length) {
+      kidMixer = new THREE.AnimationMixer(root);
+      kidMixer.clipAction(g.animations[0]).play(); // Casual_Walk — stepped only while he moves
+    }
+  });
+
   var KID_STATIONS = [ // open-floor spots by things worth poking
     { x: 1.15, z: 0.75 },  // the chest
     { x: 2.15, z: 0.32 },  // under the boombox shelf, beside the bed head
     { x: -1.55, z: 1.25 }, // the beanbag
     { x: 0.35, z: 1.35 },  // the rug (with the robot)
     { x: 2.3, z: -0.75 },  // the TV
-    { x: -1.5, z: 2.3 },   // the island
+    { x: -1.1, z: 2.05 },  // at the island's shore (diorama spans x -2.44..-1.36)
     { x: -1.6, z: 0.15 },  // the desk
     { x: -1.25, z: -1.65 } // the shelf
   ];
@@ -1410,6 +1413,7 @@ import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
       var kdist = Math.sqrt(kdx * kdx + kdz * kdz);
       var ksp = kidState.mode === "summon" ? 1.2 : 0.5;
       if (kdist > 0.06) {
+        kidWalking = true;
         kid.position.x += kdx / kdist * ksp * dt;
         kid.position.z += kdz / kdist * ksp * dt;
         var kwant = Math.atan2(kdx, kdz), kdr = kwant - kid.rotation.y;
@@ -1420,6 +1424,7 @@ import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
         armL.rotation.x = -ksw * 0.38; armR.rotation.x = ksw * 0.38;
         kid.position.y = Math.abs(Math.cos(kidState.phase)) * 0.015;
       } else {
+        kidWalking = false;
         legL.rotation.x *= 0.75; legR.rotation.x *= 0.75;
         armL.rotation.x *= 0.75; armR.rotation.x *= 0.75;
         kid.position.y *= 0.75;
@@ -1444,6 +1449,7 @@ import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
       kid.rotation.x = 0; armR.rotation.x = 0; // failsafe fired without us — recover
       kidState.mode = "roam"; kidPickStation();
     }
+    if (kidMixer) kidMixer.update(kidWalking ? dt : 0); // the walk cycle steps only when he does
     if ((frameCount % 120) === 0) applyPhase(); // the room checks the clock
     // five more minutes: while the bed has you, the whole room breathes lower
     nap += (((t < napUntil) ? 1 : 0) - nap) * Math.min(1, dt * 1.8);
