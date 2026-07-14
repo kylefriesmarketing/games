@@ -726,12 +726,14 @@ import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
 
   /* ---- THE BOOMBOX: synth lo-fi + rain (WebAudio, no files) ------------------ */
   var boom = new THREE.Group();
+  var boomCones = []; // the speaker cones — they thump to the beat when the tape's on
   var bbBody = box(0.56, 0.24, 0.17, mat(0x23262c, 0.45)); bbBody.position.y = 0.12; boom.add(bbBody);
   [-0.17, 0.17].forEach(function (x) {
     var spk = new THREE.Mesh(new THREE.CylinderGeometry(0.085, 0.085, 0.02, 20), mat(0x101216, 0.6));
     spk.rotation.x = Math.PI / 2; spk.position.set(x, 0.12, 0.085); boom.add(spk);
     var cone = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.055, 0.015, 14), mat(0x3a3f48, 0.5));
-    cone.rotation.x = Math.PI / 2; cone.position.set(x, 0.12, 0.093); boom.add(cone);
+    cone.rotation.x = Math.PI / 2; cone.position.set(x, 0.12, 0.093); cone.__z0 = 0.093; // plain prop (clickable() rewrites userData)
+    boom.add(cone); boomCones.push(cone);
   });
   var deck = box(0.14, 0.08, 0.02, mat(0x3a3f48, 0.4)); deck.position.set(0, 0.13, 0.086); boom.add(deck);
   var audioOn = false, ac = null, acNodes = null;
@@ -1782,6 +1784,13 @@ import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
     }
     fanBlades.rotation.y += dt * 2.1;
     for (var mi = 0; mi < mixers.length; mi++) mixers[mi].update(dt);
+    // the boombox thumps its cones to the tape (72bpm = 1.2 beats/s)
+    var thump = audioOn ? Math.pow(Math.max(0, Math.sin(t * Math.PI * 1.2)), 6) : 0;
+    for (var bc = 0; bc < boomCones.length; bc++) {
+      var cn = boomCones[bc];
+      cn.position.z = cn.__z0 + thump * 0.012;
+      cn.scale.set(1 + thump * 0.16, 1 + thump * 0.16, 1);
+    }
     if (robotWrap) { // wind-up tin robot: circles the rug with a little waddle-rock
       robotBoost *= Math.pow(0.5, dt / 2.5); // the spring unwinds
       if (robotBoost < 0.02) robotBoost = 0;
