@@ -1496,7 +1496,7 @@ import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
     var slText;
     if (!sl || !sl.solved || countOf(sl.solved) === 0) slText = "not started";
     else {
-      slText = countOf(sl.solved) + " / 9 cases";
+      slText = countOf(sl.solved) + " / 10 cases";
       if (sl.norburys) slText += " · " + sl.norburys + " Norbur" + (sl.norburys === 1 ? "y" : "ies");
       if (sl.beeSeen) slText += " · ★ Sussex";
     }

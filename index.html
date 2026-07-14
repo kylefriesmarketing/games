@@ -330,7 +330,7 @@ document.getElementById("room-return").addEventListener("click", function(e){ e.
     "sherlock/": function(){
       var s = saved("sherlock_persist"); if (!s || !s.solved) return null;
       var c = n(s.solved); if (!c) return null;
-      var t = c + " / 9 cases";
+      var t = c + " / 10 cases";
       if (s.norburys) t += " · " + s.norburys + " Norbury" + (s.norburys === 1 ? "" : "s");
       if (s.beeSeen) t += " · ★";
       return t;
