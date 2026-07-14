@@ -16,20 +16,25 @@ in the room is real and everything is clickable:
 | **The toy chest** — it smolders while a campaign is underway | [AGE OF TOYS](https://kylefriesmarketing.github.io/toybox-tactics/) — a storybook RTS |
 | **The army men on the rug** — frozen mid-battle, until you look | the same war, up close; hover and they waddle, muzzles flashing |
 | **The beige PC** and **the brain on the desk** | CHAMELEON 3D and BRAINROT INC — coming soon (the PC runs a screensaver if you poke it) |
-| **The notebook** | your progress across every game — endings found, missions won — read from this browser |
+| **The notebook** | a real multi-page notebook: endings found, the campaign act by act, your lifetime war record |
 | **The TV** | the channel guide (plain list view, with your progress on each spine) |
 | **The boombox** | a composed lofi tape under the rain — no audio files, all synthesized |
 | **The tin robot** | click to wind his key: a burst of speed, and he changes his mind about direction |
-| The lamp, the clock, the door, the bed... | the room minds its own business |
+| **The bed** | "five more minutes" — the lights ease down, somebody snores, the robot tiptoes |
+| The lamp, the clock, the door... | the room minds its own business (though once a night, somebody knocks) |
 
 The clock on the wall shows *your* actual time — and the room follows it. Come by on
 a gray afternoon and the window is bright; around seven the last warm light leans in;
 after bedtime it's the classic blue; and in the dead of night the rain doubles down,
 the glow stars burn brightest, and the cartoons give way to a test pattern. Lightning
-flashes first, thunder arrives when the distance allows. Tab walks the room on a
-keyboard; Enter opens what you've landed on. The whole thing is Three.js — primitives,
-generated textures, four AI-generated props (beanbag, T-rex, skateboard, globe) and
-one patrolling tin robot — no build step, no framework, one HTML file and one script.
+flashes first, thunder arrives when the distance allows. The calendar has opinions
+too: December hangs red-green-gold lights and a paper snowflake, the last week of
+October runs slime in the lava lamp under pumpkin lights, and every July 11 — the day
+the room first opened — a crayon banner goes up over the shelf. Tab walks the room on
+a keyboard; Enter opens what you've landed on. The whole thing is Three.js —
+primitives, generated textures, four AI-generated props (beanbag, T-rex, skateboard,
+globe) and one patrolling tin robot — no build step, no framework, one HTML file and
+one script.
 
 ## Running locally
 

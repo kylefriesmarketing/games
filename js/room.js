@@ -588,6 +588,13 @@ import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
   [doorSlab, knob].forEach(function (m) {
     clickable(m, "the door", null, "the door — the rest of the house can wait");
   });
+  // once a night, somebody knocks softly — they know you're still up.
+  // ?knock=5 makes them impatient (seconds until the knock, for tinkering).
+  var knockAt = -1, knockAnim = -1;
+  var KNOCK_DEBUG = (function () {
+    var m = /[?&]knock=(\d+)/.exec(location.search);
+    return m ? parseInt(m[1], 10) : 0;
+  })();
 
   /* ---- THE NEON SIGN (generated) above the bookshelf ------------------------ */
   var neonLight = new THREE.PointLight(0xff5aa8, 0.0, 6, 1.8);
@@ -602,6 +609,53 @@ import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
     neonLight.intensity = 1.1;
   });
 
+  /* ---- the calendar has opinions ---------------------------------------------- */
+  // December: the string lights go red-green-gold and a paper snowflake hits the
+  // window. Late October: pumpkin lights, and the lava lamp runs slime. July 11:
+  // the room's birthday (it first opened 2026-07-11) — a crayon banner and party
+  // lights. ?date=MM-DD pins the calendar for tinkering.
+  var DATE_DEBUG = /[?&]date=(\d\d)-(\d\d)/.exec(location.search);
+  var _md = DATE_DEBUG ? [+DATE_DEBUG[1], +DATE_DEBUG[2]]
+                       : [new Date().getMonth() + 1, new Date().getDate()];
+  var season = null;
+  if (_md[0] === 12 && _md[1] <= 26) season = "yule";
+  else if (_md[0] === 10 && _md[1] >= 24) season = "spook";
+  else if (_md[0] === 7 && _md[1] === 11) season = "bday";
+  if (season === "yule") { // a paper snowflake, taped inside the glass
+    var flakeT = canvasTex(128, 128, function (g, w, h) {
+      g.clearRect(0, 0, w, h);
+      g.strokeStyle = "rgba(240,246,255,0.95)"; g.lineWidth = 4; g.lineCap = "round";
+      g.translate(w / 2, h / 2);
+      for (var a = 0; a < 6; a++) {
+        g.rotate(Math.PI / 3);
+        g.beginPath(); g.moveTo(0, 0); g.lineTo(0, 52); g.stroke();
+        [20, 36].forEach(function (r) {
+          g.beginPath(); g.moveTo(0, r); g.lineTo(10, r + 10); g.stroke();
+          g.beginPath(); g.moveTo(0, r); g.lineTo(-10, r + 10); g.stroke();
+        });
+      }
+    });
+    var flake = new THREE.Mesh(new THREE.PlaneGeometry(0.26, 0.26),
+      new THREE.MeshBasicMaterial({ map: flakeT, transparent: true, depthWrite: false }));
+    flake.position.set(2.02, 2.32, -2.512); flake.rotation.z = 0.2; scene.add(flake);
+  }
+  if (season === "bday") { // the crayon banner, taped over the wallpaper border
+    var bannerT = canvasTex(512, 64, function (g, w, h) {
+      g.fillStyle = "#efe6d0"; g.fillRect(0, 0, w, h);
+      g.strokeStyle = "#c9b895"; g.lineWidth = 3; g.strokeRect(3, 3, w - 6, h - 6);
+      var cols = ["#c0392b", "#2980b9", "#27ae60", "#8e44ad", "#e67e22"];
+      g.font = "bold 32px Georgia, serif"; g.textBaseline = "middle";
+      var msg = "HAPPY BIRTHDAY, ROOM", x = 20;
+      for (var i = 0; i < msg.length; i++) {
+        g.fillStyle = cols[i % cols.length];
+        g.fillText(msg[i], x, h / 2 + (i % 2 ? 3 : -3));
+        x += g.measureText(msg[i]).width + 2;
+      }
+    });
+    var banner = new THREE.Mesh(new THREE.PlaneGeometry(1.7, 0.21), new THREE.MeshBasicMaterial({ map: bannerT }));
+    banner.position.set(-1.3, 2.56, -2.52); banner.rotation.z = 0.025; scene.add(banner);
+  }
+
   /* ---- THE LAVA LAMP on a little nightstand --------------------------------- */
   var nstand = new THREE.Group();
   var nsTop = box(0.5, 0.06, 0.42, woodM); nsTop.position.y = 0.52; nstand.add(nsTop);
@@ -609,17 +663,21 @@ import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
   var lava = new THREE.Group();
   var lvBase = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.085, 0.1, 18), mat(0x8a8f98, 0.3)); lvBase.position.y = 0.6; lava.add(lvBase);
   var lvCap = new THREE.Mesh(new THREE.CylinderGeometry(0.028, 0.05, 0.07, 18), mat(0x8a8f98, 0.3)); lvCap.position.y = 1.03; lava.add(lvCap);
+  // pink goo most of the year; slime for the last week of October
+  var lavaCol = season === "spook"
+    ? { glass: 0xa8ff7d, blob: 0x7be04a, glow: 0x46c92d, light: 0x7dff5a }
+    : { glass: 0xff7d5a, blob: 0xff4d7d, glow: 0xff2d63, light: 0xff5a7d };
   var lvGlass = new THREE.Mesh(new THREE.CylinderGeometry(0.052, 0.082, 0.36, 18, 1, true),
-    new THREE.MeshStandardMaterial({ color: 0xff7d5a, roughness: 0.15, transparent: true, opacity: 0.28, side: THREE.DoubleSide }));
+    new THREE.MeshStandardMaterial({ color: lavaCol.glass, roughness: 0.15, transparent: true, opacity: 0.28, side: THREE.DoubleSide }));
   lvGlass.position.y = 0.83; lava.add(lvGlass);
   var blobs = [];
   for (var bi = 0; bi < 5; bi++) {
     var blob = new THREE.Mesh(new THREE.SphereGeometry(0.018 + Math.random() * 0.02, 12, 10),
-      new THREE.MeshStandardMaterial({ color: 0xff4d7d, emissive: 0xff2d63, emissiveIntensity: 1.6, roughness: 0.3 }));
+      new THREE.MeshStandardMaterial({ color: lavaCol.blob, emissive: lavaCol.glow, emissiveIntensity: 1.6, roughness: 0.3 }));
     blob.userData = { phase: Math.random() * 6.28, speed: 0.25 + Math.random() * 0.3 };
     lava.add(blob); blobs.push(blob);
   }
-  var lavaLight = new THREE.PointLight(0xff5a7d, 0.8, 3.2, 2); lavaLight.position.set(0, 0.9, 0); lava.add(lavaLight);
+  var lavaLight = new THREE.PointLight(lavaCol.light, 0.8, 3.2, 2); lavaLight.position.set(0, 0.9, 0); lava.add(lavaLight);
   var lavaOn = true;
   [lvBase, lvCap, lvGlass].forEach(function (m) {
     clickable(m, "the lava lamp", function () {
@@ -634,6 +692,9 @@ import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
 
   /* ---- STRING LIGHTS under the wallpaper border ------------------------------ */
   var bulbs = [], bulbCols = [0xff6a5a, 0xffd166, 0x8ad7ff, 0x7be08a, 0xc79bff];
+  if (season === "yule") bulbCols = [0xff4444, 0x3fae5a, 0xffd166, 0xff4444, 0x3fae5a];
+  else if (season === "spook") bulbCols = [0xff8c2a, 0x9b5de5, 0xff8c2a, 0x9b5de5, 0xff8c2a];
+  var twinkleRate = season === "bday" ? 3.4 : 1.6; // party lights on the room's birthday
   for (var li = 0; li < 13; li++) {
     var bx = -4.1 + li * 0.68, sag = 0.1 * Math.sin((li % 4) / 3 * Math.PI);
     var bulb = new THREE.Mesh(new THREE.SphereGeometry(0.026, 10, 8),
@@ -798,6 +859,39 @@ import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
       o.connect(g); g.connect(acNodes.master); o.start(t0); o.stop(t0 + 0.05);
     }
   }
+  function snoreSfx() { // a low purr in, a breathy sigh out
+    if (!ac || !audioOn) return;
+    var t0 = ac.currentTime;
+    var o = ac.createOscillator(); o.type = "sine";
+    o.frequency.setValueAtTime(64, t0); o.frequency.linearRampToValueAtTime(46, t0 + 1.0);
+    var g = ac.createGain();
+    g.gain.setValueAtTime(0.0001, t0);
+    g.gain.exponentialRampToValueAtTime(0.07, t0 + 0.4);
+    g.gain.exponentialRampToValueAtTime(0.0001, t0 + 1.2);
+    o.connect(g); g.connect(acNodes.master); o.start(t0); o.stop(t0 + 1.3);
+    var len = ac.sampleRate * 0.9, b = ac.createBuffer(1, len, ac.sampleRate), d = b.getChannelData(0);
+    for (var i = 0; i < len; i++) d[i] = (Math.random() * 2 - 1) * (i / len);
+    var n = ac.createBufferSource(); n.buffer = b;
+    var f = ac.createBiquadFilter(); f.type = "lowpass"; f.frequency.value = 480;
+    var ng = ac.createGain();
+    ng.gain.setValueAtTime(0.0001, t0 + 1.25);
+    ng.gain.exponentialRampToValueAtTime(0.03, t0 + 1.65);
+    ng.gain.exponentialRampToValueAtTime(0.0001, t0 + 2.2);
+    n.connect(f); f.connect(ng); ng.connect(acNodes.master); n.start(t0 + 1.25);
+  }
+  function knockSfx() { // knuckles on a hollow door: two firm, one shy
+    if (!ac || !audioOn) return;
+    [0, 0.24, 0.46].forEach(function (at, i) {
+      var t0 = ac.currentTime + at;
+      var o = ac.createOscillator(); o.type = "sine";
+      o.frequency.setValueAtTime(115 - i * 10, t0);
+      o.frequency.exponentialRampToValueAtTime(55, t0 + 0.09);
+      var g = ac.createGain();
+      g.gain.setValueAtTime(i === 2 ? 0.09 : 0.15, t0);
+      g.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.16);
+      o.connect(g); g.connect(acNodes.master); o.start(t0); o.stop(t0 + 0.2);
+    });
+  }
   var powerLED = new THREE.Mesh(new THREE.SphereGeometry(0.012, 8, 8),
     new THREE.MeshBasicMaterial({ color: 0x552222 }));
   powerLED.position.set(0, 0.215, 0.088); boom.add(powerLED);
@@ -818,6 +912,11 @@ import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
     introT = noMotion ? 1 : 0; // reduced motion skips the dolly, keeps the music
     if (!ac) buildAudio();
     audioOn = true; ac.resume(); powerLED.material.color.set(0xff3b30);
+    var last = null;
+    try { last = localStorage.getItem("room-knock"); } catch (e) { /* private mode */ }
+    if (KNOCK_DEBUG || last !== new Date().toDateString()) {
+      knockAt = performance.now() / 1000 + (KNOCK_DEBUG || 45 + Math.random() * 105);
+    }
   };
   if (window.__entered) window.__roomEnter(); // card clicked before this module loaded
   document.addEventListener("visibilitychange", function () { // the tape pauses when you leave
@@ -910,7 +1009,16 @@ import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
   comforter.position.set(0, 0.43, 0.14); comforter.castShadow = comforter.receiveShadow = true; bed.add(comforter);
   var pillow = box(0.62, 0.14, 0.34, mat(0xe8e4da, 0.95)); pillow.position.set(0, 0.42, -0.68); pillow.rotation.x = -0.08; bed.add(pillow);
   bed.position.set(2.93, 0, 1.0); bed.rotation.y = -0.09; scene.add(bed); // deep enough to sit inside the frame
-  bed.children.forEach(function (m) { clickable(m, "the bed", null, "the bed — five more minutes"); });
+  // five more minutes: the bed actually means it. The lights ease down, somebody
+  // snores, the robot tiptoes. Click again to get up early — or don't.
+  var napUntil = -1, nap = 0, nextSnore = 0;
+  bed.children.forEach(function (m) {
+    clickable(m, "the bed", function () {
+      var now = performance.now() / 1000;
+      if (napUntil > now) { napUntil = -1; clickSfx(1500); } // okay, okay — up
+      else { napUntil = now + 12; nextSnore = now + 1.8; clickSfx(800); }
+    }, "the bed — five more minutes");
+  });
 
   /* ---- generated hero props: the clutter that makes it a real room ----------- */
   function propTip(name, hint) {
@@ -975,11 +1083,20 @@ import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
   clickable(solar, "the poster", null, "the solar system — you are here");
 
   /* ---- the TV flips between static and Saturday cartoons ---------------------- */
-  var cartoonT = null, tvCartoon = false, tvFlip = 6 + Math.random() * 6;
+  var cartoonT = null, tvCartoon = false, tvFlip = 6 + Math.random() * 6, crtBase = 0.7;
   texLoader.load("assets/tex/tv_cartoon.jpg", function (t) { t.anisotropy = 4; cartoonT = t; });
 
-  /* ---- the notebook panel (DOM): reads the sibling games' saves ------------- */
-  function showNotebook() {
+  /* ---- the notebook panel (DOM): reads the sibling games' saves --------------- */
+  // It has grown pages: what i finished, then (once the war starts) the campaign
+  // act by act, then the lifetime record from the Chronicle.
+  var nbPages = [], nbIndex = 0;
+  function nbRow(k, v) { return "<div class='nb-row'><span>" + k + "</span><b>" + v + "</b></div>"; }
+  function fmtDur(sec) {
+    var h = Math.floor(sec / 3600), m = Math.round((sec % 3600) / 60);
+    return h ? h + "h " + m + "m" : m + "m";
+  }
+  function buildPages() {
+    nbPages = [];
     var rows = [
       ["Choose Wisely", readSave("chooseWisely.meta.v2", function (m) { return countOf(m.endingsFound); }), 56],
       ["Nine Circles", readSave("nc_persist", function (m) { return countOf(m.endings); }), null],
@@ -988,8 +1105,7 @@ import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
       ["NOBODY", readSave("nobody_persist", function (m) { return countOf(m.endings); }), null],
     ];
     var html = rows.map(function (r) {
-      var v = r[1] == null ? "not started" : r[1] + (r[2] ? " / " + r[2] : "") + " endings";
-      return "<div class='nb-row'><span>" + r[0] + "</span><b>" + v + "</b></div>";
+      return nbRow(r[0], r[1] == null ? "not started" : r[1] + (r[2] ? " / " + r[2] : "") + " endings");
     }).join("");
     // Age of Toys writes a whole campaign, not endings — it gets its own line
     var tt = ttCampaign();
@@ -1001,11 +1117,47 @@ import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
       if (tt.secrets) ttText += " +" + tt.secrets + " secret";
       if (stories) ttText += " · " + stories + (stories === 1 ? " story" : " stories");
     }
-    html += "<div class='nb-row'><span>Age of Toys</span><b>" + ttText + "</b></div>";
+    html += nbRow("Age of Toys", ttText);
+    nbPages.push({ title: "what i finished", html: html });
+    if (tt.started || stories) { // the war, act by act
+      var p = readSave("tt-campaign", function (m) { return m; }) || {};
+      var h2 = [["Act I — The Bedroom Wars", 0], ["Act II — The Sleepover", 5], ["Act III — The Yard Sale", 10]]
+        .map(function (a) {
+          var n = 0;
+          for (var i = a[1]; i < a[1] + 5; i++) if (p[TT_IDS[i]]) n++;
+          return nbRow(a[0], n + " / 5");
+        }).join("");
+      h2 += nbRow("pages beyond the shelf", tt.secrets + " / 3");
+      h2 += nbRow("bedtime stories", stories || 0);
+      var ng = readSave("tt-campaign-ng", countOf);
+      if (ng) h2 += nbRow("the second read-through", ng + (ng === 1 ? " mission" : " missions"));
+      nbPages.push({ title: "the toybox war", html: h2 });
+    }
+    var chron = readSave("tt-chronicle", function (m) { return m; });
+    if (chron && chron.games) { // the lifetime record
+      var h3 = nbRow("battles", chron.games) + nbRow("victories", chron.wins || 0)
+        + nbRow("time at war", fmtDur(chron.playSec || 0))
+        + nbRow("toys lost", (chron.lost || 0).toLocaleString())
+        + nbRow("snacks gathered", (chron.gathered || 0).toLocaleString());
+      if (chron.shipsBuilt) h3 += nbRow("ships launched", chron.shipsBuilt);
+      if (chron.bestScore) h3 += nbRow("best score", chron.bestScore.toLocaleString());
+      nbPages.push({ title: "for the record", html: h3 });
+    }
+  }
+  function nbShow(i) {
+    nbIndex = Math.max(0, Math.min(nbPages.length - 1, i));
     var panel = document.getElementById("notebook");
-    panel.querySelector(".nb-body").innerHTML = html;
+    panel.querySelector("h2").textContent = nbPages[nbIndex].title;
+    panel.querySelector(".nb-body").innerHTML = nbPages[nbIndex].html;
+    document.getElementById("nb-nav").style.display = nbPages.length > 1 ? "" : "none";
+    document.getElementById("nb-page").textContent = (nbIndex + 1) + " / " + nbPages.length;
+    document.getElementById("nb-prev").disabled = nbIndex === 0;
+    document.getElementById("nb-next").disabled = nbIndex === nbPages.length - 1;
     panel.classList.add("open");
   }
+  function showNotebook() { buildPages(); nbShow(0); }
+  document.getElementById("nb-prev").addEventListener("click", function () { nbShow(nbIndex - 1); clickSfx(1100); });
+  document.getElementById("nb-next").addEventListener("click", function () { nbShow(nbIndex + 1); clickSfx(1100); });
   document.getElementById("nb-close").addEventListener("click", function () {
     document.getElementById("notebook").classList.remove("open");
   });
@@ -1104,6 +1256,14 @@ import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
     lookAt.x += ((mx * 1.25) - lookAt.x) * 0.04; // pan the gaze — the bed and side walls come into view
     camera.lookAt(lookAt);
     if ((frameCount % 120) === 0) applyPhase(); // the room checks the clock
+    // five more minutes: while the bed has you, the whole room breathes lower
+    nap += (((t < napUntil) ? 1 : 0) - nap) * Math.min(1, dt * 1.8);
+    var dim = 1 - 0.8 * nap;
+    amb.intensity = phase.ambI * (1 - 0.65 * nap);
+    lampLight.intensity = (lampOn ? 1.5 : 0.12) * dim;
+    lavaLight.intensity = (lavaOn ? 0.8 : 0.05) * dim;
+    shelfGlow.intensity = 0.55 * dim;
+    if (nap > 0.5 && t > nextSnore) { nextSnore = t + 3.6; snoreSfx(); }
     // the TV surfs between dead air and whatever's on at this hour
     tvFlip -= dt;
     if (tvFlip <= 0 && cartoonT) {
@@ -1115,7 +1275,7 @@ import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
                          : phase.off[0] + Math.random() * phase.off[1];
     }
     if (tvCartoon) {
-      crtLight.intensity = 0.72 + 0.08 * Math.sin(t * 9);
+      crtBase = 0.72 + 0.08 * Math.sin(t * 9);
     } else if ((frameCount & 3) === 0) { // static flicker
       var d = staticCtx.createImageData(128, 96);
       for (var i = 0; i < d.data.length; i += 4) {
@@ -1124,8 +1284,9 @@ import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
       }
       staticCtx.putImageData(d, 0, 0);
       staticT.needsUpdate = true;
-      crtLight.intensity = 0.5 + Math.random() * 0.35;
+      crtBase = 0.5 + Math.random() * 0.35;
     }
+    crtLight.intensity = crtBase * dim;
     frameCount++;
     // lava blobs rise and fall, slow and thick
     if (lavaOn) for (var lb = 0; lb < blobs.length; lb++) {
@@ -1141,10 +1302,10 @@ import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
     if (robotWrap) { // wind-up tin robot: circles the rug with a little waddle-rock
       robotBoost *= Math.pow(0.5, dt / 2.5); // the spring unwinds
       if (robotBoost < 0.02) robotBoost = 0;
-      robotAng += dt * 0.32 * robotDir * (1 + robotBoost);
+      robotAng += dt * 0.32 * robotDir * (1 + robotBoost) * (1 - 0.72 * nap); // he tiptoes past the bed
       robotWrap.position.set(0.1 + Math.sin(robotAng) * 0.9, 0, 1.0 + Math.cos(robotAng) * 0.9);
       robotWrap.rotation.y = robotAng + robotDir * Math.PI / 2;
-      robotWrap.rotation.z = Math.sin(t * 6.5 * (1 + robotBoost * 0.5)) * 0.045; // the shuffle
+      robotWrap.rotation.z = Math.sin(t * 6.5 * (1 + robotBoost * 0.5)) * 0.045 * (1 - 0.75 * nap);
       if (keyG) {
         keyFast -= dt;
         keyG.rotation.z -= dt * (keyFast > 0 ? 22 : 1.4 + robotBoost * 7); // winding spins it hard
@@ -1170,8 +1331,22 @@ import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
       }
     }
     if (chestGlowBase > 0) { // the campaign smolders in the chest
-      chestGlow.intensity = chestGlowBase * (0.82 + 0.22 * Math.sin(t * 2.1));
-      if (chestGlowDisc) chestGlowDisc.material.opacity = 0.75 + 0.25 * Math.sin(t * 2.1);
+      chestGlow.intensity = chestGlowBase * (0.82 + 0.22 * Math.sin(t * 2.1)) * dim;
+      if (chestGlowDisc) chestGlowDisc.material.opacity = (0.75 + 0.25 * Math.sin(t * 2.1)) * (0.25 + 0.75 * dim);
+    }
+    // once a night, a knock at the door
+    if (knockAt > 0 && t > knockAt) {
+      knockAt = -1; knockAnim = t; knockSfx();
+      try { localStorage.setItem("room-knock", new Date().toDateString()); } catch (e) { /* private mode */ }
+      pick.forEach(function (m) { if (m.userData.name === "the door") m.userData.hint = "the door — someone said goodnight"; });
+    }
+    if (knockAnim > 0) { // the hallway light stirs, the knob jiggles
+      var ka = (t - knockAnim) / 1.6;
+      if (ka >= 1) { knockAnim = -1; spill.material.opacity = 0.32; knob.rotation.x = 0; }
+      else {
+        spill.material.opacity = 0.32 + 0.5 * Math.max(0, Math.sin(ka * 19)) * (1 - ka);
+        knob.rotation.x = Math.sin(ka * 42) * 0.07 * (1 - ka);
+      }
     }
     var nowD = new Date();
     var nowS = nowD.getSeconds() + nowD.getMilliseconds() / 1000;
@@ -1180,7 +1355,7 @@ import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
     minHand.rotation.z = -nowM / 60 * Math.PI * 2;
     hourHand.rotation.z = -((nowD.getHours() % 12) + nowM / 60) / 12 * Math.PI * 2;
     // string lights twinkle; stars breathe; motes drift
-    for (var bu = 0; bu < bulbs.length; bu++) bulbs[bu].material.opacity = 0.55 + 0.4 * Math.sin(t * 1.6 + bulbs[bu].userData.phase);
+    for (var bu = 0; bu < bulbs.length; bu++) bulbs[bu].material.opacity = (0.55 + 0.4 * Math.sin(t * twinkleRate + bulbs[bu].userData.phase)) * (0.35 + 0.65 * dim);
     for (var si = 0; si < stars.length; si++) stars[si].material.opacity = phase.stars + 0.35 * Math.sin(t * 0.5 + stars[si].userData.phase);
     var mp = motes.geometry.attributes.position;
     for (var mo = 0; mo < moteN; mo++) {
@@ -1194,8 +1369,8 @@ import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
     if (neonMesh) {
       var hum = 0.96 + 0.04 * Math.sin(t * 11) * Math.sin(t * 1.3);
       if (Math.random() < 0.002) hum *= 0.4;
-      neonMesh.material.opacity = hum;
-      neonLight.intensity = 1.1 * hum;
+      neonMesh.material.opacity = hum * (0.35 + 0.65 * dim);
+      neonLight.intensity = 1.1 * hum * dim;
     }
     // the storm outside — light first, thunder when the distance allows
     nextFlash -= dt;
@@ -1233,5 +1408,5 @@ import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
   scene.updateMatrixWorld(true);
   renderer.render(scene, camera);
   tick();
-  window.__room = { scene: scene, camera: camera, pick: pick, ray: ray, THREE: THREE }; // debug hook (THREE: modules hide the global)
+  window.__room = { scene: scene, camera: camera, renderer: renderer, pick: pick, ray: ray, THREE: THREE }; // debug hook (THREE: modules hide the global)
 })();

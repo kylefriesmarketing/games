@@ -18,6 +18,32 @@
 <meta name="twitter:title" content="THE ROOM — every object is a doorway">
 <meta name="twitter:description" content="A clickable 3D 90s bedroom: five stories on the bookshelf, an RTS in the toy chest, a robot on patrol. Free, in your browser.">
 <meta name="twitter:image" content="https://kylefriesmarketing.github.io/games/media/og-room.jpg">
+<link rel="canonical" href="https://kylefriesmarketing.github.io/games/">
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@graph": [
+    {
+      "@type": "WebSite",
+      "name": "THE ROOM — games by Kyle Fries",
+      "url": "https://kylefriesmarketing.github.io/games/",
+      "description": "A clickable 3D 90s bedroom. Five branching stories on the bookshelf, a real-time strategy game in the toy chest, a robot on patrol. Free, in your browser."
+    },
+    {
+      "@type": "ItemList",
+      "name": "Games in the room",
+      "itemListElement": [
+        { "@type": "ListItem", "position": 1, "item": { "@type": "VideoGame", "name": "SOUTH", "url": "https://kylefriesmarketing.github.io/south/", "genre": "Interactive fiction", "gamePlatform": "Web browser", "description": "Antarctica, 1915. The ship is crushed, the ice is drifting, and twenty-seven men are yours to bring home." } },
+        { "@type": "ListItem", "position": 2, "item": { "@type": "VideoGame", "name": "STILL BREATHING", "url": "https://kylefriesmarketing.github.io/still-breathing/", "genre": "Interactive fiction", "gamePlatform": "Web browser", "description": "Six true survival ordeals. Every deadly choice is grounded in the ones who came back." } },
+        { "@type": "ListItem", "position": 3, "item": { "@type": "VideoGame", "name": "NINE CIRCLES", "url": "https://kylefriesmarketing.github.io/nine-circles/", "genre": "Interactive fiction", "gamePlatform": "Web browser", "description": "Walk down through Hell with a dead poet, after Dante." } },
+        { "@type": "ListItem", "position": 4, "item": { "@type": "VideoGame", "name": "CHOOSE WISELY", "url": "https://kylefriesmarketing.github.io/choose-wisely/", "genre": "Interactive fiction", "gamePlatform": "Web browser", "description": "A corner shop where every gift takes something back. Fifty-six endings, and the shop remembers you." } },
+        { "@type": "ListItem", "position": 5, "item": { "@type": "VideoGame", "name": "NOBODY", "url": "https://kylefriesmarketing.github.io/nobody/", "genre": "Interactive fiction", "gamePlatform": "Web browser", "description": "You are Odysseus, twenty years from home. Argue with the poem." } },
+        { "@type": "ListItem", "position": 6, "item": { "@type": "VideoGame", "name": "AGE OF TOYS", "url": "https://kylefriesmarketing.github.io/toybox-tactics/", "genre": "Real-time strategy", "gamePlatform": "Web browser", "description": "A storybook RTS: plastic armies, nine maps, a bathtub naval theatre, and an 18-mission campaign." } }
+      ]
+    }
+  ]
+}
+</script>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%2305070a'/%3E%3Crect x='9' y='6' width='14' height='20' rx='2' fill='none' stroke='%23ff5aa8' stroke-width='2.2'/%3E%3Ccircle cx='19.5' cy='16' r='1.6' fill='%23ff5aa8'/%3E%3C/svg%3E">
 <link rel="preload" as="image" href="media/room-hero.jpg">
 <!-- the import map MUST precede the modulepreloads: preloaded modules resolve
@@ -68,6 +94,11 @@ body{background:var(--ink);color:var(--bone);overflow:hidden;
 #nb-close{margin-top:16px;font-family:"Inter",sans-serif;font-size:11px;letter-spacing:.14em;
   text-transform:uppercase;background:none;border:1px solid #b7a888;border-radius:5px;
   padding:8px 14px;cursor:pointer;color:#5a4632}
+#nb-nav{display:flex;align-items:center;justify-content:center;gap:16px;margin-top:14px;
+  font-family:"Inter",sans-serif;font-size:11px;letter-spacing:.08em;color:#8a7a5e}
+#nb-nav button{background:none;border:1px solid #b7a888;border-radius:5px;
+  padding:4px 10px;cursor:pointer;color:#5a4632;font-size:11px}
+#nb-nav button:disabled{opacity:.3;cursor:default}
 
 /* ---- fallback / list view (the old shelf) ---- */
 #shelf-view{display:none;position:fixed;inset:0;z-index:15;overflow-y:auto;background:var(--ink);
@@ -152,6 +183,11 @@ body.no3d #enter,body.listing #enter{display:none}
   <div class="nb-card">
     <h2>what i finished</h2>
     <div class="nb-body"></div>
+    <div id="nb-nav">
+      <button id="nb-prev" type="button" aria-label="previous page">◀</button>
+      <span id="nb-page"></span>
+      <button id="nb-next" type="button" aria-label="next page">▶</button>
+    </div>
     <button id="nb-close" type="button">put it back</button>
   </div>
 </div>
