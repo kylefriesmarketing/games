@@ -195,13 +195,15 @@ import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
     { t: "CHOOSE WISELY", c: 0x53386b, url: BASE + "choose-wisely/", tip: "CHOOSE WISELY — the shop remembers you" },
     { t: "NOBODY", c: 0xc96f3b, url: BASE + "nobody/", tip: "NOBODY — the Odyssey; argue with the poem" },
     { t: "TIDEBOUND", c: 0x2e6f63, url: "https://dumb-tony.github.io/GameRepos/tidebound/", tip: "TIDEBOUND — the island that isn't on any chart (Dumb Tony's)" },
+    { t: "ELEMENTARY", c: 0xb0392b, url: BASE + "sherlock/", tip: "ELEMENTARY — observe, infer, and live with being wrong" },
+    { t: "CURIOUSER", c: 0xba6fd0, url: BASE + "alice/", tip: "CURIOUSER — Alice in Wonderland; wake as yourself" },
   ];
   var DECOR = [0x3b4a55, 0x5e3a3a, 0x39543e, 0x584a2e, 0x46485e, 0x2f3e4a, 0x64513a];
   // two rows; playable books stand tall and slightly proud of the row
   [0, 1].forEach(function (row) {
     var y = boardY[row], xCursor = -caseW / 2 + 0.22, d = 0;
-    var order = row === 0 ? [null, PLAY[2], null, PLAY[3], PLAY[4], null]
-                          : [null, PLAY[0], PLAY[5], null, PLAY[1], null];
+    var order = row === 0 ? [null, PLAY[2], PLAY[6], PLAY[3], PLAY[4], null]
+                          : [null, PLAY[0], PLAY[5], PLAY[7], PLAY[1], null];
     order.forEach(function (slot) {
       if (slot) {
         var bw = 0.24, bh = 0.8;
@@ -1151,7 +1153,16 @@ import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
 
   // If the rigged, walk-animated version exists, he upgrades himself in place.
   // The primitive stand-in above stays as the fallback when this load fails.
-  var kidMixer = null, kidWalking = false;
+  // The kid has a whole little life: he walks, sits in the beanbag, lies on the bed,
+  // and fidgets at the shelves. All clips share his skeleton (bound by bone name), so
+  // they play on this one mesh and crossfade. See kid_*.glb (mesh-stripped clips).
+  var kidMixer = null, kidActions = {}, kidCur = null, kidActionName = "";
+  function setKidAction(name, fade) {
+    var a = kidActions[name]; if (!a || name === kidActionName) return;
+    a.enabled = true; a.setEffectiveTimeScale(1); a.setEffectiveWeight(1); a.reset(); a.play();
+    if (kidCur && kidCur !== a) kidCur.crossFadeTo(a, fade == null ? 0.3 : fade, false);
+    kidCur = a; kidActionName = name;
+  }
   gltfL.load("assets/props/kid.glb", function (g) {
     var root = g.scene;
     root.traverse(function (o) { if (o.isMesh) { o.castShadow = o.receiveShadow = true; } });
@@ -1168,22 +1179,33 @@ import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
     root.position.set(0, 0, 0);
     window.__kidRoot = root; // debug handle for scale/anchor checks
     root.traverse(function (o) { if (o.isMesh) clickable(o, "the kid", null, "that's the kid — this is his room"); });
-    if (g.animations && g.animations.length) {
-      kidMixer = new THREE.AnimationMixer(root);
-      kidMixer.clipAction(g.animations[0]).play(); // Casual_Walk — stepped only while he moves
+    kidMixer = new THREE.AnimationMixer(root);
+    if (g.animations && g.animations[0]) { // the base file carries the walk cycle
+      kidActions.walk = kidMixer.clipAction(g.animations[0]);
+      kidActions.walk.play(); kidCur = kidActions.walk; kidActionName = "walk";
     }
+    [["idle", "assets/props/kid_idle.glb"], ["sit", "assets/props/kid_sit.glb"],
+     ["lie", "assets/props/kid_lie.glb"], ["fidget", "assets/props/kid_fidget.glb"]]
+      .forEach(function (p) {
+        gltfL.load(p[1], function (cg) {
+          if (cg.animations && cg.animations[0]) kidActions[p[0]] = kidMixer.clipAction(cg.animations[0], root);
+        });
+      });
   });
 
-  var KID_STATIONS = [ // open-floor spots by things worth poking (all clear of KID_OBSTACLES)
-    { x: 1.4, z: -1.0 },   // in front of the chest
-    { x: 2.05, z: 1.7 },   // right side, between the bed and the rug
-    { x: -1.4, z: 1.45 },  // by the beanbag
-    { x: 0.35, z: 1.35 },  // the rug (with the robot)
-    { x: 2.3, z: -0.75 },  // the TV
-    { x: -1.1, z: 2.05 },  // at the island's shore
-    { x: -1.35, z: 0.4 },  // the desk (clear of the new chair obstacle)
-    { x: -1.25, z: -1.65 } // the shelf
+  // Each spot has an action he does there. seat = an obstacle index he's allowed to sit ON
+  // (ignored while approaching + during the sit); bed = the special climb-and-lie sequence.
+  var KID_STATIONS = [
+    { x: 1.4, z: -1.0, act: "fidget" },              // in front of the chest
+    { x: 2.3, z: -0.75, act: "idle" },               // the TV
+    { x: 0.35, z: 1.35, act: "fidget" },             // the rug (the army men)
+    { x: -1.1, z: 2.05, act: "fidget" },             // at the island's shore
+    { x: -1.35, z: 0.4, act: "idle" },               // the desk
+    { x: -1.25, z: -1.65, act: "idle" },             // the shelf
+    { x: -1.78, z: 1.24, act: "sit", seat: 4, y: 0.12 }, // in the beanbag (obstacle #4)
+    { x: 2.85, z: 2.15, act: "bed" }                 // the foot of the bed → climb on and lie down
   ];
+  var KID_BED = { x: 2.9, y: 0.52, z: 1.05, footZ: 2.15 }; // where he lies, and the floor spot he climbs from
   // furniture he must walk AROUND, not through (circles in floor-plane; kid body ~0.18)
   var KID_R = 0.18;
   var KID_OBSTACLES = [
@@ -1203,6 +1225,7 @@ import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
     if (kdist < 0.001) return 0;
     var dx = kdx / kdist, dz = kdz / kdist; // desired heading
     for (var oi = 0; oi < KID_OBSTACLES.length; oi++) {
+      if (oi === kidState.ignoreObs) continue; // he's allowed to sit on this one
       var o = KID_OBSTACLES[oi];
       var ox = o.x - kid.position.x, oz = o.z - kid.position.z;
       var od = Math.sqrt(ox * ox + oz * oz), infl = o.r + KID_R + 0.45;
@@ -1220,6 +1243,7 @@ import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
     var step = Math.min(speed * dt, kdist);
     var nx = kid.position.x + dx * step, nz = kid.position.z + dz * step;
     for (var ci = 0; ci < KID_OBSTACLES.length; ci++) { // never end a frame inside one
+      if (ci === kidState.ignoreObs) continue;
       var oc = KID_OBSTACLES[ci], cx = nx - oc.x, cz = nz - oc.z;
       var cd = Math.sqrt(cx * cx + cz * cz), minD = oc.r + KID_R;
       if (cd < minD && cd > 0.001) { nx = oc.x + cx / cd * minD; nz = oc.z + cz / cd * minD; }
@@ -1229,7 +1253,7 @@ import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
     return kdist;
   }
   var kidState = { mode: "roam", t: 0, tx: 0.35, tz: 1.35, phase: 0, walkT: 0, faceX: 0, faceZ: 1,
-    via: false, fx: 0, fz: 0 };
+    via: false, fx: 0, fz: 0, station: null, ignoreObs: -1, targetY: 0 };
   var KID_HUB = { x: 0.3, z: 1.35 }; // clear rug-center staging point
   // Does the straight line a->b pass through any furniture? (the chest nearly touches the
   // bed, so the right-side corridor is a dead end greedy avoidance can wedge in.)
@@ -1238,6 +1262,7 @@ import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
     for (var s = 1; s < n; s++) {
       var t = s / n, px = ax + dx * t, pz = az + dz * t;
       for (var o = 0; o < KID_OBSTACLES.length; o++) {
+        if (o === kidState.ignoreObs) continue;
         var O = KID_OBSTACLES[o];
         if (Math.sqrt((px - O.x) * (px - O.x) + (pz - O.z) * (pz - O.z)) < O.r + KID_R - 0.02) return true;
       }
@@ -1255,7 +1280,10 @@ import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
   }
   function kidPickStation() {
     var s = KID_STATIONS[(Math.random() * KID_STATIONS.length) | 0];
-    kidGoto(s.x + (Math.random() - 0.5) * 0.2, s.z + (Math.random() - 0.5) * 0.2);
+    kidState.station = s;
+    kidState.ignoreObs = (s.seat == null) ? -1 : s.seat; // may sit on the beanbag
+    var jx = s.seat == null ? (Math.random() - 0.5) * 0.2 : 0;
+    kidGoto(s.x + jx, s.z + (s.seat == null ? (Math.random() - 0.5) * 0.2 : 0));
   }
   var pendingNav = null, navTarget = null;
   var zoomT = -1, zoomFrom = new THREE.Vector3(), zoomTo = new THREE.Vector3(),
@@ -1321,6 +1349,7 @@ import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
       ["Still Breathing", readSave("sb_persist", function (m) { return countOf(m.endings); }), null],
       ["SOUTH", readSave("south_persist", function (m) { return countOf(m.endings); }), null],
       ["NOBODY", readSave("nobody_persist", function (m) { return countOf(m.endings); }), null],
+      ["CURIOUSER", readSave("alice_persist", function (m) { return countOf(m.wakings); }), 6],
     ];
     var html = rows.map(function (r) {
       return nbRow(r[0], r[1] == null ? "not started" : r[1] + (r[2] ? " / " + r[2] : "") + " endings");
@@ -1336,6 +1365,16 @@ import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
       if (stories) ttText += " · " + stories + (stories === 1 ? " story" : " stories");
     }
     html += nbRow("Age of Toys", ttText);
+    // ELEMENTARY tracks cases closed and Norburys whispered, not endings
+    var sl = readSave("sherlock_persist", function (m) { return m; });
+    var slText;
+    if (!sl || !sl.solved || countOf(sl.solved) === 0) slText = "not started";
+    else {
+      slText = countOf(sl.solved) + " / 7 cases";
+      if (sl.norburys) slText += " · " + sl.norburys + " Norbur" + (sl.norburys === 1 ? "y" : "ies");
+      if (sl.beeSeen) slText += " · ★ Sussex";
+    }
+    html += nbRow("Elementary", slText);
     nbPages.push({ title: "what i finished", html: html });
     if (tt.started || stories) { // the war, act by act
       var p = readSave("tt-campaign", function (m) { return m; }) || {};
@@ -1488,55 +1527,66 @@ import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
       lookAt.x += ((mx * 1.25) - lookAt.x) * 0.04; // pan the gaze — the bed and side walls come into view
       camera.lookAt(lookAt);
     }
-    // THE KID: roams and pokes at things; summoned, he walks over and opens the door
-    kidState.phase += dt * (kidState.mode === "summon" ? 10 : 6.2);
+    // THE KID: walks between spots, then actually DOES something where he lands —
+    // sits in the beanbag, lies on the bed, fidgets at the shelves. Clips crossfade.
+    function kidFace(want, rate) { // turn toward a heading
+      var kdr = want - kid.rotation.y;
+      while (kdr > Math.PI) kdr -= Math.PI * 2; while (kdr < -Math.PI) kdr += Math.PI * 2;
+      kid.rotation.y += kdr * Math.min(1, dt * (rate || 6));
+    }
     if (kidState.mode === "roam" || kidState.mode === "summon") {
       var summoned = kidState.mode === "summon";
-      var kdist = kidStep(dt, summoned ? 1.2 : 0.5);
+      setKidAction("walk", 0.2);
+      var kdist = kidStep(dt, summoned ? 1.2 : 0.55);
       kidState.walkT += dt;
-      // arrive at the target, or give up if wedged (watchdog): summoned kids MUST open
-      var arrived = kdist <= 0.08;
-      var stuck = kidState.walkT > (summoned ? 3.2 : 9);
+      var arrived = kdist <= 0.08, stuck = kidState.walkT > (summoned ? 3.2 : 10);
       if (!arrived && !stuck) {
-        kidWalking = true;
-        var kwant = Math.atan2(kidState.faceX, kidState.faceZ), kdr = kwant - kid.rotation.y;
-        while (kdr > Math.PI) kdr -= Math.PI * 2; while (kdr < -Math.PI) kdr += Math.PI * 2;
-        kid.rotation.y += kdr * Math.min(1, dt * 9);
-        var ksw = Math.sin(kidState.phase);
-        legL.rotation.x = ksw * 0.55; legR.rotation.x = -ksw * 0.55;
-        armL.rotation.x = -ksw * 0.38; armR.rotation.x = ksw * 0.38;
-        kid.position.y = Math.abs(Math.cos(kidState.phase)) * 0.015;
+        kidFace(Math.atan2(kidState.faceX, kidState.faceZ), 9);
       } else if (arrived && kidState.via) { // reached the hub — press on to the real target
-        kidState.via = false; kidState.walkT = 0;
-        kidState.tx = kidState.fx; kidState.tz = kidState.fz;
+        kidState.via = false; kidState.walkT = 0; kidState.tx = kidState.fx; kidState.tz = kidState.fz;
       } else {
-        kidWalking = false;
-        legL.rotation.x *= 0.75; legR.rotation.x *= 0.75;
-        armL.rotation.x *= 0.75; armR.rotation.x *= 0.75;
-        kid.position.y *= 0.75;
         kidState.walkT = 0; kidState.via = false;
-        if (summoned) { kidState.mode = "open"; kidState.t = 0; }
-        else { kidState.mode = "play"; kidState.t = 2.5 + Math.random() * 4.5; }
+        if (summoned) { kidState.mode = "open"; kidState.t = 0; setKidAction("fidget", 0.2); }
+        else if (kidState.station && kidState.station.act === "bed") { kidState.mode = "toBed"; }
+        else {
+          var act = (kidState.station && kidState.station.act) || "idle";
+          setKidAction(act, 0.35);
+          kidState.ignoreObs = -1;
+          kidState.targetY = (kidState.station && kidState.station.y) || 0;
+          kidState.mode = "act"; kidState.t = (act === "sit" ? 8 : 3.5) + Math.random() * 5;
+        }
       }
-    } else if (kidState.mode === "play") { // crouched over something, poking it
+    } else if (kidState.mode === "act") { // sitting / idling / fidgeting where he stopped
       kidState.t -= dt;
-      armR.rotation.x = -0.85 + Math.sin(t * 2.3) * 0.28;
-      kid.rotation.x = -0.07;
-      if (kidState.t <= 0) {
-        kid.rotation.x = 0; armR.rotation.x = 0;
-        kidState.mode = "roam"; kidPickStation();
+      kid.position.y += ((kidState.targetY || 0) - kid.position.y) * Math.min(1, dt * 4);
+      if (kidState.station && kidState.station.act === "sit") kidFace(0.35, 3); // sink back, face the room
+      if (kidState.t <= 0) { kidState.targetY = 0; kidState.mode = "roam"; kidPickStation(); }
+    } else if (kidState.mode === "toBed") { // clamber from the foot of the bed onto the mattress
+      setKidAction("idle", 0.3);
+      kid.position.x += (KID_BED.x - kid.position.x) * Math.min(1, dt * 1.7);
+      kid.position.y += (KID_BED.y - kid.position.y) * Math.min(1, dt * 1.7);
+      kid.position.z += (KID_BED.z - kid.position.z) * Math.min(1, dt * 1.7);
+      kidFace(Math.PI, 3); // head toward the headboard (-z)
+      if (Math.abs(kid.position.x - KID_BED.x) < 0.04 && Math.abs(kid.position.z - KID_BED.z) < 0.05) {
+        setKidAction("lie", 0.5); kidState.mode = "onBed"; kidState.t = 9 + Math.random() * 6;
+      }
+    } else if (kidState.mode === "onBed") {
+      kidState.t -= dt;
+      if (kidState.t <= 0) { kidState.mode = "offBed"; setKidAction("idle", 0.4); }
+    } else if (kidState.mode === "offBed") { // slide back down to the floor
+      kid.position.x += (KID_BED.x - kid.position.x) * Math.min(1, dt * 2);
+      kid.position.y += (0 - kid.position.y) * Math.min(1, dt * 2);
+      kid.position.z += (KID_BED.footZ - kid.position.z) * Math.min(1, dt * 2);
+      if (Math.abs(kid.position.z - KID_BED.footZ) < 0.06 && kid.position.y < 0.05) {
+        kid.position.y = 0; kidState.mode = "roam"; kidPickStation();
       }
     } else if (kidState.mode === "open") { // reaching for the thing you asked for
       kidState.t += dt;
-      var kop = Math.min(1, kidState.t / 0.38);
-      armR.rotation.x = -1.5 * kop;
-      kid.rotation.x = -0.13 * kop;
       if (kidState.t >= 0.55) { kidState.mode = "stand"; kidStartZoom(); }
     } else if (kidState.mode === "stand" && !pendingNav && zoomT < 0) {
-      kid.rotation.x = 0; armR.rotation.x = 0; // failsafe fired without us — recover
-      kidState.mode = "roam"; kidPickStation();
+      kidState.mode = "roam"; kidPickStation(); // failsafe fired without us — recover
     }
-    if (kidMixer) kidMixer.update(kidWalking ? dt : 0); // the walk cycle steps only when he does
+    if (kidMixer) kidMixer.update(dt); // clips always advance now (idle/sit/lie animate in place)
     if ((frameCount % 120) === 0) applyPhase(); // the room checks the clock
     // five more minutes: while the bed has you, the whole room breathes lower
     nap += (((t < napUntil) ? 1 : 0) - nap) * Math.min(1, dt * 1.8);
@@ -1696,5 +1746,6 @@ import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
   renderer.render(scene, camera);
   tick();
   window.__room = { scene: scene, camera: camera, renderer: renderer, pick: pick, ray: ray, THREE: THREE, // debug hook (THREE: modules hide the global)
-    kid: kid, kidState: kidState, kidStep: kidStep, kidGoto: kidGoto, kidObstacles: KID_OBSTACLES, kidStations: KID_STATIONS };
+    kid: kid, kidState: kidState, kidStep: kidStep, kidGoto: kidGoto, kidObstacles: KID_OBSTACLES, kidStations: KID_STATIONS,
+    kidActions: function () { return kidActions; }, setKidAction: setKidAction, kidMixer: function () { return kidMixer; } };
 })();
