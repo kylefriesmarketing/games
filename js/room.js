@@ -238,12 +238,13 @@ import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
     { t: "TIDEBOUND", c: 0x2e6f63, url: "https://dumb-tony.github.io/GameRepos/tidebound/", tip: "TIDEBOUND — the island that isn't on any chart (Dumb Tony's)" },
     { t: "ELEMENTARY", c: 0xb0392b, url: BASE + "sherlock/", tip: "ELEMENTARY — observe, infer, and live with being wrong" },
     { t: "CURIOUSER", c: 0xba6fd0, url: BASE + "alice/", tip: "CURIOUSER — Alice in Wonderland; wake as yourself" },
+    { t: "DRACULA", c: 0xb31f2b, url: BASE + "dracula/", tip: "DRACULA — the ensemble hunt; argue with the book" },
   ];
   var DECOR = [0x3b4a55, 0x5e3a3a, 0x39543e, 0x584a2e, 0x46485e, 0x2f3e4a, 0x64513a];
   // two rows; playable books stand tall and slightly proud of the row
   [0, 1].forEach(function (row) {
     var y = boardY[row], xCursor = -caseW / 2 + 0.22, d = 0;
-    var order = row === 0 ? [null, PLAY[2], PLAY[6], PLAY[3], PLAY[4], null]
+    var order = row === 0 ? [null, PLAY[2], PLAY[6], PLAY[3], PLAY[4], PLAY[8]]
                           : [null, PLAY[0], PLAY[5], PLAY[7], PLAY[1], null];
     order.forEach(function (slot) {
       if (slot) {
@@ -1476,6 +1477,7 @@ import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
       ["SOUTH", readSave("south_persist", function (m) { return countOf(m.endings); }), null],
       ["NOBODY", readSave("nobody_persist", function (m) { return countOf(m.endings); }), null],
       ["CURIOUSER", readSave("alice_persist", function (m) { return countOf(m.wakings); }), 8],
+      ["DRACULA", readSave("dracula_persist", function (m) { return countOf(m.endings); }), 6],
     ];
     var html = rows.map(function (r) {
       return nbRow(r[0], r[1] == null ? "not started" : r[1] + (r[2] ? " / " + r[2] : "") + " endings");
@@ -1496,7 +1498,7 @@ import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
     var slText;
     if (!sl || !sl.solved || countOf(sl.solved) === 0) slText = "not started";
     else {
-      slText = countOf(sl.solved) + " / 10 cases";
+      slText = countOf(sl.solved) + " / 11 cases";
       if (sl.norburys) slText += " · " + sl.norburys + " Norbur" + (sl.norburys === 1 ? "y" : "ies");
       if (sl.beeSeen) slText += " · ★ Sussex";
     }
@@ -1742,7 +1744,7 @@ import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
       kidState.t -= dt;
       kid.position.y += ((kidState.targetY || 0) - kid.position.y) * Math.min(1, dt * 4);
       var actNow = kidState.station && kidState.station.act;
-      if (actNow === "sit") kidFace(kidState.station.yaw || 0.35, 3); // sink back, face the room
+      if (actNow === "sit") kidFace(kidState.station.yaw != null ? kidState.station.yaw : 0.35, 3); // sink back, face the room
       else if (actNow === "dance") kidFace(0.1, 2); // face the room while he grooves
       // if the boombox stops mid-dance, wander off
       if (actNow === "dance" && !audioOn) kidState.t = Math.min(kidState.t, 0.5);
