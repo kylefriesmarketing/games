@@ -250,24 +250,14 @@ import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
     var band = box(0.06, cH + 0.02, cD + 0.02, mat(0x2c2c30, 0.4)); band.position.set(x, cH / 2, 0); chest.add(band);
   });
   var latch = box(0.1, 0.12, 0.03, mat(0xc9a23a, 0.35)); latch.position.set(0, cH - 0.08, cD / 2 + 0.02); chest.add(latch);
-  // toys peeking out: a red robot and a green soldier
-  var robot = new THREE.Group();
-  var rBody = box(0.16, 0.2, 0.12, mat(0xb5382c, 0.5)); rBody.position.y = 0.1; robot.add(rBody);
-  var rHead = box(0.11, 0.1, 0.1, mat(0xc9463a, 0.5)); rHead.position.y = 0.26; robot.add(rHead);
-  var rEye = box(0.07, 0.024, 0.012, mat(0x7be08a, 0.2)); rEye.position.set(0, 0.27, 0.055); robot.add(rEye);
-  var rAnt = new THREE.Mesh(new THREE.CylinderGeometry(0.008, 0.008, 0.09, 6), mat(0x2c2c30, 0.4)); rAnt.position.y = 0.36; robot.add(rAnt);
-  robot.position.set(-0.3, cH - 0.06, -0.05); robot.rotation.z = 0.35; chest.add(robot);
-  var soldier = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.07, 0.3, 10), mat(0x3d6b35, 0.6));
-  soldier.position.set(0.32, cH + 0.08, -0.1); soldier.rotation.z = -0.5; soldier.castShadow = true; chest.add(soldier);
-  var block1 = box(0.15, 0.15, 0.15, mat(0xc9a23a, 0.7)); block1.position.set(0.95, 0.075, 0.55); block1.rotation.y = 0.5; chest.add(block1);
-  var block2 = box(0.13, 0.13, 0.13, mat(0x3c7ab5, 0.7)); block2.position.set(1.12, 0.065, 0.3); chest.add(block2);
+  // (the peeking toys and spilled blocks are gone — the chest keeps its wars inside)
   // the chest knows how the war is going (same-origin campaign save)
   var ttNow = ttCampaign();
   var chestHint = "AGE OF TOYS — the toybox RTS";
   if (ttNow.done >= TT_IDS.length) chestHint = "AGE OF TOYS — all " + TT_IDS.length + " missions won";
   else if (ttNow.started) chestHint = "AGE OF TOYS — " + ttNow.done + " / " + TT_IDS.length + " missions · the war goes on";
   chest.children.forEach(function (m) { clickable(m, "AGE OF TOYS", go(BASE + "toybox-tactics/"), chestHint); });
-  [robot, lidG].forEach(function (g) { g.children.forEach(function (m) { clickable(m, "AGE OF TOYS", go(BASE + "toybox-tactics/"), chestHint); }); });
+  lidG.children.forEach(function (m) { clickable(m, "AGE OF TOYS", go(BASE + "toybox-tactics/"), chestHint); });
   // a campaign in progress smolders inside the open chest; a finished one shines
   var chestGlowBase = ttNow.done >= TT_IDS.length ? 1.3 : (ttNow.started ? 0.85 : 0);
   var chestGlow = new THREE.PointLight(ttNow.done >= TT_IDS.length ? 0xffd76a : 0xff9d45, chestGlowBase, 2.4, 2);
@@ -1036,7 +1026,7 @@ import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
   }
   prop("assets/props/bean.glb", 0.62, -2.05, 0, 1.2, 0.95,
     propTip("the beanbag", "the beanbag — best seat in the house"));
-  prop("assets/props/trex.glb", 0.3, 1.05, 0, 0.72, -0.55,
+  prop("assets/props/trex.glb", 0.3, 1.38, 0, 1.02, -0.9, // clear of the robot's 0.9 orbit ring, watching the patrol
     propTip("rex", "rex — he guards the toy chest"));
   prop("assets/props/skate.glb", 0.78, -3.33, 0, 0.55, 1.45, function (wrap) {
     wrap.rotateOnWorldAxis(new THREE.Vector3(0, 0, 1), 0.10); // top rests against the left wall (inner face x=-3.55)
