@@ -995,11 +995,81 @@ import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
     setTimeout(function () { h.style.opacity = "0"; }, 8600);
     setTimeout(function () { if (h.parentNode) h.parentNode.removeChild(h); }, 9400);
   }
+  /* ---- the kid talks to you: a bubble that reads your save files -------------- */
+  // Same-origin localStorage the notebook already reads — lets him greet returning
+  // players and nudge whatever they left unfinished. Cross-origin games (Tony's)
+  // can't be read from here, so they're never referenced.
+  var GAME_SAVES = {
+    "CHOOSE WISELY":  { key: "chooseWisely.meta.v2", pick: function (m) { return countOf(m.endingsFound); }, total: 56, noun: "endings" },
+    "NINE CIRCLES":   { key: "nc_persist",      pick: function (m) { return countOf(m.endings); }, noun: "endings" },
+    "STILL BREATHING":{ key: "sb_persist",      pick: function (m) { return countOf(m.endings); }, noun: "endings" },
+    "SOUTH":          { key: "south_persist",   pick: function (m) { return countOf(m.endings); }, noun: "endings" },
+    "NOBODY":         { key: "nobody_persist",  pick: function (m) { return countOf(m.endings); }, noun: "endings" },
+    "CURIOUSER":      { key: "alice_persist",   pick: function (m) { return countOf(m.wakings); }, total: 8, noun: "wakings" },
+    "DRACULA":        { key: "dracula_persist", pick: function (m) { return countOf(m.endings); }, total: 6, noun: "endings" },
+    "ELEMENTARY":     { key: "sherlock_persist",pick: function (m) { return m && m.solved ? countOf(m.solved) : null; }, total: 11, noun: "cases" }
+  };
+  function gameProgress(title) {
+    var g = GAME_SAVES[title]; if (!g) return null;
+    var n = readSave(g.key, g.pick);
+    return { started: n != null && n > 0, done: n || 0, total: g.total || 0, noun: g.noun };
+  }
+  var priorVisits = 0; // visits BEFORE this one — captured in __roomEnter, read at greet
+  function kidGreetLine() {
+    var unfinished = [], anyStarted = false;
+    for (var t in GAME_SAVES) {
+      var p = gameProgress(t); if (!p || !p.started) continue;
+      anyStarted = true;
+      if (!p.total || p.done < p.total) unfinished.push({ t: t, p: p });
+    }
+    if (priorVisits <= 0 && !anyStarted) return "hi! pick any book — i'll grab it for you.";
+    if (unfinished.length) {
+      var u = unfinished[(Math.random() * unfinished.length) | 0];
+      var left = u.p.total ? (u.p.total - u.p.done) + " more " + u.p.noun : "more waiting";
+      return "welcome back — " + u.t.toLowerCase() + " still has " + left + ".";
+    }
+    if (anyStarted) return "welcome back! everything's where you left it.";
+    return "welcome back — what'll it be this time?";
+  }
+  function kidFetchLine(title) {
+    var p = gameProgress(title); if (!p) return null;
+    if (p.total && p.done >= p.total) return "again? you've seen every ending.";
+    if (p.started) return "back for more — good.";
+    return null; // first time with this one: let the game speak for itself
+  }
+  var kidBubbleEl = null, kidBubbleUntil = 0, kbBubV = new THREE.Vector3();
+  function kidSay(text, dur) {
+    if (!text) return;
+    if (!kidBubbleEl) {
+      kidBubbleEl = document.createElement("div");
+      kidBubbleEl.setAttribute("style", "position:fixed;z-index:7;pointer-events:none;transform:translate(-50%,-100%);" +
+        "font-family:'Inter',system-ui,sans-serif;font-size:12.5px;line-height:1.3;letter-spacing:.01em;color:#f3efe4;" +
+        "background:rgba(12,16,24,.9);border:1px solid rgba(150,160,180,.4);border-radius:12px;padding:7px 12px;" +
+        "max-width:min(60vw,240px);text-align:center;opacity:0;transition:opacity .35s;white-space:normal");
+      document.body.appendChild(kidBubbleEl);
+    }
+    kidBubbleEl.textContent = text;
+    kidBubbleUntil = performance.now() / 1000 + (dur || 4.5);
+    kidBubbleEl.style.opacity = "1";
+  }
+  function updateKidBubble() { // follow the kid's head each frame, fade on its own
+    if (!kidBubbleEl) return;
+    if (performance.now() / 1000 > kidBubbleUntil) { if (kidBubbleEl.style.opacity !== "0") kidBubbleEl.style.opacity = "0"; return; }
+    kid.getWorldPosition(kbBubV); kbBubV.y += 1.45; kbBubV.project(camera);
+    if (kbBubV.z > 1) { kidBubbleEl.style.opacity = "0"; return; } // behind the camera
+    kidBubbleEl.style.left = ((kbBubV.x * 0.5 + 0.5) * window.innerWidth) + "px";
+    kidBubbleEl.style.top = ((-kbBubV.y * 0.5 + 0.5) * window.innerHeight) + "px";
+  }
+
   window.__roomEnter = function () {
     introT = noMotion ? 1 : 0; // reduced motion skips the dolly, keeps the music
     if (!ac) buildAudio();
     audioOn = true; ac.resume(); powerLED.material.color.set(0xff3b30);
     kidGreet = true; // he looks up and waves as you walk in
+    try { // how many times you've stepped in before (drives his greeting)
+      priorVisits = parseInt(localStorage.getItem("room-visits") || "0", 10) || 0;
+      localStorage.setItem("room-visits", priorVisits + 1);
+    } catch (e) { priorVisits = 0; }
     showTouchHint();
     var last = null;
     try { last = localStorage.getItem("room-knock"); } catch (e) { /* private mode */ }
@@ -1007,6 +1077,20 @@ import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
       knockAt = performance.now() / 1000 + (KNOCK_DEBUG || 45 + Math.random() * 105);
     }
   };
+  // A quiet "coming to Steam" line on the entry card — the room is one release, not
+  // a pile of links. Informational for now (pointer-events off so it never eats the
+  // click that opens the door); swap to an <a href> once the wishlist page is live.
+  (function steamBeat() {
+    var inner = document.querySelector("#enter .e-inner");
+    if (!inner || document.getElementById("steam-cta")) return;
+    var el = document.createElement("div");
+    el.id = "steam-cta";
+    el.textContent = "coming soon to Steam · the whole shelf, one release";
+    el.setAttribute("style", "margin-top:18px;pointer-events:none;font-family:'Inter',system-ui,sans-serif;" +
+      "font-size:10.5px;letter-spacing:.22em;text-transform:uppercase;color:#c9c4b6;opacity:.82;" +
+      "text-shadow:0 1px 8px rgba(0,0,0,.9)");
+    inner.appendChild(el);
+  })();
   if (window.__entered) window.__roomEnter(); // card clicked before this module loaded
   document.addEventListener("visibilitychange", function () { // the tape pauses when you leave
     if (!ac || !audioOn) return;
@@ -1410,6 +1494,7 @@ import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
   function kidSummon(mesh) {
     if (pendingNav) return;
     pendingNav = mesh.userData.action; navTarget = mesh;
+    kidState.fetchName = mesh.userData.name; // so he can react when he hands it over
     var box = new THREE.Box3().setFromObject(mesh);
     var c = box.getCenter(new THREE.Vector3()), sz = box.getSize(new THREE.Vector3());
     var dir = new THREE.Vector3(0.35 - c.x, 0, 1.0 - c.z); dir.y = 0; // pull toward open floor
@@ -1717,6 +1802,7 @@ import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
         kidState.mode !== "onBed" && kidState.mode !== "toBed" && kidState.mode !== "bedSlide") {
       kidGreet = false; kidState.mode = "greet"; kidState.t = 0;
       kid.position.y = 0; setKidAction("wave", 0.2);
+      kidSay(kidGreetLine(), 5.5);
     }
     if (kidState.mode === "greet") {
       kidState.t += dt;
@@ -1735,7 +1821,7 @@ import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
         kidState.via = false; kidState.walkT = 0; kidState.tx = kidState.fx; kidState.tz = kidState.fz;
       } else {
         kidState.walkT = 0; kidState.via = false;
-        if (summoned) { kidState.mode = "open"; kidState.t = 0; setKidAction("fidget", 0.2); }
+        if (summoned) { kidState.mode = "open"; kidState.t = 0; setKidAction("fidget", 0.2); kidSay(kidFetchLine(kidState.fetchName), 3); }
         else if (kidState.station && kidState.station.act === "bed") { kidState.mode = "toBed"; }
         else {
           var act = (kidState.station && kidState.station.act) || "idle";
@@ -1795,6 +1881,7 @@ import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
       kidState.mode = "roam"; kidPickStation(); // failsafe fired without us — recover
     }
     if (kidMixer) kidMixer.update(dt); // clips always advance now (idle/sit/lie animate in place)
+    updateKidBubble(); // keep his speech bubble over his head
     if ((frameCount % 120) === 0) applyPhase(); // the room checks the clock
     // five more minutes: while the bed has you, the whole room breathes lower
     nap += (((t < napUntil) ? 1 : 0) - nap) * Math.min(1, dt * 1.8);
@@ -1979,5 +2066,6 @@ import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
   tick();
   window.__room = { scene: scene, camera: camera, renderer: renderer, pick: pick, ray: ray, THREE: THREE, // debug hook (THREE: modules hide the global)
     kid: kid, kidState: kidState, kidStep: kidStep, kidGoto: kidGoto, kidObstacles: KID_OBSTACLES, kidStations: KID_STATIONS,
-    kidActions: function () { return kidActions; }, setKidAction: setKidAction, kidMixer: function () { return kidMixer; } };
+    kidActions: function () { return kidActions; }, setKidAction: setKidAction, kidMixer: function () { return kidMixer; },
+    kidSay: kidSay, kidGreetLine: kidGreetLine, kidFetchLine: kidFetchLine, gameProgress: gameProgress };
 })();
