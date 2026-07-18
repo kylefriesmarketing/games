@@ -239,13 +239,14 @@ import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
     { t: "ELEMENTARY", c: 0xb0392b, url: BASE + "sherlock/", tip: "ELEMENTARY — observe, infer, and live with being wrong" },
     { t: "CURIOUSER", c: 0xba6fd0, url: BASE + "alice/", tip: "CURIOUSER — Alice in Wonderland; wake as yourself" },
     { t: "DRACULA", c: 0xb31f2b, url: BASE + "dracula/", tip: "DRACULA — the ensemble hunt; argue with the book" },
+    { t: "G FOR GEORGE", c: 0x5a6b7d, url: BASE + "george/", tip: "G FOR GEORGE — the true Great Escape; 336 feet to the trees" },
   ];
   var DECOR = [0x3b4a55, 0x5e3a3a, 0x39543e, 0x584a2e, 0x46485e, 0x2f3e4a, 0x64513a];
   // two rows; playable books stand tall and slightly proud of the row
   [0, 1].forEach(function (row) {
     var y = boardY[row], xCursor = -caseW / 2 + 0.22, d = 0;
     var order = row === 0 ? [null, PLAY[2], PLAY[6], PLAY[3], PLAY[4], PLAY[8]]
-                          : [null, PLAY[0], PLAY[5], PLAY[7], PLAY[1], null];
+                          : [null, PLAY[0], PLAY[5], PLAY[7], PLAY[1], PLAY[9]];
     order.forEach(function (slot) {
       if (slot) {
         var bw = 0.24, bh = 0.8;
@@ -1007,7 +1008,8 @@ import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
     "NOBODY":         { key: "nobody_persist",  pick: function (m) { return countOf(m.endings); }, noun: "endings" },
     "CURIOUSER":      { key: "alice_persist",   pick: function (m) { return countOf(m.wakings); }, total: 8, noun: "wakings" },
     "DRACULA":        { key: "dracula_persist", pick: function (m) { return countOf(m.endings); }, total: 6, noun: "endings" },
-    "ELEMENTARY":     { key: "sherlock_persist",pick: function (m) { return m && m.solved ? countOf(m.solved) : null; }, total: 11, noun: "cases" }
+    "ELEMENTARY":     { key: "sherlock_persist",pick: function (m) { return m && m.solved ? countOf(m.solved) : null; }, total: 11, noun: "cases" },
+    "G FOR GEORGE":   { key: "gg_persist",      pick: function (m) { return countOf(m.endings); }, total: 12, noun: "tellings" }
   };
   function gameProgress(title) {
     var g = GAME_SAVES[title]; if (!g) return null;
@@ -1569,6 +1571,7 @@ import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
       ["NOBODY", readSave("nobody_persist", function (m) { return countOf(m.endings); }), null],
       ["CURIOUSER", readSave("alice_persist", function (m) { return countOf(m.wakings); }), 8],
       ["DRACULA", readSave("dracula_persist", function (m) { return countOf(m.endings); }), 6],
+      ["G for George", readSave("gg_persist", function (m) { return countOf(m.endings); }), 12],
     ];
     var html = rows.map(function (r) {
       return nbRow(r[0], r[1] == null ? "not started" : r[1] + (r[2] ? " / " + r[2] : "") + " endings");
