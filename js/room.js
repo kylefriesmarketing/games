@@ -243,6 +243,7 @@ import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
     { t: "G FOR GEORGE", c: 0x5a6b7d, url: BASE + "george/", tip: "G FOR GEORGE — the true Great Escape; 336 feet to the trees" },
   ];
   var DECOR = [0x3b4a55, 0x5e3a3a, 0x39543e, 0x584a2e, 0x46485e, 0x2f3e4a, 0x64513a];
+  var bookByTitle = {}; // WHAT'S OUT hides individual playable books by title
   // two rows; playable books stand tall and slightly proud of the row
   [0, 1].forEach(function (row) {
     var y = boardY[row], xCursor = -caseW / 2 + 0.22, d = 0;
@@ -254,6 +255,7 @@ import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
         var bk = book(bw, bh, slot.c, spineTex(slot.t, "#" + slot.c.toString(16).padStart(6, "0"), "#efe2c4"));
         bk.position.set(xCursor + bw / 2, y + bh / 2, 0.10);
         clickable(bk, slot.t, go(slot.url), slot.tip);
+        bookByTitle[slot.t] = bk;
         shelfG.add(bk);
         xCursor += bw + 0.035;
       } else {
@@ -1285,8 +1287,9 @@ import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
   });
 
   /* ---- BRAINROT poster: hung on the left wall ------------------------------- */
+  var posterBrainrot = null, posterC3D = null; // WHAT'S OUT hides these with their games
   (function wallPosterBrainrot() {
-    var g = new THREE.Group();
+    var g = new THREE.Group(); posterBrainrot = g;
     var backing = box(0.56, 0.82, 0.02, mat(0xe8e2d4, 0.9)); g.add(backing);
     var m = new THREE.MeshStandardMaterial({ color: 0x333944, roughness: 0.85 });
     texLoader.load("assets/tex/poster_brainrot.jpg", function (t) { t.anisotropy = 8; m.map = t; m.color.set(0xffffff); m.needsUpdate = true; });
@@ -1299,7 +1302,7 @@ import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
     });
   })();
   (function wallPosterC3D() { // hung properly on the back wall, left of the shelf — dead-on to the camera
-    var g = new THREE.Group();
+    var g = new THREE.Group(); posterC3D = g;
     var backing = box(0.56, 0.82, 0.02, mat(0xe8e2d4, 0.9)); g.add(backing);
     var m = new THREE.MeshStandardMaterial({ color: 0x333944, roughness: 0.85 });
     texLoader.load("assets/tex/poster_c3d.jpg", function (t) { t.anisotropy = 8; m.map = t; m.color.set(0xffffff); m.needsUpdate = true; });
@@ -1680,10 +1683,17 @@ import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
     pointerMovedAt = performance.now() / 1000;
   }
   window.addEventListener("pointermove", setPointer, { passive: true });
+  function visibleChain(o) { // the raycaster doesn't check visibility — we do
+    while (o) { if (o.visible === false) return false; o = o.parent; }
+    return true;
+  }
   function pickAt() {
     ray.setFromCamera(mouse, camera);
-    var hit = ray.intersectObjects(pick, false)[0];
-    return hit ? hit.object : null;
+    var hits = ray.intersectObjects(pick, false);
+    for (var i = 0; i < hits.length; i++) {
+      if (visibleChain(hits[i].object)) return hits[i].object; // put-away things pass clicks through
+    }
+    return null;
   }
   window.addEventListener("pointerdown", function (e) {
     if (decorPointerDown(e)) return; // rearrange mode (and open panels) own the pointer
@@ -1725,12 +1735,13 @@ import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
   }
 
   /* ---- keyboard: Tab walks the room, Enter opens, Esc puts things back -------- */
-  var kbTargets = null, kbCount = 0, kbIndex = -1, kbFocus = null;
+  var kbTargets = null, kbCount = 0, kbIndex = -1, kbFocus = null, kbListDirty = false;
   function kbList() { // one entry per named thing; prefer the mesh that does something
-    if (kbTargets && kbCount === pick.length) return kbTargets;
+    if (kbTargets && kbCount === pick.length && !kbListDirty) return kbTargets;
     var seen = {};
-    kbTargets = []; kbCount = pick.length;
+    kbTargets = []; kbCount = pick.length; kbListDirty = false;
     pick.forEach(function (m) {
+      if (!visibleChain(m)) return; // put-away things leave the Tab order too
       var n = m.userData.name;
       if (seen[n] === undefined) { seen[n] = kbTargets.length; kbTargets.push(m); }
       else if (!kbTargets[seen[n]].userData.action && m.userData.action) kbTargets[seen[n]] = m;
@@ -1749,6 +1760,8 @@ import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
   }
   window.addEventListener("keydown", function (e) {
     if (e.key === "Escape") {
+      var obx = document.getElementById("outbox-ov");
+      if (obx && obx.classList.contains("open")) { obClose(); return; }
       var pbx = document.getElementById("paintbox-ov");
       if (pbx && pbx.classList.contains("open")) { pbClose(); return; }
       var sbx = document.getElementById("shoebox-ov");
@@ -1759,8 +1772,10 @@ import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
       return;
     }
     if (document.body.classList.contains("listing")) return; // the list has native tab order
-    var pbo = document.getElementById("paintbox-ov"), sbo = document.getElementById("shoebox-ov");
-    if ((pbo && pbo.classList.contains("open")) || (sbo && sbo.classList.contains("open"))) return; // panels own the keyboard (you might be typing your name)
+    var pbo = document.getElementById("paintbox-ov"), sbo = document.getElementById("shoebox-ov"),
+        obo = document.getElementById("outbox-ov");
+    if ((pbo && pbo.classList.contains("open")) || (sbo && sbo.classList.contains("open")) ||
+        (obo && obo.classList.contains("open"))) return; // panels own the keyboard (you might be typing your name)
     if (e.key === "Tab") {
       e.preventDefault();
       var L = kbList();
@@ -1835,6 +1850,7 @@ import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
       var sv = savedLayout[cfg.key];
       if (sv) applyMove(cfg, sv.x, sv.z, sv.ry == null ? cfg.def.ry : sv.ry);
     }
+    if (outState) applyOut(); // late-loading GLBs (the island) honor a saved put-away
     return cfg;
   }
   function unregisterMovable(cfg) {
@@ -1927,7 +1943,7 @@ import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
     var hits = ray.intersectObjects(scene.children, true);
     for (var i = 0; i < hits.length; i++) {
       var ob = hits[i].object;
-      if (!ob.isMesh || ob.userData.__ring) continue;
+      if (!ob.isMesh || ob.userData.__ring || !visibleChain(ob)) continue;
       if (ob.userData.war && movableByKey.rug) return movableByKey.rug; // the army men grab the rug
       var p = ob, found = null;
       while (p) { if (p.userData.__movKey) { found = movableByKey[p.userData.__movKey]; break; } p = p.parent; }
@@ -1943,6 +1959,8 @@ import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
     if (sbx && sbx.classList.contains("open")) return true; // an open panel owns the pointer
     var pbx = document.getElementById("paintbox-ov");
     if (pbx && pbx.classList.contains("open")) return true;
+    var obx = document.getElementById("outbox-ov");
+    if (obx && obx.classList.contains("open")) return true;
     var nb = document.getElementById("notebook");
     if (nb && nb.classList.contains("open")) return true;   // (also stops click-through on the notebook)
     if (!decorMode) return false;
@@ -2025,8 +2043,8 @@ import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
     for (var i = 0; i < movables.length; i++) {
       var c = movables[i], rg = c.__ring;
       if (rg) {
-        rg.visible = decorMode;
-        if (decorMode) {
+        rg.visible = decorMode && c.root.visible !== false; // put-away things don't advertise
+        if (rg.visible) {
           rg.position.set(c.root.position.x, (c.surface ? c.root.position.y : 0) + 0.02, c.root.position.z);
           rg.material.opacity = c === selCfg ? 0.4 + 0.18 * Math.sin(t * 5) : c === decorHover ? 0.3 : 0.12;
         }
@@ -2795,6 +2813,139 @@ import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
   })();
   applyPaint(); // restore this visitor's colors + name
 
+  /* ============================================================================
+   * WHAT'S OUT — choose which games are on display. Every book on the shelf,
+   * the toy chest, the army men, the brain, the beige PC, the toy island: each
+   * can go in the underbed box and come back whenever. Hidden things leave the
+   * click/Tab/drag world entirely, their kid-obstacles collapse, and their wall
+   * posters go with them. This is the future storefront skeleton: when game
+   * keys arrive, ownership gates the same registry.
+   * ========================================================================== */
+  var outState = loadJSON("room-out") || {};
+  var OUT_SECTIONS = [["books", "on the shelf"], ["toys", "on the floor"], ["desk", "on the desk"]];
+  var HIDEABLES = [
+    { key: "b_south", sec: "books", label: "SOUTH", get: function () { return [bookByTitle["SOUTH"]]; } },
+    { key: "b_sb", sec: "books", label: "STILL BREATHING", get: function () { return [bookByTitle["STILL BREATHING"]]; } },
+    { key: "b_nc", sec: "books", label: "NINE CIRCLES", get: function () { return [bookByTitle["NINE CIRCLES"]]; } },
+    { key: "b_cw", sec: "books", label: "CHOOSE WISELY", get: function () { return [bookByTitle["CHOOSE WISELY"]]; } },
+    { key: "b_nobody", sec: "books", label: "NOBODY", get: function () { return [bookByTitle["NOBODY"]]; } },
+    { key: "b_tide", sec: "books", label: "TIDEBOUND (the book)", get: function () { return [bookByTitle["TIDEBOUND"]]; } },
+    { key: "b_elem", sec: "books", label: "ELEMENTARY", get: function () { return [bookByTitle["ELEMENTARY"]]; } },
+    { key: "b_alice", sec: "books", label: "CURIOUSER", get: function () { return [bookByTitle["CURIOUSER"]]; } },
+    { key: "b_drac", sec: "books", label: "DRACULA", get: function () { return [bookByTitle["DRACULA"]]; } },
+    { key: "b_george", sec: "books", label: "G FOR GEORGE", get: function () { return [bookByTitle["G FOR GEORGE"]]; } },
+    { key: "chest", sec: "toys", label: "the toy chest (AGE OF TOYS)", obs: 0,
+      get: function () { return [chest]; } },
+    { key: "war", sec: "toys", label: "the army men on the rug",
+      get: function () { return [war]; } },
+    { key: "island", sec: "toys", label: "the toy island (TIDEBOUND)", obs: 3,
+      get: function () { return movableByKey.island ? [movableByKey.island.root] : []; } },
+    { key: "brain", sec: "desk", label: "the brain (BRAINROT) + poster", halos: function () { return [gBrain]; },
+      get: function () { return [brainG, posterBrainrot]; } },
+    { key: "pc", sec: "desk", label: "the beige PC (CHAMELEON 3D) + poster",
+      get: function () { return [pc, posterC3D]; } },
+  ];
+  function applyOut() {
+    HIDEABLES.forEach(function (h) {
+      var hidden = !!outState[h.key];
+      h.get().forEach(function (o) { if (o) o.visible = !hidden; });
+      if (h.obs != null) { // no invisible walls: the kid walks where the toy isn't
+        var ob = KID_OBSTACLES[h.obs];
+        if (ob.__baseR == null) ob.__baseR = ob.r;
+        ob.r = hidden ? 0 : ob.__baseR;
+      }
+      if (h.halos) h.halos().forEach(function (s) {
+        if (!s) return;
+        if (s.userData.__baseOp == null) s.userData.__baseOp = s.material.opacity;
+        s.material.opacity = hidden ? 0 : s.userData.__baseOp;
+      });
+    });
+    kbListDirty = true;
+    if (selCfg && selCfg.root.visible === false) decorSelect(null);
+  }
+
+  var obStyle = document.createElement("style");
+  obStyle.textContent =
+    "#outbox-ov{position:fixed;inset:0;z-index:24;display:none;align-items:center;justify-content:center;" +
+    "background:rgba(5,7,10,.72)}" +
+    "#outbox-ov.open{display:flex}" +
+    ".ob-card{width:min(460px,94vw);max-height:86vh;overflow-y:auto;background:#dfd8c4;color:#3a2e20;" +
+    "border-radius:6px;padding:22px 24px;box-shadow:0 30px 80px rgba(0,0,0,.6);transform:rotate(.3deg)}" +
+    ".ob-card h2{font-size:18px;letter-spacing:.1em;border-bottom:2px dashed #b7a888;padding-bottom:8px}" +
+    ".ob-sub{font-style:italic;font-size:12.5px;color:#6a5a40;margin:6px 0 10px}" +
+    ".ob-sec{font-family:'Inter',sans-serif;font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;" +
+    "color:#6a5a40;margin:14px 0 4px}" +
+    ".ob-row{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:6px 0;" +
+    "border-bottom:1px dotted #cfc0a0;font-size:14px}" +
+    ".ob-row.away{opacity:.55}" +
+    ".ob-row button{font-family:'Inter',sans-serif;font-size:9.5px;letter-spacing:.1em;text-transform:uppercase;" +
+    "background:none;border:1px solid #b7a888;border-radius:5px;padding:5px 10px;cursor:pointer;color:#4a3a22;" +
+    "white-space:nowrap}" +
+    ".ob-row button.on{background:#4a3a22;color:#e8dcc0}" +
+    ".ob-foot{display:flex;justify-content:space-between;gap:10px;margin-top:16px;flex-wrap:wrap}" +
+    ".ob-foot button{font-family:'Inter',sans-serif;font-size:11px;letter-spacing:.14em;text-transform:uppercase;" +
+    "background:none;border:1px solid #b7a888;border-radius:5px;padding:8px 14px;cursor:pointer;color:#5a4632}" +
+    ".ob-row button:focus-visible,.ob-foot button:focus-visible{outline:2px solid #ff5aa8;outline-offset:3px}";
+  document.head.appendChild(obStyle);
+  document.body.insertAdjacentHTML("beforeend",
+    '<div id="outbox-ov"><div class="ob-card">' +
+    "<h2>WHAT'S OUT</h2>" +
+    '<div class="ob-sub">your shelf, your floor — anything can wait in the underbed box</div>' +
+    '<div id="ob-rows"></div>' +
+    '<div class="ob-foot"><button id="ob-all" type="button">everything back out</button>' +
+    '<button id="ob-close" type="button">put it back</button></div>' +
+    "</div></div>");
+  function obRender() {
+    var html = "";
+    OUT_SECTIONS.forEach(function (sec) {
+      html += '<div class="ob-sec">' + sec[1] + "</div>";
+      HIDEABLES.forEach(function (h) {
+        if (h.sec !== sec[0]) return;
+        var hidden = !!outState[h.key];
+        html += '<div class="ob-row' + (hidden ? " away" : "") + '"><span>' + h.label + "</span>" +
+          '<button type="button" data-out="' + h.key + '"' + (hidden ? "" : ' class="on"') + ">" +
+          (hidden ? "put it out" : "out ✓") + "</button></div>";
+      });
+    });
+    document.getElementById("ob-rows").innerHTML = html;
+  }
+  var obSaidLine = false;
+  document.getElementById("ob-rows").addEventListener("click", function (e) {
+    var key = e.target && e.target.getAttribute && e.target.getAttribute("data-out");
+    if (!key) return;
+    outState[key] = outState[key] ? 0 : 1;
+    if (!outState[key]) delete outState[key];
+    saveJSON("room-out", outState);
+    applyOut(); obRender(); clickSfx(outState[key] ? 900 : 1700);
+    if (outState[key] && !obSaidLine) {
+      obSaidLine = true;
+      try { kidSay("into the underbed box it goes. it'll keep.", 4); } catch (e2) { }
+    }
+  });
+  document.getElementById("ob-all").addEventListener("click", function () {
+    outState = {};
+    saveJSON("room-out", outState);
+    applyOut(); obRender(); clickSfx(1700);
+  });
+  function obOpen() { obRender(); document.getElementById("outbox-ov").classList.add("open"); }
+  function obClose() { document.getElementById("outbox-ov").classList.remove("open"); }
+  document.getElementById("ob-close").addEventListener("click", function () { obClose(); clickSfx(1100); });
+  (function addOutButtons() { // doors: the rearrange toolbar + the shoebox footer
+    var bar = document.getElementById("decor-bar"), done = document.getElementById("dc-done");
+    if (bar && done) {
+      var b = document.createElement("button"); b.type = "button"; b.id = "dc-out"; b.textContent = "what's out";
+      b.addEventListener("click", function () { obOpen(); clickSfx(1400); });
+      bar.insertBefore(b, done);
+    }
+    var foot = document.querySelector("#shoebox-ov .sbx-foot span");
+    if (foot) {
+      var b2 = document.createElement("button"); b2.type = "button"; b2.textContent = "what's out";
+      b2.addEventListener("click", function () { sbxClose(); obOpen(); clickSfx(1400); });
+      foot.insertBefore(b2, foot.firstChild);
+    }
+  })();
+  applyOut(); // restore this visitor's shelf
+
   var frameCount = 0, lastT = performance.now() / 1000;
   function tick() {
     requestAnimationFrame(tick);
@@ -3126,5 +3277,10 @@ import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
       newCount: function () { return sbxNew; } },
     paint: { state: function () { return paintState; }, set: setPaint, apply: applyPaint, open: pbOpen, close: pbClose,
       defs: { PAINT: PAINT, NEON_OPTS: NEON_OPTS, LIGHT_PALS: LIGHT_PALS },
-      name: roomOwnerName, banner: function () { return nameMesh; } } };
+      name: roomOwnerName, banner: function () { return nameMesh; } },
+    out: { defs: HIDEABLES, state: function () { return outState; }, apply: applyOut, open: obOpen, close: obClose,
+      set: function (key, hidden) {
+        if (hidden) outState[key] = 1; else delete outState[key];
+        saveJSON("room-out", outState); applyOut();
+      } } };
 })();
