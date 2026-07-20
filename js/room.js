@@ -2668,6 +2668,38 @@ import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
     var u = document.getElementById("dw-undo"); if (u) u.disabled = !undoStack.length;
   }
 
+  /* ---- My Rooms: keep several looks and switch between them ---------------------- */
+  var ROOM_SLOT_MAX = 4;
+  var roomSlots = loadJSON("room-slots") || [];
+  function persistSlots() { saveJSON("room-slots", roomSlots); }
+  function saveRoom(name) {
+    if (roomSlots.length >= ROOM_SLOT_MAX) { try { kidSay("no more shelf space — delete one first.", 3.5); } catch (e) { } return false; }
+    name = (name || "").replace(/[^\w '\-]/g, "").trim().slice(0, 16) || ("Room " + (roomSlots.length + 1));
+    roomSlots.push({ name: name, blob: roomStateBlob() });
+    persistSlots();
+    try { kidSay("saved \"" + name + "\". switch back anytime.", 4); } catch (e) { }
+    return true;
+  }
+  function loadRoom(i) {
+    var s = roomSlots[i]; if (!s) return;
+    pushUndo(); applyRoomState(s.blob);
+    try { kidSay("here's \"" + s.name + "\" — hit undo if you miss the old one.", 4.5); } catch (e) { }
+  }
+  function delRoom(i) { if (roomSlots[i]) { roomSlots.splice(i, 1); persistSlots(); } }
+  function extractCode(str) { // accept a full share link OR a bare TR1. code
+    if (!str) return null;
+    var m = /room=([^&\s]+)/.exec(str);
+    var raw = m ? decodeURIComponent(m[1]) : str.trim();
+    return raw.slice(0, 4) === "TR1." ? raw : null;
+  }
+  function pasteRoom(str) {
+    var code = extractCode(str), blob = code && decodeRoom(code);
+    if (!blob) { try { kidSay("hmm — that code didn't work. paste the whole link?", 4); } catch (e) { } return false; }
+    pushUndo(); applyRoomState(blob);
+    try { kidSay("there it is — someone else's room, now yours to keep.", 4.5); } catch (e) { }
+    return true;
+  }
+
   /* ---- one-tap looks ------------------------------------------------------------- */
   var ROOM_PRESETS = {
     "cozy":  { walls: 2, carpet: 1, rug: 3, neon: 1, lights: "warm glow" },
@@ -2751,9 +2783,10 @@ import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
     "body.decorating #decor-drawer{display:flex}" +
     "body.listing #decor-drawer,body.no3d #decor-drawer{display:none!important}" +
     "#dw-tabs{display:flex;gap:6px;padding:10px 10px 8px;border-bottom:1px solid var(--line)}" +
-    "#dw-tabs button{flex:1;font-family:inherit;font-size:10px;letter-spacing:.08em;text-transform:uppercase;" +
+    "#dw-tabs{flex-wrap:wrap;gap:5px}" +
+    "#dw-tabs button{flex:1 1 auto;min-width:46px;font-family:inherit;font-size:9px;letter-spacing:.02em;text-transform:uppercase;" +
     "color:var(--dim);background:none;border:1px solid var(--line);border-radius:7px;padding:7px 2px;" +
-    "cursor:pointer;position:relative}" +
+    "cursor:pointer;position:relative;white-space:nowrap}" +
     "#dw-tabs button.on{color:#ffd9a0;border-color:#8a6f4a;background:rgba(255,194,125,.08)}" +
     "#dw-new{position:absolute;top:1px;right:5px;color:#ff5aa8;font-size:9px}" +
     "#dw-sel{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:8px 10px;" +
@@ -2821,7 +2854,8 @@ import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
     '<button type="button" data-tab="stuff">🧸 stuff<span id="dw-new" hidden>●</span></button>' +
     '<button type="button" data-tab="paint">🎨 paint</button>' +
     '<button type="button" data-tab="walls">🌟 walls</button>' +
-    '<button type="button" data-tab="shelf">📦 shelf</button></div>' +
+    '<button type="button" data-tab="shelf">📦 shelf</button>' +
+    '<button type="button" data-tab="saved">💾 saved</button></div>' +
     '<div id="dw-sel" hidden><span id="dw-sel-name"></span><span>' +
     '<button id="dw-rotl" type="button" aria-label="spin left">⟲</button>' +
     '<button id="dw-rotr" type="button" aria-label="spin right">⟳</button>' +
@@ -2853,9 +2887,26 @@ import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
     var el = document.getElementById("dw-body");
     if (!el) return;
     el.innerHTML = dwTabName === "paint" ? dwPaintHTML() : dwTabName === "shelf" ? dwShelfHTML()
-                 : dwTabName === "walls" ? dwWallsHTML() : dwStuffHTML();
+                 : dwTabName === "walls" ? dwWallsHTML() : dwTabName === "saved" ? dwSavedHTML() : dwStuffHTML();
     var inp = document.getElementById("dw-name-inp");
     if (inp) inp.value = paintState.name || "";
+  }
+  function esc(s) { return String(s).replace(/[&<>"]/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]; }); }
+  function dwSavedHTML() {
+    var html = '<div class="dw-hint">keep different looks — a cozy night, a battle station — and switch anytime</div>';
+    html += '<div class="dw-name"><input id="dw-slot-name" maxlength="16" placeholder="name this room" autocomplete="off" spellcheck="false">' +
+      '<button type="button" data-act="saveroom">save</button></div>';
+    html += '<div class="dw-sec">saved rooms (' + roomSlots.length + " / " + ROOM_SLOT_MAX + ")</div>";
+    if (!roomSlots.length) html += '<div class="dw-hint">nothing saved yet — name this one and hit save</div>';
+    else roomSlots.forEach(function (s, i) {
+      html += '<div class="dw-row"><span>' + esc(s.name) + "</span><span>" +
+        '<button type="button" data-loadroom="' + i + '">load</button> ' +
+        '<button type="button" data-delroom="' + i + '" aria-label="delete">✕</button></span></div>';
+    });
+    html += '<div class="dw-sec">got a friend\'s room?</div>' +
+      '<div class="dw-name"><input id="dw-paste" placeholder="paste a room link or code" autocomplete="off" spellcheck="false">' +
+      '<button type="button" data-act="pasteroom">load it</button></div>';
+    return html;
   }
   document.getElementById("decor-btn").addEventListener("click", function () { decorSet(!decorMode); clickSfx(1300); });
   document.getElementById("dw-tabs").addEventListener("click", function (e) {
@@ -2943,6 +2994,16 @@ import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
       applyOut(); dwRender(); clickSfx(1700);
     } else if (act === "clearstickers") {
       pushUndo(); rebuildStickers([]); persistStickers(); dwRender(); clickSfx(900);
+    } else if (act === "saveroom") {
+      var nm = document.getElementById("dw-slot-name");
+      if (saveRoom(nm ? nm.value : "")) { dwRender(); clickSfx(1700); }
+    } else if (act === "pasteroom") {
+      var pv = document.getElementById("dw-paste");
+      if (pasteRoom(pv ? pv.value : "")) { dwRender(); clickSfx(1700); } else clickSfx(700);
+    } else if ((key = b.getAttribute("data-loadroom")) != null) {
+      loadRoom(+key); dwRender(); clickSfx(1600);
+    } else if ((key = b.getAttribute("data-delroom")) != null) {
+      delRoom(+key); dwRender(); clickSfx(900);
     }
   });
 
@@ -3577,7 +3638,8 @@ import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
       } },
     extras: { stickers: function () { return stickers; }, addSticker: addSticker, designs: STICKER_DESIGNS,
       preset: applyPreset, presets: ROOM_PRESETS, surprise: surpriseMe, undo: doUndo, undoDepth: function () { return undoStack.length; },
-      blob: roomStateBlob, applyBlob: applyRoomState, encode: encodeRoom, decode: decodeRoom, link: roomLink, share: shareRoom } };
+      blob: roomStateBlob, applyBlob: applyRoomState, encode: encodeRoom, decode: decodeRoom, link: roomLink, share: shareRoom,
+      slots: function () { return roomSlots; }, saveRoom: saveRoom, loadRoom: loadRoom, delRoom: delRoom, paste: pasteRoom } };
 
   /* ---- someone shared a room? offer to rebuild it ------------------------------- */
   (function checkSharedRoom() {
