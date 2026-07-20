@@ -77,7 +77,7 @@ import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
 
   var pick = []; // clickable meshes
   function clickable(mesh, name, action, hint) { mesh.userData = { name: name, action: action, hint: hint || "click to open" }; pick.push(mesh); return mesh; }
-  function go(url) { var f = function () { window.location.href = url; }; f.__nav = url; return f; } // __nav marks doorway actions — THE KID walks to those
+  function go(url) { var f = function () { markVisited(url); window.location.href = url; }; f.__nav = url; return f; } // __nav marks doorway actions — THE KID walks to those
   var BASE = "https://kylefriesmarketing.github.io/";
 
   /* ---- reading the sibling games' saves (same origin) ------------------------ */
@@ -152,8 +152,9 @@ import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
   var floorM = texMat("assets/tex/carpet.jpg", 0x6b5a48, 0.98, 4, 3);
   var floor = new THREE.Mesh(new THREE.PlaneGeometry(9, 7), floorM);
   floor.rotation.x = -Math.PI / 2; floor.receiveShadow = true; scene.add(floor);
+  var rugCX = 0.1, rugCZ = 1.0; // the rug is movable — the war and the robot's patrol follow it
   var rug = new THREE.Mesh(new THREE.CircleGeometry(1.45, 48), texMat("assets/tex/rug.jpg", 0x27506b, 0.95, 1, 1));
-  rug.rotation.x = -Math.PI / 2; rug.position.set(0.1, 0.012, 1.0); rug.receiveShadow = true; scene.add(rug);
+  rug.rotation.x = -Math.PI / 2; rug.position.set(rugCX, 0.012, rugCZ); rug.receiveShadow = true; scene.add(rug);
   clickable(rug, "the rug", null, "the rug — the whole galaxy, floor version");
   var wallM = texMat("assets/tex/wallpaper.jpg", 0x38404f, 0.95, 3.4, 1.3);
   var wallMSide = texMat("assets/tex/wallpaper.jpg", 0x38404f, 0.95, 2.6, 1.3);
@@ -390,7 +391,7 @@ import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
       o.userData.war = true;
     }
   });
-  war.position.set(0.1, 0.013, 1.0); war.rotation.y = 0.32; scene.add(war);
+  war.position.set(rugCX, 0.013, rugCZ); war.rotation.y = 0.32; scene.add(war);
   var warHeat = 0;
 
   /* ---- THE DESK: computer, brain, notebook, lamp (left side) --------------- */
@@ -662,12 +663,14 @@ import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
 
   /* ---- soft bloom halos on the bright sources (billboards, additive) ---------- */
   scene.add(glow(0xff5aa8, -1.3, 2.86, -2.46, 2.7, 1.5, 0.5));   // the neon sign
-  scene.add(glow(0xff4d7d, -2.52, 1.0, -0.38, 0.85, 0.85, 0.5)); // the Brainrot brain
+  var gBrain = glow(0xff4d7d, -2.52, 1.0, -0.38, 0.85, 0.85, 0.5); // the Brainrot brain (follows the desk)
+  scene.add(gBrain);
   gLava = glow(0xff5a7d, 0.55, 0.86, -2.16, 0.7, 0.95, 0.55);    // the lava lamp
   scene.add(gLava);
   gLamp = glow(0xffb14d, -2.4, 1.62, -0.18, 0.95, 0.95, 0.4);    // the desk lamp
   scene.add(gLamp);
-  scene.add(glow(0x8fb8ff, 2.7, 0.82, -0.98, 0.9, 0.72, 0.4));   // the CRT screen
+  var gCrt = glow(0x8fb8ff, 2.7, 0.82, -0.98, 0.9, 0.72, 0.4);   // the CRT screen (follows the TV)
+  scene.add(gCrt);
 
   /* ---- the calendar has opinions ---------------------------------------------- */
   // December: the string lights go red-green-gold and a paper snowflake hits the
@@ -1228,19 +1231,31 @@ import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
   function propDoor(name, hint, url) { // a generated prop that is also a doorway
     return function (wrap) { wrap.traverse(function (o) { if (o.isMesh) clickable(o, name, go(url), hint); }); };
   }
-  prop("assets/props/bean.glb", 0.62, -2.05, 0, 1.2, 0.95,
-    propTip("the beanbag", "the beanbag — best seat in the house"));
-  prop("assets/props/trex.glb", 0.3, 0.95, 0, -1.35, 0.7, // guards the relocated chest, facing the room
-    propTip("rex", "rex — he guards the toy chest"));
+  prop("assets/props/bean.glb", 0.62, -2.05, 0, 1.2, 0.95, function (wrap) {
+    propTip("the beanbag", "the beanbag — best seat in the house")(wrap);
+    registerMovable({ key: "bean", label: "the beanbag", root: wrap, r: 0.42, rot: true, obs: 4, stations: [6] });
+  });
+  prop("assets/props/trex.glb", 0.3, 0.95, 0, -1.35, 0.7, function (wrap) { // guards the relocated chest, facing the room
+    propTip("rex", "rex — he guards the toy chest")(wrap);
+    registerMovable({ key: "trex", label: "rex", root: wrap, r: 0.2, rot: true });
+  });
   prop("assets/props/skate.glb", 0.78, -3.33, 0, 0.55, 1.45, function (wrap) {
     wrap.rotateOnWorldAxis(new THREE.Vector3(0, 0, 1), 0.10); // top rests against the left wall (inner face x=-3.55)
     propTip("the skateboard", "the skateboard — one day, the driveway")(wrap);
   });
-  prop("assets/props/globe.glb", 0.36, -2.26, 0.815, -0.75, -0.3, // desk-local (0, 0.10) — verified on the rotated slab
-    propTip("the globe", "the globe — somewhere better, probably"));
+  prop("assets/props/globe.glb", 0.36, -2.26, 0.815, -0.75, -0.3, function (wrap) { // desk-local (0, 0.10) — verified on the rotated slab
+    propTip("the globe", "the globe — somewhere better, probably")(wrap);
+    var dcfg = movableByKey.desk; // the globe rides the desk if the desk has been moved
+    if (dcfg) {
+      wrap.position.set(dcfg.root.position.x + 0.09, 0.815, dcfg.root.position.z + 0.05);
+      dcfg.attach.push({ o: wrap, dx: 0.09, dy: 0.815, dz: 0.05 });
+    }
+  });
   var CHAIR_YAW = 1.05 + Math.PI; // faces back toward the desk; tuned after render
-  prop("assets/props/chair.glb", 0.82, -1.86, 0, -0.32, CHAIR_YAW,
-    propTip("the chair", "the desk chair — worn in just right"));
+  prop("assets/props/chair.glb", 0.82, -1.86, 0, -0.32, CHAIR_YAW, function (wrap) {
+    propTip("the chair", "the desk chair — worn in just right")(wrap);
+    registerMovable({ key: "chair", label: "the desk chair", root: wrap, r: 0.34, rot: true, obs: 6 });
+  });
   var robotWrap = null, robotAng = 0; // he patrols the rug, forever
   var robotDir = 1, robotBoost = 0, keyG = null, keyFast = 0;
   function windRobot() { // a turn of the key: a burst of speed, and he changes his mind
@@ -1249,7 +1264,7 @@ import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
     keyFast = 0.7;
     ratchetSfx();
   }
-  prop("assets/props/robot.glb", 0.42, 0.1 + Math.sin(0) * 0.9, 0, 1.0 + Math.cos(0) * 0.9, Math.PI / 2, function (wrap) {
+  prop("assets/props/robot.glb", 0.42, rugCX + Math.sin(0) * 0.9, 0, rugCZ + Math.cos(0) * 0.9, Math.PI / 2, function (wrap) {
     robotWrap = wrap;
     // the wind-up key in his back, turning as slowly as he walks
     keyG = new THREE.Group();
@@ -1294,8 +1309,10 @@ import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
   })();
 
   /* ---- TIDEBOUND: a toy island diorama on the floor (generated) --------------- */
-  prop("assets/props/island.glb", 0.62, -1.9, 0, 2.45, 0.5,
-    propDoor("TIDEBOUND", "TIDEBOUND — the island that isn't on any chart (Dumb Tony's)", "https://dumb-tony.github.io/GameRepos/tidebound/"));
+  prop("assets/props/island.glb", 0.62, -1.9, 0, 2.45, 0.5, function (wrap) {
+    propDoor("TIDEBOUND", "TIDEBOUND — the island that isn't on any chart (Dumb Tony's)", "https://dumb-tony.github.io/GameRepos/tidebound/")(wrap);
+    registerMovable({ key: "island", label: "the toy island", root: wrap, r: 0.5, rot: true, obs: 3, stations: [3] });
+  });
 
   /* ==== THE KID: he lives here. He plays with everything until you ask for
    * something — then he walks over and opens it for you, and the camera leans
@@ -1665,6 +1682,7 @@ import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
     return hit ? hit.object : null;
   }
   window.addEventListener("pointerdown", function (e) {
+    if (decorPointerDown(e)) return; // rearrange mode (and open panels) own the pointer
     setPointer(e);
     var o = pickAt();
     if (o && o.userData.action) {
@@ -1727,6 +1745,9 @@ import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
   }
   window.addEventListener("keydown", function (e) {
     if (e.key === "Escape") {
+      var sbx = document.getElementById("shoebox-ov");
+      if (sbx && sbx.classList.contains("open")) { sbxClose(); return; }
+      if (decorMode) { decorSet(false); return; }
       document.getElementById("notebook").classList.remove("open");
       document.body.classList.remove("listing");
       return;
@@ -1739,6 +1760,7 @@ import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
       kbIndex = (kbIndex + (e.shiftKey ? -1 : 1) + L.length) % L.length;
       kbShow(L[kbIndex]);
     } else if ((e.key === "Enter" || e.key === " ") && kbFocus) {
+      if (decorMode) return; // no doorways while rearranging
       var ec = document.getElementById("enter");
       if ((!ec || ec.classList.contains("gone")) && kbFocus.userData.action) {
         if (kbFocus.userData.action.__nav) kidSummon(kbFocus);
@@ -1764,14 +1786,794 @@ import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
     renderer.setSize(window.innerWidth, window.innerHeight);
   });
 
+  /* ============================================================================
+   * MAKE IT YOURS — rearrange mode + THE SHOEBOX collection.
+   * Rearrange: every big toy and most of the furniture can be dragged around the
+   * floor (scroll or the toolbar spins it); the kid's obstacle map, his hand-tuned
+   * stations, and the tied lights/halos all follow, and the layout persists.
+   * The shoebox: every game leaves a unique little collectible behind once you've
+   * earned it — display the ones you like, anywhere a surface will hold them.
+   * ========================================================================== */
+  function loadJSON(key) { try { return JSON.parse(localStorage.getItem(key) || "null"); } catch (e) { return null; } }
+  function saveJSON(key, v) { try { localStorage.setItem(key, JSON.stringify(v)); } catch (e) { /* private mode */ } }
+
+  var decorMode = false, dragging = null, selCfg = null, decorHover = null;
+  var movables = [], movableByKey = {};
+  var savedLayout = loadJSON("room-layout") || {};
+  var RING_G = new THREE.RingGeometry(0.82, 1, 32);
+  var HUB_HOME = { x: KID_HUB.x, z: KID_HUB.z };
+
+  function registerMovable(cfg) {
+    var r = cfg.root;
+    cfg.def = { x: r.position.x, z: r.position.z, y: r.position.y, ry: r.rotation.y };
+    // kid stations tied to this thing: remember their offsets so they ride along
+    cfg.stOff = (cfg.stations || []).map(function (si) {
+      var s = KID_STATIONS[si];
+      return { i: si, dx: s.x - cfg.def.x, dz: s.z - cfg.def.z, yaw: s.yaw };
+    });
+    // scene-level lights/halos that visually belong to it
+    cfg.attach = (cfg.attachObjs || []).map(function (o) {
+      return { o: o, dx: o.position.x - cfg.def.x, dy: o.position.y, dz: o.position.z - cfg.def.z };
+    });
+    r.userData.__movKey = cfg.key;
+    var ring = new THREE.Mesh(RING_G, new THREE.MeshBasicMaterial({
+      color: 0xffc27d, transparent: true, opacity: 0.12, depthWrite: false, side: THREE.DoubleSide,
+    }));
+    ring.rotation.x = -Math.PI / 2; ring.visible = false; ring.userData.__ring = true;
+    ring.scale.setScalar((cfg.r || 0.3) + 0.16);
+    scene.add(ring); cfg.__ring = ring;
+    movables.push(cfg); movableByKey[cfg.key] = cfg;
+    if (cfg.kind !== "coll") { // furniture layout restores here; collectibles restore from the shoebox
+      var sv = savedLayout[cfg.key];
+      if (sv) applyMove(cfg, sv.x, sv.z, sv.ry == null ? cfg.def.ry : sv.ry);
+    }
+    return cfg;
+  }
+  function unregisterMovable(cfg) {
+    var i = movables.indexOf(cfg);
+    if (i >= 0) movables.splice(i, 1);
+    delete movableByKey[cfg.key];
+    if (cfg.__ring) { scene.remove(cfg.__ring); cfg.__ring.material.dispose(); }
+  }
+  // Move (and maybe spin) a movable; every coupled system follows in the same call.
+  function applyMove(cfg, x, z, ry, y) {
+    var r = cfg.root;
+    x = Math.max(-3.35, Math.min(3.35, x)); // stay inside the walls
+    z = Math.max(-2.35, Math.min(3.05, z)); // ...and in front of the camera
+    r.position.x = x; r.position.z = z;
+    if (y != null && cfg.surface) r.position.y = y;
+    if (ry != null && cfg.rot) r.rotation.y = ry;
+    var dry = r.rotation.y - cfg.def.ry, c = Math.cos(dry), s = Math.sin(dry);
+    if (cfg.obs != null) { KID_OBSTACLES[cfg.obs].x = x; KID_OBSTACLES[cfg.obs].z = z; }
+    cfg.stOff.forEach(function (o) { // stations rotate around the thing they belong to
+      var st = KID_STATIONS[o.i];
+      st.x = x + o.dx * c + o.dz * s;
+      st.z = z - o.dx * s + o.dz * c;
+      if (o.yaw != null) st.yaw = o.yaw + dry;
+    });
+    cfg.attach.forEach(function (a) {
+      a.o.position.set(x + a.dx * c + a.dz * s, a.dy, z - a.dx * s + a.dz * c);
+    });
+    if (cfg.onMove) cfg.onMove(x, z, dry);
+    fixHub();
+    kidEvict(cfg);
+  }
+  // The hub is the kid's open-floor staging point — nudge it out of anything parked on it.
+  function fixHub() {
+    KID_HUB.x = HUB_HOME.x; KID_HUB.z = HUB_HOME.z;
+    for (var i = 0; i < KID_OBSTACLES.length; i++) {
+      var o = KID_OBSTACLES[i], dx = KID_HUB.x - o.x, dz = KID_HUB.z - o.z;
+      var d = Math.sqrt(dx * dx + dz * dz), need = o.r + KID_R + 0.15;
+      if (d < need) {
+        if (d < 0.01) { dx = 0; dz = 1; d = 1; }
+        KID_HUB.x = o.x + dx / d * need; KID_HUB.z = o.z + dz / d * need;
+      }
+    }
+  }
+  // If the kid is sitting on / lying in / heading to the thing being moved, he hops off.
+  function kidEvict(cfg) {
+    var st = kidState.station;
+    if (!st) return;
+    var mine = cfg.stOff.some(function (o) { return KID_STATIONS[o.i] === st; });
+    if (!mine) return;
+    kidState.station = null; kidState.mode = "roam"; kidState.t = 0; kidState.walkT = 0;
+    kidState.ignoreObs = -1; kidState.targetY = 0;
+    kidGoto(KID_HUB.x, KID_HUB.z);
+  }
+  function persistLayout() {
+    var out = {};
+    movables.forEach(function (c) {
+      if (c.kind === "coll") return;
+      var r = c.root;
+      if (Math.abs(r.position.x - c.def.x) > 0.01 || Math.abs(r.position.z - c.def.z) > 0.01 ||
+          Math.abs(r.rotation.y - c.def.ry) > 0.01)
+        out[c.key] = { x: +r.position.x.toFixed(3), z: +r.position.z.toFixed(3), ry: +r.rotation.y.toFixed(3) };
+    });
+    saveJSON("room-layout", out);
+  }
+  function persistFor(cfg) { if (cfg.kind === "coll") persistColl(cfg); else persistLayout(); }
+
+  /* ---- picking + dragging ----------------------------------------------------- */
+  function floorPoint() {
+    ray.setFromCamera(mouse, camera);
+    var o = ray.ray.origin, d = ray.ray.direction;
+    if (Math.abs(d.y) < 1e-4) return null;
+    var tt = -o.y / d.y;
+    if (tt < 0) return null;
+    return { x: o.x + d.x * tt, y: 0, z: o.z + d.z * tt };
+  }
+  var _sn = new THREE.Vector3();
+  function surfacePoint() { // collectibles snap onto whatever flat top the pointer is over
+    ray.setFromCamera(mouse, camera);
+    var hits = ray.intersectObjects(SURFACES, false);
+    for (var i = 0; i < hits.length; i++) {
+      var h = hits[i];
+      if (!h.face) continue;
+      _sn.copy(h.face.normal).transformDirection(h.object.matrixWorld);
+      if (_sn.y > 0.6) return { x: h.point.x, y: h.point.y + 0.002, z: h.point.z };
+    }
+    return null;
+  }
+  function decorPickMovable() {
+    ray.setFromCamera(mouse, camera);
+    var hits = ray.intersectObjects(scene.children, true);
+    for (var i = 0; i < hits.length; i++) {
+      var ob = hits[i].object;
+      if (!ob.isMesh || ob.userData.__ring) continue;
+      if (ob.userData.war && movableByKey.rug) return movableByKey.rug; // the army men grab the rug
+      var p = ob, found = null;
+      while (p) { if (p.userData.__movKey) { found = movableByKey[p.userData.__movKey]; break; } p = p.parent; }
+      if (found) return found;
+      var mm = ob.material;
+      if (mm && !Array.isArray(mm) && mm.transparent && (mm.opacity || 0) < 0.35) continue; // see through rain / ghost glass
+      return null; // a solid non-movable — you can't grab through the furniture
+    }
+    return null;
+  }
+  function decorPointerDown(e) {
+    var sbx = document.getElementById("shoebox-ov");
+    if (sbx && sbx.classList.contains("open")) return true; // an open panel owns the pointer
+    var nb = document.getElementById("notebook");
+    if (nb && nb.classList.contains("open")) return true;   // (also stops click-through on the notebook)
+    if (!decorMode) return false;
+    if (e.target && e.target.tagName !== "CANVAS") return true; // toolbar clicks aren't grabs
+    setPointer(e);
+    var cfg = decorPickMovable();
+    decorSelect(cfg);
+    if (cfg) {
+      var p = floorPoint();
+      dragging = { cfg: cfg, ox: p && !cfg.surface ? cfg.root.position.x - p.x : 0,
+                   oz: p && !cfg.surface ? cfg.root.position.z - p.z : 0 };
+      document.body.style.cursor = "grabbing";
+    }
+    return true;
+  }
+  window.addEventListener("pointermove", function (e) {
+    if (!dragging) return;
+    setPointer(e);
+    var cfg = dragging.cfg;
+    var p = cfg.surface ? (surfacePoint() || floorPoint()) : floorPoint();
+    if (!p) return;
+    applyMove(cfg, p.x + dragging.ox, p.z + dragging.oz, cfg.root.rotation.y, cfg.surface ? p.y : null);
+  }, { passive: true });
+  function endDrag() {
+    if (!dragging) return;
+    var cfg = dragging.cfg; dragging = null;
+    document.body.style.cursor = decorMode ? "grab" : "default";
+    persistFor(cfg);
+  }
+  window.addEventListener("pointerup", endDrag);
+  window.addEventListener("pointercancel", endDrag);
+  window.addEventListener("wheel", function (e) {
+    if (!decorMode) return;
+    var cfg = dragging ? dragging.cfg : selCfg;
+    if (!cfg || !cfg.rot) return;
+    decorRotate(cfg, e.deltaY > 0 ? -0.16 : 0.16);
+  }, { passive: true });
+  function decorRotate(cfg, d) {
+    applyMove(cfg, cfg.root.position.x, cfg.root.position.z, cfg.root.rotation.y + d,
+      cfg.surface ? cfg.root.position.y : null);
+    persistFor(cfg);
+  }
+
+  /* ---- rearrange mode UI -------------------------------------------------------- */
+  var decorSaidLine = false;
+  function decorSelect(cfg) {
+    selCfg = cfg;
+    var lbl = document.getElementById("decor-lbl");
+    if (lbl) lbl.textContent = cfg ? cfg.label + (cfg.rot ? " — scroll or the arrows to spin it" : " — this one only slides")
+                                   : "drag things where you want them";
+    ["dc-rotl", "dc-rotr"].forEach(function (id) {
+      var b = document.getElementById(id); if (b) b.disabled = !cfg || !cfg.rot;
+    });
+    var pb = document.getElementById("dc-back"); if (pb) pb.disabled = !cfg;
+  }
+  function decorSet(on) {
+    if (on === decorMode) return;
+    decorMode = on;
+    endDrag();
+    decorSelect(null);
+    document.body.classList.toggle("decorating", on);
+    var b = document.getElementById("decor-btn");
+    if (b) b.textContent = on ? "done rearranging" : "rearrange";
+    tip.classList.remove("show");
+    document.body.style.cursor = "default";
+    if (on && !decorSaidLine) {
+      decorSaidLine = true;
+      try { kidSay("rearranging? okay — mom will never believe it wasn't me.", 4.5); } catch (e) { }
+    }
+  }
+  function decorReset() {
+    movables.forEach(function (c) {
+      if (c.kind === "coll") return;
+      applyMove(c, c.def.x, c.def.z, c.def.ry);
+    });
+    saveJSON("room-layout", {});
+    decorSelect(selCfg && selCfg.kind === "coll" ? selCfg : null);
+  }
+  function decorTick(t, dt) {
+    for (var i = 0; i < movables.length; i++) {
+      var c = movables[i], rg = c.__ring;
+      if (rg) {
+        rg.visible = decorMode;
+        if (decorMode) {
+          rg.position.set(c.root.position.x, (c.surface ? c.root.position.y : 0) + 0.02, c.root.position.z);
+          rg.material.opacity = c === selCfg ? 0.4 + 0.18 * Math.sin(t * 5) : c === decorHover ? 0.3 : 0.12;
+        }
+      }
+      if (c.pop > 0) { // the little bounce when you poke a collectible
+        c.pop = Math.max(0, c.pop - dt * 2.4);
+        var ps = 1 + Math.sin(c.pop * Math.PI) * 0.22;
+        c.root.scale.set(ps, ps, ps);
+      }
+    }
+    if (gShoe) gShoe.material.opacity = sbxNew > 0 ? 0.26 + 0.2 * Math.sin(t * 2.6) : 0;
+  }
+
+  /* ---- register the furniture --------------------------------------------------- */
+  registerMovable({ key: "chest", label: "the toy chest", root: chest, r: 0.62, rot: true, obs: 0, stations: [0] });
+  registerMovable({ key: "rug", label: "the rug", root: rug, r: 1.5, stations: [2], onMove: function (x, z) {
+    rugCX = x; rugCZ = z;                    // the robot's patrol recenters every frame
+    war.position.x = x; war.position.z = z;  // the army men are set up ON the rug
+    KID_DANCE.x = x + 0.5; KID_DANCE.z = z + 0.62;
+  } });
+  registerMovable({ key: "bed", label: "the bed", root: bed, r: 0.82, obs: 1, stations: [7], onMove: function (x, z) {
+    var dx = x - 2.92, dz = z - 1.1; // the climb waypoints ride with the bed (translate only — the lie clip owns the yaw)
+    KID_BED.sideX = 2.12 + dx; KID_BED.sideZ = 1.05 + dz;
+    KID_BED.upX = 2.62 + dx;
+    KID_BED.x = 2.9 + dx; KID_BED.z = 0.88 + dz;
+  } });
+  registerMovable({ key: "desk", label: "the desk", root: desk, r: 0.82, obs: 2, stations: [4],
+    attachObjs: [lampLight, gLamp, gBrain] });
+  registerMovable({ key: "tv", label: "the TV", root: crt, r: 0.55, rot: true, obs: 5, stations: [1],
+    attachObjs: [crtLight, gCrt] });
+  registerMovable({ key: "nstand", label: "the nightstand", root: nstand, r: 0.3, rot: true, attachObjs: [gLava] });
+
+  /* ---- THE SHOEBOX: one collectible per game ------------------------------------ */
+  var goldM = new THREE.MeshStandardMaterial({ color: 0xd9a93a, roughness: 0.35, metalness: 0.7 });
+  var glassM = new THREE.MeshStandardMaterial({ color: 0xbfe8e0, roughness: 0.12, transparent: true, opacity: 0.3 });
+  var toyWood = mat(0x8a6242, 0.8), toyWoodD = mat(0x5e4028, 0.85);
+  function buildBracelet() {
+    var g = new THREE.Group(), cols = [0xe05a7a, 0x5ab8e0, 0xe0c05a, 0x7ae08a, 0xb87ae0];
+    var band = new THREE.Mesh(new THREE.TorusGeometry(0.05, 0.007, 8, 24), mat(0xd8cfc0, 0.8));
+    band.rotation.x = -Math.PI / 2; band.position.y = 0.012; g.add(band);
+    for (var i = 0; i < 8; i++) {
+      var b = new THREE.Mesh(new THREE.SphereGeometry(0.011, 8, 8), mat(cols[i % cols.length], 0.5));
+      b.position.set(Math.cos(i / 8 * Math.PI * 2) * 0.05, 0.012, Math.sin(i / 8 * Math.PI * 2) * 0.05);
+      g.add(b);
+    }
+    return g;
+  }
+  function buildLaurel() {
+    var g = new THREE.Group();
+    var ring = new THREE.Mesh(new THREE.TorusGeometry(0.052, 0.006, 8, 28, Math.PI * 1.72), goldM);
+    ring.rotation.x = -Math.PI / 2; ring.rotation.z = Math.PI * 0.64; ring.position.y = 0.012; g.add(ring);
+    for (var i = 0; i < 10; i++) {
+      var a = Math.PI * 0.64 + (i + 0.5) / 10 * Math.PI * 1.72;
+      var lf = new THREE.Mesh(new THREE.ConeGeometry(0.007, 0.028, 6), goldM);
+      lf.position.set(Math.cos(a) * 0.052, 0.014, -Math.sin(a) * 0.052);
+      lf.rotation.x = Math.PI / 2; lf.rotation.y = -a + Math.PI / 2;
+      g.add(lf);
+    }
+    return g;
+  }
+  function buildCompass() {
+    var g = new THREE.Group();
+    var body = new THREE.Mesh(new THREE.CylinderGeometry(0.045, 0.045, 0.02, 24), goldM);
+    body.position.y = 0.01; g.add(body);
+    var face = new THREE.Mesh(new THREE.CircleGeometry(0.037, 24), new THREE.MeshBasicMaterial({
+      map: canvasTex(64, 64, function (gc) {
+        gc.fillStyle = "#f2ead6"; gc.beginPath(); gc.arc(32, 32, 32, 0, 7); gc.fill();
+        gc.fillStyle = "#333"; gc.font = "bold 13px Georgia, serif"; gc.textAlign = "center"; gc.textBaseline = "middle";
+        gc.fillText("N", 32, 10); gc.fillText("S", 32, 54); gc.fillText("E", 54, 32); gc.fillText("W", 10, 32);
+        gc.strokeStyle = "#c0392b"; gc.lineWidth = 3;
+        gc.beginPath(); gc.moveTo(30, 46); gc.lineTo(37, 16); gc.stroke();
+      }),
+    }));
+    face.rotation.x = -Math.PI / 2; face.position.y = 0.021; g.add(face);
+    var loop = new THREE.Mesh(new THREE.TorusGeometry(0.011, 0.0035, 6, 12), goldM);
+    loop.position.set(0.053, 0.012, 0); g.add(loop);
+    return g;
+  }
+  function buildBottle() { // the Endurance, safely home
+    var g = new THREE.Group();
+    var body = new THREE.Mesh(new THREE.CylinderGeometry(0.032, 0.032, 0.13, 16), glassM);
+    body.rotation.z = Math.PI / 2; body.position.y = 0.048; g.add(body);
+    var neck = new THREE.Mesh(new THREE.CylinderGeometry(0.011, 0.018, 0.035, 12), glassM);
+    neck.rotation.z = Math.PI / 2; neck.position.set(0.082, 0.048, 0); g.add(neck);
+    var cork = new THREE.Mesh(new THREE.CylinderGeometry(0.011, 0.011, 0.018, 10), mat(0xb08a56, 0.9));
+    cork.rotation.z = Math.PI / 2; cork.position.set(0.108, 0.048, 0); g.add(cork);
+    var hull = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.012, 0.016), toyWoodD);
+    hull.position.y = 0.038; g.add(hull);
+    [-0.012, 0.012].forEach(function (x, i) {
+      var sail = new THREE.Mesh(new THREE.PlaneGeometry(0.018, 0.026 - i * 0.008),
+        new THREE.MeshStandardMaterial({ color: 0xf2ead6, side: THREE.DoubleSide, roughness: 0.9 }));
+      sail.position.set(x, 0.058, 0); g.add(sail);
+    });
+    [-0.034, 0.034].forEach(function (x) {
+      var f = new THREE.Mesh(new THREE.BoxGeometry(0.014, 0.018, 0.05), toyWoodD);
+      f.position.set(x, 0.009, 0); g.add(f);
+    });
+    return g;
+  }
+  function buildHorse() { // wooden, wheeled, straight out of the poem
+    var g = new THREE.Group();
+    var body = box(0.07, 0.038, 0.024, toyWood); body.position.y = 0.062; g.add(body);
+    var neck = box(0.016, 0.036, 0.018, toyWood); neck.position.set(0.03, 0.092, 0); neck.rotation.z = -0.35; g.add(neck);
+    var head = box(0.03, 0.016, 0.016, toyWood); head.position.set(0.046, 0.108, 0); g.add(head);
+    var mane = box(0.024, 0.008, 0.01, toyWoodD); mane.position.set(0.026, 0.108, 0); mane.rotation.z = -0.35; g.add(mane);
+    [[-0.026, -0.008], [-0.026, 0.008], [0.026, -0.008], [0.026, 0.008]].forEach(function (p) {
+      var leg = new THREE.Mesh(new THREE.CylinderGeometry(0.005, 0.005, 0.036, 8), toyWood);
+      leg.position.set(p[0], 0.03, p[1]); g.add(leg);
+      var wheel = new THREE.Mesh(new THREE.CylinderGeometry(0.011, 0.011, 0.006, 12), toyWoodD);
+      wheel.rotation.x = Math.PI / 2; wheel.position.set(p[0], 0.011, p[1] + (p[1] < 0 ? -0.008 : 0.008)); g.add(wheel);
+    });
+    return g;
+  }
+  function buildWatch() { // the White Rabbit's — permanently teatime
+    var g = new THREE.Group();
+    var cased = new THREE.Mesh(new THREE.CylinderGeometry(0.042, 0.042, 0.013, 24), goldM);
+    cased.position.y = 0.007; g.add(cased);
+    var face = new THREE.Mesh(new THREE.CircleGeometry(0.036, 24), new THREE.MeshBasicMaterial({
+      map: canvasTex(64, 64, function (gc) {
+        gc.fillStyle = "#f6efdd"; gc.beginPath(); gc.arc(32, 32, 32, 0, 7); gc.fill();
+        gc.fillStyle = "#4a3a22"; gc.font = "10px Georgia, serif"; gc.textAlign = "center"; gc.textBaseline = "middle";
+        gc.fillText("XII", 32, 9); gc.fillText("VI", 32, 55); gc.fillText("III", 55, 32); gc.fillText("IX", 9, 32);
+        gc.strokeStyle = "#4a3a22"; gc.lineWidth = 3;
+        gc.beginPath(); gc.moveTo(32, 32); gc.lineTo(32, 52); gc.stroke();  // six o'clock —
+        gc.beginPath(); gc.moveTo(32, 32); gc.lineTo(44, 22); gc.stroke(); // teatime forever
+      }),
+    }));
+    face.rotation.x = -Math.PI / 2; face.position.y = 0.014; g.add(face);
+    var crownK = new THREE.Mesh(new THREE.CylinderGeometry(0.006, 0.006, 0.01, 8), goldM);
+    crownK.rotation.z = Math.PI / 2; crownK.position.set(0.048, 0.007, 0); g.add(crownK);
+    for (var i = 0; i < 3; i++) {
+      var link = new THREE.Mesh(new THREE.TorusGeometry(0.007, 0.002, 6, 10), goldM);
+      link.rotation.x = -Math.PI / 2; link.position.set(0.062 + i * 0.011, 0.004, 0.008 + i * 0.006); g.add(link);
+    }
+    return g;
+  }
+  function buildInkwell() { // the red ink, corked. leave it corked.
+    var g = new THREE.Group();
+    var well = new THREE.Mesh(new THREE.CylinderGeometry(0.024, 0.028, 0.045, 12),
+      new THREE.MeshStandardMaterial({ color: 0xd8dce8, roughness: 0.1, transparent: true, opacity: 0.4 }));
+    well.position.y = 0.0225; g.add(well);
+    var ink = new THREE.Mesh(new THREE.CylinderGeometry(0.019, 0.023, 0.024, 12),
+      new THREE.MeshStandardMaterial({ color: 0x7a0f1e, roughness: 0.3, emissive: 0x3a0008, emissiveIntensity: 0.5 }));
+    ink.position.y = 0.014; g.add(ink);
+    var cap = new THREE.Mesh(new THREE.CylinderGeometry(0.014, 0.02, 0.014, 10), mat(0x8a6a3a, 0.4));
+    cap.position.y = 0.052; g.add(cap);
+    var quill = new THREE.Mesh(new THREE.PlaneGeometry(0.085, 0.024), new THREE.MeshBasicMaterial({
+      map: canvasTex(128, 32, function (gc, w, h) {
+        gc.clearRect(0, 0, w, h);
+        gc.fillStyle = "#ece6da";
+        gc.beginPath(); gc.moveTo(4, h / 2); gc.quadraticCurveTo(w * 0.55, -4, w, h * 0.3);
+        gc.quadraticCurveTo(w * 0.55, h + 4, 4, h / 2); gc.fill();
+        gc.fillStyle = "#7a0f1e"; // the tip has been dipped
+        gc.beginPath(); gc.moveTo(4, h / 2); gc.lineTo(22, h * 0.32); gc.lineTo(22, h * 0.68); gc.fill();
+      }), transparent: true, side: THREE.DoubleSide,
+    }));
+    quill.position.set(0.035, 0.05, 0.012); quill.rotation.z = 0.6; quill.rotation.y = -0.4; g.add(quill);
+    return g;
+  }
+  function buildLens() {
+    var g = new THREE.Group();
+    var rim = new THREE.Mesh(new THREE.TorusGeometry(0.034, 0.006, 8, 24), goldM);
+    rim.rotation.x = -Math.PI / 2; rim.position.y = 0.012; g.add(rim);
+    var lens = new THREE.Mesh(new THREE.CircleGeometry(0.031, 24),
+      new THREE.MeshStandardMaterial({ color: 0xcfe8f2, roughness: 0.05, transparent: true, opacity: 0.24, side: THREE.DoubleSide }));
+    lens.rotation.x = -Math.PI / 2; lens.position.y = 0.012; g.add(lens);
+    var handle = new THREE.Mesh(new THREE.CylinderGeometry(0.007, 0.008, 0.06, 10), toyWoodD);
+    handle.rotation.z = Math.PI / 2; handle.rotation.y = 0.5; handle.position.set(0.058, 0.008, -0.028); g.add(handle);
+    return g;
+  }
+  function buildSpitfire() { // on a little display stand, banking for the trees
+    var g = new THREE.Group();
+    var base = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.036, 0.01, 16), toyWoodD);
+    base.position.y = 0.005; g.add(base);
+    var pole = new THREE.Mesh(new THREE.CylinderGeometry(0.0035, 0.0035, 0.055, 8), mat(0x8a8f98, 0.4));
+    pole.position.y = 0.036; g.add(pole);
+    var plane = new THREE.Group(); plane.position.y = 0.068; plane.rotation.set(0, 0.6, 0.35);
+    var raf = mat(0x66784f, 0.7);
+    var fus = new THREE.Mesh(new THREE.CylinderGeometry(0.0085, 0.006, 0.08, 10), raf);
+    fus.rotation.z = Math.PI / 2; plane.add(fus);
+    var nose = new THREE.Mesh(new THREE.ConeGeometry(0.0085, 0.018, 10), raf);
+    nose.rotation.z = -Math.PI / 2; nose.position.x = 0.049; plane.add(nose);
+    var canopy = new THREE.Mesh(new THREE.SphereGeometry(0.007, 8, 8),
+      new THREE.MeshStandardMaterial({ color: 0x9fc8e8, roughness: 0.15 }));
+    canopy.scale.set(1.6, 1, 1); canopy.position.set(0.01, 0.008, 0); plane.add(canopy);
+    var wings = box(0.026, 0.003, 0.1, raf); wings.position.set(0.012, 0, 0); plane.add(wings);
+    var tailW = box(0.014, 0.0025, 0.036, raf); tailW.position.set(-0.036, 0.002, 0); plane.add(tailW);
+    var fin = box(0.014, 0.014, 0.0025, raf); fin.position.set(-0.038, 0.009, 0); plane.add(fin);
+    var prp = box(0.002, 0.03, 0.004, toyWoodD); prp.position.x = 0.059; prp.rotation.x = 0.6; plane.add(prp);
+    [-0.036, 0.036].forEach(function (z) { // roundels
+      var blue = new THREE.Mesh(new THREE.CylinderGeometry(0.0065, 0.0065, 0.0008, 12), mat(0x2a4a8a, 0.6));
+      blue.position.set(0.012, 0.0022, z); plane.add(blue);
+      var red = new THREE.Mesh(new THREE.CylinderGeometry(0.0028, 0.0028, 0.0012, 10), mat(0xb03030, 0.6));
+      red.position.set(0.012, 0.0024, z); plane.add(red);
+    });
+    g.add(plane);
+    return g;
+  }
+  function buildCrown() { // the Shelf King's
+    var g = new THREE.Group();
+    var band = new THREE.Mesh(new THREE.CylinderGeometry(0.045, 0.048, 0.026, 18, 1, true), goldM);
+    band.position.y = 0.017; g.add(band);
+    for (var i = 0; i < 6; i++) {
+      var a = i / 6 * Math.PI * 2;
+      var spike = new THREE.Mesh(new THREE.ConeGeometry(0.011, 0.028, 6), goldM);
+      spike.position.set(Math.cos(a) * 0.044, 0.042, Math.sin(a) * 0.044); g.add(spike);
+      var tipb = new THREE.Mesh(new THREE.SphereGeometry(0.004, 6, 6), goldM);
+      tipb.position.set(Math.cos(a) * 0.044, 0.058, Math.sin(a) * 0.044); g.add(tipb);
+    }
+    [[0, 0xc0392b], [2.1, 0x2a6ab8], [4.2, 0x27ae60]].forEach(function (p) {
+      var jm = new THREE.MeshStandardMaterial({ color: p[1], roughness: 0.15, emissive: p[1], emissiveIntensity: 0.25 });
+      var jewel = new THREE.Mesh(new THREE.SphereGeometry(0.007, 8, 8), jm);
+      jewel.position.set(Math.cos(p[0]) * 0.047, 0.016, Math.sin(p[0]) * 0.047); g.add(jewel);
+    });
+    return g;
+  }
+  function buildBrainball() {
+    var g = new THREE.Group(), pink = mat(0xe88ab0, 0.95);
+    var main = new THREE.Mesh(new THREE.SphereGeometry(0.04, 14, 12), pink);
+    main.scale.y = 0.82; main.position.y = 0.033; g.add(main);
+    [[-0.018, 0.05, 0.012], [0.018, 0.05, 0.012], [-0.014, 0.048, -0.02], [0.016, 0.046, -0.018], [0, 0.055, -0.004]].forEach(function (p) {
+      var lobe = new THREE.Mesh(new THREE.SphereGeometry(0.016, 10, 8), pink);
+      lobe.position.set(p[0], p[1], p[2]); g.add(lobe);
+    });
+    return g;
+  }
+  function buildCham() {
+    var g = new THREE.Group(), grn = mat(0x7ac04a, 0.8);
+    var body = new THREE.Mesh(new THREE.SphereGeometry(0.028, 12, 10), grn);
+    body.scale.set(1.5, 0.9, 0.85); body.position.y = 0.032; g.add(body);
+    var head = new THREE.Mesh(new THREE.ConeGeometry(0.016, 0.028, 10), grn);
+    head.rotation.z = -Math.PI / 2; head.position.set(0.052, 0.038, 0); g.add(head);
+    var tail = new THREE.Mesh(new THREE.TorusGeometry(0.016, 0.006, 8, 16, 4.6), grn);
+    tail.position.set(-0.048, 0.032, 0); tail.rotation.y = 0.2; g.add(tail);
+    [[0.02, -0.016], [0.02, 0.016], [-0.02, -0.016], [-0.02, 0.016]].forEach(function (p) {
+      var leg = new THREE.Mesh(new THREE.CylinderGeometry(0.005, 0.006, 0.024, 8), grn);
+      leg.position.set(p[0], 0.012, p[1]); g.add(leg);
+    });
+    [-0.008, 0.008].forEach(function (z) {
+      var eye = new THREE.Mesh(new THREE.SphereGeometry(0.007, 8, 8), mat(0xf2ead6, 0.4));
+      eye.position.set(0.046, 0.052, z * 1.6); g.add(eye);
+      var pupil = new THREE.Mesh(new THREE.SphereGeometry(0.003, 6, 6), mat(0x222222, 0.3));
+      pupil.position.set(0.05, 0.054, z * 1.9); g.add(pupil);
+    });
+    return g;
+  }
+  function buildPalm() { // the island that isn't on any chart, pocket edition
+    var g = new THREE.Group();
+    var sea = new THREE.Mesh(new THREE.CylinderGeometry(0.062, 0.066, 0.008, 20),
+      new THREE.MeshStandardMaterial({ color: 0x4a9ab8, roughness: 0.3 }));
+    sea.position.y = 0.004; g.add(sea);
+    var sand = new THREE.Mesh(new THREE.CylinderGeometry(0.042, 0.05, 0.014, 18), mat(0xd8c08a, 0.95));
+    sand.position.y = 0.014; g.add(sand);
+    var seg = null;
+    for (var i = 0; i < 3; i++) {
+      seg = new THREE.Mesh(new THREE.CylinderGeometry(0.005 - i * 0.001, 0.006 - i * 0.001, 0.024, 8), toyWood);
+      seg.position.set(i * 0.006, 0.03 + i * 0.022, 0); seg.rotation.z = -0.18 - i * 0.1; g.add(seg);
+    }
+    for (var f = 0; f < 5; f++) {
+      var a = f / 5 * Math.PI * 2;
+      var frond = new THREE.Mesh(new THREE.PlaneGeometry(0.05, 0.016),
+        new THREE.MeshStandardMaterial({ color: 0x3f9a4a, roughness: 0.85, side: THREE.DoubleSide }));
+      frond.position.set(0.018 + Math.cos(a) * 0.02, 0.085, Math.sin(a) * 0.02);
+      frond.rotation.set(Math.sin(a) * 0.5, a, -0.5);
+      g.add(frond);
+    }
+    var coco = new THREE.Mesh(new THREE.SphereGeometry(0.006, 8, 6), toyWoodD);
+    coco.position.set(0.018, 0.078, 0.008); g.add(coco);
+    return g;
+  }
+
+  // one collectible per game — have() reads the same-origin saves; Tony's three
+  // unlock by walking through their doorway (go() stamps the visit).
+  function anyOf(key, pickFn) { var v = readSave(key, pickFn); return v != null && v > 0; }
+  var COLLECT = [
+    { key: "bracelet", title: "the friendship bracelet", from: "CHOOSE WISELY", icon: "🧶",
+      earn: "find an ending in CHOOSE WISELY",
+      have: function () { return anyOf("chooseWisely.meta.v2", function (m) { return countOf(m.endingsFound); }); },
+      home: { x: 2.65, y: 1.021, z: -2.44 }, build: buildBracelet },
+    { key: "laurel", title: "the gold laurel", from: "NINE CIRCLES", icon: "🏵️",
+      earn: "reach an ending in NINE CIRCLES",
+      have: function () { return anyOf("nc_persist", function (m) { return countOf(m.endings); }); },
+      home: { x: -1.45, y: 2.392, z: -2.32 }, build: buildLaurel },
+    { key: "compass", title: "the brass compass", from: "STILL BREATHING", icon: "🧭",
+      earn: "survive an ordeal in STILL BREATHING",
+      have: function () { return anyOf("sb_persist", function (m) { return countOf(m.endings); }); },
+      home: { x: 1.75, y: 1.021, z: -2.44 }, build: buildCompass },
+    { key: "bottle", title: "the ship in a bottle", from: "SOUTH", icon: "⛵",
+      earn: "bring a voyage home in SOUTH",
+      have: function () { return anyOf("south_persist", function (m) { return countOf(m.endings); }); },
+      home: { x: 1.9, y: 0, z: 0.35 }, build: buildBottle },
+    { key: "horse", title: "the little wooden horse", from: "NOBODY", icon: "🐴",
+      earn: "reach an ending in NOBODY",
+      have: function () { return anyOf("nobody_persist", function (m) { return countOf(m.endings); }); },
+      home: { x: -1.85, y: 2.392, z: -2.32 }, build: buildHorse },
+    { key: "watch", title: "the White Rabbit's watch", from: "CURIOUSER", icon: "⌚",
+      earn: "wake from the dream in CURIOUSER",
+      have: function () { return anyOf("alice_persist", function (m) { return countOf(m.wakings); }); },
+      home: { x: 2.05, y: 1.021, z: -2.44 }, build: buildWatch },
+    { key: "inkwell", title: "the red inkwell", from: "DRACULA — THE RED INK", icon: "🖋️",
+      earn: "decide the book's fate in DRACULA",
+      have: function () { return anyOf("dracula_persist", function (m) { return countOf(m.endings); }); },
+      home: { x: 2.35, y: 1.021, z: -2.44 }, build: buildInkwell },
+    { key: "lens", title: "the magnifying glass", from: "ELEMENTARY", icon: "🔍",
+      earn: "solve a case in ELEMENTARY",
+      have: function () { return anyOf("sherlock_persist", function (m) { return m && m.solved ? countOf(m.solved) : null; }); },
+      home: { x: -1.35, y: 0, z: 1.9 }, build: buildLens },
+    { key: "spitfire", title: "the model Spitfire", from: "G FOR GEORGE", icon: "✈️",
+      earn: "finish a telling in G FOR GEORGE",
+      have: function () { return anyOf("gg_persist", function (m) { return countOf(m.endings); }); },
+      home: { x: -1.05, y: 2.392, z: -2.32 }, build: buildSpitfire },
+    { key: "crown", title: "the Shelf King's crown", from: "AGE OF TOYS", icon: "👑",
+      earn: "win a campaign mission in AGE OF TOYS",
+      have: function () { var c = ttCampaign(); return c.done + c.secrets > 0; },
+      home: { x: -2.25, y: 2.392, z: -2.32 }, build: buildCrown },
+    { key: "brainball", title: "the squishy brain", from: "BRAINROT", icon: "🧠",
+      earn: "visit BRAINROT — the brain on the desk",
+      have: function () { try { return !!localStorage.getItem("room-visited-brainball"); } catch (e) { return false; } },
+      home: { x: 2.95, y: 1.021, z: -2.44 }, build: buildBrainball },
+    { key: "cham", title: "the rubber chameleon", from: "CHAMELEON 3D", icon: "🦎",
+      earn: "visit CHAMELEON 3D — the beige PC",
+      have: function () { try { return !!localStorage.getItem("room-visited-cham"); } catch (e) { return false; } },
+      home: { x: -0.65, y: 2.392, z: -2.32 }, build: buildCham },
+    { key: "palm", title: "the pocket island", from: "TIDEBOUND", icon: "🌴",
+      earn: "visit TIDEBOUND — the toy island",
+      have: function () { try { return !!localStorage.getItem("room-visited-palm"); } catch (e) { return false; } },
+      home: { x: -0.9, y: 0, z: 2.8 }, build: buildPalm },
+  ];
+  var collByKey = {};
+  COLLECT.forEach(function (c) { collByKey[c.key] = c; });
+  var VISIT_KEYS = { "GameRepos/brainrot": "brainball", "chameleon": "cham", "GameRepos/tidebound": "palm" };
+  function markVisited(url) {
+    for (var k in VISIT_KEYS) {
+      if (url.indexOf(k) >= 0) { try { localStorage.setItem("room-visited-" + VISIT_KEYS[k], "1"); } catch (e) { } }
+    }
+  }
+  var SURFACES = [floor, rug, dTop, caseTop, sill, stand, nsTop]; // flat tops a collectible can sit on
+  var shoeState = loadJSON("room-shoebox") || { placed: {}, seen: {} };
+  if (!shoeState.placed) shoeState.placed = {};
+  if (!shoeState.seen) shoeState.seen = {};
+  function persistShoe() { saveJSON("room-shoebox", shoeState); }
+  function persistColl(cfg) {
+    var key = cfg.key.slice(5), r = cfg.root;
+    shoeState.placed[key] = { x: +r.position.x.toFixed(3), y: +r.position.y.toFixed(3),
+                              z: +r.position.z.toFixed(3), ry: +r.rotation.y.toFixed(3) };
+    persistShoe();
+  }
+  function placeColl(key) {
+    var c = collByKey[key];
+    if (!c || c.inst) return;
+    var gp = c.build();
+    gp.position.set(c.home.x, c.home.y || 0, c.home.z);
+    scene.add(gp);
+    c.inst = gp;
+    var hint = c.title + " — from " + c.from;
+    var cfg = registerMovable({ key: "coll:" + key, label: c.title, root: gp, r: 0.14, rot: true, surface: true, kind: "coll" });
+    c.cfg = cfg;
+    gp.traverse(function (o) {
+      if (o.isMesh) clickable(o, c.title, function () { cfg.pop = 1; clickSfx(1600); }, hint);
+    });
+    var sv = shoeState.placed[key];
+    if (sv && sv.x != null) applyMove(cfg, sv.x, sv.z, sv.ry, sv.y);
+    else persistColl(cfg); // first display — remember its home
+  }
+  function unplaceColl(key) {
+    var c = collByKey[key];
+    if (!c || !c.inst) return;
+    for (var i = pick.length - 1; i >= 0; i--) { // it leaves the clickable + Tab order too
+      var p = pick[i], mine = false;
+      while (p) { if (p === c.inst) { mine = true; break; } p = p.parent; }
+      if (mine) pick.splice(i, 1);
+    }
+    scene.remove(c.inst);
+    unregisterMovable(c.cfg);
+    if (selCfg === c.cfg) decorSelect(null);
+    c.inst = null; c.cfg = null;
+    delete shoeState.placed[key];
+    persistShoe();
+  }
+
+  /* ---- the shoebox itself (a real thing on the floor) --------------------------- */
+  var shoebox = new THREE.Group();
+  var sbCard = mat(0xb08a5e, 0.95), sbCardD = mat(0x94714a, 0.95);
+  var sbBody = box(0.44, 0.15, 0.3, sbCard); sbBody.position.y = 0.075; shoebox.add(sbBody);
+  var sbLid = box(0.47, 0.035, 0.33, sbCardD); sbLid.position.set(0.012, 0.168, -0.008);
+  sbLid.rotation.z = 0.05; sbLid.rotation.y = 0.05; shoebox.add(sbLid);
+  var sbLabel = new THREE.Mesh(new THREE.PlaneGeometry(0.3, 0.1), new THREE.MeshStandardMaterial({
+    map: canvasTex(256, 86, function (gc, w, h) {
+      gc.fillStyle = "#e8dcc0"; gc.fillRect(0, 0, w, h);
+      gc.strokeStyle = "#94714a"; gc.lineWidth = 4; gc.strokeRect(2, 2, w - 4, h - 4);
+      gc.fillStyle = "#2a2a2a"; gc.font = "bold 40px 'Comic Sans MS', 'Segoe Print', cursive";
+      gc.textAlign = "center"; gc.textBaseline = "middle";
+      gc.fillText("MY STUFF", w / 2, h / 2 + 2);
+      gc.fillStyle = "#c0392b"; gc.font = "22px 'Comic Sans MS', cursive";
+      gc.fillText("★", 24, 20); gc.fillText("★", w - 24, h - 18);
+    }), roughness: 0.9,
+  }));
+  sbLabel.position.set(0, 0.082, 0.151); shoebox.add(sbLabel);
+  shoebox.position.set(0.72, 0, 2.62); shoebox.rotation.y = -0.25; scene.add(shoebox);
+  var gShoe = glow(0xffd9a0, 0, 0.26, 0, 0.6, 0.5, 0);
+  gShoe.position.set(0.72, 0.26, 2.62); scene.add(gShoe);
+  shoebox.children.forEach(function (m) {
+    clickable(m, "the shoebox", function () { sbxOpen(); clickSfx(1400); },
+      "the shoebox — everything the games left behind");
+  });
+  registerMovable({ key: "shoebox", label: "the shoebox", root: shoebox, r: 0.3, rot: true, attachObjs: [gShoe] });
+
+  /* ---- injected UI: the rearrange button/toolbar + the shoebox panel ------------ */
+  var decorStyle = document.createElement("style");
+  decorStyle.textContent =
+    "#decor-btn{position:fixed;top:64px;right:22px;z-index:6;font-family:'Inter',sans-serif;font-size:10px;" +
+    "letter-spacing:.16em;text-transform:uppercase;color:var(--dim);background:rgba(10,14,20,.6);" +
+    "border:1px solid var(--line);border-radius:6px;padding:8px 12px;cursor:pointer}" +
+    "#decor-btn:hover{color:var(--bone);border-color:var(--dim)}" +
+    "body.decorating #decor-btn{color:#ffd9a0;border-color:#8a6f4a}" +
+    "body.listing #decor-btn,body.no3d #decor-btn{display:none}" +
+    "#decor-bar{position:fixed;left:50%;bottom:20px;transform:translateX(-50%);z-index:6;display:none;" +
+    "gap:8px;align-items:center;flex-wrap:wrap;justify-content:center;max-width:94vw;" +
+    "font-family:'Inter',sans-serif;font-size:11px;color:var(--dim);background:rgba(10,14,20,.78);" +
+    "border:1px solid var(--line);border-radius:10px;padding:9px 12px}" +
+    "body.decorating #decor-bar{display:flex}" +
+    "body.listing #decor-bar,body.no3d #decor-bar{display:none!important}" +
+    "#decor-bar button{font-family:'Inter',sans-serif;font-size:10px;letter-spacing:.1em;text-transform:uppercase;" +
+    "color:var(--dim);background:none;border:1px solid var(--line);border-radius:6px;padding:6px 10px;cursor:pointer}" +
+    "#decor-bar button:hover:not(:disabled){color:var(--bone);border-color:var(--dim)}" +
+    "#decor-bar button:disabled{opacity:.35;cursor:default}" +
+    "#decor-lbl{max-width:220px}" +
+    "#shoebox-ov{position:fixed;inset:0;z-index:22;display:none;align-items:center;justify-content:center;" +
+    "background:rgba(5,7,10,.72)}" +
+    "#shoebox-ov.open{display:flex}" +
+    ".sbx-card{width:min(600px,94vw);max-height:86vh;overflow-y:auto;background:#c9a87c;color:#3a2a18;" +
+    "border-radius:6px;padding:22px 24px;box-shadow:0 30px 80px rgba(0,0,0,.6);transform:rotate(.4deg)}" +
+    ".sbx-card h2{font-size:18px;letter-spacing:.1em;border-bottom:2px dashed #8a6f4a;padding-bottom:8px}" +
+    ".sbx-sub{font-style:italic;font-size:12.5px;color:#6a5438;margin:6px 0 14px}" +
+    ".sbx-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:10px}" +
+    ".sbx-item{background:rgba(255,250,238,.55);border:1px solid #8a6f4a;border-radius:6px;padding:10px;text-align:center}" +
+    ".sbx-item.locked{opacity:.5}" +
+    ".sbx-ico{font-size:26px;line-height:1.2}" +
+    ".sbx-name{font-family:'Inter',sans-serif;font-size:11.5px;font-weight:700;margin-top:6px}" +
+    ".sbx-from{font-family:'Inter',sans-serif;font-size:9.5px;letter-spacing:.08em;text-transform:uppercase;" +
+    "color:#7a6244;margin-top:2px}" +
+    ".sbx-earn{font-size:11px;font-style:italic;color:#6a5438;margin-top:6px;line-height:1.35}" +
+    ".sbx-item button{margin-top:8px;font-family:'Inter',sans-serif;font-size:9.5px;letter-spacing:.1em;" +
+    "text-transform:uppercase;background:none;border:1px solid #8a6f4a;border-radius:5px;padding:5px 9px;" +
+    "cursor:pointer;color:#4a3a22}" +
+    ".sbx-item button.on{background:#4a3a22;color:#e8dcc0}" +
+    ".sbx-foot{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:16px;" +
+    "flex-wrap:wrap;font-family:'Inter',sans-serif;font-size:11px;color:#6a5438}" +
+    ".sbx-foot button{font-family:'Inter',sans-serif;font-size:11px;letter-spacing:.14em;text-transform:uppercase;" +
+    "background:none;border:1px solid #8a6f4a;border-radius:5px;padding:8px 14px;cursor:pointer;color:#5a4632}" +
+    "#decor-btn:focus-visible,#decor-bar button:focus-visible,.sbx-item button:focus-visible," +
+    ".sbx-foot button:focus-visible{outline:2px solid #ff5aa8;outline-offset:3px}";
+  document.head.appendChild(decorStyle);
+  document.body.insertAdjacentHTML("beforeend",
+    '<button id="decor-btn" type="button">rearrange</button>' +
+    '<div id="decor-bar">' +
+    '<span id="decor-lbl">drag things where you want them</span>' +
+    '<button id="dc-rotl" type="button" disabled aria-label="spin left">⟲</button>' +
+    '<button id="dc-rotr" type="button" disabled aria-label="spin right">⟳</button>' +
+    '<button id="dc-back" type="button" disabled>put it back</button>' +
+    '<button id="dc-box" type="button">the shoebox</button>' +
+    '<button id="dc-reset" type="button">reset the room</button>' +
+    '<button id="dc-done" type="button">done</button>' +
+    "</div>" +
+    '<div id="shoebox-ov"><div class="sbx-card">' +
+    "<h2>THE SHOEBOX</h2>" +
+    '<div class="sbx-sub">everything the games left behind — put the ones you like out in the room</div>' +
+    '<div class="sbx-grid" id="sbx-grid"></div>' +
+    '<div class="sbx-foot"><span id="sbx-count"></span><span>' +
+    '<button id="sbx-decor" type="button">rearrange the room</button> ' +
+    '<button id="sbx-close" type="button">put it back</button></span></div>' +
+    "</div></div>");
+  document.getElementById("decor-btn").addEventListener("click", function () { decorSet(!decorMode); clickSfx(1300); });
+  document.getElementById("dc-rotl").addEventListener("click", function () { if (selCfg && selCfg.rot) { decorRotate(selCfg, 0.22); clickSfx(1500); } });
+  document.getElementById("dc-rotr").addEventListener("click", function () { if (selCfg && selCfg.rot) { decorRotate(selCfg, -0.22); clickSfx(1500); } });
+  document.getElementById("dc-back").addEventListener("click", function () {
+    if (!selCfg) return;
+    applyMove(selCfg, selCfg.def.x, selCfg.def.z, selCfg.def.ry, selCfg.surface ? selCfg.def.y : null);
+    persistFor(selCfg); clickSfx(1100);
+  });
+  document.getElementById("dc-box").addEventListener("click", function () { sbxOpen(); clickSfx(1400); });
+  document.getElementById("dc-reset").addEventListener("click", function () { decorReset(); clickSfx(900); });
+  document.getElementById("dc-done").addEventListener("click", function () { decorSet(false); clickSfx(1300); });
+  document.getElementById("sbx-decor").addEventListener("click", function () { sbxClose(); decorSet(true); clickSfx(1300); });
+  document.getElementById("sbx-close").addEventListener("click", function () { sbxClose(); clickSfx(1100); });
+
+  /* ---- the shoebox panel -------------------------------------------------------- */
+  var sbxNew = 0;
+  function sbxRefreshNew() {
+    sbxNew = 0;
+    COLLECT.forEach(function (c) { if (c.have() && !shoeState.seen[c.key]) sbxNew++; });
+  }
+  function sbxRender() {
+    var found = 0, out = 0;
+    var html = COLLECT.map(function (c) {
+      var got = c.have();
+      if (got) found++;
+      var placed = !!shoeState.placed[c.key];
+      if (placed) out++;
+      if (!got) {
+        return '<div class="sbx-item locked"><div class="sbx-ico">?</div>' +
+          '<div class="sbx-name">???</div><div class="sbx-from">' + c.from + "</div>" +
+          '<div class="sbx-earn">' + c.earn + "</div></div>";
+      }
+      return '<div class="sbx-item"><div class="sbx-ico">' + c.icon + "</div>" +
+        '<div class="sbx-name">' + c.title + '</div><div class="sbx-from">' + c.from + "</div>" +
+        '<button type="button" data-coll="' + c.key + '"' + (placed ? ' class="on"' : "") + ">" +
+        (placed ? "out in the room ✓" : "put it in the room") + "</button></div>";
+    }).join("");
+    document.getElementById("sbx-grid").innerHTML = html;
+    document.getElementById("sbx-count").textContent =
+      found + " of " + COLLECT.length + " found · " + out + " on display";
+  }
+  document.getElementById("sbx-grid").addEventListener("click", function (e) {
+    var key = e.target && e.target.getAttribute && e.target.getAttribute("data-coll");
+    if (!key) return;
+    if (shoeState.placed[key]) unplaceColl(key);
+    else { placeColl(key); clickSfx(1700); }
+    sbxRender();
+  });
+  function sbxOpen() {
+    sbxRender();
+    document.getElementById("shoebox-ov").classList.add("open");
+    COLLECT.forEach(function (c) { if (c.have()) shoeState.seen[c.key] = 1; }); // you've seen what's inside now
+    persistShoe();
+    sbxNew = 0;
+  }
+  function sbxClose() { document.getElementById("shoebox-ov").classList.remove("open"); }
+
+  // restore what was on display, and count anything newly earned
+  for (var pk in shoeState.placed) if (collByKey[pk]) placeColl(pk);
+  sbxRefreshNew();
+  // once you're inside, the kid mentions new arrivals (or your remodeling) — once
+  (function kidNoticer() {
+    var iv = setInterval(function () {
+      var ec = document.getElementById("enter");
+      if (ec && !ec.classList.contains("gone")) return; // still on the porch
+      clearInterval(iv);
+      setTimeout(function () {
+        try {
+          if (sbxNew > 0) kidSay("psst — the shoebox has something new in it.", 5);
+          else if (Object.keys(savedLayout).length && Math.random() < 0.4)
+            kidSay("you moved my stuff around… no, it's good. it's good.", 4.5);
+        } catch (e) { }
+      }, 8000);
+    }, 3000);
+  })();
+
   var frameCount = 0, lastT = performance.now() / 1000;
   function tick() {
     requestAnimationFrame(tick);
     var t = performance.now() / 1000, dt = Math.min(t - lastT, 0.1); lastT = t;
     // with no pointer to follow (phones, or just resting), take a slow look around
     var idle = t - pointerMovedAt > 6;
-    var mx = idle ? Math.sin(t * 0.07) * 0.4 : mouse.x;
-    var my = idle ? Math.sin(t * 0.05 + 2) * 0.18 : mouse.y;
+    // rearrange mode holds the camera steady — dragging with a drifting view fights you
+    var mx = decorMode ? 0 : idle ? Math.sin(t * 0.07) * 0.4 : mouse.x;
+    var my = decorMode ? 0 : idle ? Math.sin(t * 0.05 + 2) * 0.18 : mouse.y;
     var baseX = mx * 0.55, baseY = 1.72 + my * 0.24;
     if (zoomT >= 0) { // the kid opened something: lean in while it loads
       zoomT = Math.min(1, zoomT + dt / 1.15);
@@ -1948,7 +2750,7 @@ import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
       robotBoost *= Math.pow(0.5, dt / 2.5); // the spring unwinds
       if (robotBoost < 0.02) robotBoost = 0;
       robotAng += dt * 0.32 * robotDir * (1 + robotBoost) * (1 - 0.72 * nap); // he tiptoes past the bed
-      robotWrap.position.set(0.1 + Math.sin(robotAng) * 0.9, 0, 1.0 + Math.cos(robotAng) * 0.9);
+      robotWrap.position.set(rugCX + Math.sin(robotAng) * 0.9, 0, rugCZ + Math.cos(robotAng) * 0.9);
       robotWrap.rotation.y = robotAng + robotDir * Math.PI / 2;
       robotWrap.rotation.z = Math.sin(t * 6.5 * (1 + robotBoost * 0.5)) * 0.045 * (1 - 0.75 * nap);
       if (keyG) {
@@ -2050,15 +2852,30 @@ import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
       if ((frameCount & 1) === 0) drawRain(flash > 0.25);
     } else if ((frameCount % 6) === 0) drawRain(false);
     // raycast every frame only while the pointer is live; coast otherwise
-    var o = (t - pointerMovedAt < 0.35 || (frameCount & 3) === 0) ? pickAt() : hovered;
-    if (o !== hovered) {
-      highlightOff(hovered);
-      hovered = o;
-      document.body.style.cursor = o ? "pointer" : "default";
-      if (o) {
-        tip.textContent = o.userData.hint; tip.classList.add("show");
-        highlightOn(o);
-      } else tip.classList.remove("show");
+    if (decorMode) {
+      var mc = dragging ? dragging.cfg : decorPickMovable();
+      if (mc !== decorHover) {
+        decorHover = mc;
+        highlightOff(hovered); hovered = null;
+        document.body.style.cursor = mc ? (dragging ? "grabbing" : "grab") : "default";
+        if (mc) {
+          tip.textContent = mc.label + " — drag to move" + (mc.rot ? " · scroll to spin" : "");
+          tip.classList.add("show");
+        } else tip.classList.remove("show");
+      }
+      decorTick(t, dt);
+    } else {
+      var o = (t - pointerMovedAt < 0.35 || (frameCount & 3) === 0) ? pickAt() : hovered;
+      if (o !== hovered) {
+        highlightOff(hovered);
+        hovered = o;
+        document.body.style.cursor = o ? "pointer" : "default";
+        if (o) {
+          tip.textContent = o.userData.hint; tip.classList.add("show");
+          highlightOn(o);
+        } else tip.classList.remove("show");
+      }
+      decorTick(t, dt);
     }
     renderer.render(scene, camera);
   }
@@ -2070,5 +2887,11 @@ import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
   window.__room = { scene: scene, camera: camera, renderer: renderer, pick: pick, ray: ray, THREE: THREE, // debug hook (THREE: modules hide the global)
     kid: kid, kidState: kidState, kidStep: kidStep, kidGoto: kidGoto, kidObstacles: KID_OBSTACLES, kidStations: KID_STATIONS,
     kidActions: function () { return kidActions; }, setKidAction: setKidAction, kidMixer: function () { return kidMixer; },
-    kidSay: kidSay, kidGreetLine: kidGreetLine, kidFetchLine: kidFetchLine, gameProgress: gameProgress };
+    kidSay: kidSay, kidGreetLine: kidGreetLine, kidFetchLine: kidFetchLine, gameProgress: gameProgress,
+    decor: { movables: movables, byKey: movableByKey, set: decorSet, mode: function () { return decorMode; },
+      apply: applyMove, reset: decorReset, persist: persistLayout, hub: KID_HUB,
+      layout: function () { return loadJSON("room-layout"); } },
+    shoe: { defs: COLLECT, byKey: collByKey, state: function () { return shoeState; }, open: sbxOpen, close: sbxClose,
+      place: placeColl, unplace: unplaceColl, render: sbxRender,
+      newCount: function () { return sbxNew; } } };
 })();
