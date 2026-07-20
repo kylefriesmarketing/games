@@ -1760,22 +1760,13 @@ import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
   }
   window.addEventListener("keydown", function (e) {
     if (e.key === "Escape") {
-      var obx = document.getElementById("outbox-ov");
-      if (obx && obx.classList.contains("open")) { obClose(); return; }
-      var pbx = document.getElementById("paintbox-ov");
-      if (pbx && pbx.classList.contains("open")) { pbClose(); return; }
-      var sbx = document.getElementById("shoebox-ov");
-      if (sbx && sbx.classList.contains("open")) { sbxClose(); return; }
       if (decorMode) { decorSet(false); return; }
       document.getElementById("notebook").classList.remove("open");
       document.body.classList.remove("listing");
       return;
     }
     if (document.body.classList.contains("listing")) return; // the list has native tab order
-    var pbo = document.getElementById("paintbox-ov"), sbo = document.getElementById("shoebox-ov"),
-        obo = document.getElementById("outbox-ov");
-    if ((pbo && pbo.classList.contains("open")) || (sbo && sbo.classList.contains("open")) ||
-        (obo && obo.classList.contains("open"))) return; // panels own the keyboard (you might be typing your name)
+    if (document.activeElement && document.activeElement.tagName === "INPUT") return; // typing your name in the drawer
     if (e.key === "Tab") {
       e.preventDefault();
       var L = kbList();
@@ -1955,14 +1946,8 @@ import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
     return null;
   }
   function decorPointerDown(e) {
-    var sbx = document.getElementById("shoebox-ov");
-    if (sbx && sbx.classList.contains("open")) return true; // an open panel owns the pointer
-    var pbx = document.getElementById("paintbox-ov");
-    if (pbx && pbx.classList.contains("open")) return true;
-    var obx = document.getElementById("outbox-ov");
-    if (obx && obx.classList.contains("open")) return true;
     var nb = document.getElementById("notebook");
-    if (nb && nb.classList.contains("open")) return true;   // (also stops click-through on the notebook)
+    if (nb && nb.classList.contains("open")) return true;   // no click-through on the open notebook
     if (!decorMode) return false;
     if (e.target && e.target.tagName !== "CANVAS") return true; // toolbar clicks aren't grabs
     setPointer(e);
@@ -2008,13 +1993,15 @@ import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
   var decorSaidLine = false;
   function decorSelect(cfg) {
     selCfg = cfg;
-    var lbl = document.getElementById("decor-lbl");
-    if (lbl) lbl.textContent = cfg ? cfg.label + (cfg.rot ? " — scroll or the arrows to spin it" : " — this one only slides")
-                                   : "drag things where you want them";
-    ["dc-rotl", "dc-rotr"].forEach(function (id) {
-      var b = document.getElementById(id); if (b) b.disabled = !cfg || !cfg.rot;
-    });
-    var pb = document.getElementById("dc-back"); if (pb) pb.disabled = !cfg;
+    var chip = document.getElementById("dw-sel");
+    if (!chip) return;
+    chip.hidden = !cfg;
+    if (cfg) {
+      document.getElementById("dw-sel-name").textContent = cfg.label;
+      ["dw-rotl", "dw-rotr"].forEach(function (id) {
+        var b = document.getElementById(id); if (b) b.disabled = !cfg.rot;
+      });
+    }
   }
   function decorSet(on) {
     if (on === decorMode) return;
@@ -2023,9 +2010,10 @@ import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
     decorSelect(null);
     document.body.classList.toggle("decorating", on);
     var b = document.getElementById("decor-btn");
-    if (b) b.textContent = on ? "done rearranging" : "rearrange";
+    if (b) b.textContent = on ? "done decorating" : "decorate";
     tip.classList.remove("show");
     document.body.style.cursor = "default";
+    if (on) dwTab(dwTabName); // the drawer wakes up on whatever tab it was left on
     if (on && !decorSaidLine) {
       decorSaidLine = true;
       try { kidSay("rearranging? okay — mom will never believe it wasn't me.", 4.5); } catch (e) { }
@@ -2452,7 +2440,11 @@ import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
   });
   registerMovable({ key: "shoebox", label: "the shoebox", root: shoebox, r: 0.3, rot: true, attachObjs: [gShoe] });
 
-  /* ---- injected UI: the rearrange button/toolbar + the shoebox panel ------------ */
+  /* ---- injected UI: the decorate button + THE DECORATOR'S DRAWER ---------------- */
+  // One docked panel instead of full-screen modals: the room stays visible (and
+  // draggable) while you work, so every swatch and toggle previews live. Desktop
+  // docks it right (the camera eases over to keep the room centered); narrow
+  // screens get a bottom sheet.
   var decorStyle = document.createElement("style");
   decorStyle.textContent =
     "#decor-btn{position:fixed;top:64px;right:22px;z-index:6;font-family:'Inter',sans-serif;font-size:10px;" +
@@ -2461,118 +2453,177 @@ import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
     "#decor-btn:hover{color:var(--bone);border-color:var(--dim)}" +
     "body.decorating #decor-btn{color:#ffd9a0;border-color:#8a6f4a}" +
     "body.listing #decor-btn,body.no3d #decor-btn{display:none}" +
-    "#decor-bar{position:fixed;left:50%;bottom:20px;transform:translateX(-50%);z-index:6;display:none;" +
-    "gap:8px;align-items:center;flex-wrap:wrap;justify-content:center;max-width:94vw;" +
-    "font-family:'Inter',sans-serif;font-size:11px;color:var(--dim);background:rgba(10,14,20,.78);" +
-    "border:1px solid var(--line);border-radius:10px;padding:9px 12px}" +
-    "body.decorating #decor-bar{display:flex}" +
-    "body.listing #decor-bar,body.no3d #decor-bar{display:none!important}" +
-    "#decor-bar button{font-family:'Inter',sans-serif;font-size:10px;letter-spacing:.1em;text-transform:uppercase;" +
-    "color:var(--dim);background:none;border:1px solid var(--line);border-radius:6px;padding:6px 10px;cursor:pointer}" +
-    "#decor-bar button:hover:not(:disabled){color:var(--bone);border-color:var(--dim)}" +
-    "#decor-bar button:disabled{opacity:.35;cursor:default}" +
-    "#decor-lbl{max-width:220px}" +
-    "#shoebox-ov{position:fixed;inset:0;z-index:22;display:none;align-items:center;justify-content:center;" +
-    "background:rgba(5,7,10,.72)}" +
-    "#shoebox-ov.open{display:flex}" +
-    ".sbx-card{width:min(600px,94vw);max-height:86vh;overflow-y:auto;background:#c9a87c;color:#3a2a18;" +
-    "border-radius:6px;padding:22px 24px;box-shadow:0 30px 80px rgba(0,0,0,.6);transform:rotate(.4deg)}" +
-    ".sbx-card h2{font-size:18px;letter-spacing:.1em;border-bottom:2px dashed #8a6f4a;padding-bottom:8px}" +
-    ".sbx-sub{font-style:italic;font-size:12.5px;color:#6a5438;margin:6px 0 14px}" +
-    ".sbx-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:10px}" +
-    ".sbx-item{background:rgba(255,250,238,.55);border:1px solid #8a6f4a;border-radius:6px;padding:10px;text-align:center}" +
-    ".sbx-item.locked{opacity:.5}" +
-    ".sbx-ico{font-size:26px;line-height:1.2}" +
-    ".sbx-name{font-family:'Inter',sans-serif;font-size:11.5px;font-weight:700;margin-top:6px}" +
-    ".sbx-from{font-family:'Inter',sans-serif;font-size:9.5px;letter-spacing:.08em;text-transform:uppercase;" +
-    "color:#7a6244;margin-top:2px}" +
-    ".sbx-earn{font-size:11px;font-style:italic;color:#6a5438;margin-top:6px;line-height:1.35}" +
-    ".sbx-item button{margin-top:8px;font-family:'Inter',sans-serif;font-size:9.5px;letter-spacing:.1em;" +
-    "text-transform:uppercase;background:none;border:1px solid #8a6f4a;border-radius:5px;padding:5px 9px;" +
-    "cursor:pointer;color:#4a3a22}" +
-    ".sbx-item button.on{background:#4a3a22;color:#e8dcc0}" +
-    ".sbx-foot{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:16px;" +
-    "flex-wrap:wrap;font-family:'Inter',sans-serif;font-size:11px;color:#6a5438}" +
-    ".sbx-foot button{font-family:'Inter',sans-serif;font-size:11px;letter-spacing:.14em;text-transform:uppercase;" +
-    "background:none;border:1px solid #8a6f4a;border-radius:5px;padding:8px 14px;cursor:pointer;color:#5a4632}" +
-    "#decor-btn:focus-visible,#decor-bar button:focus-visible,.sbx-item button:focus-visible," +
-    ".sbx-foot button:focus-visible{outline:2px solid #ff5aa8;outline-offset:3px}";
+    "#decor-drawer{position:fixed;top:12px;right:12px;bottom:12px;width:292px;z-index:8;display:none;" +
+    "flex-direction:column;background:rgba(9,13,20,.87);border:1px solid var(--line);border-radius:12px;" +
+    "backdrop-filter:blur(6px);font-family:'Inter',sans-serif;color:var(--bone)}" +
+    "body.decorating #decor-drawer{display:flex}" +
+    "body.listing #decor-drawer,body.no3d #decor-drawer{display:none!important}" +
+    "#dw-tabs{display:flex;gap:6px;padding:10px 10px 8px;border-bottom:1px solid var(--line)}" +
+    "#dw-tabs button{flex:1;font-family:inherit;font-size:10px;letter-spacing:.08em;text-transform:uppercase;" +
+    "color:var(--dim);background:none;border:1px solid var(--line);border-radius:7px;padding:7px 2px;" +
+    "cursor:pointer;position:relative}" +
+    "#dw-tabs button.on{color:#ffd9a0;border-color:#8a6f4a;background:rgba(255,194,125,.08)}" +
+    "#dw-new{position:absolute;top:1px;right:5px;color:#ff5aa8;font-size:9px}" +
+    "#dw-sel{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:8px 10px;" +
+    "border-bottom:1px dashed var(--line);font-size:11.5px;color:#ffd9a0}" +
+    "#dw-sel button{font-family:inherit;font-size:10px;color:var(--dim);background:none;" +
+    "border:1px solid var(--line);border-radius:5px;padding:4px 8px;cursor:pointer}" +
+    "#dw-sel button:disabled{opacity:.35;cursor:default}" +
+    "#dw-body{flex:1;overflow-y:auto;padding:10px 12px;font-size:12px;line-height:1.4}" +
+    "#dw-foot{display:flex;gap:8px;padding:10px;border-top:1px solid var(--line)}" +
+    "#dw-foot button{flex:1;font-family:inherit;font-size:10px;letter-spacing:.1em;text-transform:uppercase;" +
+    "color:var(--dim);background:none;border:1px solid var(--line);border-radius:6px;padding:8px 4px;cursor:pointer}" +
+    "#dw-foot button:hover,#dw-sel button:hover:not(:disabled),#dw-tabs button:hover{color:var(--bone);border-color:var(--dim)}" +
+    ".dw-hint{font-size:11px;font-style:italic;color:var(--faint);margin-bottom:10px}" +
+    ".dw-sec{font-size:9.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--faint);margin:12px 0 5px}" +
+    ".dw-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:7px}" +
+    ".dw-card{font-family:inherit;color:inherit;background:rgba(255,255,255,.04);border:1px solid var(--line);" +
+    "border-radius:7px;padding:7px 4px;text-align:center;cursor:pointer}" +
+    ".dw-card.on{border-color:#8a6f4a;background:rgba(255,194,125,.08)}" +
+    ".dw-card.locked{opacity:.45;cursor:default}" +
+    ".dw-card .i{font-size:20px}" +
+    ".dw-card .n{font-size:9px;letter-spacing:.03em;margin-top:3px;color:var(--dim)}" +
+    ".dw-card.on .n{color:#ffd9a0}" +
+    ".dw-row{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:5px 0;" +
+    "border-bottom:1px dotted var(--line)}" +
+    ".dw-row.away span{opacity:.5}" +
+    ".dw-row button{font-family:inherit;font-size:9px;letter-spacing:.08em;text-transform:uppercase;" +
+    "color:var(--dim);background:none;border:1px solid var(--line);border-radius:5px;padding:4px 8px;" +
+    "cursor:pointer;white-space:nowrap}" +
+    ".dw-row button.on{color:#ffd9a0;border-color:#8a6f4a}" +
+    ".dw-sw{display:flex;gap:7px;flex-wrap:wrap;margin-bottom:4px}" +
+    ".dw-sw button{width:30px;height:30px;border-radius:50%;cursor:pointer;border:2px solid var(--line);padding:0}" +
+    ".dw-sw button.on{border-color:#ffd9a0;box-shadow:0 0 0 2px rgba(9,13,20,1),0 0 0 4px #8a6f4a}" +
+    ".dw-name{display:flex;gap:7px;margin-top:4px}" +
+    ".dw-name input{flex:1;font-family:Georgia,serif;font-size:13px;background:rgba(255,255,255,.06);" +
+    "color:var(--bone);border:1px solid var(--line);border-radius:5px;padding:7px 9px;min-width:0}" +
+    ".dw-name button,.dw-wide{font-family:'Inter',sans-serif;font-size:9.5px;letter-spacing:.1em;" +
+    "text-transform:uppercase;color:var(--dim);background:none;border:1px solid var(--line);border-radius:5px;" +
+    "padding:6px 10px;cursor:pointer}" +
+    ".dw-wide{display:block;width:100%;margin-top:10px}" +
+    "@media (max-width:640px),(max-aspect-ratio:9/10){#decor-drawer{top:auto;left:10px;right:10px;bottom:10px;" +
+    "width:auto;max-height:46vh}}" +
+    "#decor-btn:focus-visible,#decor-drawer button:focus-visible,.dw-name input:focus-visible{" +
+    "outline:2px solid #ff5aa8;outline-offset:2px}";
   document.head.appendChild(decorStyle);
   document.body.insertAdjacentHTML("beforeend",
-    '<button id="decor-btn" type="button">rearrange</button>' +
-    '<div id="decor-bar">' +
-    '<span id="decor-lbl">drag things where you want them</span>' +
-    '<button id="dc-rotl" type="button" disabled aria-label="spin left">⟲</button>' +
-    '<button id="dc-rotr" type="button" disabled aria-label="spin right">⟳</button>' +
-    '<button id="dc-back" type="button" disabled>put it back</button>' +
-    '<button id="dc-box" type="button">the shoebox</button>' +
-    '<button id="dc-reset" type="button">reset the room</button>' +
-    '<button id="dc-done" type="button">done</button>' +
-    "</div>" +
-    '<div id="shoebox-ov"><div class="sbx-card">' +
-    "<h2>THE SHOEBOX</h2>" +
-    '<div class="sbx-sub">everything the games left behind — put the ones you like out in the room</div>' +
-    '<div class="sbx-grid" id="sbx-grid"></div>' +
-    '<div class="sbx-foot"><span id="sbx-count"></span><span>' +
-    '<button id="sbx-decor" type="button">rearrange the room</button> ' +
-    '<button id="sbx-close" type="button">put it back</button></span></div>' +
-    "</div></div>");
+    '<button id="decor-btn" type="button">decorate</button>' +
+    '<div id="decor-drawer" role="region" aria-label="decorate the room">' +
+    '<div id="dw-tabs">' +
+    '<button type="button" data-tab="stuff">🧸 stuff<span id="dw-new" hidden>●</span></button>' +
+    '<button type="button" data-tab="paint">🎨 paint</button>' +
+    '<button type="button" data-tab="shelf">📦 shelf</button></div>' +
+    '<div id="dw-sel" hidden><span id="dw-sel-name"></span><span>' +
+    '<button id="dw-rotl" type="button" aria-label="spin left">⟲</button>' +
+    '<button id="dw-rotr" type="button" aria-label="spin right">⟳</button>' +
+    '<button id="dw-back" type="button">put back</button></span></div>' +
+    '<div id="dw-body"></div>' +
+    '<div id="dw-foot"><button id="dw-reset" type="button">reset the room</button>' +
+    '<button id="dw-done" type="button">done</button></div>' +
+    "</div>");
+  var dwTabName = "stuff";
+  function dwTab(name) {
+    dwTabName = name || "stuff";
+    document.querySelectorAll("#dw-tabs button").forEach(function (b) {
+      b.classList.toggle("on", b.getAttribute("data-tab") === dwTabName);
+    });
+    dwRender();
+    if (dwTabName === "stuff") { // opening the stuff tab is "seeing" the collection
+      COLLECT.forEach(function (c) { if (c.have()) shoeState.seen[c.key] = 1; });
+      persistShoe(); sbxNew = 0; dwNewDot();
+    }
+  }
+  function dwNewDot() {
+    var d = document.getElementById("dw-new");
+    if (d) d.hidden = !(sbxNew > 0);
+  }
+  function dwRender() {
+    var el = document.getElementById("dw-body");
+    if (!el) return;
+    el.innerHTML = dwTabName === "paint" ? dwPaintHTML() : dwTabName === "shelf" ? dwShelfHTML() : dwStuffHTML();
+    var inp = document.getElementById("dw-name-inp");
+    if (inp) inp.value = paintState.name || "";
+  }
   document.getElementById("decor-btn").addEventListener("click", function () { decorSet(!decorMode); clickSfx(1300); });
-  document.getElementById("dc-rotl").addEventListener("click", function () { if (selCfg && selCfg.rot) { decorRotate(selCfg, 0.22); clickSfx(1500); } });
-  document.getElementById("dc-rotr").addEventListener("click", function () { if (selCfg && selCfg.rot) { decorRotate(selCfg, -0.22); clickSfx(1500); } });
-  document.getElementById("dc-back").addEventListener("click", function () {
+  document.getElementById("dw-tabs").addEventListener("click", function (e) {
+    var b = e.target.closest ? e.target.closest("button") : null;
+    if (b) { dwTab(b.getAttribute("data-tab")); clickSfx(1400); }
+  });
+  document.getElementById("dw-rotl").addEventListener("click", function () { if (selCfg && selCfg.rot) { decorRotate(selCfg, 0.22); clickSfx(1500); } });
+  document.getElementById("dw-rotr").addEventListener("click", function () { if (selCfg && selCfg.rot) { decorRotate(selCfg, -0.22); clickSfx(1500); } });
+  document.getElementById("dw-back").addEventListener("click", function () {
     if (!selCfg) return;
     applyMove(selCfg, selCfg.def.x, selCfg.def.z, selCfg.def.ry, selCfg.surface ? selCfg.def.y : null);
     persistFor(selCfg); clickSfx(1100);
   });
-  document.getElementById("dc-box").addEventListener("click", function () { sbxOpen(); clickSfx(1400); });
-  document.getElementById("dc-reset").addEventListener("click", function () { decorReset(); clickSfx(900); });
-  document.getElementById("dc-done").addEventListener("click", function () { decorSet(false); clickSfx(1300); });
-  document.getElementById("sbx-decor").addEventListener("click", function () { sbxClose(); decorSet(true); clickSfx(1300); });
-  document.getElementById("sbx-close").addEventListener("click", function () { sbxClose(); clickSfx(1100); });
+  document.getElementById("dw-reset").addEventListener("click", function () { decorReset(); clickSfx(900); });
+  document.getElementById("dw-done").addEventListener("click", function () { decorSet(false); clickSfx(1300); });
+  document.getElementById("dw-body").addEventListener("click", function (e) {
+    var b = e.target.closest ? e.target.closest("button") : null;
+    if (!b) return;
+    var key;
+    if ((key = b.getAttribute("data-coll"))) {
+      if (shoeState.placed[key]) unplaceColl(key); else { placeColl(key); clickSfx(1700); }
+      dwRender();
+    } else if ((key = b.getAttribute("data-paint"))) {
+      setPaint(key, +b.getAttribute("data-i")); dwRender(); clickSfx(1600);
+    } else if (b.getAttribute("data-neon") != null && b.getAttribute("data-neon") !== "") {
+      setPaint("neon", +b.getAttribute("data-neon")); dwRender(); clickSfx(1600);
+    } else if ((key = b.getAttribute("data-lights"))) {
+      setPaint("lights", key); dwRender(); clickSfx(1600);
+    } else if ((key = b.getAttribute("data-out"))) {
+      outState[key] = outState[key] ? 0 : 1;
+      if (!outState[key]) delete outState[key];
+      saveJSON("room-out", outState);
+      applyOut(); dwRender(); clickSfx(outState[key] ? 900 : 1700);
+      if (outState[key] && !obSaidLine) {
+        obSaidLine = true;
+        try { kidSay("into the underbed box it goes. it'll keep.", 4); } catch (e2) { }
+      }
+    } else if (b.id === "dw-name-set") {
+      paintState.name = document.getElementById("dw-name-inp").value;
+      saveJSON("room-paint", paintState);
+      applyPaint(); dwRender(); clickSfx(1700);
+      var nm = roomOwnerName();
+      if (nm) { try { kidSay(nm + "'s room. it's official — it's on the wall.", 4.5); } catch (e3) { } }
+    } else if (b.getAttribute("data-act") === "wash") {
+      pbWash(); dwRender(); clickSfx(900);
+    } else if (b.getAttribute("data-act") === "allout") {
+      outState = {};
+      saveJSON("room-out", outState);
+      applyOut(); dwRender(); clickSfx(1700);
+    }
+  });
 
-  /* ---- the shoebox panel -------------------------------------------------------- */
+  /* ---- the stuff tab (the shoebox opens the drawer now) -------------------------- */
   var sbxNew = 0;
   function sbxRefreshNew() {
     sbxNew = 0;
     COLLECT.forEach(function (c) { if (c.have() && !shoeState.seen[c.key]) sbxNew++; });
+    dwNewDot();
   }
-  function sbxRender() {
+  function dwStuffHTML() {
     var found = 0, out = 0;
-    var html = COLLECT.map(function (c) {
+    var cards = COLLECT.map(function (c) {
       var got = c.have();
       if (got) found++;
       var placed = !!shoeState.placed[c.key];
       if (placed) out++;
       if (!got) {
-        return '<div class="sbx-item locked"><div class="sbx-ico">?</div>' +
-          '<div class="sbx-name">???</div><div class="sbx-from">' + c.from + "</div>" +
-          '<div class="sbx-earn">' + c.earn + "</div></div>";
+        return '<div class="dw-card locked" title="' + c.earn + '"><div class="i">?</div>' +
+          '<div class="n">' + c.from + "</div></div>";
       }
-      return '<div class="sbx-item"><div class="sbx-ico">' + c.icon + "</div>" +
-        '<div class="sbx-name">' + c.title + '</div><div class="sbx-from">' + c.from + "</div>" +
-        '<button type="button" data-coll="' + c.key + '"' + (placed ? ' class="on"' : "") + ">" +
-        (placed ? "out in the room ✓" : "put it in the room") + "</button></div>";
+      return '<button type="button" class="dw-card' + (placed ? " on" : "") + '" data-coll="' + c.key +
+        '" title="' + c.title + " — " + (placed ? "out in the room · click to box it" : "click to put it in the room") + '">' +
+        '<div class="i">' + c.icon + '</div><div class="n">' + c.title.replace(/^the /, "") + "</div></button>";
     }).join("");
-    document.getElementById("sbx-grid").innerHTML = html;
-    document.getElementById("sbx-count").textContent =
-      found + " of " + COLLECT.length + " found · " + out + " on display";
+    return '<div class="dw-hint">drag anything in the room to move it · scroll spins it · shelves and sills catch the little things</div>' +
+      '<div class="dw-sec">the shoebox — ' + found + " of " + COLLECT.length + " found · " + out + " on display</div>" +
+      '<div class="dw-grid">' + cards + "</div>";
   }
-  document.getElementById("sbx-grid").addEventListener("click", function (e) {
-    var key = e.target && e.target.getAttribute && e.target.getAttribute("data-coll");
-    if (!key) return;
-    if (shoeState.placed[key]) unplaceColl(key);
-    else { placeColl(key); clickSfx(1700); }
-    sbxRender();
-  });
-  function sbxOpen() {
-    sbxRender();
-    document.getElementById("shoebox-ov").classList.add("open");
-    COLLECT.forEach(function (c) { if (c.have()) shoeState.seen[c.key] = 1; }); // you've seen what's inside now
-    persistShoe();
-    sbxNew = 0;
-  }
-  function sbxClose() { document.getElementById("shoebox-ov").classList.remove("open"); }
+  function sbxRender() { if (decorMode && dwTabName === "stuff") dwRender(); }
+  function sbxOpen() { decorSet(true); dwTab("stuff"); }
+  function sbxClose() { decorSet(false); }
 
   // restore what was on display, and count anything newly earned
   for (var pk in shoeState.placed) if (collByKey[pk]) placeColl(pk);
@@ -2694,123 +2745,54 @@ import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
     applyPaint();
   }
 
-  /* ---- the paint box panel ------------------------------------------------------ */
-  var pbStyle = document.createElement("style");
-  pbStyle.textContent =
-    "#paintbox-ov{position:fixed;inset:0;z-index:23;display:none;align-items:center;justify-content:center;" +
-    "background:rgba(5,7,10,.72)}" +
-    "#paintbox-ov.open{display:flex}" +
-    ".pb-card{width:min(480px,94vw);max-height:86vh;overflow-y:auto;background:#e8e0cc;color:#3a2e20;" +
-    "border-radius:6px;padding:22px 24px;box-shadow:0 30px 80px rgba(0,0,0,.6);transform:rotate(-.4deg)}" +
-    ".pb-card h2{font-size:18px;letter-spacing:.1em;border-bottom:2px dashed #b7a888;padding-bottom:8px}" +
-    ".pb-sub{font-style:italic;font-size:12.5px;color:#6a5a40;margin:6px 0 12px}" +
-    ".pb-row{margin:12px 0}" +
-    ".pb-lbl{font-family:'Inter',sans-serif;font-size:10.5px;letter-spacing:.12em;text-transform:uppercase;" +
-    "color:#6a5a40;margin-bottom:7px}" +
-    ".pb-sw{display:flex;gap:8px;flex-wrap:wrap}" +
-    ".pb-sw button{width:34px;height:34px;border-radius:50%;cursor:pointer;border:2px solid #b7a888;padding:0}" +
-    ".pb-sw button.on{border-color:#3a2e20;box-shadow:0 0 0 2px #e8e0cc,0 0 0 4px #3a2e20}" +
-    ".pb-sw button span{display:none}" +
-    ".pb-note{font-size:11px;font-style:italic;color:#8a7a5e}" +
-    ".pb-name{display:flex;gap:8px;align-items:center}" +
-    ".pb-name input{flex:1;font-family:Georgia,serif;font-size:14px;background:#f6efdd;color:#3a2e20;" +
-    "border:1px solid #b7a888;border-radius:5px;padding:8px 10px;min-width:0}" +
-    ".pb-name button,.pb-foot button{font-family:'Inter',sans-serif;font-size:10px;letter-spacing:.12em;" +
-    "text-transform:uppercase;background:none;border:1px solid #b7a888;border-radius:5px;padding:8px 12px;" +
-    "cursor:pointer;color:#5a4632}" +
-    ".pb-foot{display:flex;justify-content:space-between;gap:10px;margin-top:16px;flex-wrap:wrap}" +
-    ".pb-sw button:focus-visible,.pb-name input:focus-visible,.pb-name button:focus-visible," +
-    ".pb-foot button:focus-visible{outline:2px solid #ff5aa8;outline-offset:3px}";
-  document.head.appendChild(pbStyle);
-  document.body.insertAdjacentHTML("beforeend",
-    '<div id="paintbox-ov"><div class="pb-card">' +
-    "<h2>THE PAINT BOX</h2>" +
-    '<div class="pb-sub">same room, your colors — it all washes off</div>' +
-    '<div id="pb-rows"></div>' +
-    '<div class="pb-row"><div class="pb-lbl">this room belongs to</div>' +
-    '<div class="pb-name"><input id="pb-name" maxlength="14" placeholder="write your name" ' +
-    'autocomplete="off" spellcheck="false"><button id="pb-name-set" type="button">put it up</button></div></div>' +
-    '<div class="pb-foot"><button id="pb-reset" type="button">wash it all off</button>' +
-    '<button id="pb-close" type="button">put it back</button></div>' +
-    "</div></div>");
+  /* ---- the paint tab (lives in the drawer — swatches preview live) --------------- */
   function hex6(n) { return "#" + ("00000" + n.toString(16)).slice(-6); }
-  function pbRender() {
-    var html = "";
+  function dwPaintHTML() {
+    var html = '<div class="dw-hint">same room, your colors — watch it change as you click</div>';
     for (var k in PAINT) {
       var row = PAINT[k], cur = paintState[k] || 0;
-      html += '<div class="pb-row"><div class="pb-lbl">' + row.label + '</div><div class="pb-sw">';
+      html += '<div class="dw-sec">' + row.label + '</div><div class="dw-sw">';
       row.opts.forEach(function (o, i) {
         html += '<button type="button" data-paint="' + k + '" data-i="' + i + '"' +
           (i === cur ? ' class="on"' : "") + ' style="background:' + hex6(o[1]) + '" title="' + o[0] +
-          '" aria-label="' + row.label + ": " + o[0] + '"><span>' + o[0] + "</span></button>";
+          '" aria-label="' + row.label + ": " + o[0] + '"></button>';
       });
-      html += "</div></div>";
+      html += "</div>";
     }
-    html += '<div class="pb-row"><div class="pb-lbl">the neon sign</div><div class="pb-sw">';
+    html += '<div class="dw-sec">the neon sign</div><div class="dw-sw">';
     NEON_OPTS.forEach(function (o, i) {
       html += '<button type="button" data-neon="' + i + '"' + (i === (paintState.neon || 0) ? ' class="on"' : "") +
         ' style="background:' + hex6(o[2]) + '" title="' + o[0] + '" aria-label="neon: ' + o[0] + '"></button>';
     });
-    html += "</div></div>";
-    html += '<div class="pb-row"><div class="pb-lbl">the string lights</div>';
-    if (season) html += '<div class="pb-note">the season has the lights right now — come back after</div>';
+    html += "</div>";
+    html += '<div class="dw-sec">the string lights</div>';
+    if (season) html += '<div class="dw-hint">the season has the lights right now — come back after</div>';
     else {
-      html += '<div class="pb-sw">';
+      html += '<div class="dw-sw">';
       for (var pk in LIGHT_PALS) {
         var pal = LIGHT_PALS[pk];
-        var gradient = "linear-gradient(90deg," + pal.slice(0, 4).map(hex6).join(",") + ")";
         html += '<button type="button" data-lights="' + pk + '"' +
           (pk === (paintState.lights || "classic") ? ' class="on"' : "") +
-          ' style="background:' + gradient + '" title="' + pk + '" aria-label="lights: ' + pk + '"></button>';
+          ' style="background:linear-gradient(90deg,' + pal.slice(0, 4).map(hex6).join(",") + ')" title="' + pk +
+          '" aria-label="lights: ' + pk + '"></button>';
       }
       html += "</div>";
     }
-    html += "</div>";
-    document.getElementById("pb-rows").innerHTML = html;
-    document.getElementById("pb-name").value = paintState.name || "";
+    html += '<div class="dw-sec">this room belongs to</div><div class="dw-name">' +
+      '<input id="dw-name-inp" maxlength="14" placeholder="write your name" autocomplete="off" spellcheck="false">' +
+      '<button id="dw-name-set" type="button">put it up</button></div>' +
+      '<button type="button" class="dw-wide" data-act="wash">wash it all off</button>';
+    return html;
   }
-  document.getElementById("pb-rows").addEventListener("click", function (e) {
-    var b = e.target.closest ? e.target.closest("button") : e.target;
-    if (!b || !b.getAttribute) return;
-    if (b.getAttribute("data-paint")) setPaint(b.getAttribute("data-paint"), +b.getAttribute("data-i"));
-    else if (b.getAttribute("data-neon") != null && b.getAttribute("data-neon") !== "") setPaint("neon", +b.getAttribute("data-neon"));
-    else if (b.getAttribute("data-lights")) setPaint("lights", b.getAttribute("data-lights"));
-    else return;
-    pbRender(); clickSfx(1600);
-  });
-  document.getElementById("pb-name-set").addEventListener("click", function () {
-    paintState.name = document.getElementById("pb-name").value;
-    saveJSON("room-paint", paintState);
-    applyPaint(); pbRender(); clickSfx(1700);
-    var nm = roomOwnerName();
-    if (nm) { try { kidSay(nm + "'s room. it's official — it's on the wall.", 4.5); } catch (e) { } }
-  });
-  document.getElementById("pb-reset").addEventListener("click", function () {
+  function pbWash() { // back to as-found
     paintState = {};
     saveJSON("room-paint", paintState);
-    // un-tint everything back to as-found
     [wallM, wallMSide, floorM, rug.material].forEach(function (m) { m.userData.tint = null; m.color.set(0xffffff); });
     if (neonMesh && neonImg && neonImg.complete) { var t = new THREE.Texture(neonImg); t.needsUpdate = true; t.anisotropy = 8; neonMesh.material.map = t; neonMesh.material.color.set(0xffffff); neonMesh.material.needsUpdate = true; }
-    applyPaint(); pbRender(); clickSfx(900);
-  });
-  function pbOpen() { pbRender(); document.getElementById("paintbox-ov").classList.add("open"); }
-  function pbClose() { document.getElementById("paintbox-ov").classList.remove("open"); }
-  document.getElementById("pb-close").addEventListener("click", function () { pbClose(); clickSfx(1100); });
-  // doors into the paint box: the rearrange toolbar + the shoebox footer
-  (function addPaintButtons() {
-    var bar = document.getElementById("decor-bar"), done = document.getElementById("dc-done");
-    if (bar && done) {
-      var b = document.createElement("button"); b.type = "button"; b.id = "dc-paint"; b.textContent = "the paint box";
-      b.addEventListener("click", function () { pbOpen(); clickSfx(1400); });
-      bar.insertBefore(b, done);
-    }
-    var foot = document.querySelector("#shoebox-ov .sbx-foot span");
-    if (foot) {
-      var b2 = document.createElement("button"); b2.type = "button"; b2.textContent = "the paint box";
-      b2.addEventListener("click", function () { sbxClose(); pbOpen(); clickSfx(1400); });
-      foot.insertBefore(b2, foot.firstChild);
-    }
-  })();
+    applyPaint();
+  }
+  function pbOpen() { decorSet(true); dwTab("paint"); }
+  function pbClose() { decorSet(false); }
   applyPaint(); // restore this visitor's colors + name
 
   /* ============================================================================
@@ -2864,86 +2846,25 @@ import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
     if (selCfg && selCfg.root.visible === false) decorSelect(null);
   }
 
-  var obStyle = document.createElement("style");
-  obStyle.textContent =
-    "#outbox-ov{position:fixed;inset:0;z-index:24;display:none;align-items:center;justify-content:center;" +
-    "background:rgba(5,7,10,.72)}" +
-    "#outbox-ov.open{display:flex}" +
-    ".ob-card{width:min(460px,94vw);max-height:86vh;overflow-y:auto;background:#dfd8c4;color:#3a2e20;" +
-    "border-radius:6px;padding:22px 24px;box-shadow:0 30px 80px rgba(0,0,0,.6);transform:rotate(.3deg)}" +
-    ".ob-card h2{font-size:18px;letter-spacing:.1em;border-bottom:2px dashed #b7a888;padding-bottom:8px}" +
-    ".ob-sub{font-style:italic;font-size:12.5px;color:#6a5a40;margin:6px 0 10px}" +
-    ".ob-sec{font-family:'Inter',sans-serif;font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;" +
-    "color:#6a5a40;margin:14px 0 4px}" +
-    ".ob-row{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:6px 0;" +
-    "border-bottom:1px dotted #cfc0a0;font-size:14px}" +
-    ".ob-row.away{opacity:.55}" +
-    ".ob-row button{font-family:'Inter',sans-serif;font-size:9.5px;letter-spacing:.1em;text-transform:uppercase;" +
-    "background:none;border:1px solid #b7a888;border-radius:5px;padding:5px 10px;cursor:pointer;color:#4a3a22;" +
-    "white-space:nowrap}" +
-    ".ob-row button.on{background:#4a3a22;color:#e8dcc0}" +
-    ".ob-foot{display:flex;justify-content:space-between;gap:10px;margin-top:16px;flex-wrap:wrap}" +
-    ".ob-foot button{font-family:'Inter',sans-serif;font-size:11px;letter-spacing:.14em;text-transform:uppercase;" +
-    "background:none;border:1px solid #b7a888;border-radius:5px;padding:8px 14px;cursor:pointer;color:#5a4632}" +
-    ".ob-row button:focus-visible,.ob-foot button:focus-visible{outline:2px solid #ff5aa8;outline-offset:3px}";
-  document.head.appendChild(obStyle);
-  document.body.insertAdjacentHTML("beforeend",
-    '<div id="outbox-ov"><div class="ob-card">' +
-    "<h2>WHAT'S OUT</h2>" +
-    '<div class="ob-sub">your shelf, your floor — anything can wait in the underbed box</div>' +
-    '<div id="ob-rows"></div>' +
-    '<div class="ob-foot"><button id="ob-all" type="button">everything back out</button>' +
-    '<button id="ob-close" type="button">put it back</button></div>' +
-    "</div></div>");
-  function obRender() {
-    var html = "";
+  /* ---- the shelf tab (lives in the drawer — the room empties as you click) ------- */
+  var obSaidLine = false;
+  function dwShelfHTML() {
+    var html = '<div class="dw-hint">anything can wait in the underbed box — and come back whenever</div>';
     OUT_SECTIONS.forEach(function (sec) {
-      html += '<div class="ob-sec">' + sec[1] + "</div>";
+      html += '<div class="dw-sec">' + sec[1] + "</div>";
       HIDEABLES.forEach(function (h) {
         if (h.sec !== sec[0]) return;
         var hidden = !!outState[h.key];
-        html += '<div class="ob-row' + (hidden ? " away" : "") + '"><span>' + h.label + "</span>" +
+        html += '<div class="dw-row' + (hidden ? " away" : "") + '"><span>' + h.label + "</span>" +
           '<button type="button" data-out="' + h.key + '"' + (hidden ? "" : ' class="on"') + ">" +
           (hidden ? "put it out" : "out ✓") + "</button></div>";
       });
     });
-    document.getElementById("ob-rows").innerHTML = html;
+    html += '<button type="button" class="dw-wide" data-act="allout">everything back out</button>';
+    return html;
   }
-  var obSaidLine = false;
-  document.getElementById("ob-rows").addEventListener("click", function (e) {
-    var key = e.target && e.target.getAttribute && e.target.getAttribute("data-out");
-    if (!key) return;
-    outState[key] = outState[key] ? 0 : 1;
-    if (!outState[key]) delete outState[key];
-    saveJSON("room-out", outState);
-    applyOut(); obRender(); clickSfx(outState[key] ? 900 : 1700);
-    if (outState[key] && !obSaidLine) {
-      obSaidLine = true;
-      try { kidSay("into the underbed box it goes. it'll keep.", 4); } catch (e2) { }
-    }
-  });
-  document.getElementById("ob-all").addEventListener("click", function () {
-    outState = {};
-    saveJSON("room-out", outState);
-    applyOut(); obRender(); clickSfx(1700);
-  });
-  function obOpen() { obRender(); document.getElementById("outbox-ov").classList.add("open"); }
-  function obClose() { document.getElementById("outbox-ov").classList.remove("open"); }
-  document.getElementById("ob-close").addEventListener("click", function () { obClose(); clickSfx(1100); });
-  (function addOutButtons() { // doors: the rearrange toolbar + the shoebox footer
-    var bar = document.getElementById("decor-bar"), done = document.getElementById("dc-done");
-    if (bar && done) {
-      var b = document.createElement("button"); b.type = "button"; b.id = "dc-out"; b.textContent = "what's out";
-      b.addEventListener("click", function () { obOpen(); clickSfx(1400); });
-      bar.insertBefore(b, done);
-    }
-    var foot = document.querySelector("#shoebox-ov .sbx-foot span");
-    if (foot) {
-      var b2 = document.createElement("button"); b2.type = "button"; b2.textContent = "what's out";
-      b2.addEventListener("click", function () { sbxClose(); obOpen(); clickSfx(1400); });
-      foot.insertBefore(b2, foot.firstChild);
-    }
-  })();
+  function obOpen() { decorSet(true); dwTab("shelf"); }
+  function obClose() { decorSet(false); }
   applyOut(); // restore this visitor's shelf
 
   var frameCount = 0, lastT = performance.now() / 1000;
@@ -2952,8 +2873,9 @@ import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
     var t = performance.now() / 1000, dt = Math.min(t - lastT, 0.1); lastT = t;
     // with no pointer to follow (phones, or just resting), take a slow look around
     var idle = t - pointerMovedAt > 6;
-    // rearrange mode holds the camera steady — dragging with a drifting view fights you
-    var mx = decorMode ? 0 : idle ? Math.sin(t * 0.07) * 0.4 : mouse.x;
+    // decorating holds the camera steady (dragging with a drifting view fights you)
+    // and eases the gaze right so the room centers beside the docked drawer
+    var mx = decorMode ? (camera.aspect > 0.95 ? 0.42 : 0) : idle ? Math.sin(t * 0.07) * 0.4 : mouse.x;
     var my = decorMode ? 0 : idle ? Math.sin(t * 0.05 + 2) * 0.18 : mouse.y;
     var baseX = mx * 0.55, baseY = 1.72 + my * 0.24;
     if (zoomT >= 0) { // the kid opened something: lean in while it loads
@@ -2971,7 +2893,7 @@ import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
       } else {
         camera.position.x += (baseX - camera.position.x) * 0.04;
         camera.position.y += (baseY - camera.position.y) * 0.04;
-        camera.position.z += (camRestZ - camera.position.z) * 0.04; // settle to the aspect-aware distance
+        camera.position.z += ((camRestZ + (decorMode ? 0.55 : 0)) - camera.position.z) * 0.04; // settle to the aspect-aware distance (a step back while decorating)
       }
       lookAt.x += ((mx * 1.25) - lookAt.x) * 0.04; // pan the gaze — the bed and side walls come into view
       camera.lookAt(lookAt);

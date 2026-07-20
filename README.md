@@ -21,9 +21,10 @@ in the room is real and everything is clickable:
 | **The kid** | that's his room. He plays with everything until you click a doorway — then he walks over and opens it for you while the camera leans in |
 | **The notebook** | a real multi-page notebook: endings found, the campaign act by act, your lifetime war record |
 | **The shoebox** — "MY STUFF", in marker | your collection: every game leaves one unique little treasure behind once you've earned it (a ship in a bottle, a wooden horse, the Shelf King's crown...) — display the ones you like, on any shelf, sill, or desk that will hold them |
-| **The REARRANGE button** | it's your room now: drag the furniture, the toys, even the rug (the war and the robot's patrol come with it) wherever you like — the kid learns the new layout, and the room remembers it next visit |
-| **The PAINT BOX** | repaint the walls, the carpet, the rug; recolor the neon sign and the string lights; and write your name over the shelf in crayon — the kid makes it official |
-| **WHAT'S OUT** | your shelf, your call: any book, the toy chest, the army men, the brain, the beige PC, or the island can wait in the underbed box — and come back whenever |
+| **The DECORATE button** | the decorator's drawer docks beside the room (the camera politely steps aside) with three tabs, and everything previews live while you work — the room remembers it all next visit |
+| — 🧸 stuff | drag the furniture, the toys, even the rug (the war and the robot's patrol come with it); display your collectibles on any shelf, sill, or desktop |
+| — 🎨 paint | repaint the walls, the carpet, the rug; recolor the neon sign and the string lights; write your name over the shelf in crayon — the kid makes it official |
+| — 📦 shelf | your shelf, your call: any book, the toy chest, the army men, the brain, the beige PC, or the island can wait in the underbed box — and come back whenever |
 | **The TV** | the channel guide (plain list view, with your progress on each spine) |
 | **The boombox** | a composed lofi tape under the rain — no audio files, all synthesized |
 | **The tin robot** | click to wind his key: a burst of speed, and he changes his mind about direction |
