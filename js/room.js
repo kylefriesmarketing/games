@@ -1906,7 +1906,7 @@ import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
     });
     saveJSON("room-layout", out);
   }
-  function persistFor(cfg) { if (cfg.kind === "coll") persistColl(cfg); else persistLayout(); }
+  function persistFor(cfg) { if (cfg.isSticker) persistStickers(); else if (cfg.kind === "coll") persistColl(cfg); else persistLayout(); }
 
   /* ---- picking + dragging ----------------------------------------------------- */
   function floorPoint() {
@@ -1935,6 +1935,7 @@ import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
     for (var i = 0; i < hits.length; i++) {
       var ob = hits[i].object;
       if (!ob.isMesh || ob.userData.__ring || !visibleChain(ob)) continue;
+      if (ob.userData.__stk) return ob.userData.__stk.cfg; // a wall sticker
       if (ob.userData.war && movableByKey.rug) return movableByKey.rug; // the army men grab the rug
       var p = ob, found = null;
       while (p) { if (p.userData.__movKey) { found = movableByKey[p.userData.__movKey]; break; } p = p.parent; }
@@ -1954,7 +1955,8 @@ import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
     var cfg = decorPickMovable();
     decorSelect(cfg);
     if (cfg) {
-      var p = floorPoint();
+      pushUndo(); // so a drag is undoable
+      var p = cfg.isSticker ? null : floorPoint();
       dragging = { cfg: cfg, ox: p && !cfg.surface ? cfg.root.position.x - p.x : 0,
                    oz: p && !cfg.surface ? cfg.root.position.z - p.z : 0 };
       document.body.style.cursor = "grabbing";
@@ -1965,6 +1967,7 @@ import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
     if (!dragging) return;
     setPointer(e);
     var cfg = dragging.cfg;
+    if (cfg.isSticker) { var wp = wallPoint(); if (wp) moveStickerTo(cfg.entry, wp); return; }
     var p = cfg.surface ? (surfacePoint() || floorPoint()) : floorPoint();
     if (!p) return;
     applyMove(cfg, p.x + dragging.ox, p.z + dragging.oz, cfg.root.rotation.y, cfg.surface ? p.y : null);
@@ -1980,7 +1983,9 @@ import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
   window.addEventListener("wheel", function (e) {
     if (!decorMode) return;
     var cfg = dragging ? dragging.cfg : selCfg;
-    if (!cfg || !cfg.rot) return;
+    if (!cfg) return;
+    if (cfg.isSticker) { scaleSticker(cfg.entry, e.deltaY > 0 ? -0.1 : 0.1); return; } // scroll resizes a sticker
+    if (!cfg.rot) return;
     decorRotate(cfg, e.deltaY > 0 ? -0.16 : 0.16);
   }, { passive: true });
   function decorRotate(cfg, d) {
@@ -1997,10 +2002,12 @@ import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
     if (!chip) return;
     chip.hidden = !cfg;
     if (cfg) {
-      document.getElementById("dw-sel-name").textContent = cfg.label;
+      var isStk = !!cfg.isSticker;
+      document.getElementById("dw-sel-name").textContent = isStk ? "a sticker — scroll to resize" : cfg.label;
       ["dw-rotl", "dw-rotr"].forEach(function (id) {
-        var b = document.getElementById(id); if (b) b.disabled = !cfg.rot;
+        var b = document.getElementById(id); if (b) b.disabled = isStk || !cfg.rot;
       });
+      var back = document.getElementById("dw-back"); if (back) back.textContent = isStk ? "remove" : "put back";
     }
   }
   function decorSet(on) {
@@ -2440,6 +2447,243 @@ import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
   });
   registerMovable({ key: "shoebox", label: "the shoebox", root: shoebox, r: 0.3, rot: true, attachObjs: [gShoe] });
 
+  /* ============================================================================
+   * TIER 1 + 2 EXTRAS — wall stickers, room presets, undo, a shareable snapshot
+   * and a shareable room LINK. A single roomStateBlob()/applyRoomState() serves
+   * undo, presets, and the share codes at once.
+   * ========================================================================== */
+
+  /* ---- wall stickers ------------------------------------------------------------ */
+  function stickerTex(draw) {
+    return canvasTex(128, 128, function (g, w, h) { g.clearRect(0, 0, w, h); g.translate(w / 2, h / 2); draw(g); });
+  }
+  function poly(g, n, r, rot, fill) {
+    g.beginPath();
+    for (var i = 0; i < n; i++) { var a = rot + i / n * Math.PI * 2; g[i ? "lineTo" : "moveTo"](Math.cos(a) * r, Math.sin(a) * r); }
+    g.closePath(); g.fillStyle = fill; g.fill();
+  }
+  var STICKER_DESIGNS = [
+    { id: "star", label: "★", draw: function (g) { g.fillStyle = "#ffd23e"; g.beginPath();
+      for (var i = 0; i < 10; i++) { var r = i % 2 ? 22 : 52, a = -Math.PI / 2 + i * Math.PI / 5; g[i ? "lineTo" : "moveTo"](Math.cos(a) * r, Math.sin(a) * r); } g.closePath(); g.fill(); } },
+    { id: "heart", label: "♥", draw: function (g) { g.fillStyle = "#ff5a8a"; g.beginPath(); g.moveTo(0, 40);
+      g.bezierCurveTo(-55, -6, -30, -52, 0, -20); g.bezierCurveTo(30, -52, 55, -6, 0, 40); g.closePath(); g.fill(); } },
+    { id: "rocket", label: "🚀", draw: function (g) { g.fillStyle = "#e8e8ee"; g.beginPath(); g.moveTo(0, -52);
+      g.quadraticCurveTo(20, -20, 18, 22); g.lineTo(-18, 22); g.quadraticCurveTo(-20, -20, 0, -52); g.fill();
+      g.fillStyle = "#ff6a4a"; g.beginPath(); g.moveTo(-18, 22); g.lineTo(-34, 42); g.lineTo(-12, 30); g.fill();
+      g.beginPath(); g.moveTo(18, 22); g.lineTo(34, 42); g.lineTo(12, 30); g.fill();
+      g.fillStyle = "#5ac8e0"; g.beginPath(); g.arc(0, -18, 9, 0, 7); g.fill();
+      g.fillStyle = "#ffb23e"; g.beginPath(); g.moveTo(0, 52); g.lineTo(-9, 24); g.lineTo(9, 24); g.fill(); } },
+    { id: "planet", label: "🪐", draw: function (g) { g.fillStyle = "#c98af0"; g.beginPath(); g.arc(0, 0, 30, 0, 7); g.fill();
+      g.strokeStyle = "#ffd23e"; g.lineWidth = 7; g.save(); g.rotate(-0.4); g.beginPath(); g.ellipse(0, 0, 52, 16, 0, 0, 7); g.stroke(); g.restore(); } },
+    { id: "dino", label: "🦖", draw: function (g) { g.fillStyle = "#5ac86a"; g.beginPath(); g.moveTo(-46, 18);
+      g.quadraticCurveTo(-30, -6, -6, -8); g.quadraticCurveTo(4, -46, 30, -30); g.quadraticCurveTo(20, -14, 34, -8);
+      g.quadraticCurveTo(48, 0, 30, 22); g.lineTo(24, 40); g.lineTo(14, 40); g.lineTo(16, 24);
+      g.lineTo(-8, 24); g.lineTo(-6, 42); g.lineTo(-16, 42); g.lineTo(-20, 22); g.quadraticCurveTo(-40, 30, -46, 18); g.fill();
+      g.fillStyle = "#1a1a1a"; g.beginPath(); g.arc(18, -24, 3.5, 0, 7); g.fill(); } },
+    { id: "lightning", label: "⚡", draw: function (g) { g.fillStyle = "#ffd23e"; g.beginPath(); g.moveTo(8, -52);
+      g.lineTo(-22, 6); g.lineTo(-2, 6); g.lineTo(-10, 52); g.lineTo(24, -12); g.lineTo(2, -12); g.closePath(); g.fill(); } },
+    { id: "smiley", label: "☺", draw: function (g) { g.fillStyle = "#ffd23e"; g.beginPath(); g.arc(0, 0, 46, 0, 7); g.fill();
+      g.fillStyle = "#1a1a1a"; g.beginPath(); g.arc(-16, -10, 6, 0, 7); g.arc(16, -10, 6, 0, 7); g.fill();
+      g.lineWidth = 6; g.strokeStyle = "#1a1a1a"; g.beginPath(); g.arc(0, 4, 22, 0.2, Math.PI - 0.2); g.stroke(); } },
+    { id: "ghost", label: "👻", draw: function (g) { g.fillStyle = "#eef0f6"; g.beginPath(); g.moveTo(-32, 44);
+      g.lineTo(-32, -6); g.quadraticCurveTo(-32, -48, 0, -48); g.quadraticCurveTo(32, -48, 32, -6); g.lineTo(32, 44);
+      g.lineTo(20, 32); g.lineTo(10, 44); g.lineTo(0, 32); g.lineTo(-10, 44); g.lineTo(-20, 32); g.closePath(); g.fill();
+      g.fillStyle = "#1a1a1a"; g.beginPath(); g.arc(-12, -8, 5, 0, 7); g.arc(12, -8, 5, 0, 7); g.fill(); } },
+    { id: "flower", label: "❀", draw: function (g) { for (var i = 0; i < 6; i++) { var a = i / 6 * Math.PI * 2;
+      g.fillStyle = "#ff8ac8"; g.beginPath(); g.ellipse(Math.cos(a) * 26, Math.sin(a) * 26, 16, 22, a, 0, 7); g.fill(); }
+      g.fillStyle = "#ffd23e"; g.beginPath(); g.arc(0, 0, 15, 0, 7); g.fill(); } },
+    { id: "moon", label: "🌙", draw: function (g) { g.fillStyle = "#ffe08a"; g.beginPath(); g.arc(0, 0, 40, 0, 7); g.fill();
+      g.globalCompositeOperation = "destination-out"; g.beginPath(); g.arc(16, -8, 36, 0, 7); g.fill();
+      g.globalCompositeOperation = "source-over"; } },
+    { id: "diamond", label: "◆", draw: function (g) { poly(g, 4, 46, -Math.PI / 2, "#5ad8e0"); poly(g, 4, 24, -Math.PI / 2, "#bff0f6"); } },
+    { id: "peace", label: "☮", draw: function (g) { g.strokeStyle = "#7ac86a"; g.lineWidth = 8; g.beginPath(); g.arc(0, 0, 42, 0, 7); g.stroke();
+      g.beginPath(); g.moveTo(0, -42); g.lineTo(0, 42); g.moveTo(0, 0); g.lineTo(-30, 30); g.moveTo(0, 0); g.lineTo(30, 30); g.stroke(); } },
+  ];
+  var STK_BY_ID = {}; STICKER_DESIGNS.forEach(function (d) { STK_BY_ID[d.id] = d; });
+  var stickerTexCache = {};
+  function stickerMat(id) {
+    if (!stickerTexCache[id]) stickerTexCache[id] = stickerTex(STK_BY_ID[id].draw);
+    return new THREE.MeshBasicMaterial({ map: stickerTexCache[id], transparent: true, depthWrite: false, side: THREE.DoubleSide });
+  }
+  var WALLS = { back: back, left: left, right: right };
+  var WALL_MESHES = [back, left, right];
+  // world placement + facing for a hit on each wall (a hair off the surface, into the room)
+  function wallPlace(wallName, x, y, z) {
+    if (wallName === "back") return { x: clamp(x, -2.2, 2.2), y: clamp(y, 0.5, 3.0), z: -2.54, ry: 0 };
+    if (wallName === "left") return { x: -3.54, y: clamp(y, 0.5, 3.0), z: clamp(z, -2.2, 2.4), ry: Math.PI / 2 };
+    return { x: 3.54, y: clamp(y, 0.5, 3.0), z: clamp(z, -2.2, 2.2), ry: -Math.PI / 2 };
+  }
+  function clamp(v, lo, hi) { return v < lo ? lo : v > hi ? hi : v; }
+  function wallPoint() { // raycast the three walls; report which one and where
+    ray.setFromCamera(mouse, camera);
+    var hits = ray.intersectObjects(WALL_MESHES, false);
+    if (!hits.length) return null;
+    var h = hits[0], wn = h.object === back ? "back" : h.object === left ? "left" : "right";
+    return { wall: wn, place: wallPlace(wn, h.point.x, h.point.y, h.point.z) };
+  }
+  var stickers = [];
+  function buildStickerMesh(e) {
+    var s = 0.42 * (e.scale || 1);
+    var m = new THREE.Mesh(new THREE.PlaneGeometry(s, s), stickerMat(e.design));
+    m.userData.__stk = e; e.mesh = m; scene.add(m);
+    positionSticker(e);
+    e.cfg = { isSticker: true, entry: e, label: "a sticker", root: m, rot: false, kind: "sticker" };
+    return m;
+  }
+  function positionSticker(e) {
+    var p = wallPlace(e.wall, e.x, e.y, e.z);
+    e.x = p.x; e.y = p.y; e.z = p.z;
+    e.mesh.position.set(p.x, p.y, p.z);
+    e.mesh.rotation.set(0, p.ry, 0);
+  }
+  function moveStickerTo(e, wp) {
+    e.wall = wp.wall; e.x = wp.place.x; e.y = wp.place.y; e.z = wp.place.z;
+    positionSticker(e);
+  }
+  function scaleSticker(e, d) {
+    e.scale = clamp((e.scale || 1) + d, 0.5, 2.4);
+    var s = 0.42 * e.scale; e.mesh.geometry.dispose(); e.mesh.geometry = new THREE.PlaneGeometry(s, s);
+    persistStickers();
+  }
+  function addSticker(design, wp) {
+    var place = wp ? wp.place : wallPlace("back", 1.35, 2.2, 0);
+    var e = { design: design, wall: wp ? wp.wall : "back", x: place.x, y: place.y, z: place.z, scale: 1 };
+    buildStickerMesh(e); stickers.push(e); persistStickers();
+    return e;
+  }
+  function removeSticker(e) {
+    var i = stickers.indexOf(e); if (i >= 0) stickers.splice(i, 1);
+    if (e.mesh) { scene.remove(e.mesh); e.mesh.geometry.dispose(); }
+    persistStickers();
+  }
+  function persistStickers() {
+    saveJSON("room-stickers", stickers.map(function (e) {
+      return { d: e.design, w: e.wall, x: +e.x.toFixed(3), y: +e.y.toFixed(3), z: +e.z.toFixed(3), s: +(e.scale || 1).toFixed(2) };
+    }));
+  }
+  function rebuildStickers(list) {
+    stickers.slice().forEach(function (e) { if (e.mesh) { scene.remove(e.mesh); e.mesh.geometry.dispose(); } });
+    stickers = [];
+    (list || []).forEach(function (o) {
+      if (!STK_BY_ID[o.d]) return;
+      var e = { design: o.d, wall: o.w || "back", x: o.x, y: o.y, z: o.z, scale: o.s || 1 };
+      buildStickerMesh(e); stickers.push(e);
+    });
+  }
+  rebuildStickers(loadJSON("room-stickers") || []);
+
+  /* ---- one blob for the whole room: powers undo, presets, and share links ------- */
+  function roomStateBlob() {
+    return {
+      l: loadJSON("room-layout") || {},
+      p: JSON.parse(JSON.stringify(paintState)),
+      o: JSON.parse(JSON.stringify(outState)),
+      c: JSON.parse(JSON.stringify(shoeState.placed || {})),
+      k: stickers.map(function (e) { return { d: e.design, w: e.wall, x: e.x, y: e.y, z: e.z, s: e.scale || 1 }; }),
+    };
+  }
+  function applyRoomState(b) {
+    if (!b) return;
+    paintState = b.p || {}; saveJSON("room-paint", paintState); applyPaint();
+    outState = b.o || {}; saveJSON("room-out", outState); applyOut();
+    var lay = b.l || {}; saveJSON("room-layout", lay);
+    movables.forEach(function (c) {
+      if (c.kind === "coll" || c.kind === "sticker") return;
+      var sv = lay[c.key];
+      if (sv) applyMove(c, sv.x, sv.z, sv.ry == null ? c.def.ry : sv.ry);
+      else applyMove(c, c.def.x, c.def.z, c.def.ry);
+    });
+    var want = b.c || {};
+    COLLECT.forEach(function (c) {
+      var placed = !!shoeState.placed[c.key], wantIt = want[c.key] && c.have();
+      if (wantIt && !placed) placeColl(c.key);
+      else if (!wantIt && placed) unplaceColl(c.key);
+    });
+    Object.keys(want).forEach(function (k) {
+      var cfg = movableByKey["coll:" + k], w = want[k];
+      if (cfg && w && w.x != null) applyMove(cfg, w.x, w.z, w.ry, w.y);
+    });
+    rebuildStickers(b.k || []);
+    if (decorMode) dwRender();
+  }
+
+  /* ---- undo (one step back through anything you just did) ------------------------ */
+  var undoStack = [];
+  function pushUndo() {
+    undoStack.push(roomStateBlob());
+    if (undoStack.length > 30) undoStack.shift();
+    var u = document.getElementById("dw-undo"); if (u) u.disabled = false;
+  }
+  function doUndo() {
+    if (!undoStack.length) { try { kidSay("nothing to undo — this is how it's always been.", 3.5); } catch (e) { } return; }
+    applyRoomState(undoStack.pop());
+    var u = document.getElementById("dw-undo"); if (u) u.disabled = !undoStack.length;
+  }
+
+  /* ---- one-tap looks ------------------------------------------------------------- */
+  var ROOM_PRESETS = {
+    "cozy":  { walls: 2, carpet: 1, rug: 3, neon: 1, lights: "warm glow" },
+    "gamer": { walls: 0, carpet: 3, rug: 0, neon: 3, lights: "ocean" },
+    "sunny": { walls: 1, carpet: 2, rug: 2, neon: 2, lights: "classic" },
+    "spooky":{ walls: 4, carpet: 3, rug: 0, neon: 4, lights: "candy" },
+    "dreamy":{ walls: 4, carpet: 4, rug: 3, neon: 0, lights: "rainbow" },
+  };
+  function applyPreset(name) {
+    var p = ROOM_PRESETS[name]; if (!p) return;
+    pushUndo();
+    for (var k in p) paintState[k] = p[k];
+    saveJSON("room-paint", paintState); applyPaint();
+    if (decorMode) dwRender();
+    try { kidSay("ooh — " + name + ". i like it.", 3.5); } catch (e) { }
+  }
+  function surpriseMe() {
+    pushUndo();
+    paintState.walls = (Math.random() * PAINT.walls.opts.length) | 0;
+    paintState.carpet = (Math.random() * PAINT.carpet.opts.length) | 0;
+    paintState.rug = (Math.random() * PAINT.rug.opts.length) | 0;
+    paintState.neon = (Math.random() * NEON_OPTS.length) | 0;
+    var pk = Object.keys(LIGHT_PALS); paintState.lights = pk[(Math.random() * pk.length) | 0];
+    saveJSON("room-paint", paintState); applyPaint();
+    if (decorMode) dwRender();
+  }
+
+  /* ---- the snapshot (a real photo of your room, downloaded) ---------------------- */
+  function shareRoom() {
+    scene.updateMatrixWorld(true);
+    var W = 1600, H = 1000, rd = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
+    rd.setPixelRatio(1); rd.setSize(W, H);
+    rd.shadowMap.enabled = true; rd.shadowMap.type = THREE.PCFSoftShadowMap;
+    var cam = new THREE.PerspectiveCamera(52, W / H, 0.1, 50);
+    cam.position.set(0, 1.72, 4.8); cam.lookAt(new THREE.Vector3(0, 1.28, -0.5));
+    rd.render(scene, cam);
+    var url;
+    try { url = rd.domElement.toDataURL("image/png"); } catch (e) { rd.dispose(); return; }
+    var nm = roomOwnerName();
+    var a = document.createElement("a");
+    a.href = url; a.download = (nm ? nm.replace(/\s+/g, "-").toLowerCase() + "s-room" : "my-room") + ".png";
+    document.body.appendChild(a); a.click(); a.remove();
+    rd.dispose();
+    try { kidSay("say cheese! it's in your downloads.", 4); } catch (e2) { }
+  }
+
+  /* ---- a link that rebuilds your exact room for whoever opens it ------------------ */
+  function encodeRoom() {
+    try { return "TR1." + btoa(unescape(encodeURIComponent(JSON.stringify(roomStateBlob())))); } catch (e) { return null; }
+  }
+  function decodeRoom(code) {
+    try { if (!code || code.slice(0, 4) !== "TR1.") return null; return JSON.parse(decodeURIComponent(escape(atob(code.slice(4))))); } catch (e) { return null; }
+  }
+  function roomLink() {
+    var c = encodeRoom();
+    return location.origin + location.pathname + (c ? "?room=" + encodeURIComponent(c) : "");
+  }
+  function copyRoomLink() {
+    var link = roomLink();
+    function done() { try { kidSay("link copied — go show somebody your room.", 4.5); } catch (e) { } }
+    if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(link).then(done, function () { window.prompt("copy your room link:", link); });
+    else window.prompt("copy your room link:", link);
+  }
+
   /* ---- injected UI: the decorate button + THE DECORATOR'S DRAWER ---------------- */
   // One docked panel instead of full-screen modals: the room stays visible (and
   // draggable) while you work, so every swatch and toggle previews live. Desktop
@@ -2501,8 +2745,13 @@ import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
     "text-transform:uppercase;color:var(--dim);background:none;border:1px solid var(--line);border-radius:5px;" +
     "padding:6px 10px;cursor:pointer}" +
     ".dw-wide{display:block;width:100%;margin-top:10px}" +
+    "#dw-actions{display:flex;gap:6px;padding:8px 10px 0}" +
+    "#dw-actions button{flex:1;font-family:inherit;font-size:9.5px;letter-spacing:.04em;color:var(--dim);" +
+    "background:none;border:1px solid var(--line);border-radius:6px;padding:7px 2px;cursor:pointer}" +
+    "#dw-actions button:hover:not(:disabled){color:var(--bone);border-color:var(--dim)}" +
+    "#dw-actions button:disabled{opacity:.35;cursor:default}" +
     "@media (max-width:640px),(max-aspect-ratio:9/10){#decor-drawer{top:auto;left:10px;right:10px;bottom:10px;" +
-    "width:auto;max-height:46vh}}" +
+    "width:auto;max-height:52vh}}" +
     "#decor-btn:focus-visible,#decor-drawer button:focus-visible,.dw-name input:focus-visible{" +
     "outline:2px solid #ff5aa8;outline-offset:2px}";
   document.head.appendChild(decorStyle);
@@ -2512,12 +2761,16 @@ import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
     '<div id="dw-tabs">' +
     '<button type="button" data-tab="stuff">🧸 stuff<span id="dw-new" hidden>●</span></button>' +
     '<button type="button" data-tab="paint">🎨 paint</button>' +
+    '<button type="button" data-tab="walls">🌟 walls</button>' +
     '<button type="button" data-tab="shelf">📦 shelf</button></div>' +
     '<div id="dw-sel" hidden><span id="dw-sel-name"></span><span>' +
     '<button id="dw-rotl" type="button" aria-label="spin left">⟲</button>' +
     '<button id="dw-rotr" type="button" aria-label="spin right">⟳</button>' +
     '<button id="dw-back" type="button">put back</button></span></div>' +
     '<div id="dw-body"></div>' +
+    '<div id="dw-actions"><button id="dw-undo" type="button" disabled>↶ undo</button>' +
+    '<button id="dw-photo" type="button">📷 photo</button>' +
+    '<button id="dw-link" type="button">🔗 share link</button></div>' +
     '<div id="dw-foot"><button id="dw-reset" type="button">reset the room</button>' +
     '<button id="dw-done" type="button">done</button></div>' +
     "</div>");
@@ -2540,7 +2793,8 @@ import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
   function dwRender() {
     var el = document.getElementById("dw-body");
     if (!el) return;
-    el.innerHTML = dwTabName === "paint" ? dwPaintHTML() : dwTabName === "shelf" ? dwShelfHTML() : dwStuffHTML();
+    el.innerHTML = dwTabName === "paint" ? dwPaintHTML() : dwTabName === "shelf" ? dwShelfHTML()
+                 : dwTabName === "walls" ? dwWallsHTML() : dwStuffHTML();
     var inp = document.getElementById("dw-name-inp");
     if (inp) inp.value = paintState.name || "";
   }
@@ -2553,25 +2807,37 @@ import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
   document.getElementById("dw-rotr").addEventListener("click", function () { if (selCfg && selCfg.rot) { decorRotate(selCfg, -0.22); clickSfx(1500); } });
   document.getElementById("dw-back").addEventListener("click", function () {
     if (!selCfg) return;
+    pushUndo();
+    if (selCfg.isSticker) { removeSticker(selCfg.entry); decorSelect(null); dwRender(); clickSfx(900); return; }
     applyMove(selCfg, selCfg.def.x, selCfg.def.z, selCfg.def.ry, selCfg.surface ? selCfg.def.y : null);
     persistFor(selCfg); clickSfx(1100);
   });
-  document.getElementById("dw-reset").addEventListener("click", function () { decorReset(); clickSfx(900); });
+  document.getElementById("dw-reset").addEventListener("click", function () { pushUndo(); decorReset(); clickSfx(900); });
   document.getElementById("dw-done").addEventListener("click", function () { decorSet(false); clickSfx(1300); });
+  document.getElementById("dw-undo").addEventListener("click", function () { doUndo(); clickSfx(1100); });
+  document.getElementById("dw-photo").addEventListener("click", function () { shareRoom(); clickSfx(1500); });
+  document.getElementById("dw-link").addEventListener("click", function () { copyRoomLink(); clickSfx(1500); });
   document.getElementById("dw-body").addEventListener("click", function (e) {
     var b = e.target.closest ? e.target.closest("button") : null;
     if (!b) return;
-    var key;
+    var key, act = b.getAttribute("data-act");
     if ((key = b.getAttribute("data-coll"))) {
+      pushUndo();
       if (shoeState.placed[key]) unplaceColl(key); else { placeColl(key); clickSfx(1700); }
       dwRender();
     } else if ((key = b.getAttribute("data-paint"))) {
-      setPaint(key, +b.getAttribute("data-i")); dwRender(); clickSfx(1600);
+      pushUndo(); setPaint(key, +b.getAttribute("data-i")); dwRender(); clickSfx(1600);
     } else if (b.getAttribute("data-neon") != null && b.getAttribute("data-neon") !== "") {
-      setPaint("neon", +b.getAttribute("data-neon")); dwRender(); clickSfx(1600);
+      pushUndo(); setPaint("neon", +b.getAttribute("data-neon")); dwRender(); clickSfx(1600);
     } else if ((key = b.getAttribute("data-lights"))) {
-      setPaint("lights", key); dwRender(); clickSfx(1600);
+      pushUndo(); setPaint("lights", key); dwRender(); clickSfx(1600);
+    } else if ((key = b.getAttribute("data-preset"))) {
+      applyPreset(key); clickSfx(1600);
+    } else if ((key = b.getAttribute("data-sticker"))) {
+      pushUndo(); var ne = addSticker(key); decorSelect(ne.cfg); dwRender(); clickSfx(1700);
+      try { kidSay("stuck it on the wall. drag it where you want.", 4); } catch (e0) { }
     } else if ((key = b.getAttribute("data-out"))) {
+      pushUndo();
       outState[key] = outState[key] ? 0 : 1;
       if (!outState[key]) delete outState[key];
       saveJSON("room-out", outState);
@@ -2581,17 +2847,22 @@ import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
         try { kidSay("into the underbed box it goes. it'll keep.", 4); } catch (e2) { }
       }
     } else if (b.id === "dw-name-set") {
+      pushUndo();
       paintState.name = document.getElementById("dw-name-inp").value;
       saveJSON("room-paint", paintState);
       applyPaint(); dwRender(); clickSfx(1700);
       var nm = roomOwnerName();
       if (nm) { try { kidSay(nm + "'s room. it's official — it's on the wall.", 4.5); } catch (e3) { } }
-    } else if (b.getAttribute("data-act") === "wash") {
-      pbWash(); dwRender(); clickSfx(900);
-    } else if (b.getAttribute("data-act") === "allout") {
-      outState = {};
+    } else if (act === "wash") {
+      pushUndo(); pbWash(); dwRender(); clickSfx(900);
+    } else if (act === "surprise") {
+      surpriseMe(); clickSfx(1700);
+    } else if (act === "allout") {
+      pushUndo(); outState = {};
       saveJSON("room-out", outState);
       applyOut(); dwRender(); clickSfx(1700);
+    } else if (act === "clearstickers") {
+      pushUndo(); rebuildStickers([]); persistStickers(); dwRender(); clickSfx(900);
     }
   });
 
@@ -2749,6 +3020,12 @@ import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
   function hex6(n) { return "#" + ("00000" + n.toString(16)).slice(-6); }
   function dwPaintHTML() {
     var html = '<div class="dw-hint">same room, your colors — watch it change as you click</div>';
+    html += '<div class="dw-sec">one-tap looks</div><div class="dw-grid">';
+    for (var pn in ROOM_PRESETS) {
+      html += '<button type="button" class="dw-card" data-preset="' + pn + '"><div class="n">' + pn + "</div></button>";
+    }
+    html += '<button type="button" class="dw-card" data-act="surprise"><div class="i">🎲</div><div class="n">surprise me</div></button>';
+    html += "</div>";
     for (var k in PAINT) {
       var row = PAINT[k], cur = paintState[k] || 0;
       html += '<div class="dw-sec">' + row.label + '</div><div class="dw-sw">';
@@ -2794,6 +3071,19 @@ import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
   function pbOpen() { decorSet(true); dwTab("paint"); }
   function pbClose() { decorSet(false); }
   applyPaint(); // restore this visitor's colors + name
+
+  /* ---- the walls tab (stickers — click to stick, then drag on the walls) --------- */
+  function dwWallsHTML() {
+    var html = '<div class="dw-hint">click one to stick it up, then drag it anywhere on the walls · scroll to resize</div>';
+    html += '<div class="dw-grid">';
+    STICKER_DESIGNS.forEach(function (d) {
+      html += '<button type="button" class="dw-card" data-sticker="' + d.id + '" title="' + d.id + '"><div class="i">' + d.label + "</div></button>";
+    });
+    html += "</div>";
+    html += '<div class="dw-sec">' + stickers.length + " up right now</div>";
+    if (stickers.length) html += '<button type="button" class="dw-wide" data-act="clearstickers">take them all down</button>';
+    return html;
+  }
 
   /* ============================================================================
    * WHAT'S OUT — choose which games are on display. Every book on the shelf,
@@ -3204,5 +3494,31 @@ import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
       set: function (key, hidden) {
         if (hidden) outState[key] = 1; else delete outState[key];
         saveJSON("room-out", outState); applyOut();
-      } } };
+      } },
+    extras: { stickers: function () { return stickers; }, addSticker: addSticker, designs: STICKER_DESIGNS,
+      preset: applyPreset, presets: ROOM_PRESETS, surprise: surpriseMe, undo: doUndo, undoDepth: function () { return undoStack.length; },
+      blob: roomStateBlob, applyBlob: applyRoomState, encode: encodeRoom, decode: decodeRoom, link: roomLink, share: shareRoom } };
+
+  /* ---- someone shared a room? offer to rebuild it ------------------------------- */
+  (function checkSharedRoom() {
+    var m = /[?&]room=([^&]+)/.exec(location.search);
+    if (!m) return;
+    var blob = decodeRoom(decodeURIComponent(m[1]));
+    if (!blob) return;
+    var bar = document.createElement("div");
+    bar.setAttribute("style", "position:fixed;left:50%;top:14px;transform:translateX(-50%);z-index:31;" +
+      "display:flex;gap:10px;align-items:center;font-family:'Inter',system-ui,sans-serif;font-size:12.5px;" +
+      "color:#f3efe4;background:rgba(12,16,24,.92);border:1px solid rgba(150,160,180,.4);border-radius:10px;" +
+      "padding:10px 14px;box-shadow:0 12px 40px rgba(0,0,0,.5);max-width:92vw");
+    bar.innerHTML = "<span>somebody shared a room with you — take a look?</span>" +
+      "<button id='sr-yes' style=\"font-family:inherit;font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:#ffd9a0;background:none;border:1px solid #8a6f4a;border-radius:6px;padding:6px 12px;cursor:pointer\">see it</button>" +
+      "<button id='sr-no' style=\"font-family:inherit;font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--dim);background:none;border:1px solid var(--line);border-radius:6px;padding:6px 12px;cursor:pointer\">not now</button>";
+    function clean() { if (bar.parentNode) bar.parentNode.removeChild(bar); try { history.replaceState(null, "", location.pathname); } catch (e) { } }
+    document.body.appendChild(bar);
+    document.getElementById("sr-yes").addEventListener("click", function () {
+      pushUndo(); applyRoomState(blob); clean();
+      try { kidSay("this is how they set it up. don't like it? hit undo.", 5); } catch (e) { }
+    });
+    document.getElementById("sr-no").addEventListener("click", clean);
+  })();
 })();
