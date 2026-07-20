@@ -48,7 +48,7 @@ import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
       t.wrapS = t.wrapT = THREE.RepeatWrapping;
       t.repeat.set(repX || 1, repY || 1);
       t.anisotropy = 8;
-      m.map = t; m.color.set(0xffffff); m.needsUpdate = true;
+      m.map = t; m.color.set(m.userData.tint || 0xffffff); m.needsUpdate = true; // tint survives the async load (the paint box)
     });
     return m;
   }
@@ -659,10 +659,12 @@ import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
     neonMesh.position.set(-1.3, 2.9, -2.5);
     scene.add(neonMesh);
     neonLight.intensity = 1.1;
+    applyNeonPaint(); // a saved sign color waits for the texture
   });
 
   /* ---- soft bloom halos on the bright sources (billboards, additive) ---------- */
-  scene.add(glow(0xff5aa8, -1.3, 2.86, -2.46, 2.7, 1.5, 0.5));   // the neon sign
+  var gNeon = glow(0xff5aa8, -1.3, 2.86, -2.46, 2.7, 1.5, 0.5);  // the neon sign (recolorable)
+  scene.add(gNeon);
   var gBrain = glow(0xff4d7d, -2.52, 1.0, -0.38, 0.85, 0.85, 0.5); // the Brainrot brain (follows the desk)
   scene.add(gBrain);
   gLava = glow(0xff5a7d, 0.55, 0.86, -2.16, 0.7, 0.95, 0.55);    // the lava lamp
@@ -1021,6 +1023,8 @@ import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
   }
   var priorVisits = 0; // visits BEFORE this one — captured in __roomEnter, read at greet
   function kidGreetLine() {
+    var nm = roomOwnerName(); // if the room's been claimed, sometimes he says so
+    if (nm && Math.random() < 0.35) return "welcome back to " + nm + "'s room. i just live here.";
     var unfinished = [], anyStarted = false;
     for (var t in GAME_SAVES) {
       var p = gameProgress(t); if (!p || !p.started) continue;
@@ -1745,6 +1749,8 @@ import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
   }
   window.addEventListener("keydown", function (e) {
     if (e.key === "Escape") {
+      var pbx = document.getElementById("paintbox-ov");
+      if (pbx && pbx.classList.contains("open")) { pbClose(); return; }
       var sbx = document.getElementById("shoebox-ov");
       if (sbx && sbx.classList.contains("open")) { sbxClose(); return; }
       if (decorMode) { decorSet(false); return; }
@@ -1753,6 +1759,8 @@ import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
       return;
     }
     if (document.body.classList.contains("listing")) return; // the list has native tab order
+    var pbo = document.getElementById("paintbox-ov"), sbo = document.getElementById("shoebox-ov");
+    if ((pbo && pbo.classList.contains("open")) || (sbo && sbo.classList.contains("open"))) return; // panels own the keyboard (you might be typing your name)
     if (e.key === "Tab") {
       e.preventDefault();
       var L = kbList();
@@ -1933,6 +1941,8 @@ import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
   function decorPointerDown(e) {
     var sbx = document.getElementById("shoebox-ov");
     if (sbx && sbx.classList.contains("open")) return true; // an open panel owns the pointer
+    var pbx = document.getElementById("paintbox-ov");
+    if (pbx && pbx.classList.contains("open")) return true;
     var nb = document.getElementById("notebook");
     if (nb && nb.classList.contains("open")) return true;   // (also stops click-through on the notebook)
     if (!decorMode) return false;
@@ -2565,6 +2575,226 @@ import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
     }, 3000);
   })();
 
+  /* ============================================================================
+   * THE PAINT BOX — the other half of "make it yours": repaint the walls, the
+   * carpet, the rug, recolor the neon sign and the string lights, and put your
+   * NAME over the shelf in crayon. All tints are material.color multiplies over
+   * the existing textures (zero new assets); everything persists per visitor.
+   * ========================================================================== */
+  var paintState = loadJSON("room-paint") || {};
+  var PAINT = {
+    walls: { label: "the walls", mats: [wallM, wallMSide], opts: [
+      ["as found", 0xffffff], ["mint", 0xcfe4d2], ["peach", 0xf2d4c2],
+      ["sky", 0xc6d8f0], ["lavender", 0xdccce8], ["butter", 0xf0e6be]] },
+    carpet: { label: "the carpet", mats: [floorM], opts: [
+      ["as found", 0xffffff], ["warm", 0xdcc8b4], ["sage", 0xc4d8c4],
+      ["slate", 0xc4c8d8], ["rosy", 0xe4c4c4]] },
+    rug: { label: "the rug", mats: null /* rug.material, resolved at apply */, opts: [
+      ["galaxy", 0xffffff], ["ember", 0xf0a8a8], ["jungle", 0xa8e0b4], ["gold", 0xf0dca0]] },
+  };
+  var NEON_OPTS = [ // [label, hue-rotate degrees, light color]
+    ["pink", 0, 0xff5aa8], ["gold", 60, 0xffb84d], ["lime", 130, 0x8ae05a],
+    ["cyan", 200, 0x4dd8ff], ["violet", 265, 0x9a7dff]];
+  var LIGHT_PALS = {
+    classic: [0xff6a5a, 0xffd166, 0x8ad7ff, 0x7be08a, 0xc79bff],
+    "warm glow": [0xffe2b8, 0xffd9a0, 0xffe8c8, 0xffd9a0, 0xffeacc],
+    rainbow: [0xff4444, 0xff9d2a, 0xffd166, 0x4ae04a, 0x4a8aff, 0xb44aff],
+    ocean: [0x4ad8d8, 0x4a8aff, 0x7dc8ff, 0x2ae0b0, 0x8ad7ff],
+    candy: [0xff5aa8, 0xff8ac8, 0xffb8d8, 0xff5a7d, 0xffc8e0],
+  };
+  function roomOwnerName() {
+    var n = paintState.name;
+    if (!n) return null;
+    n = String(n).replace(/[^\w '\-\.]/g, "").trim().slice(0, 14);
+    return n || null;
+  }
+  var neonImg = null, nameMesh = null;
+  function applyNeonPaint() {
+    var opt = NEON_OPTS[paintState.neon || 0] || NEON_OPTS[0];
+    neonLight.color.set(opt[2]);
+    gNeon.material.color.set(opt[2]);
+    if (!neonMesh) return; // the texture-load callback re-calls us
+    if (!opt[1]) return;   // pink is the sign as manufactured
+    if (!neonImg) {
+      neonImg = new Image();
+      neonImg.onload = applyNeonPaint;
+      neonImg.src = "assets/tex/neon.png";
+      return;
+    }
+    if (!neonImg.complete || !neonImg.naturalWidth) return;
+    var c = document.createElement("canvas");
+    c.width = neonImg.naturalWidth; c.height = neonImg.naturalHeight;
+    var g = c.getContext("2d");
+    if (typeof g.filter === "string") { g.filter = "hue-rotate(" + opt[1] + "deg)"; g.drawImage(neonImg, 0, 0); }
+    else { g.drawImage(neonImg, 0, 0); neonMesh.material.color.set(opt[2]); } // old browsers: tint instead
+    var t = new THREE.CanvasTexture(c); t.anisotropy = 8;
+    neonMesh.material.map = t; neonMesh.material.needsUpdate = true;
+  }
+  function applyNameBanner() {
+    if (nameMesh) { scene.remove(nameMesh); nameMesh = null; }
+    var nm = roomOwnerName();
+    if (!nm) return;
+    var text = nm.toUpperCase() + (/s$/i.test(nm) ? "'" : "'S") + " ROOM";
+    var bT = canvasTex(512, 64, function (g, w, h) { // same crayon recipe as the birthday banner
+      g.fillStyle = "#efe6d0"; g.fillRect(0, 0, w, h);
+      g.strokeStyle = "#c9b895"; g.lineWidth = 3; g.strokeRect(3, 3, w - 6, h - 6);
+      var cols = ["#c0392b", "#2980b9", "#27ae60", "#8e44ad", "#e67e22"];
+      g.font = "bold 30px Georgia, serif"; g.textBaseline = "middle";
+      var tw = 0;
+      for (var m = 0; m < text.length; m++) tw += g.measureText(text[m]).width + 2;
+      var x = Math.max(14, (w - tw) / 2);
+      for (var i = 0; i < text.length; i++) {
+        g.fillStyle = cols[i % cols.length];
+        g.fillText(text[i], x, h / 2 + (i % 2 ? 3 : -3));
+        x += g.measureText(text[i]).width + 2;
+      }
+    });
+    nameMesh = new THREE.Mesh(new THREE.PlaneGeometry(1.7, 0.21), new THREE.MeshBasicMaterial({ map: bT }));
+    nameMesh.position.set(-1.3, season === "bday" ? 2.32 : 2.56, -2.52); // the birthday banner outranks you one day a year
+    nameMesh.rotation.z = 0.02;
+    scene.add(nameMesh);
+  }
+  function applyPaint() {
+    for (var k in PAINT) {
+      var row = PAINT[k], opt = row.opts[paintState[k] || 0] || row.opts[0];
+      var mats = row.mats || [rug.material];
+      mats.forEach(function (m) { m.userData.tint = opt[1]; if (m.map || opt[1] !== 0xffffff) m.color.set(opt[1]); });
+    }
+    if (!season) { // the calendar's own light shows (yule/spook/bday) always win
+      var pal = LIGHT_PALS[paintState.lights || "classic"] || LIGHT_PALS.classic;
+      for (var b = 0; b < bulbs.length; b++) {
+        bulbs[b].material.color.set(pal[b % pal.length]);
+        if (bulbs[b].userData.glow) bulbs[b].userData.glow.material.color.set(pal[b % pal.length]);
+      }
+    }
+    applyNeonPaint();
+    applyNameBanner();
+  }
+  function setPaint(key, val) {
+    paintState[key] = val;
+    saveJSON("room-paint", paintState);
+    applyPaint();
+  }
+
+  /* ---- the paint box panel ------------------------------------------------------ */
+  var pbStyle = document.createElement("style");
+  pbStyle.textContent =
+    "#paintbox-ov{position:fixed;inset:0;z-index:23;display:none;align-items:center;justify-content:center;" +
+    "background:rgba(5,7,10,.72)}" +
+    "#paintbox-ov.open{display:flex}" +
+    ".pb-card{width:min(480px,94vw);max-height:86vh;overflow-y:auto;background:#e8e0cc;color:#3a2e20;" +
+    "border-radius:6px;padding:22px 24px;box-shadow:0 30px 80px rgba(0,0,0,.6);transform:rotate(-.4deg)}" +
+    ".pb-card h2{font-size:18px;letter-spacing:.1em;border-bottom:2px dashed #b7a888;padding-bottom:8px}" +
+    ".pb-sub{font-style:italic;font-size:12.5px;color:#6a5a40;margin:6px 0 12px}" +
+    ".pb-row{margin:12px 0}" +
+    ".pb-lbl{font-family:'Inter',sans-serif;font-size:10.5px;letter-spacing:.12em;text-transform:uppercase;" +
+    "color:#6a5a40;margin-bottom:7px}" +
+    ".pb-sw{display:flex;gap:8px;flex-wrap:wrap}" +
+    ".pb-sw button{width:34px;height:34px;border-radius:50%;cursor:pointer;border:2px solid #b7a888;padding:0}" +
+    ".pb-sw button.on{border-color:#3a2e20;box-shadow:0 0 0 2px #e8e0cc,0 0 0 4px #3a2e20}" +
+    ".pb-sw button span{display:none}" +
+    ".pb-note{font-size:11px;font-style:italic;color:#8a7a5e}" +
+    ".pb-name{display:flex;gap:8px;align-items:center}" +
+    ".pb-name input{flex:1;font-family:Georgia,serif;font-size:14px;background:#f6efdd;color:#3a2e20;" +
+    "border:1px solid #b7a888;border-radius:5px;padding:8px 10px;min-width:0}" +
+    ".pb-name button,.pb-foot button{font-family:'Inter',sans-serif;font-size:10px;letter-spacing:.12em;" +
+    "text-transform:uppercase;background:none;border:1px solid #b7a888;border-radius:5px;padding:8px 12px;" +
+    "cursor:pointer;color:#5a4632}" +
+    ".pb-foot{display:flex;justify-content:space-between;gap:10px;margin-top:16px;flex-wrap:wrap}" +
+    ".pb-sw button:focus-visible,.pb-name input:focus-visible,.pb-name button:focus-visible," +
+    ".pb-foot button:focus-visible{outline:2px solid #ff5aa8;outline-offset:3px}";
+  document.head.appendChild(pbStyle);
+  document.body.insertAdjacentHTML("beforeend",
+    '<div id="paintbox-ov"><div class="pb-card">' +
+    "<h2>THE PAINT BOX</h2>" +
+    '<div class="pb-sub">same room, your colors — it all washes off</div>' +
+    '<div id="pb-rows"></div>' +
+    '<div class="pb-row"><div class="pb-lbl">this room belongs to</div>' +
+    '<div class="pb-name"><input id="pb-name" maxlength="14" placeholder="write your name" ' +
+    'autocomplete="off" spellcheck="false"><button id="pb-name-set" type="button">put it up</button></div></div>' +
+    '<div class="pb-foot"><button id="pb-reset" type="button">wash it all off</button>' +
+    '<button id="pb-close" type="button">put it back</button></div>' +
+    "</div></div>");
+  function hex6(n) { return "#" + ("00000" + n.toString(16)).slice(-6); }
+  function pbRender() {
+    var html = "";
+    for (var k in PAINT) {
+      var row = PAINT[k], cur = paintState[k] || 0;
+      html += '<div class="pb-row"><div class="pb-lbl">' + row.label + '</div><div class="pb-sw">';
+      row.opts.forEach(function (o, i) {
+        html += '<button type="button" data-paint="' + k + '" data-i="' + i + '"' +
+          (i === cur ? ' class="on"' : "") + ' style="background:' + hex6(o[1]) + '" title="' + o[0] +
+          '" aria-label="' + row.label + ": " + o[0] + '"><span>' + o[0] + "</span></button>";
+      });
+      html += "</div></div>";
+    }
+    html += '<div class="pb-row"><div class="pb-lbl">the neon sign</div><div class="pb-sw">';
+    NEON_OPTS.forEach(function (o, i) {
+      html += '<button type="button" data-neon="' + i + '"' + (i === (paintState.neon || 0) ? ' class="on"' : "") +
+        ' style="background:' + hex6(o[2]) + '" title="' + o[0] + '" aria-label="neon: ' + o[0] + '"></button>';
+    });
+    html += "</div></div>";
+    html += '<div class="pb-row"><div class="pb-lbl">the string lights</div>';
+    if (season) html += '<div class="pb-note">the season has the lights right now — come back after</div>';
+    else {
+      html += '<div class="pb-sw">';
+      for (var pk in LIGHT_PALS) {
+        var pal = LIGHT_PALS[pk];
+        var gradient = "linear-gradient(90deg," + pal.slice(0, 4).map(hex6).join(",") + ")";
+        html += '<button type="button" data-lights="' + pk + '"' +
+          (pk === (paintState.lights || "classic") ? ' class="on"' : "") +
+          ' style="background:' + gradient + '" title="' + pk + '" aria-label="lights: ' + pk + '"></button>';
+      }
+      html += "</div>";
+    }
+    html += "</div>";
+    document.getElementById("pb-rows").innerHTML = html;
+    document.getElementById("pb-name").value = paintState.name || "";
+  }
+  document.getElementById("pb-rows").addEventListener("click", function (e) {
+    var b = e.target.closest ? e.target.closest("button") : e.target;
+    if (!b || !b.getAttribute) return;
+    if (b.getAttribute("data-paint")) setPaint(b.getAttribute("data-paint"), +b.getAttribute("data-i"));
+    else if (b.getAttribute("data-neon") != null && b.getAttribute("data-neon") !== "") setPaint("neon", +b.getAttribute("data-neon"));
+    else if (b.getAttribute("data-lights")) setPaint("lights", b.getAttribute("data-lights"));
+    else return;
+    pbRender(); clickSfx(1600);
+  });
+  document.getElementById("pb-name-set").addEventListener("click", function () {
+    paintState.name = document.getElementById("pb-name").value;
+    saveJSON("room-paint", paintState);
+    applyPaint(); pbRender(); clickSfx(1700);
+    var nm = roomOwnerName();
+    if (nm) { try { kidSay(nm + "'s room. it's official — it's on the wall.", 4.5); } catch (e) { } }
+  });
+  document.getElementById("pb-reset").addEventListener("click", function () {
+    paintState = {};
+    saveJSON("room-paint", paintState);
+    // un-tint everything back to as-found
+    [wallM, wallMSide, floorM, rug.material].forEach(function (m) { m.userData.tint = null; m.color.set(0xffffff); });
+    if (neonMesh && neonImg && neonImg.complete) { var t = new THREE.Texture(neonImg); t.needsUpdate = true; t.anisotropy = 8; neonMesh.material.map = t; neonMesh.material.color.set(0xffffff); neonMesh.material.needsUpdate = true; }
+    applyPaint(); pbRender(); clickSfx(900);
+  });
+  function pbOpen() { pbRender(); document.getElementById("paintbox-ov").classList.add("open"); }
+  function pbClose() { document.getElementById("paintbox-ov").classList.remove("open"); }
+  document.getElementById("pb-close").addEventListener("click", function () { pbClose(); clickSfx(1100); });
+  // doors into the paint box: the rearrange toolbar + the shoebox footer
+  (function addPaintButtons() {
+    var bar = document.getElementById("decor-bar"), done = document.getElementById("dc-done");
+    if (bar && done) {
+      var b = document.createElement("button"); b.type = "button"; b.id = "dc-paint"; b.textContent = "the paint box";
+      b.addEventListener("click", function () { pbOpen(); clickSfx(1400); });
+      bar.insertBefore(b, done);
+    }
+    var foot = document.querySelector("#shoebox-ov .sbx-foot span");
+    if (foot) {
+      var b2 = document.createElement("button"); b2.type = "button"; b2.textContent = "the paint box";
+      b2.addEventListener("click", function () { sbxClose(); pbOpen(); clickSfx(1400); });
+      foot.insertBefore(b2, foot.firstChild);
+    }
+  })();
+  applyPaint(); // restore this visitor's colors + name
+
   var frameCount = 0, lastT = performance.now() / 1000;
   function tick() {
     requestAnimationFrame(tick);
@@ -2893,5 +3123,8 @@ import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
       layout: function () { return loadJSON("room-layout"); } },
     shoe: { defs: COLLECT, byKey: collByKey, state: function () { return shoeState; }, open: sbxOpen, close: sbxClose,
       place: placeColl, unplace: unplaceColl, render: sbxRender,
-      newCount: function () { return sbxNew; } } };
+      newCount: function () { return sbxNew; } },
+    paint: { state: function () { return paintState; }, set: setPaint, apply: applyPaint, open: pbOpen, close: pbClose,
+      defs: { PAINT: PAINT, NEON_OPTS: NEON_OPTS, LIGHT_PALS: LIGHT_PALS },
+      name: roomOwnerName, banner: function () { return nameMesh; } } };
 })();
