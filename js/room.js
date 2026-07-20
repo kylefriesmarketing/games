@@ -1767,6 +1767,7 @@ import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
     }
     if (document.body.classList.contains("listing")) return; // the list has native tab order
     if (document.activeElement && document.activeElement.tagName === "INPUT") return; // typing your name in the drawer
+    if (decorMode && decorKey(e)) return; // arrows nudge, [ ] spin, Del removes, ctrl+Z undoes
     if (e.key === "Tab") {
       e.preventDefault();
       var L = kbList();
@@ -2003,12 +2004,44 @@ import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
     chip.hidden = !cfg;
     if (cfg) {
       var isStk = !!cfg.isSticker;
-      document.getElementById("dw-sel-name").textContent = isStk ? "a sticker — scroll to resize" : cfg.label;
+      document.getElementById("dw-sel-name").textContent = isStk ? "a sticker — scroll to size, ⟲⟳ to spin" : cfg.label;
       ["dw-rotl", "dw-rotr"].forEach(function (id) {
-        var b = document.getElementById(id); if (b) b.disabled = isStk || !cfg.rot;
+        var b = document.getElementById(id); if (b) b.disabled = !(isStk || cfg.rot); // stickers spin in-plane
       });
       var back = document.getElementById("dw-back"); if (back) back.textContent = isStk ? "remove" : "put back";
     }
+  }
+  // keyboard while decorating: arrows nudge the selection, [ ] spin it, Delete puts it
+  // away, Ctrl/Cmd+Z undoes. (spinSelected/nudgeSelected/pushUndo etc. are hoisted.)
+  function decorKey(e) {
+    var k = e.key;
+    if ((e.ctrlKey || e.metaKey) && (k === "z" || k === "Z")) { e.preventDefault(); doUndo(); return true; }
+    if (!selCfg) return false;
+    if (k === "Delete" || k === "Backspace") {
+      e.preventDefault(); pushUndo();
+      if (selCfg.isSticker) { removeSticker(selCfg.entry); decorSelect(null); }
+      else { applyMove(selCfg, selCfg.def.x, selCfg.def.z, selCfg.def.ry, selCfg.surface ? selCfg.def.y : null); persistFor(selCfg); }
+      dwRender(); return true;
+    }
+    if (k === "[" || k === ",") { e.preventDefault(); spinSelected(0.15); return true; }
+    if (k === "]" || k === ".") { e.preventDefault(); spinSelected(-0.15); return true; }
+    var A = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1] }[k];
+    if (A) { e.preventDefault(); nudgeSelected(A[0] * (e.shiftKey ? 0.02 : 0.06), A[1] * (e.shiftKey ? 0.02 : 0.06)); return true; }
+    return false;
+  }
+  function nudgeSelected(dx, dy) {
+    if (!selCfg) return;
+    if (selCfg.isSticker) {
+      var e = selCfg.entry;
+      e.y = clamp(e.y - dy, 0.5, 3.0);                                  // up arrow raises
+      if (e.wall === "back") e.x = clamp(e.x + dx, -2.2, 2.2);
+      else e.z = clamp(e.z + (e.wall === "left" ? dx : -dx), -2.2, 2.4); // horizontal along the side wall
+      positionSticker(e); persistStickers();
+      return;
+    }
+    applyMove(selCfg, selCfg.root.position.x + dx, selCfg.root.position.z + dy,
+      selCfg.root.rotation.y, selCfg.surface ? selCfg.root.position.y : null);
+    persistFor(selCfg);
   }
   function decorSet(on) {
     if (on === decorMode) return;
@@ -2020,11 +2053,18 @@ import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
     if (b) b.textContent = on ? "done decorating" : "decorate";
     tip.classList.remove("show");
     document.body.style.cursor = "default";
-    if (on) dwTab(dwTabName); // the drawer wakes up on whatever tab it was left on
+    if (on) { dwTab(dwTabName); dismissNudge(); } // the drawer wakes up on whatever tab it was left on
     if (on && !decorSaidLine) {
       decorSaidLine = true;
       try { kidSay("rearranging? okay — mom will never believe it wasn't me.", 4.5); } catch (e) { }
     }
+  }
+  // First-time visitors might never spot the decorate button — pulse it once, with a
+  // little callout, until they use it (then never again).
+  function dismissNudge() {
+    document.body.classList.remove("nudge-decor");
+    var n = document.getElementById("decor-nudge"); if (n) n.classList.remove("show");
+    try { localStorage.setItem("room-decor-seen", "1"); } catch (e) { }
   }
   function decorReset() {
     movables.forEach(function (c) {
@@ -2530,12 +2570,19 @@ import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
     e.cfg = { isSticker: true, entry: e, label: "a sticker", root: m, rot: false, kind: "sticker" };
     return m;
   }
+  var STK_NORMAL = { back: new THREE.Vector3(0, 0, 1), left: new THREE.Vector3(1, 0, 0), right: new THREE.Vector3(-1, 0, 0) };
+  var _sq0 = new THREE.Quaternion(), _sq1 = new THREE.Quaternion(), _sz = new THREE.Vector3(0, 0, 1);
   function positionSticker(e) {
     var p = wallPlace(e.wall, e.x, e.y, e.z);
     e.x = p.x; e.y = p.y; e.z = p.z;
     e.mesh.position.set(p.x, p.y, p.z);
-    e.mesh.rotation.set(0, p.ry, 0);
+    // face the wall's normal, then roll the decal in its own plane by e.rot
+    var n = STK_NORMAL[e.wall] || STK_NORMAL.back;
+    _sq0.setFromUnitVectors(_sz, n);
+    _sq1.setFromAxisAngle(n, e.rot || 0);
+    e.mesh.quaternion.copy(_sq1.multiply(_sq0));
   }
+  function rotateSticker(e, d) { e.rot = ((e.rot || 0) + d); positionSticker(e); persistStickers(); }
   function moveStickerTo(e, wp) {
     e.wall = wp.wall; e.x = wp.place.x; e.y = wp.place.y; e.z = wp.place.z;
     positionSticker(e);
@@ -2558,7 +2605,7 @@ import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
   }
   function persistStickers() {
     saveJSON("room-stickers", stickers.map(function (e) {
-      return { d: e.design, w: e.wall, x: +e.x.toFixed(3), y: +e.y.toFixed(3), z: +e.z.toFixed(3), s: +(e.scale || 1).toFixed(2) };
+      return { d: e.design, w: e.wall, x: +e.x.toFixed(3), y: +e.y.toFixed(3), z: +e.z.toFixed(3), s: +(e.scale || 1).toFixed(2), r: +(e.rot || 0).toFixed(3) };
     }));
   }
   function rebuildStickers(list) {
@@ -2566,7 +2613,7 @@ import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
     stickers = [];
     (list || []).forEach(function (o) {
       if (!STK_BY_ID[o.d]) return;
-      var e = { design: o.d, wall: o.w || "back", x: o.x, y: o.y, z: o.z, scale: o.s || 1 };
+      var e = { design: o.d, wall: o.w || "back", x: o.x, y: o.y, z: o.z, scale: o.s || 1, rot: o.r || 0 };
       buildStickerMesh(e); stickers.push(e);
     });
   }
@@ -2575,11 +2622,12 @@ import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
   /* ---- one blob for the whole room: powers undo, presets, and share links ------- */
   function roomStateBlob() {
     return {
+      v: 1, // schema version — decodeRoom tolerates older/newer
       l: loadJSON("room-layout") || {},
       p: JSON.parse(JSON.stringify(paintState)),
       o: JSON.parse(JSON.stringify(outState)),
       c: JSON.parse(JSON.stringify(shoeState.placed || {})),
-      k: stickers.map(function (e) { return { d: e.design, w: e.wall, x: e.x, y: e.y, z: e.z, s: e.scale || 1 }; }),
+      k: stickers.map(function (e) { return { d: e.design, w: e.wall, x: e.x, y: e.y, z: e.z, s: e.scale || 1, r: e.rot || 0 }; }),
     };
   }
   function applyRoomState(b) {
@@ -2750,6 +2798,16 @@ import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
     "background:none;border:1px solid var(--line);border-radius:6px;padding:7px 2px;cursor:pointer}" +
     "#dw-actions button:hover:not(:disabled){color:var(--bone);border-color:var(--dim)}" +
     "#dw-actions button:disabled{opacity:.35;cursor:default}" +
+    "#decor-nudge{position:fixed;top:100px;right:22px;z-index:7;font-family:'Inter',sans-serif;font-size:12px;" +
+    "font-weight:600;color:#0a0c12;background:#ffd9a0;border-radius:8px;padding:8px 12px;max-width:180px;" +
+    "box-shadow:0 6px 20px rgba(0,0,0,.4);opacity:0;transition:opacity .5s;pointer-events:none}" +
+    "#decor-nudge.show{opacity:1}" +
+    "#decor-nudge:after{content:'';position:absolute;top:-6px;right:18px;border:6px solid transparent;" +
+    "border-top:0;border-bottom-color:#ffd9a0}" +
+    "body.decorating #decor-nudge,body.listing #decor-nudge,body.no3d #decor-nudge{display:none}" +
+    "@keyframes decorPulse{0%,100%{box-shadow:0 0 0 0 rgba(255,90,168,0)}50%{box-shadow:0 0 16px 3px rgba(255,90,168,.6)}}" +
+    "body.nudge-decor #decor-btn{animation:decorPulse 1.8s ease-in-out infinite;color:#ffd9a0;border-color:#8a6f4a}" +
+    "@media (prefers-reduced-motion:reduce){body.nudge-decor #decor-btn{animation:none;color:#ffd9a0;border-color:#8a6f4a}}" +
     "@media (max-width:640px),(max-aspect-ratio:9/10){#decor-drawer{top:auto;left:10px;right:10px;bottom:10px;" +
     "width:auto;max-height:52vh}}" +
     "#decor-btn:focus-visible,#decor-drawer button:focus-visible,.dw-name input:focus-visible{" +
@@ -2757,6 +2815,7 @@ import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
   document.head.appendChild(decorStyle);
   document.body.insertAdjacentHTML("beforeend",
     '<button id="decor-btn" type="button">decorate</button>' +
+    '<div id="decor-nudge">✨ make it yours — decorate the room</div>' +
     '<div id="decor-drawer" role="region" aria-label="decorate the room">' +
     '<div id="dw-tabs">' +
     '<button type="button" data-tab="stuff">🧸 stuff<span id="dw-new" hidden>●</span></button>' +
@@ -2803,8 +2862,13 @@ import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
     var b = e.target.closest ? e.target.closest("button") : null;
     if (b) { dwTab(b.getAttribute("data-tab")); clickSfx(1400); }
   });
-  document.getElementById("dw-rotl").addEventListener("click", function () { if (selCfg && selCfg.rot) { decorRotate(selCfg, 0.22); clickSfx(1500); } });
-  document.getElementById("dw-rotr").addEventListener("click", function () { if (selCfg && selCfg.rot) { decorRotate(selCfg, -0.22); clickSfx(1500); } });
+  document.getElementById("dw-rotl").addEventListener("click", function () { spinSelected(0.22); });
+  document.getElementById("dw-rotr").addEventListener("click", function () { spinSelected(-0.22); });
+  function spinSelected(d) {
+    if (!selCfg) return;
+    if (selCfg.isSticker) { rotateSticker(selCfg.entry, d); clickSfx(1500); }
+    else if (selCfg.rot) { decorRotate(selCfg, d); clickSfx(1500); }
+  }
   document.getElementById("dw-back").addEventListener("click", function () {
     if (!selCfg) return;
     pushUndo();
@@ -2817,6 +2881,22 @@ import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
   document.getElementById("dw-undo").addEventListener("click", function () { doUndo(); clickSfx(1100); });
   document.getElementById("dw-photo").addEventListener("click", function () { shareRoom(); clickSfx(1500); });
   document.getElementById("dw-link").addEventListener("click", function () { copyRoomLink(); clickSfx(1500); });
+  (function decorNudge() { // pulse the decorate button once for first-timers, after they're inside
+    var seen; try { seen = localStorage.getItem("room-decor-seen"); } catch (e) { }
+    if (seen) return;
+    var iv = setInterval(function () {
+      var ec = document.getElementById("enter");
+      if (ec && !ec.classList.contains("gone")) return; // still on the entry card
+      clearInterval(iv);
+      setTimeout(function () {
+        try { if (localStorage.getItem("room-decor-seen")) return; } catch (e) { }
+        if (decorMode) return;
+        var n = document.getElementById("decor-nudge"); if (!n) return;
+        document.body.classList.add("nudge-decor"); n.classList.add("show");
+        setTimeout(dismissNudge, 11000); // auto-fade; also cleared the moment they open the drawer
+      }, 4500);
+    }, 2000);
+  })();
   document.getElementById("dw-body").addEventListener("click", function (e) {
     var b = e.target.closest ? e.target.closest("button") : null;
     if (!b) return;
