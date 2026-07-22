@@ -79,6 +79,9 @@ import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
   function clickable(mesh, name, action, hint) { mesh.userData = { name: name, action: action, hint: hint || "click to open" }; pick.push(mesh); return mesh; }
   function go(url) { var f = function () { markVisited(url); window.location.href = url; }; f.__nav = url; return f; } // __nav marks doorway actions — THE KID walks to those
   var BASE = "https://kylefriesmarketing.github.io/";
+  // Declared up here because BOTH the duffel bag and its wall poster read it, and the
+  // poster is built earlier in the file. Empty string ⇒ both revert to "coming soon".
+  var HOOD_RUN_URL = BASE + "hood-run/"; // live 2026-07-22
 
   /* ---- reading the sibling games' saves (same origin) ------------------------ */
   function readSave(key, fn) {
@@ -1416,12 +1419,70 @@ import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
       clickable(mm, "BRAINROT", go("https://dumb-tony.github.io/GameRepos/brainrot/"), "BRAINROT: RISE OF THE MEME — click to play (Dumb Tony's)");
     });
   })();
-  // (the back-wall poster beside the shelf came down — that wall's free for the next game)
+  // HOOD RUN's poster takes the back-wall spot beside the shelf. Drawn, not photographed:
+  // a night skyline, the last of the sun behind it, and somebody already running.
+  var posterHood = null;
+  (function wallPosterHood() {
+    var g = new THREE.Group(); posterHood = g;
+    var backing = box(0.56, 0.82, 0.02, mat(0xe8e2d4, 0.9)); g.add(backing);
+    var art = new THREE.Mesh(new THREE.PlaneGeometry(0.52, 0.78), new THREE.MeshStandardMaterial({
+      roughness: 0.88,
+      map: canvasTex(320, 480, function (c, w, h) {
+        var sky = c.createLinearGradient(0, 0, 0, h * 0.72);           // dusk over the city
+        sky.addColorStop(0, "#10131f"); sky.addColorStop(0.55, "#2b2340"); sky.addColorStop(1, "#e8734a");
+        c.fillStyle = sky; c.fillRect(0, 0, w, h);
+        c.fillStyle = "rgba(255,214,150,0.9)";                          // low sun
+        c.beginPath(); c.arc(w * 0.68, h * 0.6, 34, 0, 7); c.fill();
+        var towers = [[8, 250, 44, 0], [50, 300, 34, 1], [86, 215, 40, 0], [128, 285, 30, 1],
+                      [160, 190, 48, 0], [210, 265, 36, 1], [248, 225, 34, 0], [284, 300, 30, 1]];
+        towers.forEach(function (t) {                                    // silhouettes, near ones darker
+          var top = h * 0.72 - t[1] * 0.42;
+          c.fillStyle = t[3] ? "#0b0d16" : "#171b2b";
+          c.fillRect(t[0], top, t[2], h * 0.72 - top + 4);
+          c.fillStyle = "rgba(255,206,140,0.5)";                         // lit windows
+          for (var wy = top + 8; wy < h * 0.72 - 10; wy += 13)
+            for (var wx = t[0] + 6; wx < t[0] + t[2] - 6; wx += 11)
+              if (((wx + wy) % 7) < 3) c.fillRect(wx, wy, 4, 6);
+        });
+        c.fillStyle = "#0b0d16"; c.fillRect(0, h * 0.72, w, h * 0.28);   // the street
+        c.strokeStyle = "rgba(232,115,74,0.55)"; c.lineWidth = 3;         // speed lines
+        [0.79, 0.845, 0.9].forEach(function (fy, i) {
+          c.beginPath(); c.moveTo(w * (0.06 + i * 0.04), h * fy); c.lineTo(w * (0.34 + i * 0.05), h * fy); c.stroke();
+        });
+        c.save();                                                        // the runner
+        c.translate(w * 0.56, h * 0.845); c.scale(1.15, 1.15);
+        // coral, NOT the street's own near-black — a silhouette the same colour as
+        // the road behind it is a silhouette nobody can see
+        c.fillStyle = "#e8734a";
+        c.beginPath(); c.arc(6, -46, 7, 0, 7); c.fill();                 // head
+        c.lineWidth = 7; c.strokeStyle = "#e8734a"; c.lineCap = "round";
+        c.beginPath(); c.moveTo(4, -38); c.lineTo(0, -18); c.stroke();   // torso
+        c.beginPath(); c.moveTo(0, -18); c.lineTo(-14, -2); c.stroke();  // back leg
+        c.beginPath(); c.moveTo(0, -18); c.lineTo(16, -8); c.lineTo(14, 6); c.stroke(); // front leg
+        c.beginPath(); c.moveTo(4, -34); c.lineTo(-12, -28); c.stroke(); // trailing arm
+        c.beginPath(); c.moveTo(4, -34); c.lineTo(18, -40); c.stroke();  // leading arm
+        c.restore();
+        c.fillStyle = "#f6efdd"; c.textAlign = "center";                  // the wordmark
+        c.font = "bold 46px Inter, Arial, sans-serif";
+        c.fillText("HOOD RUN", w / 2, h * 0.16);
+        c.fillStyle = "#e8734a"; c.font = "bold 15px Inter, Arial, sans-serif";
+        c.fillText("THE CROSSTOWN DASH", w / 2, h * 0.215);
+        c.strokeStyle = "rgba(246,239,221,0.35)"; c.lineWidth = 2;
+        c.strokeRect(10, 10, w - 20, h - 20);
+      }),
+    }));
+    art.position.z = 0.012; g.add(art);
+    g.position.set(-3.05, 1.9, -2.53); g.rotation.z = -0.02; // taped a touch crooked, like the rest
+    scene.add(g);
+    [backing, art].forEach(function (mm) {
+      clickable(mm, "HOOD RUN", HOOD_RUN_URL ? go(HOOD_RUN_URL) : null,
+        HOOD_RUN_URL ? "HOOD RUN — the Crosstown Dash · click to run" : "HOOD RUN — coming soon");
+    });
+  })();
 
   /* ---- HOOD RUN: the getaway corner by the door ------------------------------- */
   // A stuffed duffel bag with the take spilling out, and the safe it came out of.
   // Set HOOD_RUN_URL when the game goes live and this becomes a doorway on its own.
-  var HOOD_RUN_URL = BASE + "hood-run/"; // live 2026-07-22 (empty would make it a "coming soon" prop)
   var hoodG = new THREE.Group();
   var canvasM = mat(0x2f3a44, 0.95), canvasDark = mat(0x222a32, 0.95);
   var billM = mat(0x5f8a5c, 0.85), bandM = mat(0xc9a35c, 0.6);
@@ -1437,8 +1498,19 @@ import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
     var hn = new THREE.Mesh(new THREE.TorusGeometry(0.045, 0.008, 6, 14, Math.PI), canvasDark);
     hn.position.set(x, 0.25, 0); hn.rotation.y = Math.PI / 2; hoodG.add(hn);
   });
+  // The bag knows how your runs are going (same-origin hr-save), the way the toy
+  // chest knows about the campaign: the further you've got, the bigger the take.
+  var hrNow = (function () {
+    var s = readSave("hr-save", function (m) { return m; });
+    if (!s) return { played: false, best: 0, runs: 0 };
+    return { played: !!((s.lifetime && s.lifetime.runs > 0) || s.bestDist > 0),
+             best: s.bestDist || 0, runs: (s.lifetime && s.lifetime.runs) || 0 };
+  })();
+  var hrExtra = Math.min(4, Math.floor(hrNow.best / 500)); // a fresh bag holds four bundles; +1 per 500m, capped
   // the take: banded bundles, a couple still in the bag, a couple spilled on the carpet
-  [[0.02, 0.28, 0.02, 0.5], [-0.05, 0.29, -0.03, -0.3], [0.24, 0.026, 0.11, 1.1], [0.29, 0.026, -0.04, -0.6]]
+  [[0.02, 0.28, 0.02, 0.5], [-0.05, 0.29, -0.03, -0.3], [0.24, 0.026, 0.11, 1.1], [0.29, 0.026, -0.04, -0.6],
+   [0.09, 0.30, -0.04, 0.9], [-0.16, 0.28, 0.04, -0.9], [0.34, 0.026, 0.17, 0.3], [0.19, 0.026, -0.15, -1.2]]
+    .slice(0, 4 + hrExtra)
     .forEach(function (b) {
       var bundle = new THREE.Mesh(new THREE.BoxGeometry(0.085, 0.038, 0.05), billM);
       bundle.position.set(b[0], b[1], b[2]); bundle.rotation.y = b[3];
@@ -1461,8 +1533,9 @@ import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
   spoke.position.set(0.24, 0.12, 0.2); spoke.rotation.z = 0.6; safeG.add(spoke);
   safeG.position.set(-0.34, 0, -0.16); safeG.rotation.y = 0.45; hoodG.add(safeG);
   hoodG.position.set(-2.85, 0, 1.75); hoodG.rotation.y = 0.35; scene.add(hoodG);
-  var hoodHint = HOOD_RUN_URL ? "HOOD RUN — the Crosstown Dash · click to run"
-                              : "HOOD RUN — the take from City Trust · coming soon";
+  var hoodHint = !HOOD_RUN_URL ? "HOOD RUN — the take from City Trust · coming soon"
+    : hrNow.played ? "HOOD RUN — " + Math.round(hrNow.best).toLocaleString() + " m best · go further"
+    : "HOOD RUN — the Crosstown Dash · click to run";
   hoodG.traverse(function (o) {
     if (o.isMesh) clickable(o, "HOOD RUN", HOOD_RUN_URL ? go(HOOD_RUN_URL) : function () {
       try { kidSay("that one's not finished yet. soon, though.", 4); } catch (e) { }
@@ -3524,8 +3597,8 @@ import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
       get: function () { return [war]; } },
     { key: "island", sec: "toys", label: "the toy island (TIDEBOUND)", obs: 3,
       get: function () { return movableByKey.island ? [movableByKey.island.root] : []; } },
-    { key: "hoodbag", sec: "toys", label: "the duffel bag (HOOD RUN)", obs: 7,
-      get: function () { return [hoodG]; } },
+    { key: "hoodbag", sec: "toys", label: "the duffel bag (HOOD RUN) + poster", obs: 7,
+      get: function () { return [hoodG, posterHood]; } },
     { key: "brain", sec: "desk", label: "the brain (BRAINROT) + poster", halos: function () { return [gBrain]; },
       get: function () { return [brainG, posterBrainrot]; } },
     { key: "pc", sec: "desk", label: "the beige PC",
