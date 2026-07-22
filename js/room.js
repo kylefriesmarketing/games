@@ -1421,7 +1421,7 @@ import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
   /* ---- HOOD RUN: the getaway corner by the door ------------------------------- */
   // A stuffed duffel bag with the take spilling out, and the safe it came out of.
   // Set HOOD_RUN_URL when the game goes live and this becomes a doorway on its own.
-  var HOOD_RUN_URL = ""; // ← not published yet; empty keeps it a "coming soon" prop
+  var HOOD_RUN_URL = BASE + "hood-run/"; // live 2026-07-22 (empty would make it a "coming soon" prop)
   var hoodG = new THREE.Group();
   var canvasM = mat(0x2f3a44, 0.95), canvasDark = mat(0x222a32, 0.95);
   var billM = mat(0x5f8a5c, 0.85), bandM = mat(0xc9a35c, 0.6);
@@ -1783,7 +1783,7 @@ import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
     html += nbRow("Brainrot", "on Tony's shelf");
     html += nbRow("Tidebound", "on Tony's shelf");
     var hr = readSave("hr-save", function (m) { return m; });
-    html += nbRow("Hood Run", hr && hr.bestDist > 0 ? Math.round(hr.bestDist) + " m best" : "coming soon");
+    html += nbRow("Hood Run", hr && hr.bestDist > 0 ? Math.round(hr.bestDist) + " m best" : "no run yet");
     nbPages.push({ title: "what i finished", html: html });
     if (tt.started || stories) { // the war, act by act
       var p = readSave("tt-campaign", function (m) { return m; }) || {};
