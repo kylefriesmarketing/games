@@ -1933,7 +1933,10 @@ import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
     kidState.ignoreObs = -1; kidState.targetY = 0;
     kidGoto(KID_HUB.x, KID_HUB.z);
   }
-  function persistLayout() {
+  // Read the layout off the LIVE objects, never off localStorage — a snapshot taken
+  // before the last save (mid-drag, or a programmatic move) would otherwise capture
+  // a stale room, which silently breaks undo and share links.
+  function currentLayout() {
     var out = {};
     movables.forEach(function (c) {
       if (c.kind === "coll") return;
@@ -1942,8 +1945,9 @@ import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
           Math.abs(r.rotation.y - c.def.ry) > 0.01)
         out[c.key] = { x: +r.position.x.toFixed(3), z: +r.position.z.toFixed(3), ry: +r.rotation.y.toFixed(3) };
     });
-    saveJSON("room-layout", out);
+    return out;
   }
+  function persistLayout() { saveJSON("room-layout", currentLayout()); }
   function persistFor(cfg) { if (cfg.isSticker) persistStickers(); else if (cfg.kind === "coll") persistColl(cfg); else persistLayout(); }
 
   /* ---- picking + dragging ----------------------------------------------------- */
@@ -2106,6 +2110,7 @@ import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
     try { localStorage.setItem("room-decor-seen", "1"); } catch (e) { }
   }
   function decorReset() {
+    pushUndo(); // it throws away every position you set — that has to be recoverable
     movables.forEach(function (c) {
       if (c.kind === "coll") return;
       applyMove(c, c.def.x, c.def.z, c.def.ry);
@@ -2662,7 +2667,7 @@ import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
   function roomStateBlob() {
     return {
       v: 1, // schema version — decodeRoom tolerates older/newer
-      l: loadJSON("room-layout") || {},
+      l: currentLayout(), // live positions, not whatever was last written to storage
       p: JSON.parse(JSON.stringify(paintState)),
       o: JSON.parse(JSON.stringify(outState)),
       c: JSON.parse(JSON.stringify(shoeState.placed || {})),
@@ -2925,6 +2930,9 @@ import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
   var dwTabName = "stuff";
   function dwTab(name) {
     dwTabName = name || "stuff";
+    // never carry a half-finished action across tabs — an armed "start fresh"
+    // coming back live would wipe the room on one stray click
+    renamingSlot = -1; freshArmed = false;
     document.querySelectorAll("#dw-tabs button").forEach(function (b) {
       var on = b.getAttribute("data-tab") === dwTabName;
       b.classList.toggle("on", on);
@@ -3017,6 +3025,17 @@ import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
       }, 4500);
     }, 2000);
   })();
+  // Enter submits whichever field you're in — nobody should have to hunt for the button
+  document.getElementById("dw-body").addEventListener("keydown", function (e) {
+    if (e.key !== "Enter" || !e.target || e.target.tagName !== "INPUT") return;
+    e.preventDefault();
+    var by = { "dw-slot-name": '#dw-body button[data-act="saveroom"]',
+               "dw-paste": '#dw-body button[data-act="pasteroom"]',
+               "dw-rename-inp": "#dw-body button[data-renameok]",
+               "dw-name-inp": "#dw-name-set" }[e.target.id];
+    var btn = by && document.querySelector(by);
+    if (btn) btn.click();
+  });
   document.getElementById("dw-body").addEventListener("click", function (e) {
     var b = e.target.closest ? e.target.closest("button") : null;
     if (!b) return;
@@ -3070,7 +3089,14 @@ import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
       var pv = document.getElementById("dw-paste");
       if (pasteRoom(pv ? pv.value : "")) { dwRender(); clickSfx(1700); } else clickSfx(700);
     } else if (act === "fresh") {
-      if (!freshArmed) { freshArmed = true; dwRender(); clickSfx(900); setTimeout(function () { freshArmed = false; }, 6000); }
+      if (!freshArmed) {
+        freshArmed = true; dwRender(); clickSfx(900);
+        setTimeout(function () { // disarm, and put the label back so it can't lie
+          if (!freshArmed) return;
+          freshArmed = false;
+          if (decorMode && dwTabName === "saved") dwRender();
+        }, 6000);
+      }
       else { freshArmed = false; startFresh(); dwRender(); clickSfx(700); }
     } else if ((key = b.getAttribute("data-loadroom")) != null) {
       loadRoom(+key); dwRender(); clickSfx(1600);
@@ -3536,6 +3562,9 @@ import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
       msg.textContent = "that key doesn't fit this one."; msg.className = "st-msg bad";
       clickSfx(700);
     }
+  });
+  document.getElementById("st-code").addEventListener("keydown", function (e) {
+    if (e.key === "Enter") { e.preventDefault(); document.getElementById("st-redeem").click(); }
   });
   document.getElementById("st-close").addEventListener("click", function () { closeStore(); clickSfx(1100); });
   applyStore();
