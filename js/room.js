@@ -1760,6 +1760,8 @@ import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
   }
   window.addEventListener("keydown", function (e) {
     if (e.key === "Escape") {
+      var sto = document.getElementById("store-ov");
+      if (sto && sto.classList.contains("open")) { closeStore(); return; }
       if (decorMode) { decorSet(false); return; }
       document.getElementById("notebook").classList.remove("open");
       document.body.classList.remove("listing");
@@ -1948,6 +1950,8 @@ import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
     return null;
   }
   function decorPointerDown(e) {
+    var st = document.getElementById("store-ov");
+    if (st && st.classList.contains("open")) return true;   // the key card owns the pointer
     var nb = document.getElementById("notebook");
     if (nb && nb.classList.contains("open")) return true;   // no click-through on the open notebook
     if (!decorMode) return false;
@@ -3354,6 +3358,153 @@ import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
   function obClose() { decorSet(false); }
   applyOut(); // restore this visitor's shelf
 
+  /* ============================================================================
+   * THE STOREFRONT SKELETON — the ownership layer the game-key model will sit on.
+   * EVERY game here is free today (free: true), so nothing is locked for anyone;
+   * this is the machinery, wired and provable. A game that needs a key sits on
+   * the shelf wrapped like a present until you redeem one. Add ?store=demo to
+   * preview that whole flow without changing what real visitors see.
+   * ========================================================================== */
+  var storeDemo = /[?&]store=demo/.test(location.search);
+  var ownedKeys = loadJSON("room-keys") || [];
+  var GAME_KEYS = {};
+  PLAY.forEach(function (p) {
+    var sku = p.t.replace(/[^A-Z0-9]/g, "");
+    GAME_KEYS[p.t] = { sku: sku, code: "KEY-" + sku, price: "$0.99", free: true, url: p.url, tip: p.tip, color: p.c };
+  });
+  function gameLocked(title) {
+    var g = GAME_KEYS[title];
+    if (!g) return false;
+    if (g.free && !storeDemo) return false;              // today: the whole shelf is free
+    return ownedKeys.indexOf(g.sku) < 0;
+  }
+  function ownKey(sku) {
+    if (ownedKeys.indexOf(sku) < 0) { ownedKeys.push(sku); saveJSON("room-keys", ownedKeys); }
+  }
+  // a present: pastel paper, a ribbon, and a tag with nothing written on it yet
+  function wrapPaperTex(seed) {
+    return canvasTex(64, 64, function (g, w, h) {
+      var hue = (seed * 47) % 360;
+      g.fillStyle = "hsl(" + hue + ",42%,72%)"; g.fillRect(0, 0, w, h);
+      g.strokeStyle = "hsla(" + hue + ",50%,88%,0.9)"; g.lineWidth = 3;
+      for (var i = -h; i < w; i += 14) { g.beginPath(); g.moveTo(i, 0); g.lineTo(i + h, h); g.stroke(); }
+    });
+  }
+  function wrapSpineTex(seed) {
+    return canvasTex(128, 512, function (g, w, h) {
+      var hue = (seed * 47) % 360;
+      g.fillStyle = "hsl(" + hue + ",42%,72%)"; g.fillRect(0, 0, w, h);
+      g.strokeStyle = "hsla(" + hue + ",50%,88%,0.9)"; g.lineWidth = 5;
+      for (var i = -h; i < w; i += 22) { g.beginPath(); g.moveTo(i, 0); g.lineTo(i + h, h); g.stroke(); }
+      g.fillStyle = "#e8dcc0"; g.fillRect(w * 0.28, 0, w * 0.44, h);          // ribbon
+      g.fillStyle = "#c9a35c"; g.fillRect(w * 0.28, h * 0.42, w * 0.44, 10);  // knot
+      g.save(); g.translate(w / 2, h * 0.62); g.rotate(-0.08);                 // gift tag
+      g.fillStyle = "#f6efdd"; g.fillRect(-26, -20, 52, 40);
+      g.strokeStyle = "#b7a888"; g.lineWidth = 2; g.strokeRect(-26, -20, 52, 40);
+      g.fillStyle = "#5a4632"; g.font = "bold 30px Georgia, serif";
+      g.textAlign = "center"; g.textBaseline = "middle"; g.fillText("?", 0, 1);
+      g.restore();
+    });
+  }
+  var wrapCache = {};
+  function wrappedMats(title, i) {
+    if (wrapCache[title]) return wrapCache[title];
+    var paper = new THREE.MeshStandardMaterial({ map: wrapPaperTex(i + 1), roughness: 0.75 });
+    var spine = new THREE.MeshStandardMaterial({ map: wrapSpineTex(i + 1), roughness: 0.7 });
+    return (wrapCache[title] = [paper, paper, paper, paper, spine, paper]);
+  }
+  function applyStore() {
+    PLAY.forEach(function (p, i) {
+      var bk = bookByTitle[p.t]; if (!bk) return;
+      if (gameLocked(p.t)) {
+        if (!bk.userData.__origMats) bk.userData.__origMats = bk.material;
+        highlightOff(bk); // never leave a hover clone behind when the covers swap
+        bk.material = wrappedMats(p.t, i);
+        bk.userData.action = function () { openStore(p.t); };  // no __nav: the kid doesn't fetch what you don't own
+        bk.userData.hint = p.t + " — still wrapped · click to get the key";
+      } else if (bk.userData.__origMats) {
+        highlightOff(bk);
+        bk.material = bk.userData.__origMats; bk.userData.__origMats = null;
+        bk.userData.action = go(p.url);
+        bk.userData.hint = p.tip;
+      }
+    });
+    kbListDirty = true;
+  }
+
+  var storeStyle = document.createElement("style");
+  storeStyle.textContent =
+    "#store-ov{position:fixed;inset:0;z-index:26;display:none;align-items:center;justify-content:center;" +
+    "background:rgba(5,7,10,.74)}" +
+    "#store-ov.open{display:flex}" +
+    ".st-card{width:min(380px,92vw);background:#12161f;color:var(--bone);border:1px solid var(--line);" +
+    "border-radius:12px;padding:22px 24px;box-shadow:0 30px 80px rgba(0,0,0,.6);" +
+    "font-family:'Inter',sans-serif;text-align:center}" +
+    ".st-gift{font-size:34px}" +
+    ".st-title{font-weight:800;font-size:19px;letter-spacing:.04em;margin:8px 0 4px}" +
+    ".st-hook{font-family:Georgia,serif;font-style:italic;font-size:13px;color:var(--dim);line-height:1.5;margin-bottom:14px}" +
+    ".st-price{font-size:22px;font-weight:700;color:#ffd9a0;margin-bottom:4px}" +
+    ".st-soon{font-size:11px;color:var(--faint);margin-bottom:14px}" +
+    ".st-row{display:flex;gap:7px;margin-bottom:10px}" +
+    ".st-row input{flex:1;min-width:0;font-family:'Inter',sans-serif;font-size:13px;letter-spacing:.08em;" +
+    "text-transform:uppercase;background:rgba(255,255,255,.06);color:var(--bone);border:1px solid var(--line);" +
+    "border-radius:6px;padding:9px 10px}" +
+    ".st-card button{font-family:'Inter',sans-serif;font-size:10px;letter-spacing:.12em;text-transform:uppercase;" +
+    "color:var(--dim);background:none;border:1px solid var(--line);border-radius:6px;padding:9px 13px;cursor:pointer}" +
+    ".st-card button:hover{color:var(--bone);border-color:var(--dim)}" +
+    ".st-msg{font-size:11.5px;min-height:16px;margin-bottom:10px}" +
+    ".st-msg.bad{color:#ff8a8a}.st-msg.good{color:#8ae0a0}" +
+    ".st-hint{font-size:10.5px;color:var(--faint);margin-top:8px;line-height:1.5}" +
+    ".st-card input:focus-visible,.st-card button:focus-visible{outline:2px solid #ff5aa8;outline-offset:2px}";
+  document.head.appendChild(storeStyle);
+  document.body.insertAdjacentHTML("beforeend",
+    '<div id="store-ov" role="dialog" aria-modal="true" aria-label="get a key"><div class="st-card">' +
+    '<div class="st-gift">🎁</div>' +
+    '<div class="st-title" id="st-title"></div>' +
+    '<div class="st-hook" id="st-hook"></div>' +
+    '<div class="st-price" id="st-price"></div>' +
+    '<div class="st-soon">keys aren\'t on sale yet — this is a preview of how it will work</div>' +
+    '<div class="st-msg" id="st-msg"></div>' +
+    '<div class="st-row"><input id="st-code" placeholder="enter a key" autocomplete="off" spellcheck="false">' +
+    '<button id="st-redeem" type="button">redeem</button></div>' +
+    '<button id="st-close" type="button">maybe later</button>' +
+    '<div class="st-hint" id="st-hint"></div>' +
+    "</div></div>");
+  var storeTitle = null;
+  function openStore(title) {
+    storeTitle = title;
+    var g = GAME_KEYS[title]; if (!g) return;
+    document.getElementById("st-title").textContent = title;
+    document.getElementById("st-hook").textContent = g.tip;
+    document.getElementById("st-price").textContent = g.price;
+    document.getElementById("st-msg").textContent = ""; document.getElementById("st-msg").className = "st-msg";
+    document.getElementById("st-code").value = "";
+    document.getElementById("st-hint").textContent = storeDemo ? "preview mode — this one's key is " + g.code : "";
+    document.getElementById("store-ov").classList.add("open");
+    clickSfx(1200);
+  }
+  function closeStore() { document.getElementById("store-ov").classList.remove("open"); storeTitle = null; }
+  function redeemKey(code) {
+    var g = GAME_KEYS[storeTitle]; if (!g) return false;
+    if (String(code || "").trim().toUpperCase() !== g.code) return false;
+    ownKey(g.sku); applyStore();
+    return true;
+  }
+  document.getElementById("st-redeem").addEventListener("click", function () {
+    var msg = document.getElementById("st-msg");
+    if (redeemKey(document.getElementById("st-code").value)) {
+      msg.textContent = "unwrapped — it's yours."; msg.className = "st-msg good";
+      clickSfx(1900);
+      try { kidSay("a new one for the shelf! open it, open it.", 4.5); } catch (e) { }
+      setTimeout(closeStore, 1100);
+    } else {
+      msg.textContent = "that key doesn't fit this one."; msg.className = "st-msg bad";
+      clickSfx(700);
+    }
+  });
+  document.getElementById("st-close").addEventListener("click", function () { closeStore(); clickSfx(1100); });
+  applyStore();
+
   var frameCount = 0, lastT = performance.now() / 1000;
   function tick() {
     requestAnimationFrame(tick);
@@ -3695,7 +3846,11 @@ import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
     extras: { stickers: function () { return stickers; }, addSticker: addSticker, designs: STICKER_DESIGNS,
       preset: applyPreset, presets: ROOM_PRESETS, surprise: surpriseMe, undo: doUndo, undoDepth: function () { return undoStack.length; },
       blob: roomStateBlob, applyBlob: applyRoomState, encode: encodeRoom, decode: decodeRoom, link: roomLink, share: shareRoom,
-      slots: function () { return roomSlots; }, saveRoom: saveRoom, loadRoom: loadRoom, delRoom: delRoom, paste: pasteRoom } };
+      slots: function () { return roomSlots; }, saveRoom: saveRoom, loadRoom: loadRoom, delRoom: delRoom, paste: pasteRoom },
+    store: { keys: GAME_KEYS, owned: function () { return ownedKeys; }, locked: gameLocked, demo: function () { return storeDemo; },
+      open: openStore, close: closeStore, redeem: redeemKey, apply: applyStore,
+      grant: function (sku) { ownKey(sku); applyStore(); },
+      revoke: function () { ownedKeys = []; saveJSON("room-keys", ownedKeys); applyStore(); } } };
 
   /* ---- someone shared a room? offer to rebuild it ------------------------------- */
   (function checkSharedRoom() {
