@@ -462,21 +462,34 @@ import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
   var ssCtx = ssCanvas.getContext("2d");
   var ssT = new THREE.CanvasTexture(ssCanvas);
   var ssM = new THREE.MeshBasicMaterial({ map: ssT });
-  var ssMode = 1; // 1: starfield · 2: the bouncing logo (always one or the other now)
+  // Five of them, because a 90s PC with nothing to run is still worth looking at.
+  var SCREENSAVERS = [["stars", "starfield"], ["logo", "bouncing logo"], ["pipes", "pipes"],
+                      ["mystify", "mystify"], ["rain", "code rain"]];
+  var ssKind = "stars"; // applyPaint() restores the saved choice at boot
   var ssStars = [];
   for (var sst = 0; sst < 70; sst++) ssStars.push({ x: Math.random() - 0.5, y: Math.random() - 0.5, z: 0.15 + Math.random() * 0.85 });
   var ssLogo = { x: 40, y: 60, vx: 46, vy: 36, hue: 130 };
+  var ssPipe = { x: 128, y: 96, dx: 1, dy: 0, hue: 190, len: 0, drawn: 0 };
+  var ssMyst = { pts: [], hue: 280 };
+  for (var mp = 0; mp < 4; mp++) ssMyst.pts.push({ x: 30 + Math.random() * 190, y: 25 + Math.random() * 140,
+    vx: (Math.random() < 0.5 ? -1 : 1) * (26 + Math.random() * 26), vy: (Math.random() < 0.5 ? -1 : 1) * (22 + Math.random() * 22) });
+  var ssRain = [];
+  for (var rc = 0; rc < 26; rc++) ssRain.push({ y: Math.random() * -190, sp: 55 + Math.random() * 95 });
+  var RAIN_GLYPHS = "01<>[]{}/\\|=+*#$%&@ABCDEFGHJKLMNPQRSTUVWXYZ";
   pcScreen.material = ssM;
-  function cycleScreen() {
-    ssMode = ssMode === 1 ? 2 : 1;
+  function cycleScreen() { // clicking the PC walks through them (and remembers)
+    var i = 0;
+    for (var s = 0; s < SCREENSAVERS.length; s++) if (SCREENSAVERS[s][0] === ssKind) i = s;
+    setPaint("screen", SCREENSAVERS[(i + 1) % SCREENSAVERS.length][0]);
     clickSfx(1900);
+    if (decorMode && dwTabName === "paint") dwRender();
   }
   function drawScreensaver(dt2) {
-    var g = ssCtx, w = 256, h = 192;
-    if (ssMode === 1) { // flying through the wallpaper stars
+    var g = ssCtx, w = 256, h = 192, i;
+    if (ssKind === "stars") { // flying through the wallpaper stars
       g.fillStyle = "rgba(4,6,12,0.35)"; g.fillRect(0, 0, w, h);
       g.fillStyle = "#dfe6ff";
-      for (var i = 0; i < ssStars.length; i++) {
+      for (i = 0; i < ssStars.length; i++) {
         var st = ssStars[i];
         st.z -= dt2 * 0.35;
         if (st.z < 0.06) { st.x = Math.random() - 0.5; st.y = Math.random() - 0.5; st.z = 1; }
@@ -484,7 +497,7 @@ import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
         var r = Math.min(2.6, 0.4 / st.z);
         if (px > 0 && px < w && py > 0 && py < h) g.fillRect(px, py, r, r);
       }
-    } else { // the logo roams, kisses a corner once an epoch
+    } else if (ssKind === "logo") { // the logo roams, kisses a corner once an epoch
       g.fillStyle = "#06080c"; g.fillRect(0, 0, w, h);
       var lw = 92, lh = 34;
       ssLogo.x += ssLogo.vx * dt2; ssLogo.y += ssLogo.vy * dt2;
@@ -495,6 +508,58 @@ import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
       g.fillStyle = "hsl(" + ssLogo.hue + ",80%,70%)";
       g.font = "bold 15px monospace"; g.textAlign = "center"; g.textBaseline = "middle";
       g.fillText("SOON", ssLogo.x + lw / 2, ssLogo.y + lh / 2 + 1);
+    } else if (ssKind === "pipes") { // it never gets anywhere, it just keeps plumbing
+      if (ssPipe.drawn === 0) { g.fillStyle = "#0a0c10"; g.fillRect(0, 0, w, h); }
+      var step = 46 * dt2;
+      var nx = ssPipe.x + ssPipe.dx * step, ny = ssPipe.y + ssPipe.dy * step;
+      g.strokeStyle = "hsl(" + ssPipe.hue + ",70%,58%)"; g.lineWidth = 5; g.lineCap = "round";
+      g.beginPath(); g.moveTo(ssPipe.x, ssPipe.y); g.lineTo(nx, ny); g.stroke();
+      ssPipe.x = nx; ssPipe.y = ny; ssPipe.len += step; ssPipe.drawn += step;
+      var wall = nx < 8 || nx > w - 8 || ny < 8 || ny > h - 8;
+      if (wall || ssPipe.len > 18 + Math.random() * 34) {   // elbow
+        g.fillStyle = "hsl(" + ssPipe.hue + ",70%,68%)";
+        g.beginPath(); g.arc(ssPipe.x, ssPipe.y, 3.4, 0, 7); g.fill();
+        var turn = Math.random() < 0.5 ? 1 : -1, odx = ssPipe.dx;
+        ssPipe.dx = -ssPipe.dy * turn; ssPipe.dy = odx * turn;
+        if (wall) { // steer back inside rather than grinding along the edge
+          ssPipe.dx = nx < 8 ? 1 : nx > w - 8 ? -1 : 0;
+          ssPipe.dy = ssPipe.dx ? 0 : (ny < 8 ? 1 : -1);
+        }
+        ssPipe.x = Math.max(8, Math.min(w - 8, ssPipe.x));
+        ssPipe.y = Math.max(8, Math.min(h - 8, ssPipe.y));
+        ssPipe.len = 0; ssPipe.hue = (ssPipe.hue + 23) % 360;
+      }
+      if (ssPipe.drawn > 5200) { ssPipe.drawn = 0; } // a fresh sheet now and then
+    } else if (ssKind === "mystify") { // a polygon dragging its own ghosts
+      g.fillStyle = "rgba(6,8,14,0.10)"; g.fillRect(0, 0, w, h);
+      ssMyst.hue = (ssMyst.hue + dt2 * 22) % 360;
+      for (i = 0; i < ssMyst.pts.length; i++) {
+        var p = ssMyst.pts[i];
+        p.x += p.vx * dt2; p.y += p.vy * dt2;
+        if (p.x < 2 || p.x > w - 2) { p.vx *= -1; p.x = Math.max(2, Math.min(w - 2, p.x)); }
+        if (p.y < 2 || p.y > h - 2) { p.vy *= -1; p.y = Math.max(2, Math.min(h - 2, p.y)); }
+      }
+      g.strokeStyle = "hsl(" + (ssMyst.hue | 0) + ",85%,64%)"; g.lineWidth = 1.6;
+      g.beginPath();
+      g.moveTo(ssMyst.pts[0].x, ssMyst.pts[0].y);
+      for (i = 1; i < ssMyst.pts.length; i++) g.lineTo(ssMyst.pts[i].x, ssMyst.pts[i].y);
+      g.closePath(); g.stroke();
+    } else { // code rain
+      g.fillStyle = "rgba(2,8,4,0.16)"; g.fillRect(0, 0, w, h);
+      g.font = "bold 11px monospace"; g.textAlign = "center"; g.textBaseline = "top";
+      for (i = 0; i < ssRain.length; i++) {
+        var col = ssRain[i];
+        col.y += col.sp * dt2;
+        if (col.y > h + 20) { col.y = -10 - Math.random() * 90; col.sp = 55 + Math.random() * 95; }
+        var gx = 5 + i * 10;
+        g.fillStyle = "#d6ffe0";
+        g.fillText(RAIN_GLYPHS[(Math.random() * RAIN_GLYPHS.length) | 0], gx, col.y);
+        g.fillStyle = "rgba(70,220,120,0.75)";
+        g.fillText(RAIN_GLYPHS[(Math.random() * RAIN_GLYPHS.length) | 0], gx, col.y - 12);
+        g.fillStyle = "rgba(50,170,95,0.45)";
+        g.fillText(RAIN_GLYPHS[(Math.random() * RAIN_GLYPHS.length) | 0], gx, col.y - 24);
+      }
+      g.textBaseline = "middle";
     }
     g.fillStyle = "rgba(0,0,0,0.18)"; // cheap scanlines
     for (var sl = 0; sl < h; sl += 4) g.fillRect(0, sl, w, 1);
@@ -1197,22 +1262,37 @@ import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
   /* ---- the light switch by the door: day / night / follow-the-clock ----------- */
   var swPlate = box(0.03, 0.14, 0.09, mat(0xeae4d6, 0.6)); swPlate.position.set(-3.55, 1.32, 1.62); scene.add(swPlate);
   var swNub = box(0.03, 0.05, 0.035, mat(0x3a3a3a, 0.4)); swNub.position.set(-3.53, 1.32, 1.62); scene.add(swNub);
-  var lightMode = 0; // 0 = follow the clock, 1 = day (bright), 2 = night (dark)
-  try { var _lm = parseInt(localStorage.getItem("room-light"), 10); if (_lm === 1 || _lm === 2) lightMode = _lm; } catch (e) { /* private mode */ }
+  // The room has four hours of the day built in; the switch used to reach only two.
+  // lightMode is null (follow your clock) or a PHASES key. Old saves stored 1/2.
+  var LIGHT_MODES = [null, "day", "dusk", "evening", "night"];
+  var LIGHT_LABEL = { day: "daytime", dusk: "golden hour", evening: "after bedtime", night: "the dead of night" };
+  var lightMode = null;
+  try {
+    var _lm = localStorage.getItem("room-light");
+    if (_lm === "1") lightMode = "day";                     // migrate the old numeric modes
+    else if (_lm === "2") lightMode = "night";
+    else if (LIGHT_MODES.indexOf(_lm) > 0) lightMode = _lm;
+  } catch (e) { /* private mode */ }
   function applyLightMode() {
-    phaseOverride = lightMode === 1 ? "day" : lightMode === 2 ? "night" : null;
+    phaseOverride = lightMode;
     phaseHour = -1; applyPhase();
-    swNub.position.y = 1.32 + (lightMode === 1 ? 0.028 : lightMode === 2 ? -0.028 : 0);
-    var hint = lightMode === 1 ? "the light switch — day" : lightMode === 2 ? "the light switch — night" : "the light switch — follows your clock";
+    var lift = lightMode === "day" ? 0.028 : lightMode === "dusk" ? 0.014
+             : lightMode === "evening" ? -0.014 : lightMode === "night" ? -0.028 : 0;
+    swNub.position.y = 1.32 + lift;
+    var hint = lightMode ? "the light switch — " + LIGHT_LABEL[lightMode] : "the light switch — follows your clock";
     swPlate.userData.hint = swNub.userData.hint = hint;
   }
-  function cycleLights() {
-    lightMode = (lightMode + 1) % 3;
+  function setLightMode(m) {
+    lightMode = LIGHT_MODES.indexOf(m) >= 0 ? m : null;
     applyLightMode();
-    try { localStorage.setItem("room-light", String(lightMode)); } catch (e) { /* private mode */ }
-    if (typeof clickSfx === "function") clickSfx(lightMode ? 1500 : 1000);
+    try { localStorage.setItem("room-light", lightMode == null ? "0" : lightMode); } catch (e) { /* private mode */ }
   }
-  [swPlate, swNub].forEach(function (m) { clickable(m, "the light switch", cycleLights, "the light switch — day, night, or follow your clock"); });
+  function cycleLights() {
+    setLightMode(LIGHT_MODES[(LIGHT_MODES.indexOf(lightMode) + 1) % LIGHT_MODES.length]);
+    if (typeof clickSfx === "function") clickSfx(lightMode ? 1500 : 1000);
+    if (decorMode && dwTabName === "paint") dwRender(); // keep the drawer in step with the wall switch
+  }
+  [swPlate, swNub].forEach(function (m) { clickable(m, "the light switch", cycleLights, "the light switch — the hour of the day, or follow your clock"); });
   if (lightMode) applyLightMode(); // restore the mood the visitor last chose
   // late-night TV has nothing on: SMPTE-ish bars where the cartoons would be
   var testT = canvasTex(128, 96, function (g, w, h) {
@@ -3013,6 +3093,10 @@ import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
       pushUndo(); setPaint("neon", +b.getAttribute("data-neon")); dwRender(); clickSfx(1600);
     } else if ((key = b.getAttribute("data-lights"))) {
       pushUndo(); setPaint("lights", key); dwRender(); clickSfx(1600);
+    } else if ((key = b.getAttribute("data-light"))) {
+      setLightMode(key === "clock" ? null : key); dwRender(); clickSfx(1500);
+    } else if ((key = b.getAttribute("data-screen"))) {
+      pushUndo(); setPaint("screen", key); dwRender(); clickSfx(1700);
     } else if ((key = b.getAttribute("data-preset"))) {
       applyPreset(key); clickSfx(1600);
     } else if ((key = b.getAttribute("data-sticker"))) {
@@ -3230,6 +3314,8 @@ import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
         if (bulbs[b].userData.glow) bulbs[b].userData.glow.material.color.set(pal[b % pal.length]);
       }
     }
+    var wantSS = paintState.screen || "stars";           // the PC keeps whichever it was left on
+    for (var s = 0; s < SCREENSAVERS.length; s++) if (SCREENSAVERS[s][0] === wantSS) ssKind = wantSS;
     applyNeonPaint();
     applyNameBanner();
   }
@@ -3278,6 +3364,24 @@ import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
       }
       html += "</div>";
     }
+    html += '<div class="dw-sec">the hour of the day</div><div class="dw-grid">';
+    LIGHT_MODES.forEach(function (m) {
+      var on = lightMode === m;
+      html += '<button type="button" class="dw-card' + (on ? " on" : "") + '" data-light="' + (m || "clock") +
+        '" aria-pressed="' + (on ? "true" : "false") + '"><div class="i">' +
+        (m === "day" ? "☀️" : m === "dusk" ? "🌇" : m === "evening" ? "🌆" : m === "night" ? "🌙" : "🕰️") +
+        '</div><div class="n">' + (m ? LIGHT_LABEL[m] : "your clock") + "</div></button>";
+    });
+    html += "</div>";
+    html += '<div class="dw-sec">the computer screen</div><div class="dw-grid">';
+    SCREENSAVERS.forEach(function (s) {
+      var on = ssKind === s[0];
+      html += '<button type="button" class="dw-card' + (on ? " on" : "") + '" data-screen="' + s[0] +
+        '" aria-pressed="' + (on ? "true" : "false") + '"><div class="i">' +
+        ({ stars: "✨", logo: "📺", pipes: "🧵", mystify: "🔷", rain: "🟩" })[s[0]] +
+        '</div><div class="n">' + s[1] + "</div></button>";
+    });
+    html += "</div>";
     html += '<div class="dw-sec">this room belongs to</div><div class="dw-name">' +
       '<input id="dw-name-inp" maxlength="14" placeholder="write your name" autocomplete="off" spellcheck="false">' +
       '<button id="dw-name-set" type="button">put it up</button></div>' +
@@ -3726,7 +3830,7 @@ import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
         keyG.rotation.z -= dt * (keyFast > 0 ? 22 : 1.4 + robotBoost * 7); // winding spins it hard
       }
     }
-    if (ssMode && (frameCount & 1) === 0) drawScreensaver(dt * 2); // the PC dreams at half rate
+    if (pc.visible && (frameCount & 1) === 0) drawScreensaver(dt * 2); // the PC dreams at half rate (and not at all when it's put away)
     // the rug war wakes while you watch it, freezes when you look away
     warHeat += (((hovered && hovered.userData.war) ? 1 : 0) - warHeat) * Math.min(1, dt * 5);
     if (warHeat > 0.01) {
@@ -3856,7 +3960,9 @@ import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
     kid: kid, kidState: kidState, kidStep: kidStep, kidGoto: kidGoto, kidObstacles: KID_OBSTACLES, kidStations: KID_STATIONS,
     kidActions: function () { return kidActions; }, setKidAction: setKidAction, kidMixer: function () { return kidMixer; },
     kidSay: kidSay, kidGreetLine: kidGreetLine, kidFetchLine: kidFetchLine, gameProgress: gameProgress,
-    screen: { draw: drawScreensaver, cycle: cycleScreen, mode: function () { return ssMode; }, canvas: ssCanvas },
+    screen: { draw: drawScreensaver, cycle: cycleScreen, kind: function () { return ssKind; },
+      kinds: SCREENSAVERS, canvas: ssCanvas },
+    light: { mode: function () { return lightMode; }, set: setLightMode, cycle: cycleLights, modes: LIGHT_MODES },
     decor: { movables: movables, byKey: movableByKey, set: decorSet, mode: function () { return decorMode; },
       apply: applyMove, reset: decorReset, persist: persistLayout, hub: KID_HUB,
       layout: function () { return loadJSON("room-layout"); } },
