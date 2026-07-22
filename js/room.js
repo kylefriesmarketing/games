@@ -2686,6 +2686,22 @@ import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
     try { kidSay("here's \"" + s.name + "\" — hit undo if you miss the old one.", 4.5); } catch (e) { }
   }
   function delRoom(i) { if (roomSlots[i]) { roomSlots.splice(i, 1); persistSlots(); } }
+  function renameRoom(i, name) {
+    if (!roomSlots[i]) return;
+    name = (name || "").replace(/[^\w '\-]/g, "").trim().slice(0, 16);
+    if (name) { roomSlots[i].name = name; persistSlots(); }
+  }
+  // wipe every choice this visitor made — but never the collectibles they EARNED
+  function startFresh() {
+    pushUndo();
+    saveJSON("room-layout", {});
+    movables.forEach(function (c) { if (c.kind !== "coll") applyMove(c, c.def.x, c.def.z, c.def.ry); });
+    Object.keys(shoeState.placed || {}).forEach(function (k) { unplaceColl(k); });
+    rebuildStickers([]); persistStickers();
+    outState = {}; saveJSON("room-out", outState); applyOut();
+    pbWash();
+    try { kidSay("clean slate. it feels bigger in here already.", 4.5); } catch (e) { }
+  }
   function extractCode(str) { // accept a full share link OR a bare TR1. code
     if (!str) return null;
     var m = /room=([^&\s]+)/.exec(str);
@@ -2850,17 +2866,17 @@ import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
     '<button id="decor-btn" type="button">decorate</button>' +
     '<div id="decor-nudge">✨ make it yours — decorate the room</div>' +
     '<div id="decor-drawer" role="region" aria-label="decorate the room">' +
-    '<div id="dw-tabs">' +
-    '<button type="button" data-tab="stuff">🧸 stuff<span id="dw-new" hidden>●</span></button>' +
-    '<button type="button" data-tab="paint">🎨 paint</button>' +
-    '<button type="button" data-tab="walls">🌟 walls</button>' +
-    '<button type="button" data-tab="shelf">📦 shelf</button>' +
-    '<button type="button" data-tab="saved">💾 saved</button></div>' +
+    '<div id="dw-tabs" role="tablist">' +
+    '<button type="button" role="tab" data-tab="stuff">🧸 stuff<span id="dw-new" hidden>●</span></button>' +
+    '<button type="button" role="tab" data-tab="paint">🎨 paint</button>' +
+    '<button type="button" role="tab" data-tab="walls">🌟 walls</button>' +
+    '<button type="button" role="tab" data-tab="shelf">📦 shelf</button>' +
+    '<button type="button" role="tab" data-tab="saved">💾 saved</button></div>' +
     '<div id="dw-sel" hidden><span id="dw-sel-name"></span><span>' +
     '<button id="dw-rotl" type="button" aria-label="spin left">⟲</button>' +
     '<button id="dw-rotr" type="button" aria-label="spin right">⟳</button>' +
     '<button id="dw-back" type="button">put back</button></span></div>' +
-    '<div id="dw-body"></div>' +
+    '<div id="dw-body" role="tabpanel"></div>' +
     '<div id="dw-actions"><button id="dw-undo" type="button" disabled>↶ undo</button>' +
     '<button id="dw-photo" type="button">📷 photo</button>' +
     '<button id="dw-link" type="button">🔗 share link</button></div>' +
@@ -2871,7 +2887,9 @@ import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
   function dwTab(name) {
     dwTabName = name || "stuff";
     document.querySelectorAll("#dw-tabs button").forEach(function (b) {
-      b.classList.toggle("on", b.getAttribute("data-tab") === dwTabName);
+      var on = b.getAttribute("data-tab") === dwTabName;
+      b.classList.toggle("on", on);
+      b.setAttribute("aria-selected", on ? "true" : "false");
     });
     dwRender();
     if (dwTabName === "stuff") { // opening the stuff tab is "seeing" the collection
@@ -2892,6 +2910,7 @@ import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
     if (inp) inp.value = paintState.name || "";
   }
   function esc(s) { return String(s).replace(/[&<>"]/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]; }); }
+  var renamingSlot = -1, freshArmed = false; // "start fresh" asks twice before it wipes
   function dwSavedHTML() {
     var html = '<div class="dw-hint">keep different looks — a cozy night, a battle station — and switch anytime</div>';
     html += '<div class="dw-name"><input id="dw-slot-name" maxlength="16" placeholder="name this room" autocomplete="off" spellcheck="false">' +
@@ -2899,13 +2918,24 @@ import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
     html += '<div class="dw-sec">saved rooms (' + roomSlots.length + " / " + ROOM_SLOT_MAX + ")</div>";
     if (!roomSlots.length) html += '<div class="dw-hint">nothing saved yet — name this one and hit save</div>';
     else roomSlots.forEach(function (s, i) {
+      if (i === renamingSlot) { // this row is being renamed in place
+        html += '<div class="dw-name"><input id="dw-rename-inp" maxlength="16" value="' + esc(s.name) +
+          '" autocomplete="off" spellcheck="false">' +
+          '<button type="button" data-renameok="' + i + '">✓</button></div>';
+        return;
+      }
       html += '<div class="dw-row"><span>' + esc(s.name) + "</span><span>" +
         '<button type="button" data-loadroom="' + i + '">load</button> ' +
+        '<button type="button" data-renameroom="' + i + '" aria-label="rename">✎</button> ' +
         '<button type="button" data-delroom="' + i + '" aria-label="delete">✕</button></span></div>';
     });
     html += '<div class="dw-sec">got a friend\'s room?</div>' +
       '<div class="dw-name"><input id="dw-paste" placeholder="paste a room link or code" autocomplete="off" spellcheck="false">' +
       '<button type="button" data-act="pasteroom">load it</button></div>';
+    html += '<div class="dw-sec">start over</div>' +
+      '<div class="dw-hint">resets this room to how you found it — your saved rooms and everything you\'ve earned stay put</div>' +
+      '<button type="button" class="dw-wide" data-act="fresh">' +
+      (freshArmed ? "tap again to reset this room" : "start fresh") + "</button>";
     return html;
   }
   document.getElementById("decor-btn").addEventListener("click", function () { decorSet(!decorMode); clickSfx(1300); });
@@ -3000,10 +3030,20 @@ import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
     } else if (act === "pasteroom") {
       var pv = document.getElementById("dw-paste");
       if (pasteRoom(pv ? pv.value : "")) { dwRender(); clickSfx(1700); } else clickSfx(700);
+    } else if (act === "fresh") {
+      if (!freshArmed) { freshArmed = true; dwRender(); clickSfx(900); setTimeout(function () { freshArmed = false; }, 6000); }
+      else { freshArmed = false; startFresh(); dwRender(); clickSfx(700); }
     } else if ((key = b.getAttribute("data-loadroom")) != null) {
       loadRoom(+key); dwRender(); clickSfx(1600);
     } else if ((key = b.getAttribute("data-delroom")) != null) {
       delRoom(+key); dwRender(); clickSfx(900);
+    } else if ((key = b.getAttribute("data-renameroom")) != null) {
+      renamingSlot = +key; dwRender();
+      var ri = document.getElementById("dw-rename-inp"); if (ri) { ri.focus(); ri.select(); }
+      clickSfx(1400);
+    } else if ((key = b.getAttribute("data-renameok")) != null) {
+      var rv = document.getElementById("dw-rename-inp");
+      renameRoom(+key, rv ? rv.value : ""); renamingSlot = -1; dwRender(); clickSfx(1600);
     }
   });
 
@@ -3026,6 +3066,7 @@ import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
           '<div class="n">' + c.from + "</div></div>";
       }
       return '<button type="button" class="dw-card' + (placed ? " on" : "") + '" data-coll="' + c.key +
+        '" aria-pressed="' + (placed ? "true" : "false") +
         '" title="' + c.title + " — " + (placed ? "out in the room · click to box it" : "click to put it in the room") + '">' +
         '<div class="i">' + c.icon + '</div><div class="n">' + c.title.replace(/^the /, "") + "</div></button>";
     }).join("");
@@ -3072,6 +3113,13 @@ import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
       ["slate", 0xc4c8d8], ["rosy", 0xe4c4c4]] },
     rug: { label: "the rug", mats: null /* rug.material, resolved at apply */, opts: [
       ["galaxy", 0xffffff], ["ember", 0xf0a8a8], ["jungle", 0xa8e0b4], ["gold", 0xf0dca0]] },
+    wood: { label: "the woodwork", mats: [woodM, woodMSide], opts: [ // shelf, desk, chest, nightstand…
+      ["as found", 0xffffff], ["honey", 0xf2dcae], ["walnut", 0xa6845e],
+      ["ash", 0xdcd6cc], ["rosewood", 0xd8a898]] },
+    // the door has no texture, so its swatches REPLACE the colour outright (a painted door)
+    door: { label: "the door", mats: [doorM], replace: true, opts: [
+      ["as found", 0xffffff], ["red", 0x9e3b30], ["blue", 0x3c5a86],
+      ["green", 0x3f6b45], ["black", 0x2a2a2e]] },
   };
   var NEON_OPTS = [ // [label, hue-rotate degrees, light color]
     ["pink", 0, 0xff5aa8], ["gold", 60, 0xffb84d], ["lime", 130, 0x8ae05a],
@@ -3138,8 +3186,14 @@ import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
   function applyPaint() {
     for (var k in PAINT) {
       var row = PAINT[k], opt = row.opts[paintState[k] || 0] || row.opts[0];
-      var mats = row.mats || [rug.material];
-      mats.forEach(function (m) { m.userData.tint = opt[1]; if (m.map || opt[1] !== 0xffffff) m.color.set(opt[1]); });
+      var mats = row.mats || [rug.material], rep = row.replace;
+      mats.forEach(function (m) {
+        m.userData.tint = opt[1];
+        if (rep) { // untextured: remember the original colour so "as found" can come back
+          if (m.userData.base == null) m.userData.base = m.color.getHex();
+          m.color.set(opt[1] === 0xffffff ? m.userData.base : opt[1]);
+        } else if (m.map || opt[1] !== 0xffffff) m.color.set(opt[1]);
+      });
     }
     if (!season) { // the calendar's own light shows (yule/spook/bday) always win
       var pal = LIGHT_PALS[paintState.lights || "classic"] || LIGHT_PALS.classic;
@@ -3205,7 +3259,8 @@ import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
   function pbWash() { // back to as-found
     paintState = {};
     saveJSON("room-paint", paintState);
-    [wallM, wallMSide, floorM, rug.material].forEach(function (m) { m.userData.tint = null; m.color.set(0xffffff); });
+    [wallM, wallMSide, floorM, rug.material, woodM, woodMSide].forEach(function (m) { m.userData.tint = null; m.color.set(0xffffff); });
+    doorM.userData.tint = null; if (doorM.userData.base != null) doorM.color.set(doorM.userData.base);
     if (neonMesh && neonImg && neonImg.complete) { var t = new THREE.Texture(neonImg); t.needsUpdate = true; t.anisotropy = 8; neonMesh.material.map = t; neonMesh.material.color.set(0xffffff); neonMesh.material.needsUpdate = true; }
     applyPaint();
   }
@@ -3287,7 +3342,8 @@ import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
         if (h.sec !== sec[0]) return;
         var hidden = !!outState[h.key];
         html += '<div class="dw-row' + (hidden ? " away" : "") + '"><span>' + h.label + "</span>" +
-          '<button type="button" data-out="' + h.key + '"' + (hidden ? "" : ' class="on"') + ">" +
+          '<button type="button" data-out="' + h.key + '"' + (hidden ? "" : ' class="on"') +
+          ' aria-pressed="' + (hidden ? "false" : "true") + '">' +
           (hidden ? "put it out" : "out ✓") + "</button></div>";
       });
     });
