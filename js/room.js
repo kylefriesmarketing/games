@@ -1418,6 +1418,58 @@ import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
   })();
   // (the back-wall poster beside the shelf came down — that wall's free for the next game)
 
+  /* ---- HOOD RUN: the getaway corner by the door ------------------------------- */
+  // A stuffed duffel bag with the take spilling out, and the safe it came out of.
+  // Set HOOD_RUN_URL when the game goes live and this becomes a doorway on its own.
+  var HOOD_RUN_URL = ""; // ← not published yet; empty keeps it a "coming soon" prop
+  var hoodG = new THREE.Group();
+  var canvasM = mat(0x2f3a44, 0.95), canvasDark = mat(0x222a32, 0.95);
+  var billM = mat(0x5f8a5c, 0.85), bandM = mat(0xc9a35c, 0.6);
+  var duffel = new THREE.Mesh(new THREE.CylinderGeometry(0.13, 0.13, 0.34, 18), canvasM);
+  duffel.rotation.z = Math.PI / 2; duffel.position.set(0, 0.13, 0); duffel.castShadow = true; hoodG.add(duffel);
+  [-0.17, 0.17].forEach(function (x) { // the rounded ends
+    var cap = new THREE.Mesh(new THREE.SphereGeometry(0.13, 16, 12), canvasM);
+    cap.position.set(x, 0.13, 0); cap.scale.x = 0.55; hoodG.add(cap);
+  });
+  var zip = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.012, 0.05), canvasDark);
+  zip.position.set(0, 0.253, 0.01); hoodG.add(zip);
+  [-0.07, 0.07].forEach(function (x) { // carry handles
+    var hn = new THREE.Mesh(new THREE.TorusGeometry(0.045, 0.008, 6, 14, Math.PI), canvasDark);
+    hn.position.set(x, 0.25, 0); hn.rotation.y = Math.PI / 2; hoodG.add(hn);
+  });
+  // the take: banded bundles, a couple still in the bag, a couple spilled on the carpet
+  [[0.02, 0.28, 0.02, 0.5], [-0.05, 0.29, -0.03, -0.3], [0.24, 0.026, 0.11, 1.1], [0.29, 0.026, -0.04, -0.6]]
+    .forEach(function (b) {
+      var bundle = new THREE.Mesh(new THREE.BoxGeometry(0.085, 0.038, 0.05), billM);
+      bundle.position.set(b[0], b[1], b[2]); bundle.rotation.y = b[3];
+      bundle.rotation.z = b[1] < 0.1 ? 0 : 0.18; bundle.castShadow = true; hoodG.add(bundle);
+      var band = new THREE.Mesh(new THREE.BoxGeometry(0.016, 0.041, 0.052), bandM);
+      band.position.copy(bundle.position); band.rotation.copy(bundle.rotation); hoodG.add(band);
+    });
+  // the safe it all came out of, door swung open
+  var safeG = new THREE.Group();
+  var safeM = mat(0x39404a, 0.6), safeTrim = mat(0x8a8f98, 0.35);
+  var safeBody = new THREE.Mesh(new THREE.BoxGeometry(0.24, 0.24, 0.2), safeM);
+  safeBody.position.y = 0.12; safeBody.castShadow = true; safeG.add(safeBody);
+  var safeHole = new THREE.Mesh(new THREE.BoxGeometry(0.19, 0.19, 0.02), mat(0x14181e, 0.95));
+  safeHole.position.set(0, 0.12, 0.1); safeG.add(safeHole);
+  var safeDoor = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.23, 0.03), safeM);
+  safeDoor.position.set(0.2, 0.12, 0.16); safeDoor.rotation.y = -1.1; safeDoor.castShadow = true; safeG.add(safeDoor);
+  var dial = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.035, 0.018, 16), safeTrim);
+  dial.rotation.x = Math.PI / 2; dial.position.set(0.24, 0.12, 0.19); dial.rotation.z = 0.6; safeG.add(dial);
+  var spoke = new THREE.Mesh(new THREE.BoxGeometry(0.008, 0.05, 0.02), mat(0xd9d9dd, 0.4));
+  spoke.position.set(0.24, 0.12, 0.2); spoke.rotation.z = 0.6; safeG.add(spoke);
+  safeG.position.set(-0.34, 0, -0.16); safeG.rotation.y = 0.45; hoodG.add(safeG);
+  hoodG.position.set(-2.85, 0, 1.75); hoodG.rotation.y = 0.35; scene.add(hoodG);
+  var hoodHint = HOOD_RUN_URL ? "HOOD RUN — the Crosstown Dash · click to run"
+                              : "HOOD RUN — the take from City Trust · coming soon";
+  hoodG.traverse(function (o) {
+    if (o.isMesh) clickable(o, "HOOD RUN", HOOD_RUN_URL ? go(HOOD_RUN_URL) : function () {
+      try { kidSay("that one's not finished yet. soon, though.", 4); } catch (e) { }
+      clickSfx(1100);
+    }, hoodHint);
+  });
+
   /* ---- TIDEBOUND: a toy island diorama on the floor (generated) --------------- */
   prop("assets/props/island.glb", 0.62, -1.9, 0, 2.45, 0.5, function (wrap) {
     propDoor("TIDEBOUND", "TIDEBOUND — the island that isn't on any chart (Dumb Tony's)", "https://dumb-tony.github.io/GameRepos/tidebound/")(wrap);
@@ -1530,7 +1582,8 @@ import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
     { x: -1.35, z: 0.4, act: "idle" },               // the desk
     { x: -1.25, z: -1.65, act: "idle" },             // the shelf
     { x: -2.0, z: 1.52, act: "sit", seat: 4, y: 0.1, yaw: 0 }, // nestled in the beanbag, legs out the front toward the room
-    { x: 2.12, z: 1.05, act: "bed", seat: 1 }        // the bedside → climb up and lie down (may enter the bed's circle)
+    { x: 2.12, z: 1.05, act: "bed", seat: 1 },       // the bedside → climb up and lie down (may enter the bed's circle)
+    { x: -2.42, z: 1.62, act: "fidget" }             // crouched over the duffel bag, counting it
   ];
   // side: where he stands; up: hoisted onto the mattress edge; lie: head on the pillow
   var KID_BED = { sideX: 2.12, sideZ: 1.05, upX: 2.62, upY: 0.42, x: 2.9, y: 0.04, z: 0.88 };
@@ -1543,7 +1596,8 @@ import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
     { x: -1.9, z: 2.45, r: 0.5 },    // the island
     { x: -2.05, z: 1.2, r: 0.42 },   // the beanbag
     { x: 3.0, z: -1.35, r: 0.55 },   // the TV stand
-    { x: -1.86, z: -0.32, r: 0.34 }  // the desk chair
+    { x: -1.86, z: -0.32, r: 0.34 }, // the desk chair
+    { x: -2.85, z: 1.75, r: 0.34 }   // the duffel bag + safe (index 7)
   ];
   // One avoidance step toward (tx,tz): steer around obstacles, then hard-clamp out
   // of any we'd still penetrate. Returns remaining distance to the target.
@@ -1728,6 +1782,8 @@ import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
     // but the notebook should still know every game in the room.
     html += nbRow("Brainrot", "on Tony's shelf");
     html += nbRow("Tidebound", "on Tony's shelf");
+    var hr = readSave("hr-save", function (m) { return m; });
+    html += nbRow("Hood Run", hr && hr.bestDist > 0 ? Math.round(hr.bestDist) + " m best" : "coming soon");
     nbPages.push({ title: "what i finished", html: html });
     if (tt.started || stories) { // the war, act by act
       var p = readSave("tt-campaign", function (m) { return m; }) || {};
@@ -2222,6 +2278,7 @@ import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
   registerMovable({ key: "tv", label: "the TV", root: crt, r: 0.55, rot: true, obs: 5, stations: [1],
     attachObjs: [crtLight, gCrt] });
   registerMovable({ key: "nstand", label: "the nightstand", root: nstand, r: 0.3, rot: true, attachObjs: [gLava] });
+  registerMovable({ key: "hoodbag", label: "the duffel bag", root: hoodG, r: 0.34, rot: true, obs: 7, stations: [8] });
 
   /* ---- THE SHOEBOX: one collectible per game ------------------------------------ */
   var goldM = new THREE.MeshStandardMaterial({ color: 0xd9a93a, roughness: 0.35, metalness: 0.7 });
@@ -2417,6 +2474,25 @@ import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
     });
     return g;
   }
+  function buildGoldBar() { // one ingot off the top of the pile
+    var g = new THREE.Group();
+    var inner = new THREE.Group(); inner.scale.set(2.1, 1, 1); // square frustum → a proper ingot
+    var body = new THREE.Mesh(new THREE.CylinderGeometry(0.026, 0.034, 0.017, 4), goldM);
+    body.rotation.y = Math.PI / 4; body.position.y = 0.0085;
+    inner.add(body); g.add(inner);
+    var stamp = new THREE.Mesh(new THREE.PlaneGeometry(0.1, 0.038), new THREE.MeshBasicMaterial({
+      map: canvasTex(128, 48, function (gc, w, h) {
+        gc.clearRect(0, 0, w, h);
+        gc.fillStyle = "rgba(120,86,20,0.55)";
+        gc.font = "bold 17px Georgia, serif"; gc.textAlign = "center"; gc.textBaseline = "middle";
+        gc.fillText("999.9", w / 2, 15);
+        gc.font = "bold 11px Georgia, serif";
+        gc.fillText("FINE GOLD", w / 2, 33);
+      }), transparent: true,
+    }));
+    stamp.rotation.x = -Math.PI / 2; stamp.position.y = 0.0172; g.add(stamp);
+    return g;
+  }
   function buildPalm() { // the island that isn't on any chart, pocket edition
     var g = new THREE.Group();
     var sea = new THREE.Mesh(new THREE.CylinderGeometry(0.062, 0.066, 0.008, 20),
@@ -2490,6 +2566,14 @@ import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
       earn: "visit BRAINROT — the brain on the desk",
       have: function () { try { return !!localStorage.getItem("room-visited-brainball"); } catch (e) { return false; } },
       home: { x: 2.95, y: 1.021, z: -2.44 }, build: buildBrainball },
+    { key: "goldbar", title: "the gold bar", from: "HOOD RUN", icon: "🟨",
+      earn: "make a run in HOOD RUN",
+      have: function () {
+        return !!readSave("hr-save", function (m) {
+          return (m && ((m.lifetime && m.lifetime.runs > 0) || m.bestDist > 0)) ? 1 : null;
+        });
+      },
+      home: { x: -0.65, y: 2.392, z: -2.32 }, build: buildGoldBar },
     { key: "palm", title: "the pocket island", from: "TIDEBOUND", icon: "🌴",
       earn: "visit TIDEBOUND — the toy island",
       have: function () { try { return !!localStorage.getItem("room-visited-palm"); } catch (e) { return false; } },
@@ -3440,6 +3524,8 @@ import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
       get: function () { return [war]; } },
     { key: "island", sec: "toys", label: "the toy island (TIDEBOUND)", obs: 3,
       get: function () { return movableByKey.island ? [movableByKey.island.root] : []; } },
+    { key: "hoodbag", sec: "toys", label: "the duffel bag (HOOD RUN)", obs: 7,
+      get: function () { return [hoodG]; } },
     { key: "brain", sec: "desk", label: "the brain (BRAINROT) + poster", halos: function () { return [gBrain]; },
       get: function () { return [brainG, posterBrainrot]; } },
     { key: "pc", sec: "desk", label: "the beige PC",
