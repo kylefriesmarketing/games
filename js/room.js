@@ -2,7 +2,7 @@
  * THE ROOM — a 90s bedroom you can click. Every object is a doorway:
  * the bookshelf holds the stories (spines out, like a real shelf), the toy
  * chest holds the RTS, the brain on the desk opens Dumb Tony's BRAINROT
- * (live in the shared GameRepos), the beige PC is Chameleon 3D (coming soon),
+ * (live in the shared GameRepos), the beige PC is waiting on its next game,
  * the TV is the channel guide (list view), and the notebook knows your
  * progress across every game on this origin.
  * Three.js primitives + generated textures + a few generated GLB hero props.
@@ -440,15 +440,14 @@ import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
   var drawer = box(0.9, 0.16, 0.06, woodMSide); drawer.position.set(-0.5, 0.66, 0.44); desk.add(drawer);
   var knob = new THREE.Mesh(new THREE.SphereGeometry(0.025, 10, 10), mat(0xc9a23a, 0.35)); knob.position.set(-0.5, 0.66, 0.49); desk.add(knob);
 
-  // the beige 90s computer — CHAMELEON 3D (live via the kylefriesmarketing/chameleon mirror)
+  // the beige 90s computer — waiting on its next game. For now it just runs a
+  // screensaver; click it to flip between the starfield and the bouncing logo.
   var pc = new THREE.Group();
   var beige = mat(0xd6cdb4, 0.55), beigeDark = mat(0xbfb59a, 0.6);
   var mon = box(0.62, 0.5, 0.5, beige); mon.position.y = 1.14; pc.add(mon);
   var monFoot = box(0.3, 0.07, 0.3, beigeDark); monFoot.position.y = 0.855; pc.add(monFoot);
   var monNeck = box(0.18, 0.06, 0.18, beigeDark); monNeck.position.y = 0.91; pc.add(monNeck);
-  var screenM = texMat("assets/tex/screen_c3d.jpg", 0x0e3a34, 0.3, 1, 1);
-  screenM.emissive = new THREE.Color(0x2a5a4a); screenM.emissiveIntensity = 0.35;
-  var pcScreen = new THREE.Mesh(new THREE.PlaneGeometry(0.5, 0.38), screenM);
+  var pcScreen = new THREE.Mesh(new THREE.PlaneGeometry(0.5, 0.38), new THREE.MeshBasicMaterial({ color: 0x06080c }));
   pcScreen.position.set(0, 1.14, 0.253); pc.add(pcScreen);
   var kb = box(0.5, 0.035, 0.2, beige); kb.position.set(0, 0.835, 0.33); kb.rotation.x = 0.06; pc.add(kb);
   var kbKeys = new THREE.Mesh(new THREE.PlaneGeometry(0.44, 0.15), new THREE.MeshStandardMaterial({
@@ -458,19 +457,19 @@ import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
     }), roughness: 0.7,
   }));
   kbKeys.rotation.x = -Math.PI / 2 + 0.06; kbKeys.position.set(0, 0.854, 0.33); pc.add(kbKeys);
-  // the PC runs a screensaver if you poke it (it has nothing better to do yet)
+  // the PC has nothing to run yet, so it does what a 90s PC does when it's idle
   var ssCanvas = document.createElement("canvas"); ssCanvas.width = 256; ssCanvas.height = 192;
   var ssCtx = ssCanvas.getContext("2d");
   var ssT = new THREE.CanvasTexture(ssCanvas);
   var ssM = new THREE.MeshBasicMaterial({ map: ssT });
-  var ssMode = 0; // 0: the C3D splash · 1: starfield · 2: the bouncing logo
+  var ssMode = 1; // 1: starfield · 2: the bouncing logo (always one or the other now)
   var ssStars = [];
   for (var sst = 0; sst < 70; sst++) ssStars.push({ x: Math.random() - 0.5, y: Math.random() - 0.5, z: 0.15 + Math.random() * 0.85 });
   var ssLogo = { x: 40, y: 60, vx: 46, vy: 36, hue: 130 };
+  pcScreen.material = ssM;
   function cycleScreen() {
-    ssMode = (ssMode + 1) % 3;
-    pcScreen.material = ssMode ? ssM : screenM;
-    clickSfx(ssMode ? 1900 : 1300);
+    ssMode = ssMode === 1 ? 2 : 1;
+    clickSfx(1900);
   }
   function drawScreensaver(dt2) {
     var g = ssCtx, w = 256, h = 192;
@@ -494,8 +493,8 @@ import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
       g.strokeStyle = "hsl(" + ssLogo.hue + ",80%,60%)"; g.lineWidth = 2;
       g.strokeRect(ssLogo.x, ssLogo.y, lw, lh);
       g.fillStyle = "hsl(" + ssLogo.hue + ",80%,70%)";
-      g.font = "bold 17px monospace"; g.textAlign = "center"; g.textBaseline = "middle";
-      g.fillText("C3D", ssLogo.x + lw / 2, ssLogo.y + lh / 2 + 1);
+      g.font = "bold 15px monospace"; g.textAlign = "center"; g.textBaseline = "middle";
+      g.fillText("SOON", ssLogo.x + lw / 2, ssLogo.y + lh / 2 + 1);
     }
     g.fillStyle = "rgba(0,0,0,0.18)"; // cheap scanlines
     for (var sl = 0; sl < h; sl += 4) g.fillRect(0, sl, w, 1);
@@ -510,8 +509,9 @@ import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
     }), roughness: 0.6,
   }));
   towerSlots.position.set(1.28, 0.42, 0.256); desk.add(towerSlots);
-  var CHAMELEON_URL = "https://kylefriesmarketing.github.io/chameleon/chameleon3d.html";
-  [mon, pcScreen, kb, tower].forEach(function (m) { clickable(m, "CHAMELEON 3D", go(CHAMELEON_URL), "CHAMELEON 3D — Dumb Tony's kitchen crawl · click to play"); });
+  [mon, pcScreen, kb, tower].forEach(function (m) {
+    clickable(m, "the computer", cycleScreen, "the computer — nothing installed yet · click to change the screensaver");
+  });
 
   // the brain on the desk — BRAINROT (generated neon brain, glows its own colors)
   var brainG = new THREE.Group();
@@ -1322,7 +1322,7 @@ import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
   });
 
   /* ---- BRAINROT poster: hung on the left wall ------------------------------- */
-  var posterBrainrot = null, posterC3D = null; // WHAT'S OUT hides these with their games
+  var posterBrainrot = null; // WHAT'S OUT hides this with its game
   (function wallPosterBrainrot() {
     var g = new THREE.Group(); posterBrainrot = g;
     var backing = box(0.56, 0.82, 0.02, mat(0xe8e2d4, 0.9)); g.add(backing);
@@ -1336,19 +1336,7 @@ import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
       clickable(mm, "BRAINROT", go("https://dumb-tony.github.io/GameRepos/brainrot/"), "BRAINROT: RISE OF THE MEME — click to play (Dumb Tony's)");
     });
   })();
-  (function wallPosterC3D() { // hung properly on the back wall, left of the shelf — dead-on to the camera
-    var g = new THREE.Group(); posterC3D = g;
-    var backing = box(0.56, 0.82, 0.02, mat(0xe8e2d4, 0.9)); g.add(backing);
-    var m = new THREE.MeshStandardMaterial({ color: 0x333944, roughness: 0.85 });
-    texLoader.load("assets/tex/poster_c3d.jpg", function (t) { t.anisotropy = 8; m.map = t; m.color.set(0xffffff); m.needsUpdate = true; });
-    var art = new THREE.Mesh(new THREE.PlaneGeometry(0.52, 0.78), m);
-    art.position.z = 0.012; g.add(art);
-    g.position.set(-3.05, 1.9, -2.53); g.rotation.z = 0.018; // taped a touch crooked, like the rest
-    scene.add(g);
-    [backing, art].forEach(function (mm) {
-      clickable(mm, "CHAMELEON 3D", go("https://kylefriesmarketing.github.io/chameleon/chameleon3d.html"), "CHAMELEON 3D — click to play (Dumb Tony's)");
-    });
-  })();
+  // (the back-wall poster beside the shelf came down — that wall's free for the next game)
 
   /* ---- TIDEBOUND: a toy island diorama on the floor (generated) --------------- */
   prop("assets/props/island.glb", 0.62, -1.9, 0, 2.45, 0.5, function (wrap) {
@@ -1660,7 +1648,6 @@ import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
     // but the notebook should still know every game in the room.
     html += nbRow("Brainrot", "on Tony's shelf");
     html += nbRow("Tidebound", "on Tony's shelf");
-    html += nbRow("Chameleon 3D", "kitchen prototype");
     nbPages.push({ title: "what i finished", html: html });
     if (tt.started || stories) { // the war, act by act
       var p = readSave("tt-campaign", function (m) { return m; }) || {};
@@ -2350,26 +2337,6 @@ import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
     });
     return g;
   }
-  function buildCham() {
-    var g = new THREE.Group(), grn = mat(0x7ac04a, 0.8);
-    var body = new THREE.Mesh(new THREE.SphereGeometry(0.028, 12, 10), grn);
-    body.scale.set(1.5, 0.9, 0.85); body.position.y = 0.032; g.add(body);
-    var head = new THREE.Mesh(new THREE.ConeGeometry(0.016, 0.028, 10), grn);
-    head.rotation.z = -Math.PI / 2; head.position.set(0.052, 0.038, 0); g.add(head);
-    var tail = new THREE.Mesh(new THREE.TorusGeometry(0.016, 0.006, 8, 16, 4.6), grn);
-    tail.position.set(-0.048, 0.032, 0); tail.rotation.y = 0.2; g.add(tail);
-    [[0.02, -0.016], [0.02, 0.016], [-0.02, -0.016], [-0.02, 0.016]].forEach(function (p) {
-      var leg = new THREE.Mesh(new THREE.CylinderGeometry(0.005, 0.006, 0.024, 8), grn);
-      leg.position.set(p[0], 0.012, p[1]); g.add(leg);
-    });
-    [-0.008, 0.008].forEach(function (z) {
-      var eye = new THREE.Mesh(new THREE.SphereGeometry(0.007, 8, 8), mat(0xf2ead6, 0.4));
-      eye.position.set(0.046, 0.052, z * 1.6); g.add(eye);
-      var pupil = new THREE.Mesh(new THREE.SphereGeometry(0.003, 6, 6), mat(0x222222, 0.3));
-      pupil.position.set(0.05, 0.054, z * 1.9); g.add(pupil);
-    });
-    return g;
-  }
   function buildPalm() { // the island that isn't on any chart, pocket edition
     var g = new THREE.Group();
     var sea = new THREE.Mesh(new THREE.CylinderGeometry(0.062, 0.066, 0.008, 20),
@@ -2443,10 +2410,6 @@ import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
       earn: "visit BRAINROT — the brain on the desk",
       have: function () { try { return !!localStorage.getItem("room-visited-brainball"); } catch (e) { return false; } },
       home: { x: 2.95, y: 1.021, z: -2.44 }, build: buildBrainball },
-    { key: "cham", title: "the rubber chameleon", from: "CHAMELEON 3D", icon: "🦎",
-      earn: "visit CHAMELEON 3D — the beige PC",
-      have: function () { try { return !!localStorage.getItem("room-visited-cham"); } catch (e) { return false; } },
-      home: { x: -0.65, y: 2.392, z: -2.32 }, build: buildCham },
     { key: "palm", title: "the pocket island", from: "TIDEBOUND", icon: "🌴",
       earn: "visit TIDEBOUND — the toy island",
       have: function () { try { return !!localStorage.getItem("room-visited-palm"); } catch (e) { return false; } },
@@ -2454,7 +2417,7 @@ import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
   ];
   var collByKey = {};
   COLLECT.forEach(function (c) { collByKey[c.key] = c; });
-  var VISIT_KEYS = { "GameRepos/brainrot": "brainball", "chameleon": "cham", "GameRepos/tidebound": "palm" };
+  var VISIT_KEYS = { "GameRepos/brainrot": "brainball", "GameRepos/tidebound": "palm" };
   function markVisited(url) {
     for (var k in VISIT_KEYS) {
       if (url.indexOf(k) >= 0) { try { localStorage.setItem("room-visited-" + VISIT_KEYS[k], "1"); } catch (e) { } }
@@ -3375,8 +3338,8 @@ import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
       get: function () { return movableByKey.island ? [movableByKey.island.root] : []; } },
     { key: "brain", sec: "desk", label: "the brain (BRAINROT) + poster", halos: function () { return [gBrain]; },
       get: function () { return [brainG, posterBrainrot]; } },
-    { key: "pc", sec: "desk", label: "the beige PC (CHAMELEON 3D) + poster",
-      get: function () { return [pc, posterC3D]; } },
+    { key: "pc", sec: "desk", label: "the beige PC",
+      get: function () { return [pc]; } },
   ];
   function applyOut() {
     HIDEABLES.forEach(function (h) {
@@ -3893,6 +3856,7 @@ import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
     kid: kid, kidState: kidState, kidStep: kidStep, kidGoto: kidGoto, kidObstacles: KID_OBSTACLES, kidStations: KID_STATIONS,
     kidActions: function () { return kidActions; }, setKidAction: setKidAction, kidMixer: function () { return kidMixer; },
     kidSay: kidSay, kidGreetLine: kidGreetLine, kidFetchLine: kidFetchLine, gameProgress: gameProgress,
+    screen: { draw: drawScreensaver, cycle: cycleScreen, mode: function () { return ssMode; }, canvas: ssCanvas },
     decor: { movables: movables, byKey: movableByKey, set: decorSet, mode: function () { return decorMode; },
       apply: applyMove, reset: decorReset, persist: persistLayout, hub: KID_HUB,
       layout: function () { return loadJSON("room-layout"); } },
