@@ -102,6 +102,41 @@ import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
   var dracoL = new DRACOLoader(); dracoL.setDecoderPath("assets/lib/draco/");
   var gltfL = new GLTFLoader(); gltfL.setDRACOLoader(dracoL);
   var mixers = []; // AnimationMixers for rigged props, stepped in tick()
+  // The room ships ~10MB of GLBs. Fetching them all at once means the browser
+  // splits the pipe twenty ways and NOTHING shows up for ages — the kid arrives
+  // no sooner than the skateboard. So: a small priority queue. Low number = sooner.
+  var GLB_PRIO = {
+    "kid.glb": 0, "kid_idle.glb": 1, "kid_walk.glb": 1,                 // the star of the room
+    "bed.glb": 1, "robot.glb": 1, "brain.glb": 2, "chair.glb": 2,       // big/animated things you notice
+    "bean.glb": 3, "island.glb": 3, "trex.glb": 3, "globe.glb": 3,
+    "skate.glb": 4,                                                     // 1.4MB for a prop against a wall
+  };
+  var loadQ = [], loadActive = 0, LOAD_MAX = 4;
+  function prioFor(url) {
+    var f = url.split("/").pop();
+    if (GLB_PRIO[f] != null) return GLB_PRIO[f];
+    if (f.indexOf("kid_") === 0) return 2;   // his other animation clips: small, and he needs them
+    if (f.indexOf("army_") === 0) return 5;  // toy soldiers, thumb-sized on the rug
+    return 3;
+  }
+  var pumpScheduled = false;
+  function queueGLB(url, cb) {
+    loadQ.push({ url: url, prio: prioFor(url), cb: cb });
+    // Everything registers synchronously as this module runs, so hold the first
+    // pump until that pass is done — otherwise whatever was declared earliest wins
+    // regardless of priority, which is exactly what we're trying to avoid.
+    if (!pumpScheduled) { pumpScheduled = true; setTimeout(function () { pumpScheduled = false; pumpGLB(); }, 0); }
+  }
+  function pumpGLB() {
+    while (loadActive < LOAD_MAX && loadQ.length) {
+      loadQ.sort(function (a, b) { return a.prio - b.prio; });
+      var job = loadQ.shift();
+      loadActive++;
+      gltfL.load(job.url, (function (j) {
+        return function (g) { loadActive--; try { j.cb(g); } finally { pumpGLB(); } };
+      })(job), undefined, function () { loadActive--; pumpGLB(); }); // a missing prop must never stall the queue
+    }
+  }
   // Generated props ease in instead of popping when their GLB finishes loading.
   var fadeIns = [];
   function fadeInObject(root) {
@@ -124,7 +159,7 @@ import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
   }
   // Load a GLB, scale it to height h, sit its base at local y=0, place at (x,y,z).
   function prop(url, h, x, y, z, rotY, onReady) {
-    gltfL.load(url, function (g) {
+    queueGLB(url, function (g) {
       var root = g.scene;
       root.traverse(function (o) { if (o.isMesh) { o.castShadow = o.receiveShadow = true; } });
       var bb = new THREE.Box3().setFromObject(root);
@@ -342,7 +377,7 @@ import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
   var WAR_SCALE = 0.16 / 1.7;
   function warUnit(url, x, z, rotY, opts) {
     opts = opts || {};
-    gltfL.load(url, function (g) {
+    queueGLB(url, function (g) {
       var root = g.scene;
       root.traverse(function (o) { if (o.isMesh) { o.castShadow = o.receiveShadow = true; } });
       var wrap = new THREE.Group();
@@ -485,7 +520,7 @@ import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
   var brainStand = new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.19, 0.06, 20), woodMSide); brainStand.position.y = 0.845; brainG.add(brainStand);
   clickable(brainStand, "BRAINROT", go(BRAINROT_URL), BRAINROT_HINT);
   var brainGlow = new THREE.PointLight(0xff3bd0, 0.5, 1.1, 2); brainGlow.position.set(0, 1.02, 0); brainG.add(brainGlow);
-  gltfL.load("assets/props/brain.glb", function (g) {
+  queueGLB("assets/props/brain.glb", function (g) {
     var root = g.scene;
     root.traverse(function (o) {
       if (o.isMesh) {
@@ -1217,7 +1252,7 @@ import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
   var bed = new THREE.Group();
   bed.position.set(2.92, 0, 1.1); bed.rotation.y = -0.05; scene.add(bed);
   var BED_LEN = 1.72, BED_YAW = 0; // long axis runs front-to-back (z); the chest moved off the wall so it can grow
-  gltfL.load("assets/props/bed.glb", function (g) {
+  queueGLB("assets/props/bed.glb", function (g) {
     var root = g.scene;
     root.traverse(function (o) { if (o.isMesh) { o.castShadow = o.receiveShadow = true; } });
     var bb = new THREE.Box3().setFromObject(root), sz = bb.getSize(new THREE.Vector3());
@@ -1382,7 +1417,7 @@ import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
     if (kidCur && kidCur !== a) kidCur.crossFadeTo(a, fade == null ? 0.3 : fade, false);
     kidCur = a; kidActionName = name;
   }
-  gltfL.load("assets/props/kid.glb", function (g) {
+  queueGLB("assets/props/kid.glb", function (g) {
     var root = g.scene;
     root.traverse(function (o) { if (o.isMesh) { o.castShadow = o.receiveShadow = true; } });
     for (var pi = pick.length - 1; pi >= 0; pi--) { // retire the stand-in's clickables
@@ -1407,7 +1442,7 @@ import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
      ["lie", "assets/props/kid_lie.glb"], ["fidget", "assets/props/kid_fidget.glb"],
      ["dance", "assets/props/kid_dance.glb"], ["wave", "assets/props/kid_wave.glb"]]
       .forEach(function (p) {
-        gltfL.load(p[1], function (cg) {
+        queueGLB(p[1], function (cg) {
           if (cg.animations && cg.animations[0]) {
             var act = kidMixer.clipAction(cg.animations[0], root);
             if (p[0] === "lie" || p[0] === "wave") { act.setLoop(THREE.LoopOnce, 1); act.clampWhenFinished = true; }
