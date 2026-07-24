@@ -1222,6 +1222,41 @@ import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
   var motes = new THREE.Points(moteGeo, new THREE.PointsMaterial({ color: 0xffd9a0, size: 0.014, transparent: true, opacity: 0.45, depthWrite: false }));
   scene.add(motes);
 
+  /* ---- the season drifts through the room (view-only) --------------------------
+   * A gentle fall keyed to the real month — snow in winter, petals in spring, leaves
+   * in autumn, clear skies in summer. Purely decorative (Math.random, never the sim),
+   * and switchable off in the paint tab for anyone who'd rather it stayed still.
+   * ?season=winter|spring|autumn|summer pins it for tinkering. */
+  var SEASON_LOOKS = {
+    winter: { color: 0xeaf2ff, size: 0.032, fall: 0.26, sway: 0.5, op: 0.8 },   // snow
+    spring: { color: 0xffc4dc, size: 0.030, fall: 0.19, sway: 1.0, op: 0.72 },  // petals
+    autumn: { color: 0xe8944a, size: 0.034, fall: 0.23, sway: 0.85, op: 0.72 }, // leaves
+  };
+  var seasonFX = (function () {
+    var q = /[?&]season=(winter|spring|autumn|summer|none)/.exec(location.search);
+    if (q) return (q[1] === "summer" || q[1] === "none") ? null : q[1];
+    var m = _md[0];
+    if (m === 12 || m <= 2) return "winter";
+    if (m >= 3 && m <= 5) return "spring";
+    if (m >= 9 && m <= 11) return "autumn";
+    return null; // summer: clear skies
+  })();
+  var seaN = 46, seaGeo = new THREE.BufferGeometry(), seaPos = new Float32Array(seaN * 3), seaPh = new Float32Array(seaN);
+  for (var sfi = 0; sfi < seaN; sfi++) {
+    seaPos[sfi * 3] = -3.3 + Math.random() * 6.6;
+    seaPos[sfi * 3 + 1] = Math.random() * 3.3;
+    seaPos[sfi * 3 + 2] = -2.3 + Math.random() * 4.9;
+    seaPh[sfi] = Math.random() * 6.28;
+  }
+  seaGeo.setAttribute("position", new THREE.BufferAttribute(seaPos, 3));
+  var seaMat = new THREE.PointsMaterial({ color: 0xffffff, size: 0.03, transparent: true, opacity: 0.7, depthWrite: false });
+  var seaPoints = new THREE.Points(seaGeo, seaMat); seaPoints.visible = false; scene.add(seaPoints);
+  function applySeasonFX() {
+    var look = (seasonFX && !paintState.noSeason) ? SEASON_LOOKS[seasonFX] : null;
+    seaPoints.visible = !!look;
+    if (look) { seaMat.color.set(look.color); seaMat.size = look.size; seaMat.opacity = look.op; seaMat.needsUpdate = true; }
+  }
+
   /* ---- the room follows your clock -------------------------------------------- */
   // Four moods keyed to the visitor's real hour. Each phase sets the ambient
   // wash, the "moon" (which doubles as daylight), the window's lift, how hard
@@ -2987,6 +3022,49 @@ import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
     if (decorMode) dwRender();
   }
 
+  /* ---- THEMES: whole-room looks you earn by playing ------------------------------
+   * A theme is a preset with the lights and the hour of the day thrown in — one tap
+   * changes everything. The first is always yours; the rest unlock as you collect the
+   * little trophies the games leave behind, so decorating stays a reason to keep playing.
+   * paint keys index PAINT.*.opts / NEON_OPTS / LIGHT_PALS; hour is a LIGHT_MODES value
+   * (null = follow your clock); screen is a SCREENSAVERS key. */
+  var ROOM_THEMES = [
+    { key: "asfound", name: "as found", icon: "🛏️", need: 0, reset: true, hour: null },
+    { key: "cabin", name: "cozy cabin", icon: "🔥", need: 0,
+      paint: { walls: 5, carpet: 1, wood: 1, door: 1, rug: 1, neon: 1, lights: "warm glow", screen: "stars" }, hour: "evening" },
+    { key: "arcade", name: "neon arcade", icon: "🕹️", need: 2,
+      paint: { walls: 0, carpet: 3, wood: 4, door: 4, rug: 0, neon: 3, lights: "ocean", screen: "logo" }, hour: "night" },
+    { key: "attic", name: "haunted attic", icon: "🕸️", need: 4,
+      paint: { walls: 4, carpet: 3, wood: 2, door: 4, rug: 0, neon: 4, lights: "candy", screen: "rain" }, hour: "night" },
+    { key: "sunroom", name: "sunroom", icon: "🌿", need: 6,
+      paint: { walls: 1, carpet: 2, wood: 3, door: 3, rug: 2, neon: 2, lights: "classic", screen: "mystify" }, hour: "day" },
+    { key: "winter", name: "winter room", icon: "❄️", need: 9,
+      paint: { walls: 3, carpet: 3, wood: 3, door: 2, rug: 3, neon: 3, lights: "ocean", screen: "stars" }, hour: "dusk" },
+  ];
+  var THEME_BY_KEY = {};
+  ROOM_THEMES.forEach(function (t) { THEME_BY_KEY[t.key] = t; });
+  function collectiblesEarned() { var n = 0; COLLECT.forEach(function (c) { if (c.have()) n++; }); return n; }
+  function themeUnlocked(t) { return !t.need || collectiblesEarned() >= t.need; }
+  function applyTheme(key) {
+    var t = THEME_BY_KEY[key]; if (!t) return;
+    if (!themeUnlocked(t)) {
+      try { kidSay("that one's locked — find " + (t.need - collectiblesEarned()) + " more treasures first.", 4); } catch (e) { }
+      clickSfx(700); return;
+    }
+    pushUndo();
+    if (t.reset) pbWash();
+    else {
+      var p = t.paint || {};
+      ["walls", "carpet", "wood", "door", "rug", "neon", "lights", "screen"].forEach(function (f) {
+        if (p[f] != null) paintState[f] = p[f];
+      });
+      saveJSON("room-paint", paintState); applyPaint();
+    }
+    if ("hour" in t) setLightMode(t.hour);
+    if (decorMode) dwRender();
+    try { kidSay("the " + t.name + ". now we're talking.", 3.8); } catch (e) { }
+  }
+
   /* ---- the snapshot (a real photo of your room, downloaded) ---------------------- */
   function shareRoom() {
     scene.updateMatrixWorld(true);
@@ -3256,6 +3334,8 @@ import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
       pushUndo(); setPaint("screen", key); dwRender(); clickSfx(1700);
     } else if ((key = b.getAttribute("data-preset"))) {
       applyPreset(key); clickSfx(1600);
+    } else if ((key = b.getAttribute("data-theme"))) {
+      applyTheme(key); clickSfx(1600);
     } else if ((key = b.getAttribute("data-sticker"))) {
       pushUndo(); var ne = addSticker(key); decorSelect(ne.cfg); dwRender(); clickSfx(1700);
       try { kidSay("stuck it on the wall. drag it where you want.", 4); } catch (e0) { }
@@ -3278,6 +3358,10 @@ import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
       if (nm) { try { kidSay(nm + "'s room. it's official — it's on the wall.", 4.5); } catch (e3) { } }
     } else if (act === "wash") {
       pushUndo(); pbWash(); dwRender(); clickSfx(900);
+    } else if (act === "seasontoggle") {
+      paintState.noSeason = !paintState.noSeason;
+      if (!paintState.noSeason) delete paintState.noSeason;
+      saveJSON("room-paint", paintState); applySeasonFX(); dwRender(); clickSfx(paintState.noSeason ? 900 : 1600);
     } else if (act === "surprise") {
       surpriseMe(); clickSfx(1700);
     } else if (act === "allout") {
@@ -3475,6 +3559,7 @@ import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
     for (var s = 0; s < SCREENSAVERS.length; s++) if (SCREENSAVERS[s][0] === wantSS) ssKind = wantSS;
     applyNeonPaint();
     applyNameBanner();
+    applySeasonFX();
   }
   function setPaint(key, val) {
     paintState[key] = val;
@@ -3486,10 +3571,15 @@ import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
   function hex6(n) { return "#" + ("00000" + n.toString(16)).slice(-6); }
   function dwPaintHTML() {
     var html = '<div class="dw-hint">same room, your colors — watch it change as you click</div>';
-    html += '<div class="dw-sec">one-tap looks</div><div class="dw-grid">';
-    for (var pn in ROOM_PRESETS) {
-      html += '<button type="button" class="dw-card" data-preset="' + pn + '"><div class="n">' + pn + "</div></button>";
-    }
+    var earned = collectiblesEarned();
+    html += '<div class="dw-sec">whole-room looks — ' + earned + " treasure" + (earned === 1 ? "" : "s") + " found</div>";
+    html += '<div class="dw-grid">';
+    ROOM_THEMES.forEach(function (t) {
+      var lk = !themeUnlocked(t);
+      html += '<button type="button" class="dw-card' + (lk ? " locked" : "") + '" data-theme="' + t.key +
+        '"' + (lk ? ' title="find ' + t.need + ' treasures to unlock"' : "") + '><div class="i">' +
+        (lk ? "🔒" : t.icon) + '</div><div class="n">' + (lk ? t.need + " found" : t.name) + "</div></button>";
+    });
     html += '<button type="button" class="dw-card" data-act="surprise"><div class="i">🎲</div><div class="n">surprise me</div></button>';
     html += "</div>";
     for (var k in PAINT) {
@@ -3539,6 +3629,14 @@ import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
         '</div><div class="n">' + s[1] + "</div></button>";
     });
     html += "</div>";
+    if (seasonFX) {
+      var seaOn = !paintState.noSeason;
+      var seaName = { winter: "snow", spring: "petals", autumn: "leaves" }[seasonFX];
+      html += '<div class="dw-sec">the season</div>' +
+        '<button type="button" class="dw-wide" data-act="seasontoggle" aria-pressed="' + (seaOn ? "true" : "false") + '">' +
+        (seaOn ? "❄ " + seaName + " is falling — turn it off" : "let the " + seaName + " fall").replace("❄", { winter: "❄", spring: "🌸", autumn: "🍂" }[seasonFX]) +
+        "</button>";
+    }
     html += '<div class="dw-sec">this room belongs to</div><div class="dw-name">' +
       '<input id="dw-name-inp" maxlength="14" placeholder="write your name" autocomplete="off" spellcheck="false">' +
       '<button id="dw-name-set" type="button">put it up</button></div>' +
@@ -4060,6 +4158,16 @@ import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
       mp.setX(mo, mp.getX(mo) + dt * 0.01 * Math.sin(t * 0.4 + mo));
     }
     mp.needsUpdate = true;
+    if (seaPoints.visible) { // the season falls: down + a lazy sway, recycled at the ceiling
+      var look = SEASON_LOOKS[seasonFX], sp = seaGeo.attributes.position;
+      for (var se = 0; se < seaN; se++) {
+        var sy = sp.getY(se) - dt * look.fall;
+        if (sy < 0) { sy = 3.3; sp.setX(se, -3.3 + Math.random() * 6.6); sp.setZ(se, -2.3 + Math.random() * 4.9); }
+        sp.setY(se, sy);
+        sp.setX(se, sp.getX(se) + dt * look.sway * 0.14 * Math.sin(t * 0.7 + seaPh[se]));
+      }
+      sp.needsUpdate = true;
+    }
     // neon hum: tiny flicker, and a rare stutter
     if (neonMesh) {
       var hum = 0.96 + 0.04 * Math.sin(t * 11) * Math.sin(t * 1.3);
@@ -4122,6 +4230,8 @@ import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
     screen: { draw: drawScreensaver, cycle: cycleScreen, kind: function () { return ssKind; },
       kinds: SCREENSAVERS, canvas: ssCanvas },
     light: { mode: function () { return lightMode; }, set: setLightMode, cycle: cycleLights, modes: LIGHT_MODES },
+    season: { fx: function () { return seasonFX; }, on: function () { return seaPoints.visible; },
+      set: function (v) { seasonFX = SEASON_LOOKS[v] ? v : null; applySeasonFX(); }, apply: applySeasonFX, points: seaPoints },
     decor: { movables: movables, byKey: movableByKey, set: decorSet, mode: function () { return decorMode; },
       apply: applyMove, reset: decorReset, persist: persistLayout, hub: KID_HUB,
       layout: function () { return loadJSON("room-layout"); } },
@@ -4138,6 +4248,7 @@ import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
       } },
     extras: { stickers: function () { return stickers; }, addSticker: addSticker, designs: STICKER_DESIGNS,
       preset: applyPreset, presets: ROOM_PRESETS, surprise: surpriseMe, undo: doUndo, undoDepth: function () { return undoStack.length; },
+      themes: ROOM_THEMES, theme: applyTheme, themeUnlocked: themeUnlocked, earned: collectiblesEarned,
       blob: roomStateBlob, applyBlob: applyRoomState, encode: encodeRoom, decode: decodeRoom, link: roomLink, share: shareRoom,
       slots: function () { return roomSlots; }, saveRoom: saveRoom, loadRoom: loadRoom, delRoom: delRoom, paste: pasteRoom },
     store: { keys: GAME_KEYS, owned: function () { return ownedKeys; }, locked: gameLocked, demo: function () { return storeDemo; },
