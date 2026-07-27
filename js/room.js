@@ -14,6 +14,7 @@ import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
 import { mat, box, canvasTex, loadJSON, saveJSON, readSave, countOf, esc, hex6 } from "./util.js";
 import { STICKER_DESIGNS } from "./stickers.js";
 import * as COLL from "./collectibles.js";
+import * as PROFILE from "./profile.js";
 
 (function () {
   var renderer;
@@ -1240,6 +1241,16 @@ import * as COLL from "./collectibles.js";
       priorVisits = parseInt(localStorage.getItem("room-visits") || "0", 10) || 0;
       localStorage.setItem("room-visits", priorVisits + 1);
     } catch (e) { priorVisits = 0; }
+    setTimeout(function () { // let the saves settle, then tell them what they just earned
+      try {
+        var fresh = PROFILE.evaluate(profileCtx()).unseen;
+        if (fresh.length) {
+          kidSay(fresh.length === 1
+            ? "hey — " + fresh[0].name.toLowerCase() + ". it's in the notebook."
+            : "you've earned " + fresh.length + " new things. they're in the notebook.", 5.5);
+        }
+      } catch (e) { /* never let a nicety break the room */ }
+    }, 12000);
     showTouchHint();
     var last = null;
     try { last = localStorage.getItem("room-knock"); } catch (e) { /* private mode */ }
@@ -1940,12 +1951,82 @@ import * as COLL from "./collectibles.js";
   // act by act, then the lifetime record from the Chronicle.
   var nbPages = [], nbIndex = 0;
   function nbRow(k, v) { return "<div class='nb-row'><span>" + k + "</span><b>" + v + "</b></div>"; }
+  // earned awards read normally; the rest show what they'd take, so the page is a
+  // to-do list rather than a wall of question marks
+  function ACH_HTML(res) {
+    var got = {};
+    res.earned.forEach(function (a) { got[a.id] = 1; });
+    return PROFILE.ACHIEVEMENTS.map(function (a) {
+      var have = !!got[a.id];
+      return "<div class='nb-ach" + (have ? "" : " locked") + "'>" +
+        "<span class='nb-ach-i'>" + (have ? a.icon : "·") + "</span>" +
+        "<span><b>" + esc(a.name) + "</b><i>" + esc(have ? "earned" : a.hint) + "</i></span></div>";
+    }).join("");
+  }
   function fmtDur(sec) {
     var h = Math.floor(sec / 3600), m = Math.round((sec % 3600) / 60);
     return h ? h + "h " + m + "m" : m + "m";
   }
+  // Log the visit as soon as the room loads, not on the "step inside" click — you're
+  // here either way, and the card read "days here 0" for anyone still on the card.
+  PROFILE.touchVisit();
+
+  /* ---- the cross-game snapshot ------------------------------------------------
+   * Only the room can see every game at once (they all share this origin), so this
+   * is where a player's whole shelf gets added up. Feeds the card and the awards. */
+  function profileCtx() {
+    var started = 0, complete = false, total = 0, perGame = [];
+    for (var title in GAME_SAVES) {
+      var p = gameProgress(title);
+      var done = p ? p.done : 0, cap = (p && p.total) || 0;
+      if (p && p.started) started++;
+      if (cap && done >= cap) complete = true;
+      total += done;
+      perGame.push({ title: title, done: done, total: cap, started: !!(p && p.started), noun: p ? p.noun : "endings" });
+    }
+    var tt = ttCampaign();
+    var hr = readSave("hr-save", function (m) { return m; });
+    var tony = 0;
+    ["brainball", "palm"].forEach(function (k) {   // Tony's games unlock by visiting
+      try { if (localStorage.getItem("room-visited-" + k)) tony++; } catch (e) { }
+    });
+    var pst = PROFILE.profileState();
+    return {
+      perGame: perGame,
+      gamesStarted: started + (tt.done + tt.secrets > 0 ? 1 : 0) + (hr && (hr.bestDist > 0) ? 1 : 0),
+      gamesTotal: Object.keys(GAME_SAVES).length + 2,   // the stories, plus Age of Toys and Hood Run
+      anyComplete: complete,
+      totalEndings: total + tt.done + tt.secrets,
+      toysMissions: tt.done + tt.secrets,
+      hoodRuns: hr ? (hr.lifetime && hr.lifetime.runs) || (hr.bestDist > 0 ? 1 : 0) : 0,
+      hoodBest: hr ? Math.round(hr.bestDist || 0) : 0,
+      tonyVisits: tony,
+      collectibles: collectiblesEarned(),
+      collectiblesTotal: COLLECT.length,
+      roomNamed: roomOwnerName(),
+      savedRooms: roomSlots.length,
+      visits: priorVisits + 1,
+      days: PROFILE.daysVisited(),
+      lateNight: pst.lateNight,
+      first: pst.first,
+    };
+  }
   function buildPages() {
     nbPages = [];
+    // page 1: who you are across the whole shelf
+    var c = profileCtx(), res = PROFILE.evaluate(c);
+    var card = "<div class='nb-rank'>" + esc(PROFILE.rankFor(c)) + "</div>";
+    if (c.roomNamed) card += nbRow("this room belongs to", esc(c.roomNamed));
+    card += nbRow("endings found", c.totalEndings);
+    card += nbRow("games opened", c.gamesStarted + " / " + c.gamesTotal);
+    card += nbRow("treasures", c.collectibles + " / " + c.collectiblesTotal);
+    card += nbRow("awards", res.earned.length + " / " + res.total);
+    card += nbRow("days here", c.days + (c.first ? " · since " + c.first : ""));
+    if (c.hoodBest) card += nbRow("furthest run", c.hoodBest + " m");
+    nbPages.push({ title: "the shelf, so far", html: card });
+    // page 2: the awards themselves
+    var aw = ACH_HTML(res);
+    nbPages.push({ title: "what you've done", html: aw });
     var rows = [
       ["Choose Wisely", readSave("chooseWisely.meta.v2", function (m) { return countOf(m.endingsFound); }), 56],
       ["Nine Circles", readSave("nc_persist", function (m) { return countOf(m.endings); }), null],
@@ -2023,7 +2104,7 @@ import * as COLL from "./collectibles.js";
     document.getElementById("nb-next").disabled = nbIndex === nbPages.length - 1;
     panel.classList.add("open");
   }
-  function showNotebook() { buildPages(); nbShow(0); }
+  function showNotebook() { buildPages(); nbShow(0); PROFILE.markSeen(); }
   document.getElementById("nb-prev").addEventListener("click", function () { nbShow(nbIndex - 1); clickSfx(1100); });
   document.getElementById("nb-next").addEventListener("click", function () { nbShow(nbIndex + 1); clickSfx(1100); });
   document.getElementById("nb-close").addEventListener("click", function () {
@@ -4165,6 +4246,9 @@ import * as COLL from "./collectibles.js";
     light: { mode: function () { return lightMode; }, set: setLightMode, cycle: cycleLights, modes: LIGHT_MODES },
     tour: { start: startTour, end: endTour, stops: TOUR, on: function () { return tourOn; },
       eligible: tourEligible, step: tourStep },
+    profile: { ctx: profileCtx, evaluate: PROFILE.evaluate, rank: PROFILE.rankFor,
+      achievements: PROFILE.ACHIEVEMENTS, state: PROFILE.profileState,
+      days: PROFILE.daysVisited, touch: PROFILE.touchVisit, markSeen: PROFILE.markSeen },
     season: { fx: function () { return seasonFX; }, on: function () { return seaPoints.visible; },
       set: function (v) { seasonFX = SEASON_LOOKS[v] ? v : null; applySeasonFX(); }, apply: applySeasonFX, points: seaPoints },
     decor: { movables: movables, byKey: movableByKey, set: decorSet, mode: function () { return decorMode; },
