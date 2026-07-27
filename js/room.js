@@ -1443,6 +1443,77 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
     });
   })();
 
+  /* ---- THE POSTER FRAMES: swappable prints, one per game (2026-07-27) ---------
+   * Every game got a painted 90s poster; three frames around the room each hold
+   * whichever print you choose (🌟 walls tab). Clicking a frame opens the game
+   * whose poster hangs in it. Persists in "room-posters" and rides share codes. */
+  var POSTER_ART = [
+    { key: "ageoftoys", label: "AGE OF TOYS", url: BASE + "toybox-tactics/", tip: "AGE OF TOYS — the toy chest's own war story" },
+    { key: "south", label: "SOUTH", url: BASE + "south/", tip: "SOUTH — bring all 27 home" },
+    { key: "stillbreathing", label: "STILL BREATHING", url: BASE + "still-breathing/", tip: "STILL BREATHING — four true ordeals" },
+    { key: "ninecircles", label: "NINE CIRCLES", url: BASE + "nine-circles/", tip: "NINE CIRCLES — a descent" },
+    { key: "choosewisely", label: "CHOOSE WISELY", url: BASE + "choose-wisely/", tip: "CHOOSE WISELY — the shop remembers you" },
+    { key: "nobody", label: "NOBODY", url: BASE + "nobody/", tip: "NOBODY — the Odyssey; argue with the poem" },
+    { key: "tidebound", label: "TIDEBOUND", url: "https://dumb-tony.github.io/GameRepos/tidebound/", tip: "TIDEBOUND — the island that isn't on any chart" },
+    { key: "elementary", label: "ELEMENTARY", url: BASE + "sherlock/", tip: "ELEMENTARY — observe, infer, live with being wrong" },
+    { key: "curiouser", label: "CURIOUSER", url: BASE + "alice/", tip: "CURIOUSER — wake as yourself" },
+    { key: "redink", label: "THE RED INK", url: BASE + "dracula/", tip: "DRACULA: THE RED INK — argue with the book" },
+    { key: "george", label: "G FOR GEORGE", url: BASE + "george/", tip: "G FOR GEORGE — 336 feet to the trees" },
+  ];
+  var posterByKey = {};
+  POSTER_ART.forEach(function (p) { posterByKey[p.key] = p; });
+  var POSTER_SPOTS = [ // wall inner faces are x=±3.55
+    { key: "p1", label: "the frame over the bed", x: 3.53, y: 2.08, z: 1.05, ry: -Math.PI / 2, rz: 0.02, def: "ageoftoys" },
+    { key: "p2", label: "the frame by the speakers", x: 3.53, y: 1.98, z: 0.05, ry: -Math.PI / 2, rz: -0.015, def: "south" },
+    { key: "p3", label: "the frame by the beanbag", x: -3.53, y: 1.82, z: 1.6, ry: Math.PI / 2, rz: 0.02, def: "curiouser" },
+  ];
+  var posterState = loadJSON("room-posters") || {};
+  var posterFrames = {}, posterTexCache = {};
+  POSTER_SPOTS.forEach(function (s) {
+    var g = new THREE.Group();
+    var backing = box(0.56, 0.82, 0.02, mat(0xe8e2d4, 0.9)); g.add(backing);
+    var m = new THREE.MeshStandardMaterial({ color: 0x333944, roughness: 0.85 });
+    var art = new THREE.Mesh(new THREE.PlaneGeometry(0.52, 0.78), m);
+    art.position.z = 0.012; g.add(art);
+    g.position.set(s.x, s.y, s.z); g.rotation.y = s.ry; g.rotation.z = s.rz;
+    scene.add(g);
+    [backing, art].forEach(function (mm) { clickable(mm, "", null, ""); }); // registered once; applyPosters mutates userData
+    posterFrames[s.key] = { g: g, m: m, meshes: [backing, art], cur: null };
+  });
+  function applyPosters() {
+    POSTER_SPOTS.forEach(function (s) {
+      var f = posterFrames[s.key];
+      var d = posterByKey[posterState[s.key]] || posterByKey[s.def];
+      if (f.cur === d.key) return;
+      f.cur = d.key;
+      f.m.map = null; f.m.color.set(0x333944); f.m.needsUpdate = true; // grey while the print loads
+      var file = "assets/tex/poster-" + d.key + ".jpg";
+      var apply = function (t) {
+        if (f.cur !== d.key) return; // they cycled again while this one loaded
+        f.m.map = t; f.m.color.set(0xffffff); f.m.needsUpdate = true;
+      };
+      if (posterTexCache[d.key]) apply(posterTexCache[d.key]);
+      else texLoader.load(file, function (t) { t.anisotropy = 8; posterTexCache[d.key] = t; apply(t); });
+      f.meshes.forEach(function (mm) {
+        mm.userData.name = d.label; mm.userData.action = go(d.url);
+        mm.userData.hint = d.tip + " · click to play";
+      });
+    });
+  }
+  function cyclePoster(spotKey, dir) {
+    var s = null;
+    POSTER_SPOTS.forEach(function (ss) { if (ss.key === spotKey) s = ss; });
+    if (!s) return;
+    var cur = posterState[spotKey] || s.def;
+    var i = 0;
+    POSTER_ART.forEach(function (p, pi) { if (p.key === cur) i = pi; });
+    i = (i + dir + POSTER_ART.length) % POSTER_ART.length;
+    posterState[spotKey] = POSTER_ART[i].key;
+    saveJSON("room-posters", posterState);
+    applyPosters();
+  }
+  applyPosters();
+
   /* ---- HOOD RUN: the getaway corner by the door ------------------------------- */
   // A stuffed duffel bag with the take spilling out, and the safe it came out of.
   // Set HOOD_RUN_URL when the game goes live and this becomes a doorway on its own.
@@ -2690,10 +2761,12 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
       o: JSON.parse(JSON.stringify(outState)),
       c: JSON.parse(JSON.stringify(shoeState.placed || {})),
       k: stickers.map(function (e) { return { d: e.design, w: e.wall, x: e.x, y: e.y, z: e.z, s: e.scale || 1, r: e.rot || 0 }; }),
+      ps: JSON.parse(JSON.stringify(posterState)), // which print hangs in each frame
     };
   }
   function applyRoomState(b) {
     if (!b) return;
+    posterState = b.ps || {}; saveJSON("room-posters", posterState); applyPosters();
     paintState = b.p || {}; saveJSON("room-paint", paintState); applyPaint();
     outState = b.o || {}; saveJSON("room-out", outState); applyOut();
     var lay = b.l || {}; saveJSON("room-layout", lay);
@@ -2959,6 +3032,10 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
     // material swatches: little rectangles that show the actual print
     ".dw-sw.dw-tex button{width:44px;height:30px;border-radius:7px;background-size:cover;background-position:center;" +
     "background-color:#1a2130;color:#8fa0b8;font-size:13px;line-height:1}" +
+    // the poster-frame cyclers (◀ TITLE ▶)
+    ".dw-cyc{display:flex;align-items:center;gap:6px}" +
+    ".dw-cyc b{min-width:106px;text-align:center;font-size:11px;letter-spacing:0.4px}" +
+    ".dw-cyc button{width:26px;height:26px;border-radius:6px;border:1px solid var(--line);background:#1a2130;color:#cfd8e6;cursor:pointer}" +
     ".dw-name{display:flex;gap:7px;margin-top:4px}" +
     ".dw-name input{flex:1;font-family:Georgia,serif;font-size:13px;background:rgba(255,255,255,.06);" +
     "color:var(--bone);border:1px solid var(--line);border-radius:5px;padding:7px 9px;min-width:0}" +
@@ -3128,6 +3205,8 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
       pushUndo(); setPaint(key, +b.getAttribute("data-i")); dwRender(); clickSfx(1600);
     } else if ((key = b.getAttribute("data-tex"))) {
       pushUndo(); setPaint(key + "Tex", +b.getAttribute("data-i")); dwRender(); clickSfx(1600);
+    } else if ((key = b.getAttribute("data-postspot"))) {
+      pushUndo(); cyclePoster(key, +b.getAttribute("data-dir")); dwRender(); clickSfx(1600);
     } else if (b.getAttribute("data-neon") != null && b.getAttribute("data-neon") !== "") {
       pushUndo(); setPaint("neon", +b.getAttribute("data-neon")); dwRender(); clickSfx(1600);
     } else if ((key = b.getAttribute("data-lights"))) {
@@ -3540,7 +3619,15 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
       html += '<button type="button" class="dw-card" data-sticker="' + d.id + '" title="' + d.id + '"><div class="i">' + d.label + "</div></button>";
     });
     html += "</div>";
-    html += '<div class="dw-sec">' + stickers.length + " up right now</div>";
+    html += '<div class="dw-sec">the poster frames — every game made one</div>';
+    POSTER_SPOTS.forEach(function (s) {
+      var d = posterByKey[posterState[s.key]] || posterByKey[s.def];
+      html += '<div class="dw-row"><span>' + s.label + "</span>" +
+        '<span class="dw-cyc"><button type="button" data-postspot="' + s.key + '" data-dir="-1" aria-label="' + s.label + ': previous poster">◀</button>' +
+        '<b>' + d.label + "</b>" +
+        '<button type="button" data-postspot="' + s.key + '" data-dir="1" aria-label="' + s.label + ': next poster">▶</button></span></div>';
+    });
+    html += '<div class="dw-sec">' + stickers.length + " sticker" + (stickers.length === 1 ? "" : "s") + " up right now</div>";
     if (stickers.length) html += '<button type="button" class="dw-wide" data-act="clearstickers">take them all down</button>';
     return html;
   }
@@ -4230,6 +4317,8 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
     cat: { g: function () { return catG; }, spot: function () { return catSpot; }, ob: CAT_OB,
       relocate: catRelocate, settle: catSettle, pet: catPet,
       hurry: function () { catNextMove = 0; } },
+    posters: { art: POSTER_ART, spots: POSTER_SPOTS, frames: posterFrames,
+      state: function () { return posterState; }, cycle: cyclePoster, apply: applyPosters },
     out: { defs: HIDEABLES, state: function () { return outState; }, apply: applyOut, open: obOpen, close: obClose,
       set: function (key, hidden) {
         if (hidden) outState[key] = 1; else delete outState[key];
