@@ -23,6 +23,11 @@ import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
   renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, coarse ? 1.5 : 2));
   renderer.shadowMap.enabled = true;
   renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+  // Film response instead of a straight clamp: the lamp and the neon roll off into
+  // colour instead of clipping to flat white, and the darks keep their detail.
+  // (AgX was tried and greys out the neon — this room wants the punchier curve.)
+  renderer.toneMapping = THREE.ACESFilmicToneMapping;
+  renderer.toneMappingExposure = 1.45;
   document.getElementById("room").appendChild(renderer.domElement);
 
   var scene = new THREE.Scene();
@@ -74,6 +79,35 @@ import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
     return s;
   }
   var gLava = null, gLamp = null; // halos wired to the lava/lamp on-off toggles
+
+  // Contact shadows: the soft dark pool a thing sits in. One real shadow-casting lamp
+  // can't ground everything in the room, and without this every toy looks like it's
+  // hovering a centimetre off the carpet. Cheap, and it rides along as furniture moves.
+  var contactTex = canvasTex(128, 128, function (g, w, h) {
+    var rad = g.createRadialGradient(w / 2, h / 2, 0, w / 2, h / 2, w / 2);
+    // weighted toward the core: a tight dark contact that falls off fast reads as
+    // "sitting on the floor", where an even spread just looks like a grey smudge
+    rad.addColorStop(0, "rgba(0,0,0,0.80)");
+    rad.addColorStop(0.32, "rgba(0,0,0,0.46)");
+    rad.addColorStop(0.62, "rgba(0,0,0,0.16)");
+    rad.addColorStop(0.85, "rgba(0,0,0,0.04)");
+    rad.addColorStop(1, "rgba(0,0,0,0)");
+    g.fillStyle = rad; g.fillRect(0, 0, w, h);
+  });
+  function contactShadow(parent, rx, rz, op, y) {
+    var m = new THREE.Mesh(new THREE.PlaneGeometry(rx * 2, (rz || rx) * 2),
+      new THREE.MeshBasicMaterial({ map: contactTex, transparent: true, depthWrite: false,
+        opacity: op == null ? 0.85 : op }));
+    m.rotation.x = -Math.PI / 2;
+    m.position.y = y == null ? 0.022 : y;   // above the floor (0) and the rug (0.012)
+    m.renderOrder = -1;
+    m.userData.skip = true;                  // never a clickable in its own right
+    parent.add(m);
+    return m;
+  }
+  // the kid gets one too, but scene-level: it stays on the carpet and fades out as he
+  // climbs onto the bed, instead of riding up with him
+  var kidShadow = contactShadow(scene, 0.2, 0.2, 0.5);
 
   var pick = []; // clickable meshes
   function clickable(mesh, name, action, hint) { mesh.userData = { name: name, action: action, hint: hint || "click to open" }; pick.push(mesh); return mesh; }
@@ -231,6 +265,10 @@ import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
   var amb = new THREE.AmbientLight(0x2c3440, 1.0); scene.add(amb);
   var moon = new THREE.DirectionalLight(0x7d9cc4, 0.4); moon.position.set(2.4, 3.5, 1.0); scene.add(moon);
   var lampLight = new THREE.PointLight(0xffc27d, 1.5, 9, 1.5); lampLight.position.set(-2.4, 1.6, -0.2); lampLight.castShadow = true; scene.add(lampLight);
+  // a point light shadows through a cube map — 6 faces, so phones keep the cheap one
+  lampLight.shadow.mapSize.set(coarse ? 512 : 1024, coarse ? 512 : 1024);
+  lampLight.shadow.bias = -0.004;   // kills the acne the default 0 leaves on the desk
+  lampLight.shadow.radius = 2.5;
   var crtLight = new THREE.PointLight(0x7db4ff, 0.7, 4, 2); crtLight.position.set(2.3, 1.0, -1.4); scene.add(crtLight);
   var shelfGlow = new THREE.PointLight(0xffd9a0, 0.55, 5, 2); shelfGlow.position.set(-1.3, 1.8, -1.4); scene.add(shelfGlow);
 
@@ -2105,6 +2143,12 @@ import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
     ring.rotation.x = -Math.PI / 2; ring.visible = false; ring.userData.__ring = true;
     ring.scale.setScalar((cfg.r || 0.3) + 0.16);
     scene.add(ring); cfg.__ring = ring;
+    // a pool of shade under it — parented, so dragging and spinning carry it along,
+    // and putting the thing away in WHAT'S OUT hides its shadow with it
+    if (cfg.kind !== "coll" && !cfg.flat) {
+      var sr = cfg.shadowR || (cfg.r || 0.3) * 1.15;
+      contactShadow(cfg.root, sr, cfg.shadowRZ || sr, cfg.shadowOp);
+    }
     movables.push(cfg); movableByKey[cfg.key] = cfg;
     if (cfg.kind !== "coll") { // furniture layout restores here; collectibles restore from the shoebox
       var sv = savedLayout[cfg.key];
@@ -2369,22 +2413,24 @@ import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
   }
 
   /* ---- register the furniture --------------------------------------------------- */
-  registerMovable({ key: "chest", label: "the toy chest", root: chest, r: 0.62, rot: true, obs: 0, stations: [0] });
-  registerMovable({ key: "rug", label: "the rug", root: rug, r: 1.5, stations: [2], onMove: function (x, z) {
+  registerMovable({ key: "chest", label: "the toy chest", root: chest, r: 0.62, rot: true, obs: 0, stations: [0],
+    shadowR: 0.66, shadowRZ: 0.44 });
+  registerMovable({ key: "rug", label: "the rug", root: rug, r: 1.5, stations: [2], flat: true, onMove: function (x, z) {
     rugCX = x; rugCZ = z;                    // the robot's patrol recenters every frame
     war.position.x = x; war.position.z = z;  // the army men are set up ON the rug
     KID_DANCE.x = x + 0.5; KID_DANCE.z = z + 0.62;
   } });
-  registerMovable({ key: "bed", label: "the bed", root: bed, r: 0.82, obs: 1, stations: [7], onMove: function (x, z) {
+  registerMovable({ key: "bed", label: "the bed", root: bed, r: 0.82, obs: 1, stations: [7],
+    shadowR: 0.62, shadowRZ: 1.02, onMove: function (x, z) {
     var dx = x - 2.92, dz = z - 1.1; // the climb waypoints ride with the bed (translate only — the lie clip owns the yaw)
     KID_BED.sideX = 2.12 + dx; KID_BED.sideZ = 1.05 + dz;
     KID_BED.upX = 2.62 + dx;
     KID_BED.x = 2.9 + dx; KID_BED.z = 0.88 + dz;
   } });
   registerMovable({ key: "desk", label: "the desk", root: desk, r: 0.82, obs: 2, stations: [4],
-    attachObjs: [lampLight, gLamp, gBrain] });
+    shadowR: 1.12, shadowRZ: 0.58, attachObjs: [lampLight, gLamp, gBrain] });
   registerMovable({ key: "tv", label: "the TV", root: crt, r: 0.55, rot: true, obs: 5, stations: [1],
-    attachObjs: [crtLight, gCrt] });
+    shadowR: 0.62, shadowRZ: 0.42, attachObjs: [crtLight, gCrt] });
   registerMovable({ key: "nstand", label: "the nightstand", root: nstand, r: 0.3, rot: true, attachObjs: [gLava] });
   registerMovable({ key: "hoodbag", label: "the duffel bag", root: hoodG, r: 0.34, rot: true, obs: 7, stations: [8] });
 
@@ -3071,6 +3117,11 @@ import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
     var W = 1600, H = 1000, rd = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
     rd.setPixelRatio(1); rd.setSize(W, H);
     rd.shadowMap.enabled = true; rd.shadowMap.type = THREE.PCFSoftShadowMap;
+    // the photo has to match what you're looking at — a fresh renderer starts with no
+    // tone mapping, which would hand you a flat, washed-out version of your own room
+    rd.toneMapping = renderer.toneMapping;
+    rd.toneMappingExposure = renderer.toneMappingExposure;
+    rd.outputColorSpace = renderer.outputColorSpace;
     var cam = new THREE.PerspectiveCamera(52, W / H, 0.1, 50);
     cam.position.set(0, 1.72, 4.8); cam.lookAt(new THREE.Vector3(0, 1.28, -0.5));
     rd.render(scene, cam);
@@ -4016,6 +4067,8 @@ import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
     }
     if (kidMixer) kidMixer.update(dt); // clips always advance now (idle/sit/lie animate in place)
     updateKidBubble(); // keep his speech bubble over his head
+    kidShadow.position.x = kid.position.x; kidShadow.position.z = kid.position.z;
+    kidShadow.material.opacity = 0.5 * Math.max(0, 1 - Math.max(0, kid.position.y) * 3.2);
     if ((frameCount % 120) === 0) applyPhase(); // the room checks the clock
     // five more minutes: while the bed has you, the whole room breathes lower
     nap += (((t < napUntil) ? 1 : 0) - nap) * Math.min(1, dt * 1.8);
