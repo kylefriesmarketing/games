@@ -11,6 +11,9 @@
 import * as THREE from "three";
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
 import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
+import { mat, box, canvasTex, loadJSON, saveJSON, readSave, countOf, esc, hex6 } from "./util.js";
+import { STICKER_DESIGNS } from "./stickers.js";
+import * as COLL from "./collectibles.js";
 
 (function () {
   var renderer;
@@ -38,13 +41,6 @@ import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
   camera.lookAt(lookAt);
 
   /* ---- helpers ---------------------------------------------------------- */
-  function mat(color, rough) { return new THREE.MeshStandardMaterial({ color: color, roughness: rough == null ? 0.9 : rough }); }
-  function box(w, h, d, m) { var g = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), m); g.castShadow = g.receiveShadow = true; return g; }
-  function canvasTex(w, h, draw) {
-    var c = document.createElement("canvas"); c.width = w; c.height = h;
-    draw(c.getContext("2d"), w, h);
-    var t = new THREE.CanvasTexture(c); t.anisotropy = 4; return t;
-  }
   var texLoader = new THREE.TextureLoader();
   // Generated texture with graceful color fallback; applies repeat wrapping.
   function texMat(url, fallbackColor, rough, repX, repY) {
@@ -118,10 +114,6 @@ import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
   var HOOD_RUN_URL = BASE + "hood-run/"; // live 2026-07-22
 
   /* ---- reading the sibling games' saves (same origin) ------------------------ */
-  function readSave(key, fn) {
-    try { var v = localStorage.getItem(key); return v ? fn(JSON.parse(v)) : null; } catch (e) { return null; }
-  }
-  function countOf(x) { return x == null ? null : (Array.isArray(x) ? x.length : Object.keys(x).length); }
   // Age of Toys: 15 storybook missions on the shelf, three secret pages beyond it.
   var TT_IDS = ["naptime", "sandbox", "bathtub", "hill", "finale",
                 "crumbs", "sofa", "canyonrun", "nightlight", "shelfking",
@@ -2179,8 +2171,6 @@ import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
    * The shoebox: every game leaves a unique little collectible behind once you've
    * earned it — display the ones you like, anywhere a surface will hold them.
    * ========================================================================== */
-  function loadJSON(key) { try { return JSON.parse(localStorage.getItem(key) || "null"); } catch (e) { return null; } }
-  function saveJSON(key, v) { try { localStorage.setItem(key, JSON.stringify(v)); } catch (e) { /* private mode */ } }
 
   var decorMode = false, dragging = null, selCfg = null, decorHover = null;
   var movables = [], movableByKey = {};
@@ -2499,243 +2489,6 @@ import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
   registerMovable({ key: "hoodbag", label: "the duffel bag", root: hoodG, r: 0.34, rot: true, obs: 7, stations: [8] });
 
   /* ---- THE SHOEBOX: one collectible per game ------------------------------------ */
-  var goldM = new THREE.MeshStandardMaterial({ color: 0xd9a93a, roughness: 0.35, metalness: 0.7 });
-  var glassM = new THREE.MeshStandardMaterial({ color: 0xbfe8e0, roughness: 0.12, transparent: true, opacity: 0.3 });
-  var toyWood = mat(0x8a6242, 0.8), toyWoodD = mat(0x5e4028, 0.85);
-  function buildBracelet() {
-    var g = new THREE.Group(), cols = [0xe05a7a, 0x5ab8e0, 0xe0c05a, 0x7ae08a, 0xb87ae0];
-    var band = new THREE.Mesh(new THREE.TorusGeometry(0.05, 0.007, 8, 24), mat(0xd8cfc0, 0.8));
-    band.rotation.x = -Math.PI / 2; band.position.y = 0.012; g.add(band);
-    for (var i = 0; i < 8; i++) {
-      var b = new THREE.Mesh(new THREE.SphereGeometry(0.011, 8, 8), mat(cols[i % cols.length], 0.5));
-      b.position.set(Math.cos(i / 8 * Math.PI * 2) * 0.05, 0.012, Math.sin(i / 8 * Math.PI * 2) * 0.05);
-      g.add(b);
-    }
-    return g;
-  }
-  function buildLaurel() {
-    var g = new THREE.Group();
-    var ring = new THREE.Mesh(new THREE.TorusGeometry(0.052, 0.006, 8, 28, Math.PI * 1.72), goldM);
-    ring.rotation.x = -Math.PI / 2; ring.rotation.z = Math.PI * 0.64; ring.position.y = 0.012; g.add(ring);
-    for (var i = 0; i < 10; i++) {
-      var a = Math.PI * 0.64 + (i + 0.5) / 10 * Math.PI * 1.72;
-      var lf = new THREE.Mesh(new THREE.ConeGeometry(0.007, 0.028, 6), goldM);
-      lf.position.set(Math.cos(a) * 0.052, 0.014, -Math.sin(a) * 0.052);
-      lf.rotation.x = Math.PI / 2; lf.rotation.y = -a + Math.PI / 2;
-      g.add(lf);
-    }
-    return g;
-  }
-  function buildCompass() {
-    var g = new THREE.Group();
-    var body = new THREE.Mesh(new THREE.CylinderGeometry(0.045, 0.045, 0.02, 24), goldM);
-    body.position.y = 0.01; g.add(body);
-    var face = new THREE.Mesh(new THREE.CircleGeometry(0.037, 24), new THREE.MeshBasicMaterial({
-      map: canvasTex(64, 64, function (gc) {
-        gc.fillStyle = "#f2ead6"; gc.beginPath(); gc.arc(32, 32, 32, 0, 7); gc.fill();
-        gc.fillStyle = "#333"; gc.font = "bold 13px Georgia, serif"; gc.textAlign = "center"; gc.textBaseline = "middle";
-        gc.fillText("N", 32, 10); gc.fillText("S", 32, 54); gc.fillText("E", 54, 32); gc.fillText("W", 10, 32);
-        gc.strokeStyle = "#c0392b"; gc.lineWidth = 3;
-        gc.beginPath(); gc.moveTo(30, 46); gc.lineTo(37, 16); gc.stroke();
-      }),
-    }));
-    face.rotation.x = -Math.PI / 2; face.position.y = 0.021; g.add(face);
-    var loop = new THREE.Mesh(new THREE.TorusGeometry(0.011, 0.0035, 6, 12), goldM);
-    loop.position.set(0.053, 0.012, 0); g.add(loop);
-    return g;
-  }
-  function buildBottle() { // the Endurance, safely home
-    var g = new THREE.Group();
-    var body = new THREE.Mesh(new THREE.CylinderGeometry(0.032, 0.032, 0.13, 16), glassM);
-    body.rotation.z = Math.PI / 2; body.position.y = 0.048; g.add(body);
-    var neck = new THREE.Mesh(new THREE.CylinderGeometry(0.011, 0.018, 0.035, 12), glassM);
-    neck.rotation.z = Math.PI / 2; neck.position.set(0.082, 0.048, 0); g.add(neck);
-    var cork = new THREE.Mesh(new THREE.CylinderGeometry(0.011, 0.011, 0.018, 10), mat(0xb08a56, 0.9));
-    cork.rotation.z = Math.PI / 2; cork.position.set(0.108, 0.048, 0); g.add(cork);
-    var hull = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.012, 0.016), toyWoodD);
-    hull.position.y = 0.038; g.add(hull);
-    [-0.012, 0.012].forEach(function (x, i) {
-      var sail = new THREE.Mesh(new THREE.PlaneGeometry(0.018, 0.026 - i * 0.008),
-        new THREE.MeshStandardMaterial({ color: 0xf2ead6, side: THREE.DoubleSide, roughness: 0.9 }));
-      sail.position.set(x, 0.058, 0); g.add(sail);
-    });
-    [-0.034, 0.034].forEach(function (x) {
-      var f = new THREE.Mesh(new THREE.BoxGeometry(0.014, 0.018, 0.05), toyWoodD);
-      f.position.set(x, 0.009, 0); g.add(f);
-    });
-    return g;
-  }
-  function buildHorse() { // wooden, wheeled, straight out of the poem
-    var g = new THREE.Group();
-    var body = box(0.07, 0.038, 0.024, toyWood); body.position.y = 0.062; g.add(body);
-    var neck = box(0.016, 0.036, 0.018, toyWood); neck.position.set(0.03, 0.092, 0); neck.rotation.z = -0.35; g.add(neck);
-    var head = box(0.03, 0.016, 0.016, toyWood); head.position.set(0.046, 0.108, 0); g.add(head);
-    var mane = box(0.024, 0.008, 0.01, toyWoodD); mane.position.set(0.026, 0.108, 0); mane.rotation.z = -0.35; g.add(mane);
-    [[-0.026, -0.008], [-0.026, 0.008], [0.026, -0.008], [0.026, 0.008]].forEach(function (p) {
-      var leg = new THREE.Mesh(new THREE.CylinderGeometry(0.005, 0.005, 0.036, 8), toyWood);
-      leg.position.set(p[0], 0.03, p[1]); g.add(leg);
-      var wheel = new THREE.Mesh(new THREE.CylinderGeometry(0.011, 0.011, 0.006, 12), toyWoodD);
-      wheel.rotation.x = Math.PI / 2; wheel.position.set(p[0], 0.011, p[1] + (p[1] < 0 ? -0.008 : 0.008)); g.add(wheel);
-    });
-    return g;
-  }
-  function buildWatch() { // the White Rabbit's — permanently teatime
-    var g = new THREE.Group();
-    var cased = new THREE.Mesh(new THREE.CylinderGeometry(0.042, 0.042, 0.013, 24), goldM);
-    cased.position.y = 0.007; g.add(cased);
-    var face = new THREE.Mesh(new THREE.CircleGeometry(0.036, 24), new THREE.MeshBasicMaterial({
-      map: canvasTex(64, 64, function (gc) {
-        gc.fillStyle = "#f6efdd"; gc.beginPath(); gc.arc(32, 32, 32, 0, 7); gc.fill();
-        gc.fillStyle = "#4a3a22"; gc.font = "10px Georgia, serif"; gc.textAlign = "center"; gc.textBaseline = "middle";
-        gc.fillText("XII", 32, 9); gc.fillText("VI", 32, 55); gc.fillText("III", 55, 32); gc.fillText("IX", 9, 32);
-        gc.strokeStyle = "#4a3a22"; gc.lineWidth = 3;
-        gc.beginPath(); gc.moveTo(32, 32); gc.lineTo(32, 52); gc.stroke();  // six o'clock —
-        gc.beginPath(); gc.moveTo(32, 32); gc.lineTo(44, 22); gc.stroke(); // teatime forever
-      }),
-    }));
-    face.rotation.x = -Math.PI / 2; face.position.y = 0.014; g.add(face);
-    var crownK = new THREE.Mesh(new THREE.CylinderGeometry(0.006, 0.006, 0.01, 8), goldM);
-    crownK.rotation.z = Math.PI / 2; crownK.position.set(0.048, 0.007, 0); g.add(crownK);
-    for (var i = 0; i < 3; i++) {
-      var link = new THREE.Mesh(new THREE.TorusGeometry(0.007, 0.002, 6, 10), goldM);
-      link.rotation.x = -Math.PI / 2; link.position.set(0.062 + i * 0.011, 0.004, 0.008 + i * 0.006); g.add(link);
-    }
-    return g;
-  }
-  function buildInkwell() { // the red ink, corked. leave it corked.
-    var g = new THREE.Group();
-    var well = new THREE.Mesh(new THREE.CylinderGeometry(0.024, 0.028, 0.045, 12),
-      new THREE.MeshStandardMaterial({ color: 0xd8dce8, roughness: 0.1, transparent: true, opacity: 0.4 }));
-    well.position.y = 0.0225; g.add(well);
-    var ink = new THREE.Mesh(new THREE.CylinderGeometry(0.019, 0.023, 0.024, 12),
-      new THREE.MeshStandardMaterial({ color: 0x7a0f1e, roughness: 0.3, emissive: 0x3a0008, emissiveIntensity: 0.5 }));
-    ink.position.y = 0.014; g.add(ink);
-    var cap = new THREE.Mesh(new THREE.CylinderGeometry(0.014, 0.02, 0.014, 10), mat(0x8a6a3a, 0.4));
-    cap.position.y = 0.052; g.add(cap);
-    var quill = new THREE.Mesh(new THREE.PlaneGeometry(0.085, 0.024), new THREE.MeshBasicMaterial({
-      map: canvasTex(128, 32, function (gc, w, h) {
-        gc.clearRect(0, 0, w, h);
-        gc.fillStyle = "#ece6da";
-        gc.beginPath(); gc.moveTo(4, h / 2); gc.quadraticCurveTo(w * 0.55, -4, w, h * 0.3);
-        gc.quadraticCurveTo(w * 0.55, h + 4, 4, h / 2); gc.fill();
-        gc.fillStyle = "#7a0f1e"; // the tip has been dipped
-        gc.beginPath(); gc.moveTo(4, h / 2); gc.lineTo(22, h * 0.32); gc.lineTo(22, h * 0.68); gc.fill();
-      }), transparent: true, side: THREE.DoubleSide,
-    }));
-    quill.position.set(0.035, 0.05, 0.012); quill.rotation.z = 0.6; quill.rotation.y = -0.4; g.add(quill);
-    return g;
-  }
-  function buildLens() {
-    var g = new THREE.Group();
-    var rim = new THREE.Mesh(new THREE.TorusGeometry(0.034, 0.006, 8, 24), goldM);
-    rim.rotation.x = -Math.PI / 2; rim.position.y = 0.012; g.add(rim);
-    var lens = new THREE.Mesh(new THREE.CircleGeometry(0.031, 24),
-      new THREE.MeshStandardMaterial({ color: 0xcfe8f2, roughness: 0.05, transparent: true, opacity: 0.24, side: THREE.DoubleSide }));
-    lens.rotation.x = -Math.PI / 2; lens.position.y = 0.012; g.add(lens);
-    var handle = new THREE.Mesh(new THREE.CylinderGeometry(0.007, 0.008, 0.06, 10), toyWoodD);
-    handle.rotation.z = Math.PI / 2; handle.rotation.y = 0.5; handle.position.set(0.058, 0.008, -0.028); g.add(handle);
-    return g;
-  }
-  function buildSpitfire() { // on a little display stand, banking for the trees
-    var g = new THREE.Group();
-    var base = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.036, 0.01, 16), toyWoodD);
-    base.position.y = 0.005; g.add(base);
-    var pole = new THREE.Mesh(new THREE.CylinderGeometry(0.0035, 0.0035, 0.055, 8), mat(0x8a8f98, 0.4));
-    pole.position.y = 0.036; g.add(pole);
-    var plane = new THREE.Group(); plane.position.y = 0.068; plane.rotation.set(0, 0.6, 0.35);
-    var raf = mat(0x66784f, 0.7);
-    var fus = new THREE.Mesh(new THREE.CylinderGeometry(0.0085, 0.006, 0.08, 10), raf);
-    fus.rotation.z = Math.PI / 2; plane.add(fus);
-    var nose = new THREE.Mesh(new THREE.ConeGeometry(0.0085, 0.018, 10), raf);
-    nose.rotation.z = -Math.PI / 2; nose.position.x = 0.049; plane.add(nose);
-    var canopy = new THREE.Mesh(new THREE.SphereGeometry(0.007, 8, 8),
-      new THREE.MeshStandardMaterial({ color: 0x9fc8e8, roughness: 0.15 }));
-    canopy.scale.set(1.6, 1, 1); canopy.position.set(0.01, 0.008, 0); plane.add(canopy);
-    var wings = box(0.026, 0.003, 0.1, raf); wings.position.set(0.012, 0, 0); plane.add(wings);
-    var tailW = box(0.014, 0.0025, 0.036, raf); tailW.position.set(-0.036, 0.002, 0); plane.add(tailW);
-    var fin = box(0.014, 0.014, 0.0025, raf); fin.position.set(-0.038, 0.009, 0); plane.add(fin);
-    var prp = box(0.002, 0.03, 0.004, toyWoodD); prp.position.x = 0.059; prp.rotation.x = 0.6; plane.add(prp);
-    [-0.036, 0.036].forEach(function (z) { // roundels
-      var blue = new THREE.Mesh(new THREE.CylinderGeometry(0.0065, 0.0065, 0.0008, 12), mat(0x2a4a8a, 0.6));
-      blue.position.set(0.012, 0.0022, z); plane.add(blue);
-      var red = new THREE.Mesh(new THREE.CylinderGeometry(0.0028, 0.0028, 0.0012, 10), mat(0xb03030, 0.6));
-      red.position.set(0.012, 0.0024, z); plane.add(red);
-    });
-    g.add(plane);
-    return g;
-  }
-  function buildCrown() { // the Shelf King's
-    var g = new THREE.Group();
-    var band = new THREE.Mesh(new THREE.CylinderGeometry(0.045, 0.048, 0.026, 18, 1, true), goldM);
-    band.position.y = 0.017; g.add(band);
-    for (var i = 0; i < 6; i++) {
-      var a = i / 6 * Math.PI * 2;
-      var spike = new THREE.Mesh(new THREE.ConeGeometry(0.011, 0.028, 6), goldM);
-      spike.position.set(Math.cos(a) * 0.044, 0.042, Math.sin(a) * 0.044); g.add(spike);
-      var tipb = new THREE.Mesh(new THREE.SphereGeometry(0.004, 6, 6), goldM);
-      tipb.position.set(Math.cos(a) * 0.044, 0.058, Math.sin(a) * 0.044); g.add(tipb);
-    }
-    [[0, 0xc0392b], [2.1, 0x2a6ab8], [4.2, 0x27ae60]].forEach(function (p) {
-      var jm = new THREE.MeshStandardMaterial({ color: p[1], roughness: 0.15, emissive: p[1], emissiveIntensity: 0.25 });
-      var jewel = new THREE.Mesh(new THREE.SphereGeometry(0.007, 8, 8), jm);
-      jewel.position.set(Math.cos(p[0]) * 0.047, 0.016, Math.sin(p[0]) * 0.047); g.add(jewel);
-    });
-    return g;
-  }
-  function buildBrainball() {
-    var g = new THREE.Group(), pink = mat(0xe88ab0, 0.95);
-    var main = new THREE.Mesh(new THREE.SphereGeometry(0.04, 14, 12), pink);
-    main.scale.y = 0.82; main.position.y = 0.033; g.add(main);
-    [[-0.018, 0.05, 0.012], [0.018, 0.05, 0.012], [-0.014, 0.048, -0.02], [0.016, 0.046, -0.018], [0, 0.055, -0.004]].forEach(function (p) {
-      var lobe = new THREE.Mesh(new THREE.SphereGeometry(0.016, 10, 8), pink);
-      lobe.position.set(p[0], p[1], p[2]); g.add(lobe);
-    });
-    return g;
-  }
-  function buildGoldBar() { // one ingot off the top of the pile
-    var g = new THREE.Group();
-    var inner = new THREE.Group(); inner.scale.set(2.1, 1, 1); // square frustum → a proper ingot
-    var body = new THREE.Mesh(new THREE.CylinderGeometry(0.026, 0.034, 0.017, 4), goldM);
-    body.rotation.y = Math.PI / 4; body.position.y = 0.0085;
-    inner.add(body); g.add(inner);
-    var stamp = new THREE.Mesh(new THREE.PlaneGeometry(0.1, 0.038), new THREE.MeshBasicMaterial({
-      map: canvasTex(128, 48, function (gc, w, h) {
-        gc.clearRect(0, 0, w, h);
-        gc.fillStyle = "rgba(120,86,20,0.55)";
-        gc.font = "bold 17px Georgia, serif"; gc.textAlign = "center"; gc.textBaseline = "middle";
-        gc.fillText("999.9", w / 2, 15);
-        gc.font = "bold 11px Georgia, serif";
-        gc.fillText("FINE GOLD", w / 2, 33);
-      }), transparent: true,
-    }));
-    stamp.rotation.x = -Math.PI / 2; stamp.position.y = 0.0172; g.add(stamp);
-    return g;
-  }
-  function buildPalm() { // the island that isn't on any chart, pocket edition
-    var g = new THREE.Group();
-    var sea = new THREE.Mesh(new THREE.CylinderGeometry(0.062, 0.066, 0.008, 20),
-      new THREE.MeshStandardMaterial({ color: 0x4a9ab8, roughness: 0.3 }));
-    sea.position.y = 0.004; g.add(sea);
-    var sand = new THREE.Mesh(new THREE.CylinderGeometry(0.042, 0.05, 0.014, 18), mat(0xd8c08a, 0.95));
-    sand.position.y = 0.014; g.add(sand);
-    var seg = null;
-    for (var i = 0; i < 3; i++) {
-      seg = new THREE.Mesh(new THREE.CylinderGeometry(0.005 - i * 0.001, 0.006 - i * 0.001, 0.024, 8), toyWood);
-      seg.position.set(i * 0.006, 0.03 + i * 0.022, 0); seg.rotation.z = -0.18 - i * 0.1; g.add(seg);
-    }
-    for (var f = 0; f < 5; f++) {
-      var a = f / 5 * Math.PI * 2;
-      var frond = new THREE.Mesh(new THREE.PlaneGeometry(0.05, 0.016),
-        new THREE.MeshStandardMaterial({ color: 0x3f9a4a, roughness: 0.85, side: THREE.DoubleSide }));
-      frond.position.set(0.018 + Math.cos(a) * 0.02, 0.085, Math.sin(a) * 0.02);
-      frond.rotation.set(Math.sin(a) * 0.5, a, -0.5);
-      g.add(frond);
-    }
-    var coco = new THREE.Mesh(new THREE.SphereGeometry(0.006, 8, 6), toyWoodD);
-    coco.position.set(0.018, 0.078, 0.008); g.add(coco);
-    return g;
-  }
-
   // one collectible per game — have() reads the same-origin saves; Tony's three
   // unlock by walking through their doorway (go() stamps the visit).
   function anyOf(key, pickFn) { var v = readSave(key, pickFn); return v != null && v > 0; }
@@ -2743,47 +2496,47 @@ import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
     { key: "bracelet", title: "the friendship bracelet", from: "CHOOSE WISELY", icon: "🧶",
       earn: "find an ending in CHOOSE WISELY",
       have: function () { return anyOf("chooseWisely.meta.v2", function (m) { return countOf(m.endingsFound); }); },
-      home: { x: 2.65, y: 1.021, z: -2.44 }, build: buildBracelet },
+      home: { x: 2.65, y: 1.021, z: -2.44 }, build: COLL.buildBracelet },
     { key: "laurel", title: "the gold laurel", from: "NINE CIRCLES", icon: "🏵️",
       earn: "reach an ending in NINE CIRCLES",
       have: function () { return anyOf("nc_persist", function (m) { return countOf(m.endings); }); },
-      home: { x: -1.45, y: 2.392, z: -2.32 }, build: buildLaurel },
+      home: { x: -1.45, y: 2.392, z: -2.32 }, build: COLL.buildLaurel },
     { key: "compass", title: "the brass compass", from: "STILL BREATHING", icon: "🧭",
       earn: "survive an ordeal in STILL BREATHING",
       have: function () { return anyOf("sb_persist", function (m) { return countOf(m.endings); }); },
-      home: { x: 1.75, y: 1.021, z: -2.44 }, build: buildCompass },
+      home: { x: 1.75, y: 1.021, z: -2.44 }, build: COLL.buildCompass },
     { key: "bottle", title: "the ship in a bottle", from: "SOUTH", icon: "⛵",
       earn: "bring a voyage home in SOUTH",
       have: function () { return anyOf("south_persist", function (m) { return countOf(m.endings); }); },
-      home: { x: 1.9, y: 0, z: 0.35 }, build: buildBottle },
+      home: { x: 1.9, y: 0, z: 0.35 }, build: COLL.buildBottle },
     { key: "horse", title: "the little wooden horse", from: "NOBODY", icon: "🐴",
       earn: "reach an ending in NOBODY",
       have: function () { return anyOf("nobody_persist", function (m) { return countOf(m.endings); }); },
-      home: { x: -1.85, y: 2.392, z: -2.32 }, build: buildHorse },
+      home: { x: -1.85, y: 2.392, z: -2.32 }, build: COLL.buildHorse },
     { key: "watch", title: "the White Rabbit's watch", from: "CURIOUSER", icon: "⌚",
       earn: "wake from the dream in CURIOUSER",
       have: function () { return anyOf("alice_persist", function (m) { return countOf(m.wakings); }); },
-      home: { x: 2.05, y: 1.021, z: -2.44 }, build: buildWatch },
+      home: { x: 2.05, y: 1.021, z: -2.44 }, build: COLL.buildWatch },
     { key: "inkwell", title: "the red inkwell", from: "DRACULA — THE RED INK", icon: "🖋️",
       earn: "decide the book's fate in DRACULA",
       have: function () { return anyOf("dracula_persist", function (m) { return countOf(m.endings); }); },
-      home: { x: 2.35, y: 1.021, z: -2.44 }, build: buildInkwell },
+      home: { x: 2.35, y: 1.021, z: -2.44 }, build: COLL.buildInkwell },
     { key: "lens", title: "the magnifying glass", from: "ELEMENTARY", icon: "🔍",
       earn: "solve a case in ELEMENTARY",
       have: function () { return anyOf("sherlock_persist", function (m) { return m && m.solved ? countOf(m.solved) : null; }); },
-      home: { x: -1.35, y: 0, z: 1.9 }, build: buildLens },
+      home: { x: -1.35, y: 0, z: 1.9 }, build: COLL.buildLens },
     { key: "spitfire", title: "the model Spitfire", from: "G FOR GEORGE", icon: "✈️",
       earn: "finish a telling in G FOR GEORGE",
       have: function () { return anyOf("gg_persist", function (m) { return countOf(m.endings); }); },
-      home: { x: -1.05, y: 2.392, z: -2.32 }, build: buildSpitfire },
+      home: { x: -1.05, y: 2.392, z: -2.32 }, build: COLL.buildSpitfire },
     { key: "crown", title: "the Shelf King's crown", from: "AGE OF TOYS", icon: "👑",
       earn: "win a campaign mission in AGE OF TOYS",
       have: function () { var c = ttCampaign(); return c.done + c.secrets > 0; },
-      home: { x: -2.25, y: 2.392, z: -2.32 }, build: buildCrown },
+      home: { x: -2.25, y: 2.392, z: -2.32 }, build: COLL.buildCrown },
     { key: "brainball", title: "the squishy brain", from: "BRAINROT", icon: "🧠",
       earn: "visit BRAINROT — the brain on the desk",
       have: function () { try { return !!localStorage.getItem("room-visited-brainball"); } catch (e) { return false; } },
-      home: { x: 2.95, y: 1.021, z: -2.44 }, build: buildBrainball },
+      home: { x: 2.95, y: 1.021, z: -2.44 }, build: COLL.buildBrainball },
     { key: "goldbar", title: "the gold bar", from: "HOOD RUN", icon: "🟨",
       earn: "make a run in HOOD RUN",
       have: function () {
@@ -2791,11 +2544,11 @@ import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
           return (m && ((m.lifetime && m.lifetime.runs > 0) || m.bestDist > 0)) ? 1 : null;
         });
       },
-      home: { x: -0.65, y: 2.392, z: -2.32 }, build: buildGoldBar },
+      home: { x: -0.65, y: 2.392, z: -2.32 }, build: COLL.buildGoldBar },
     { key: "palm", title: "the pocket island", from: "TIDEBOUND", icon: "🌴",
       earn: "visit TIDEBOUND — the toy island",
       have: function () { try { return !!localStorage.getItem("room-visited-palm"); } catch (e) { return false; } },
-      home: { x: -0.9, y: 0, z: 2.8 }, build: buildPalm },
+      home: { x: -0.9, y: 0, z: 2.8 }, build: COLL.buildPalm },
   ];
   var collByKey = {};
   COLLECT.forEach(function (c) { collByKey[c.key] = c; });
@@ -2886,79 +2639,6 @@ import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
   function stickerTex(draw) {
     return canvasTex(128, 128, function (g, w, h) { g.clearRect(0, 0, w, h); g.translate(w / 2, h / 2); draw(g); });
   }
-  function poly(g, n, r, rot, fill) {
-    g.beginPath();
-    for (var i = 0; i < n; i++) { var a = rot + i / n * Math.PI * 2; g[i ? "lineTo" : "moveTo"](Math.cos(a) * r, Math.sin(a) * r); }
-    g.closePath(); g.fillStyle = fill; g.fill();
-  }
-  var STICKER_DESIGNS = [
-    { id: "star", label: "★", draw: function (g) { g.fillStyle = "#ffd23e"; g.beginPath();
-      for (var i = 0; i < 10; i++) { var r = i % 2 ? 22 : 52, a = -Math.PI / 2 + i * Math.PI / 5; g[i ? "lineTo" : "moveTo"](Math.cos(a) * r, Math.sin(a) * r); } g.closePath(); g.fill(); } },
-    { id: "heart", label: "♥", draw: function (g) { g.fillStyle = "#ff5a8a"; g.beginPath(); g.moveTo(0, 40);
-      g.bezierCurveTo(-55, -6, -30, -52, 0, -20); g.bezierCurveTo(30, -52, 55, -6, 0, 40); g.closePath(); g.fill(); } },
-    { id: "rocket", label: "🚀", draw: function (g) { g.fillStyle = "#e8e8ee"; g.beginPath(); g.moveTo(0, -52);
-      g.quadraticCurveTo(20, -20, 18, 22); g.lineTo(-18, 22); g.quadraticCurveTo(-20, -20, 0, -52); g.fill();
-      g.fillStyle = "#ff6a4a"; g.beginPath(); g.moveTo(-18, 22); g.lineTo(-34, 42); g.lineTo(-12, 30); g.fill();
-      g.beginPath(); g.moveTo(18, 22); g.lineTo(34, 42); g.lineTo(12, 30); g.fill();
-      g.fillStyle = "#5ac8e0"; g.beginPath(); g.arc(0, -18, 9, 0, 7); g.fill();
-      g.fillStyle = "#ffb23e"; g.beginPath(); g.moveTo(0, 52); g.lineTo(-9, 24); g.lineTo(9, 24); g.fill(); } },
-    { id: "planet", label: "🪐", draw: function (g) { g.fillStyle = "#c98af0"; g.beginPath(); g.arc(0, 0, 30, 0, 7); g.fill();
-      g.strokeStyle = "#ffd23e"; g.lineWidth = 7; g.save(); g.rotate(-0.4); g.beginPath(); g.ellipse(0, 0, 52, 16, 0, 0, 7); g.stroke(); g.restore(); } },
-    // built from separate fills of one colour — they merge into a single silhouette,
-    // which is far easier to keep readable than one long hand-plotted outline
-    { id: "dino", label: "🦖", draw: function (g) {
-      g.fillStyle = "#5ac86a";
-      g.beginPath(); g.moveTo(-12, -2);                       // tail
-      g.quadraticCurveTo(-36, -4, -56, 12);
-      g.quadraticCurveTo(-34, 12, -10, 18); g.closePath(); g.fill();
-      g.beginPath(); g.ellipse(0, 6, 24, 18, 0, 0, 7); g.fill();   // body
-      g.beginPath(); g.moveTo(10, -6);                        // neck + head, facing right
-      g.quadraticCurveTo(16, -32, 32, -34);
-      g.lineTo(52, -32); g.quadraticCurveTo(58, -26, 52, -20); // snout
-      g.lineTo(34, -17); g.quadraticCurveTo(22, -13, 20, 2);
-      g.closePath(); g.fill();
-      g.beginPath(); g.moveTo(-6, 16); g.lineTo(-16, 44);      // back leg
-      g.lineTo(0, 44); g.lineTo(6, 18); g.closePath(); g.fill();
-      g.beginPath(); g.moveTo(12, 16); g.lineTo(8, 44);        // front leg
-      g.lineTo(24, 44); g.lineTo(24, 16); g.closePath(); g.fill();
-      g.beginPath(); g.moveTo(20, 0); g.lineTo(32, 8);         // the famous little arm
-      g.lineTo(21, 10); g.closePath(); g.fill();
-      [[-8, -12], [2, -14]].forEach(function (p) {             // ridges along the back
-        g.beginPath(); g.moveTo(p[0] - 6, p[1] + 4); g.lineTo(p[0], p[1] - 6);
-        g.lineTo(p[0] + 6, p[1] + 4); g.closePath(); g.fill();
-      });
-      g.fillStyle = "#f4fff4"; g.beginPath(); g.arc(40, -27, 4.5, 0, 7); g.fill();  // eye
-      g.fillStyle = "#1a1a1a"; g.beginPath(); g.arc(41, -27, 2.4, 0, 7); g.fill();
-      g.strokeStyle = "#2f7f3c"; g.lineWidth = 2; g.beginPath();                    // mouth line
-      g.moveTo(52, -21); g.lineTo(35, -18); g.stroke(); } },
-    { id: "lightning", label: "⚡", draw: function (g) { g.fillStyle = "#ffd23e"; g.beginPath(); g.moveTo(8, -52);
-      g.lineTo(-22, 6); g.lineTo(-2, 6); g.lineTo(-10, 52); g.lineTo(24, -12); g.lineTo(2, -12); g.closePath(); g.fill(); } },
-    { id: "smiley", label: "☺", draw: function (g) { g.fillStyle = "#ffd23e"; g.beginPath(); g.arc(0, 0, 46, 0, 7); g.fill();
-      g.fillStyle = "#1a1a1a"; g.beginPath(); g.arc(-16, -10, 6, 0, 7); g.arc(16, -10, 6, 0, 7); g.fill();
-      g.lineWidth = 6; g.strokeStyle = "#1a1a1a"; g.beginPath(); g.arc(0, 4, 22, 0.2, Math.PI - 0.2); g.stroke(); } },
-    { id: "ghost", label: "👻", draw: function (g) { g.fillStyle = "#eef0f6"; g.beginPath(); g.moveTo(-32, 44);
-      g.lineTo(-32, -6); g.quadraticCurveTo(-32, -48, 0, -48); g.quadraticCurveTo(32, -48, 32, -6); g.lineTo(32, 44);
-      g.lineTo(20, 32); g.lineTo(10, 44); g.lineTo(0, 32); g.lineTo(-10, 44); g.lineTo(-20, 32); g.closePath(); g.fill();
-      g.fillStyle = "#1a1a1a"; g.beginPath(); g.arc(-12, -8, 5, 0, 7); g.arc(12, -8, 5, 0, 7); g.fill(); } },
-    // five outlined petals, not six overlapping ones — without the gaps and the
-    // darker edge they fuse into a solid ring and it reads as a donut
-    { id: "flower", label: "❀", draw: function (g) {
-      for (var i = 0; i < 5; i++) {
-        var a = -Math.PI / 2 + i / 5 * Math.PI * 2;
-        g.save(); g.translate(Math.cos(a) * 25, Math.sin(a) * 25); g.rotate(a + Math.PI / 2);
-        g.fillStyle = "#ff8ac8"; g.strokeStyle = "#d95a9a"; g.lineWidth = 3;
-        g.beginPath(); g.ellipse(0, 0, 13, 21, 0, 0, 7); g.fill(); g.stroke();
-        g.restore();
-      }
-      g.fillStyle = "#ffd23e"; g.strokeStyle = "#d9a017"; g.lineWidth = 3;
-      g.beginPath(); g.arc(0, 0, 14, 0, 7); g.fill(); g.stroke(); } },
-    { id: "moon", label: "🌙", draw: function (g) { g.fillStyle = "#ffe08a"; g.beginPath(); g.arc(0, 0, 40, 0, 7); g.fill();
-      g.globalCompositeOperation = "destination-out"; g.beginPath(); g.arc(16, -8, 36, 0, 7); g.fill();
-      g.globalCompositeOperation = "source-over"; } },
-    { id: "diamond", label: "◆", draw: function (g) { poly(g, 4, 46, -Math.PI / 2, "#5ad8e0"); poly(g, 4, 24, -Math.PI / 2, "#bff0f6"); } },
-    { id: "peace", label: "☮", draw: function (g) { g.strokeStyle = "#7ac86a"; g.lineWidth = 8; g.beginPath(); g.arc(0, 0, 42, 0, 7); g.stroke();
-      g.beginPath(); g.moveTo(0, -42); g.lineTo(0, 42); g.moveTo(0, 0); g.lineTo(-30, 30); g.moveTo(0, 0); g.lineTo(30, 30); g.stroke(); } },
-  ];
   var STK_BY_ID = {}; STICKER_DESIGNS.forEach(function (d) { STK_BY_ID[d.id] = d; });
   var stickerTexCache = {};
   function stickerMat(id) {
@@ -3381,7 +3061,6 @@ import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
     var inp = document.getElementById("dw-name-inp");
     if (inp) inp.value = paintState.name || "";
   }
-  function esc(s) { return String(s).replace(/[&<>"]/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]; }); }
   var renamingSlot = -1, freshArmed = false; // "start fresh" asks twice before it wipes
   function dwSavedHTML() {
     var html = '<div class="dw-hint">keep different looks — a cozy night, a battle station — and switch anytime</div>';
@@ -3729,7 +3408,6 @@ import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
   }
 
   /* ---- the paint tab (lives in the drawer — swatches preview live) --------------- */
-  function hex6(n) { return "#" + ("00000" + n.toString(16)).slice(-6); }
   function dwPaintHTML() {
     var html = '<div class="dw-hint">same room, your colors — watch it change as you click</div>';
     var earned = collectiblesEarned();
