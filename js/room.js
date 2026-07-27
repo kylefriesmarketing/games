@@ -1447,20 +1447,21 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
    * Every game got a painted 90s poster; three frames around the room each hold
    * whichever print you choose (🌟 walls tab). Clicking a frame opens the game
    * whose poster hangs in it. Persists in "room-posters" and rides share codes. */
-  var POSTER_ART = [
+  var POSTER_ART = [ // title = the GAME_KEYS/PLAY title, so ownership flows into the frames
     { key: "ageoftoys", label: "AGE OF TOYS", url: BASE + "toybox-tactics/", tip: "AGE OF TOYS — the toy chest's own war story" },
-    { key: "south", label: "SOUTH", url: BASE + "south/", tip: "SOUTH — bring all 27 home" },
-    { key: "stillbreathing", label: "STILL BREATHING", url: BASE + "still-breathing/", tip: "STILL BREATHING — four true ordeals" },
-    { key: "ninecircles", label: "NINE CIRCLES", url: BASE + "nine-circles/", tip: "NINE CIRCLES — a descent" },
-    { key: "choosewisely", label: "CHOOSE WISELY", url: BASE + "choose-wisely/", tip: "CHOOSE WISELY — the shop remembers you" },
-    { key: "nobody", label: "NOBODY", url: BASE + "nobody/", tip: "NOBODY — the Odyssey; argue with the poem" },
-    { key: "tidebound", label: "TIDEBOUND", url: "https://dumb-tony.github.io/GameRepos/tidebound/", tip: "TIDEBOUND — the island that isn't on any chart" },
-    { key: "elementary", label: "ELEMENTARY", url: BASE + "sherlock/", tip: "ELEMENTARY — observe, infer, live with being wrong" },
-    { key: "curiouser", label: "CURIOUSER", url: BASE + "alice/", tip: "CURIOUSER — wake as yourself" },
-    { key: "redink", label: "THE RED INK", url: BASE + "dracula/", tip: "DRACULA: THE RED INK — argue with the book" },
-    { key: "george", label: "G FOR GEORGE", url: BASE + "george/", tip: "G FOR GEORGE — 336 feet to the trees" },
+    { key: "south", label: "SOUTH", title: "SOUTH", url: BASE + "south/", tip: "SOUTH — bring all 27 home" },
+    { key: "stillbreathing", label: "STILL BREATHING", title: "STILL BREATHING", url: BASE + "still-breathing/", tip: "STILL BREATHING — four true ordeals" },
+    { key: "ninecircles", label: "NINE CIRCLES", title: "NINE CIRCLES", url: BASE + "nine-circles/", tip: "NINE CIRCLES — a descent" },
+    { key: "choosewisely", label: "CHOOSE WISELY", title: "CHOOSE WISELY", url: BASE + "choose-wisely/", tip: "CHOOSE WISELY — the shop remembers you" },
+    { key: "nobody", label: "NOBODY", title: "NOBODY", url: BASE + "nobody/", tip: "NOBODY — the Odyssey; argue with the poem" },
+    { key: "tidebound", label: "TIDEBOUND", title: "TIDEBOUND", url: "https://dumb-tony.github.io/GameRepos/tidebound/", tip: "TIDEBOUND — the island that isn't on any chart" },
+    { key: "elementary", label: "ELEMENTARY", title: "ELEMENTARY", url: BASE + "sherlock/", tip: "ELEMENTARY — observe, infer, live with being wrong" },
+    { key: "curiouser", label: "CURIOUSER", title: "CURIOUSER", url: BASE + "alice/", tip: "CURIOUSER — wake as yourself" },
+    { key: "redink", label: "THE RED INK", title: "DRACULA", url: BASE + "dracula/", tip: "DRACULA: THE RED INK — argue with the book" },
+    { key: "george", label: "G FOR GEORGE", title: "G FOR GEORGE", url: BASE + "george/", tip: "G FOR GEORGE — 336 feet to the trees" },
   ];
-  var posterByKey = {};
+  var POSTER_CYCLE = [{ key: "none", label: "(bare wall)" }].concat(POSTER_ART); // cycling to "none" takes the frame down
+  var posterByKey = { none: POSTER_CYCLE[0] };
   POSTER_ART.forEach(function (p) { posterByKey[p.key] = p; });
   var POSTER_SPOTS = [ // wall inner faces are x=±3.55
     { key: "p1", label: "the frame over the bed", x: 3.53, y: 2.08, z: 1.05, ry: -Math.PI / 2, rz: 0.02, def: "ageoftoys" },
@@ -1475,25 +1476,79 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
     var m = new THREE.MeshStandardMaterial({ color: 0x333944, roughness: 0.85 });
     var art = new THREE.Mesh(new THREE.PlaneGeometry(0.52, 0.78), m);
     art.position.z = 0.012; g.add(art);
-    g.position.set(s.x, s.y, s.z); g.rotation.y = s.ry; g.rotation.z = s.rz;
     scene.add(g);
-    [backing, art].forEach(function (mm) { clickable(mm, "", null, ""); }); // registered once; applyPosters mutates userData
-    posterFrames[s.key] = { g: g, m: m, meshes: [backing, art], cur: null };
+    var f = posterFrames[s.key] = { g: g, m: m, meshes: [backing, art], cur: null };
+    f.cfg = { isFrame: true, spot: s, root: g, label: s.label, rot: false, kind: "frame" };
+    [backing, art].forEach(function (mm) {
+      clickable(mm, "", null, ""); // registered once; applyPosters mutates userData
+      mm.userData.__frame = f.cfg; // decor mode grabs frames like stickers
+    });
+    framePlace(s);
   });
+  function framePlace(s) { // default spot, or wherever it was dragged (posterState._pos)
+    var g = posterFrames[s.key].g;
+    var pos = (posterState._pos || {})[s.key];
+    if (pos) {
+      var pl = wallPlace(pos.w, pos.x, pos.y, pos.z);
+      g.position.set(pl.x, clamp(pos.y, 0.62, 2.85), pl.z); // frames are taller than stickers — keep the middle band
+      g.rotation.y = pl.ry; g.rotation.z = s.rz;
+    } else {
+      g.position.set(s.x, s.y, s.z); g.rotation.y = s.ry; g.rotation.z = s.rz;
+    }
+  }
+  function moveFrameTo(s, wp) {
+    if (!posterState._pos) posterState._pos = {};
+    posterState._pos[s.key] = { w: wp.wall, x: +wp.place.x.toFixed(3), y: +wp.place.y.toFixed(3), z: +wp.place.z.toFixed(3) };
+    framePlace(s);
+  }
+  var _posterWrapT = null;
+  function posterWrapTex() { // an unowned print hangs wrapped, like the books on the shelf
+    if (_posterWrapT) return _posterWrapT;
+    return (_posterWrapT = canvasTex(256, 384, function (g, w, h) {
+      g.fillStyle = "hsl(210,32%,66%)"; g.fillRect(0, 0, w, h);
+      g.strokeStyle = "hsla(210,45%,84%,0.9)"; g.lineWidth = 5;
+      for (var i = -h; i < w; i += 26) { g.beginPath(); g.moveTo(i, 0); g.lineTo(i + h, h); g.stroke(); }
+      g.fillStyle = "#e8dcc0"; g.fillRect(w * 0.42, 0, w * 0.16, h);       // ribbon
+      g.fillStyle = "#e8dcc0"; g.fillRect(0, h * 0.44, w, h * 0.10);
+      g.fillStyle = "#c9a35c"; g.fillRect(w * 0.40, h * 0.42, w * 0.20, h * 0.14); // knot
+      g.save(); g.translate(w * 0.5, h * 0.72); g.rotate(-0.08);            // gift tag
+      g.fillStyle = "#f6efdd"; g.fillRect(-40, -28, 80, 56);
+      g.strokeStyle = "#b7a888"; g.lineWidth = 3; g.strokeRect(-40, -28, 80, 56);
+      g.fillStyle = "#5a4632"; g.font = "bold 40px Georgia, serif";
+      g.textAlign = "center"; g.textBaseline = "middle"; g.fillText("?", 0, 2);
+      g.restore();
+    }));
+  }
+  function posterLocked(d) { // ownership flows from the storefront (safe before GAME_KEYS exists)
+    return !!(d.title && typeof GAME_KEYS === "object" && GAME_KEYS && GAME_KEYS[d.title] && gameLocked(d.title));
+  }
   function applyPosters() {
     POSTER_SPOTS.forEach(function (s) {
       var f = posterFrames[s.key];
+      framePlace(s);
       var d = posterByKey[posterState[s.key]] || posterByKey[s.def];
-      if (f.cur === d.key) return;
-      f.cur = d.key;
+      if (d.key === "none") { f.cur = "none"; f.g.visible = false; return; }
+      f.g.visible = true;
+      var locked = posterLocked(d);
+      var want = locked ? d.key + ":wrapped" : d.key;
+      if (f.cur === want) return;
+      f.cur = want;
+      if (locked) {
+        f.m.map = posterWrapTex(); f.m.color.set(0xffffff); f.m.needsUpdate = true;
+        f.meshes.forEach(function (mm) {
+          mm.userData.name = d.label; // no __nav: the kid doesn't fetch what you don't own
+          mm.userData.action = function () { openStore(d.title); };
+          mm.userData.hint = d.label + " — still wrapped · click to get the key";
+        });
+        return;
+      }
       f.m.map = null; f.m.color.set(0x333944); f.m.needsUpdate = true; // grey while the print loads
-      var file = "assets/tex/poster-" + d.key + ".jpg";
       var apply = function (t) {
         if (f.cur !== d.key) return; // they cycled again while this one loaded
         f.m.map = t; f.m.color.set(0xffffff); f.m.needsUpdate = true;
       };
       if (posterTexCache[d.key]) apply(posterTexCache[d.key]);
-      else texLoader.load(file, function (t) { t.anisotropy = 8; posterTexCache[d.key] = t; apply(t); });
+      else texLoader.load("assets/tex/poster-" + d.key + ".jpg", function (t) { t.anisotropy = 8; posterTexCache[d.key] = t; apply(t); });
       f.meshes.forEach(function (mm) {
         mm.userData.name = d.label; mm.userData.action = go(d.url);
         mm.userData.hint = d.tip + " · click to play";
@@ -1506,9 +1561,9 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
     if (!s) return;
     var cur = posterState[spotKey] || s.def;
     var i = 0;
-    POSTER_ART.forEach(function (p, pi) { if (p.key === cur) i = pi; });
-    i = (i + dir + POSTER_ART.length) % POSTER_ART.length;
-    posterState[spotKey] = POSTER_ART[i].key;
+    POSTER_CYCLE.forEach(function (p, pi) { if (p.key === cur) i = pi; });
+    i = (i + dir + POSTER_CYCLE.length) % POSTER_CYCLE.length;
+    posterState[spotKey] = POSTER_CYCLE[i].key;
     saveJSON("room-posters", posterState);
     applyPosters();
   }
@@ -1922,6 +1977,16 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
     // page 2: the awards themselves
     var aw = ACH_HTML(res);
     nbPages.push({ title: "what you've done", html: aw });
+    // page 3: the key ring — what's in your library (the storefront skeleton, made visible)
+    var kr = "";
+    for (var kt in GAME_KEYS) {
+      var gk = GAME_KEYS[kt];
+      kr += nbRow(kt, gameLocked(kt) ? "🎁 wrapped — " + gk.price : "🔑 on your ring");
+    }
+    kr += nbRow("Age of Toys", "🔑 came with the room");
+    kr += nbRow("Hood Run", "🔑 came with the room");
+    kr += nbRow("Brainrot", "🔑 came with the room");
+    nbPages.push({ title: "the key ring", html: kr });
     var rows = [
       ["Choose Wisely", readSave("chooseWisely.meta.v2", function (m) { return countOf(m.endingsFound); }), 56],
       ["Nine Circles", readSave("nc_persist", function (m) { return countOf(m.endings); }), null],
@@ -2253,7 +2318,12 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
     return out;
   }
   function persistLayout() { saveJSON("room-layout", currentLayout()); }
-  function persistFor(cfg) { if (cfg.isSticker) persistStickers(); else if (cfg.kind === "coll") persistColl(cfg); else persistLayout(); }
+  function persistFor(cfg) {
+    if (cfg.isSticker) persistStickers();
+    else if (cfg.isFrame) saveJSON("room-posters", posterState);
+    else if (cfg.kind === "coll") persistColl(cfg);
+    else persistLayout();
+  }
 
   /* ---- picking + dragging ----------------------------------------------------- */
   function floorPoint() {
@@ -2283,6 +2353,7 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
       var ob = hits[i].object;
       if (!ob.isMesh || ob.userData.__ring || !visibleChain(ob)) continue;
       if (ob.userData.__stk) return ob.userData.__stk.cfg; // a wall sticker
+      if (ob.userData.__frame) return ob.userData.__frame; // a poster frame slides along the walls
       if (ob.userData.war && movableByKey.rug) return movableByKey.rug; // the army men grab the rug
       var p = ob, found = null;
       while (p) { if (p.userData.__movKey) { found = movableByKey[p.userData.__movKey]; break; } p = p.parent; }
@@ -2305,7 +2376,7 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
     decorSelect(cfg);
     if (cfg) {
       pushUndo(); // so a drag is undoable
-      var p = cfg.isSticker ? null : floorPoint();
+      var p = (cfg.isSticker || cfg.isFrame) ? null : floorPoint();
       dragging = { cfg: cfg, ox: p && !cfg.surface ? cfg.root.position.x - p.x : 0,
                    oz: p && !cfg.surface ? cfg.root.position.z - p.z : 0 };
       document.body.style.cursor = "grabbing";
@@ -2317,6 +2388,7 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
     setPointer(e);
     var cfg = dragging.cfg;
     if (cfg.isSticker) { var wp = wallPoint(); if (wp) moveStickerTo(cfg.entry, wp); return; }
+    if (cfg.isFrame) { var fp = wallPoint(); if (fp) moveFrameTo(cfg.spot, fp); return; }
     var p = cfg.surface ? (surfacePoint() || floorPoint()) : floorPoint();
     if (!p) return;
     applyMove(cfg, p.x + dragging.ox, p.z + dragging.oz, cfg.root.rotation.y, cfg.surface ? p.y : null);
@@ -2352,7 +2424,9 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
     chip.hidden = !cfg;
     if (cfg) {
       var isStk = !!cfg.isSticker;
-      document.getElementById("dw-sel-name").textContent = isStk ? "a sticker — scroll to size, ⟲⟳ to spin" : cfg.label;
+      document.getElementById("dw-sel-name").textContent =
+        isStk ? "a sticker — scroll to size, ⟲⟳ to spin" :
+        cfg.isFrame ? cfg.label + " — drag it along any wall" : cfg.label;
       ["dw-rotl", "dw-rotr"].forEach(function (id) {
         var b = document.getElementById(id); if (b) b.disabled = !(isStk || cfg.rot); // stickers spin in-plane
       });
@@ -2368,6 +2442,10 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
     if (k === "Delete" || k === "Backspace") {
       e.preventDefault(); pushUndo();
       if (selCfg.isSticker) { removeSticker(selCfg.entry); decorSelect(null); }
+      else if (selCfg.isFrame) { // a frame goes back to its home spot
+        if (posterState._pos) delete posterState._pos[selCfg.spot.key];
+        framePlace(selCfg.spot); persistFor(selCfg);
+      }
       else { applyMove(selCfg, selCfg.def.x, selCfg.def.z, selCfg.def.ry, selCfg.surface ? selCfg.def.y : null); persistFor(selCfg); }
       dwRender(); return true;
     }
@@ -2379,6 +2457,19 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
   }
   function nudgeSelected(dx, dy) {
     if (!selCfg) return;
+    if (selCfg.isFrame) { // arrows slide a frame along its wall
+      var sk = selCfg.spot.key, g0 = selCfg.root;
+      if (!posterState._pos) posterState._pos = {};
+      var fw = (posterState._pos[sk] && posterState._pos[sk].w) ||
+        (Math.abs(g0.position.z + 2.53) < 0.1 ? "back" : g0.position.x < 0 ? "left" : "right");
+      var fp = posterState._pos[sk] || { w: fw, x: g0.position.x, y: g0.position.y, z: g0.position.z };
+      fp.y = clamp(fp.y - dy, 0.62, 2.85);
+      if (fw === "back") fp.x = clamp(fp.x + dx, -2.2, 2.2);
+      else fp.z = clamp(fp.z + (fw === "left" ? dx : -dx), -2.2, 2.2);
+      posterState._pos[sk] = fp;
+      framePlace(selCfg.spot); persistFor(selCfg);
+      return;
+    }
     if (selCfg.isSticker) {
       var e = selCfg.entry;
       e.y = clamp(e.y - dy, 0.5, 3.0);                                  // up arrow raises
@@ -2470,6 +2561,9 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
    * very lazy cat. Her perch is recomputed every frame, so she rides the furniture
    * live while you drag it. Pet her and she purrs (the thunder synth, tiny). */
   var catG = null, catSpot = "bed", catNextMove = 1e9, catPetOnce = false;
+  var catAnim = "sleep", catAnimT = 0; // procedural life: dream-twitch, wake-stretch, pet-wiggle
+  // (the rig library is biped-only — an auto-rigged curled cat unfolds into a sleeping
+  // human, so her animation is hand-rolled on the group instead)
   var CAT_OB = { x: 0, z: 0, r: 0 }; // solid only when she's down on the rug
   KID_OBSTACLES.push(CAT_OB);
   var catV = new THREE.Vector3();
@@ -2509,6 +2603,7 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
   function catPet() {
     rumble(0.12); // the thunder generator makes a passable purr at this size
     clickSfx(500);
+    catAnim = "wiggle"; catAnimT = 0; // a happy shiver under the hand
     if (!catPetOnce) {
       catPetOnce = true;
       try { kidSay("that's the cat. she came with the room. or we came with her.", 5); } catch (e) { }
@@ -2874,10 +2969,16 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
     paintState.rug = (Math.random() * PAINT.rug.opts.length) | 0;
     paintState.neon = (Math.random() * NEON_OPTS.length) | 0;
     var pk = Object.keys(LIGHT_PALS); paintState.lights = pk[(Math.random() * pk.length) | 0];
-    // half the time the dice reach for a real material too — that's the fun ones
-    paintState.wallsTex = Math.random() < 0.5 ? (Math.random() * MAT_TEX.walls.opts.length) | 0 : 0;
-    paintState.carpetTex = Math.random() < 0.4 ? (Math.random() * MAT_TEX.carpet.opts.length) | 0 : 0;
-    paintState.rugTex = Math.random() < 0.35 ? 1 : 0;
+    // half the time the dice reach for a real material too — but only ones you've earned
+    function texRoll(row, chance) {
+      if (Math.random() >= chance) return 0;
+      var pool = [];
+      row.opts.forEach(function (o, i) { if (!matTexLocked(o)) pool.push(i); });
+      return pool[(Math.random() * pool.length) | 0] || 0;
+    }
+    paintState.wallsTex = texRoll(MAT_TEX.walls, 0.5);
+    paintState.carpetTex = texRoll(MAT_TEX.carpet, 0.4);
+    paintState.rugTex = texRoll(MAT_TEX.rug, 0.35);
     saveJSON("room-paint", paintState); applyPaint();
     if (decorMode) dwRender();
   }
@@ -3032,6 +3133,7 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
     // material swatches: little rectangles that show the actual print
     ".dw-sw.dw-tex button{width:44px;height:30px;border-radius:7px;background-size:cover;background-position:center;" +
     "background-color:#1a2130;color:#8fa0b8;font-size:13px;line-height:1}" +
+    ".dw-sw.dw-tex button.locked{filter:grayscale(.85) brightness(.6)}" +
     // the poster-frame cyclers (◀ TITLE ▶)
     ".dw-cyc{display:flex;align-items:center;gap:6px}" +
     ".dw-cyc b{min-width:106px;text-align:center;font-size:11px;letter-spacing:0.4px}" +
@@ -3157,6 +3259,10 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
     if (!selCfg) return;
     pushUndo();
     if (selCfg.isSticker) { removeSticker(selCfg.entry); decorSelect(null); dwRender(); clickSfx(900); return; }
+    if (selCfg.isFrame) {
+      if (posterState._pos) delete posterState._pos[selCfg.spot.key];
+      framePlace(selCfg.spot); persistFor(selCfg); clickSfx(1100); return;
+    }
     applyMove(selCfg, selCfg.def.x, selCfg.def.z, selCfg.def.ry, selCfg.surface ? selCfg.def.y : null);
     persistFor(selCfg); clickSfx(1100);
   });
@@ -3204,7 +3310,12 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
     } else if ((key = b.getAttribute("data-paint"))) {
       pushUndo(); setPaint(key, +b.getAttribute("data-i")); dwRender(); clickSfx(1600);
     } else if ((key = b.getAttribute("data-tex"))) {
-      pushUndo(); setPaint(key + "Tex", +b.getAttribute("data-i")); dwRender(); clickSfx(1600);
+      var ti = +b.getAttribute("data-i"), topt = MAT_TEX[key].opts[ti];
+      if (topt && matTexLocked(topt)) {
+        var tneed = (topt[4] || 0) - collectiblesEarned();
+        try { kidSay("that one's still packed away — find " + tneed + " more treasure" + (tneed === 1 ? "" : "s") + " first.", 4); } catch (e9) { }
+        clickSfx(700);
+      } else { pushUndo(); setPaint(key + "Tex", ti); dwRender(); clickSfx(1600); }
     } else if ((key = b.getAttribute("data-postspot"))) {
       pushUndo(); cyclePoster(key, +b.getAttribute("data-dir")); dwRender(); clickSfx(1600);
     } else if (b.getAttribute("data-neon") != null && b.getAttribute("data-neon") !== "") {
@@ -3364,23 +3475,27 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
    * tints (the tints still multiply over whichever material is up). Each opt is
    * [label, file|null, repX, repY]; keys mirror PAINT rows so the swatches can sit
    * under their tint row. paintState.<k>Tex indexes opts; 0/absent = as found. */
+  // opts: [label, file, repX, repY, treasuresNeeded] — materials unlock like themes do,
+  // by collectibles earned (the play-to-decorate loop). 0/absent = free from night one.
   var MAT_TEX = {
     walls: { mats: [wallM, wallMSide], scales: [1, 0.78], label: "the wallpaper", opts: [
+      // order is FROZEN (saved paintState + theme wallsTex index into it) — needs vary, order doesn't
       ["as found", null],
-      ["glow stars", "wp-stars.webp", 4.4, 1.65],
-      ["arcade grid", "wp-arcade.webp", 3.2, 1.2],
-      ["knotty pine", "wp-pine.webp", 2.6, 1.0],
-      ["daisy field", "wp-floral.webp", 3.8, 1.45],
-      ["spooky cute", "wp-spooky.webp", 3.8, 1.45],
-      ["pinstripe", "wp-stripe.webp", 3.0, 1.15]] },
+      ["glow stars", "wp-stars.webp", 4.4, 1.65, 0],
+      ["arcade grid", "wp-arcade.webp", 3.2, 1.2, 5],
+      ["knotty pine", "wp-pine.webp", 2.6, 1.0, 3],
+      ["daisy field", "wp-floral.webp", 3.8, 1.45, 2],
+      ["spooky cute", "wp-spooky.webp", 3.8, 1.45, 4],
+      ["pinstripe", "wp-stripe.webp", 3.0, 1.15, 1]] },
     carpet: { mats: [floorM], scales: [1], label: "the floor", opts: [
       ["as found", null],
-      ["shag pile", "fl-shag.webp", 3.2, 2.5],
-      ["oak boards", "fl-oak.webp", 3.0, 2.35]] },
+      ["shag pile", "fl-shag.webp", 3.2, 2.5, 1],
+      ["oak boards", "fl-oak.webp", 3.0, 2.35, 3]] },
     rug: { mats: null /* rug.material, resolved at apply */, scales: [1], label: "the rug print", opts: [
       ["galaxy", null],
-      ["racetrack", "rug-racetrack.webp", 1, 1]] },
+      ["racetrack", "rug-racetrack.webp", 1, 1, 2]] },
   };
+  function matTexLocked(opt) { return (opt[4] || 0) > collectiblesEarned(); }
   var matTexCache = {};
   function texFor(file, rx, ry, cb) {
     var ck = file + "@" + rx.toFixed(2) + "x" + ry.toFixed(2);
@@ -3413,9 +3528,13 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
     var row = MAT_TEX[k], cur = paintState[k + "Tex"] || 0;
     var h = '<div class="dw-sw dw-tex">';
     row.opts.forEach(function (o, i) {
-      h += '<button type="button" data-tex="' + k + '" data-i="' + i + '"' + (i === cur ? ' class="on"' : "") +
+      var lk = matTexLocked(o); // locked prints still SHOW (dimmed) — a reason to keep playing
+      h += '<button type="button" data-tex="' + k + '" data-i="' + i + '"' +
+        (i === cur ? ' class="on"' : lk ? ' class="locked"' : "") +
         (o[1] ? ' style="background-image:url(assets/tex/' + o[1] + ')"' : "") +
-        ' title="' + o[0] + '" aria-label="' + row.label + ": " + o[0] + '">' + (o[1] ? "" : "✕") + "</button>";
+        ' title="' + (lk ? "find " + o[4] + " treasure" + (o[4] === 1 ? "" : "s") + " to unlock " + o[0] : o[0]) +
+        '" aria-label="' + row.label + ": " + o[0] + (lk ? " (locked)" : "") + '">' +
+        (lk ? "🔒" : o[1] ? "" : "✕") + "</button>";
     });
     return h + "</div>";
   }
@@ -3619,12 +3738,13 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
       html += '<button type="button" class="dw-card" data-sticker="' + d.id + '" title="' + d.id + '"><div class="i">' + d.label + "</div></button>";
     });
     html += "</div>";
-    html += '<div class="dw-sec">the poster frames — every game made one</div>';
+    html += '<div class="dw-sec">the poster frames — every game made one · drag a frame to move it</div>';
     POSTER_SPOTS.forEach(function (s) {
       var d = posterByKey[posterState[s.key]] || posterByKey[s.def];
+      var nm = posterLocked(d) ? "🎁 " + d.label : d.label; // wrapped prints show their bow in the list too
       html += '<div class="dw-row"><span>' + s.label + "</span>" +
         '<span class="dw-cyc"><button type="button" data-postspot="' + s.key + '" data-dir="-1" aria-label="' + s.label + ': previous poster">◀</button>' +
-        '<b>' + d.label + "</b>" +
+        '<b>' + nm + "</b>" +
         '<button type="button" data-postspot="' + s.key + '" data-dir="1" aria-label="' + s.label + ': next poster">▶</button></span></div>';
     });
     html += '<div class="dw-sec">' + stickers.length + " sticker" + (stickers.length === 1 ? "" : "s") + " up right now</div>";
@@ -3781,6 +3901,7 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
         bk.userData.hint = p.tip;
       }
     });
+    applyPosters(); // the frames consult the same ownership — a redeemed key unwraps its poster too
     kbListDirty = true;
   }
 
@@ -4136,10 +4257,27 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
       cn.position.z = cn.__z0 + thump * 0.012;
       cn.scale.set(1 + thump * 0.16, 1 + thump * 0.16, 1);
     }
-    if (catG && catG.visible) { // the cat: breathes, rides her furniture, occasionally teleports
+    if (catG && catG.visible) { // the cat: breathes, twitches in dreams, stretches before she moves
       catSettle();
-      catG.scale.set(1, 1 + Math.sin(t * 1.35) * 0.018, 1); // slow sleeping breath (base at y=0, so only the top rises)
-      if (t > catNextMove && !decorMode) catRelocate();
+      catAnimT += dt;
+      if (catAnim === "stretch") {        // wake + arch, THEN blink to the next perch
+        var cf = Math.min(1, catAnimT / 0.9), ca = Math.sin(cf * Math.PI);
+        catG.scale.set(1 - ca * 0.05, 1 + ca * 0.10, 1 + ca * 0.16);
+        if (cf >= 1) { catAnim = "sleep"; catG.scale.set(1, 1, 1); catRelocate(); }
+      } else if (catAnim === "wiggle") {  // petted: a happy shiver, then back to sleep
+        var wf = Math.min(1, catAnimT / 0.7);
+        catG.rotation.z = Math.sin(wf * Math.PI * 4) * 0.05 * (1 - wf);
+        catG.scale.set(1, 1 + Math.sin(wf * Math.PI) * 0.06, 1);
+        if (wf >= 1) { catAnim = "sleep"; catG.rotation.z = 0; }
+      } else if (catAnim === "twitch") {  // a paw going somewhere in a dream
+        var tf = Math.min(1, catAnimT / 0.4);
+        catG.rotation.z = Math.sin(tf * Math.PI * 6) * 0.018 * (1 - tf * 0.5);
+        if (tf >= 1) { catAnim = "sleep"; catG.rotation.z = 0; }
+      } else {
+        catG.scale.set(1, 1 + Math.sin(t * 1.35) * 0.018, 1); // slow sleeping breath (base at y=0, so only the top rises)
+        if (Math.random() < dt / 24) { catAnim = "twitch"; catAnimT = 0; }
+        else if (t > catNextMove && !decorMode) { catAnim = "stretch"; catAnimT = 0; }
+      }
     }
     if (robotWrap) { // wind-up tin robot: circles the rug with a little waddle-rock
       robotBoost *= Math.pow(0.5, dt / 2.5); // the spring unwinds
@@ -4317,8 +4455,10 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
     cat: { g: function () { return catG; }, spot: function () { return catSpot; }, ob: CAT_OB,
       relocate: catRelocate, settle: catSettle, pet: catPet,
       hurry: function () { catNextMove = 0; } },
-    posters: { art: POSTER_ART, spots: POSTER_SPOTS, frames: posterFrames,
-      state: function () { return posterState; }, cycle: cyclePoster, apply: applyPosters },
+    posters: { art: POSTER_ART, spots: POSTER_SPOTS, frames: posterFrames, cycleList: POSTER_CYCLE,
+      state: function () { return posterState; }, cycle: cyclePoster, apply: applyPosters,
+      move: moveFrameTo, place: framePlace, locked: posterLocked },
+    catAnim: function () { return catAnim; },
     out: { defs: HIDEABLES, state: function () { return outState; }, apply: applyOut, open: obOpen, close: obClose,
       set: function (key, hidden) {
         if (hidden) outState[key] = 1; else delete outState[key];
