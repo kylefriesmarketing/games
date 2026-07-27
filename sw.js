@@ -11,10 +11,11 @@
  *                          contents, and they effectively never change — so serve them
  *                          instantly and only hit the network on a miss.
  */
-var CACHE = "the-room-v4";
+var CACHE = "the-room-v5";
 var SHELL = ["./", "./index.html", "./manifest.webmanifest", "./icon.svg",
   // room.js imports these at parse time — miss one and the offline room won't boot
-  "./js/room.js", "./js/util.js", "./js/stickers.js", "./js/collectibles.js", "./js/profile.js"];
+  "./js/room.js", "./js/util.js", "./js/stickers.js", "./js/collectibles.js",
+  "./js/profile.js", "./js/audio.js"];
 
 // heavy, effectively-immutable things worth keeping on disk
 function isAsset(url) {

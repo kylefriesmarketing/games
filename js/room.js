@@ -15,6 +15,10 @@ import { mat, box, canvasTex, loadJSON, saveJSON, readSave, countOf, esc, hex6 }
 import { STICKER_DESIGNS } from "./stickers.js";
 import * as COLL from "./collectibles.js";
 import * as PROFILE from "./profile.js";
+import * as AUDIO from "./audio.js";
+// the sound effects are called from all over the room; keep the short names
+var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchetSfx,
+    snoreSfx = AUDIO.snoreSfx, knockSfx = AUDIO.knockSfx;
 
 (function () {
   var renderer;
@@ -947,193 +951,13 @@ import * as PROFILE from "./profile.js";
     boom.add(cone); boomCones.push(cone);
   });
   var deck = box(0.14, 0.08, 0.02, mat(0x3a3f48, 0.4)); deck.position.set(0, 0.13, 0.086); boom.add(deck);
-  var audioOn = false, ac = null, acNodes = null;
-  function buildAudio() {
-    ac = new (window.AudioContext || window.webkitAudioContext)();
-    var master = ac.createGain(); master.gain.value = 0.5; master.connect(ac.destination);
-    // rain: looped white noise, band-shaped
-    var len = ac.sampleRate * 2, buf = ac.createBuffer(1, len, ac.sampleRate), d = buf.getChannelData(0);
-    for (var i = 0; i < len; i++) d[i] = Math.random() * 2 - 1;
-    var rain = ac.createBufferSource(); rain.buffer = buf; rain.loop = true;
-    var lp = ac.createBiquadFilter(); lp.type = "lowpass"; lp.frequency.value = 1400;
-    var hp = ac.createBiquadFilter(); hp.type = "highpass"; hp.frequency.value = 300;
-    var rg = ac.createGain(); rg.gain.value = phase.rainG; // the hour decides how hard it pours
-    rain.connect(lp); lp.connect(hp); hp.connect(rg); rg.connect(master); rain.start();
-    // the tape: an 8-bar lofi loop rendered offline once, then looped forever
-    renderTune(ac.sampleRate, function (buf) {
-      var tape = ac.createBufferSource(); tape.buffer = buf; tape.loop = true;
-      var tg = ac.createGain(); tg.gain.value = 0.42;
-      tape.connect(tg); tg.connect(master); tape.start();
-    });
-    acNodes = { master: master, rain: rg };
-  }
-  // Composes the boombox tape: 72bpm swung lofi, Dm7-G7-Cmaj7-Am7, two bars each.
-  function renderTune(sampleRate, done) {
-    var beat = 60 / 72, bar = beat * 4, lenS = bar * 8;
-    var oc = new OfflineAudioContext(2, Math.ceil(lenS * sampleRate), sampleRate);
-    var warm = oc.createBiquadFilter(); warm.type = "lowpass"; warm.frequency.value = 3800;
-    var out = oc.createGain(); out.gain.value = 0.9;
-    out.connect(warm); warm.connect(oc.destination);
-    function env(g, t, a, peak, d) {
-      g.gain.setValueAtTime(0, t);
-      g.gain.linearRampToValueAtTime(peak, t + a);
-      g.gain.exponentialRampToValueAtTime(0.001, t + a + d);
-    }
-    function tone(f, t, dur, peak, type, pan) { // EP-ish: fundamental + soft octave shimmer
-      var o = oc.createOscillator(); o.type = type || "sine"; o.frequency.value = f;
-      var o2 = oc.createOscillator(); o2.frequency.value = f * 2.003;
-      var g = oc.createGain(), g2 = oc.createGain();
-      var p = oc.createStereoPanner(); p.pan.value = pan || 0; p.connect(out);
-      env(g, t, 0.012, peak, dur); env(g2, t, 0.012, peak * 0.28, dur * 0.6);
-      o.connect(g); g.connect(p); o2.connect(g2); g2.connect(p);
-      o.start(t); o.stop(t + dur + 0.2); o2.start(t); o2.stop(t + dur + 0.2);
-    }
-    function noiseSrc(dur) {
-      var b = oc.createBuffer(1, Math.ceil(dur * sampleRate), sampleRate), d = b.getChannelData(0);
-      for (var i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
-      var s = oc.createBufferSource(); s.buffer = b; return s;
-    }
-    function kick(t) {
-      var o = oc.createOscillator(); o.frequency.setValueAtTime(140, t);
-      o.frequency.exponentialRampToValueAtTime(48, t + 0.11);
-      var g = oc.createGain(); env(g, t, 0.004, 0.5, 0.22);
-      o.connect(g); g.connect(out); o.start(t); o.stop(t + 0.4);
-    }
-    function snare(t) {
-      var n = noiseSrc(0.16);
-      var f = oc.createBiquadFilter(); f.type = "bandpass"; f.frequency.value = 1900; f.Q.value = 0.8;
-      var g = oc.createGain(); env(g, t, 0.002, 0.16, 0.13);
-      n.connect(f); f.connect(g); g.connect(out); n.start(t);
-      var o = oc.createOscillator(); o.frequency.value = 185;
-      var og = oc.createGain(); env(og, t, 0.002, 0.1, 0.08);
-      o.connect(og); og.connect(out); o.start(t); o.stop(t + 0.2);
-    }
-    function hat(t, loud) {
-      var n = noiseSrc(0.05);
-      var f = oc.createBiquadFilter(); f.type = "highpass"; f.frequency.value = 7200;
-      var g = oc.createGain(); env(g, t, 0.001, loud ? 0.05 : 0.028, 0.035);
-      n.connect(f); f.connect(g); g.connect(out); n.start(t);
-    }
-    (function vinyl() { // sparse crackle across the whole tape
-      var b = oc.createBuffer(1, Math.ceil(lenS * sampleRate), sampleRate), d = b.getChannelData(0);
-      for (var i = 0; i < d.length; i++) if (Math.random() < 0.00012) d[i] = (Math.random() * 2 - 1) * 0.6;
-      var s = oc.createBufferSource(); s.buffer = b;
-      var f = oc.createBiquadFilter(); f.type = "lowpass"; f.frequency.value = 5200;
-      var g = oc.createGain(); g.gain.value = 0.5;
-      s.connect(f); f.connect(g); g.connect(out); s.start(0);
-    })();
-    var N = { A1: 55, C2: 65.41, D2: 73.42, G2: 98, A2: 110,
-              C3: 130.81, D3: 146.83, E3: 164.81, F3: 174.61, G3: 196, A3: 220, B3: 246.94,
-              C4: 261.63, D4: 293.66, E4: 329.63, G4: 392, A4: 440 };
-    var chords = [
-      { b: N.D2, v: [N.D3, N.F3, N.A3, N.C4] },  // Dm7
-      { b: N.G2, v: [N.D3, N.F3, N.G3, N.B3] },  // G7
-      { b: N.C2, v: [N.C3, N.E3, N.G3, N.B3] },  // Cmaj7
-      { b: N.A1, v: [N.A2, N.C3, N.E3, N.G3] }   // Am7
-    ];
-    var sw = beat * 0.08; // the swing push
-    chords.forEach(function (ch, c) {
-      var t0 = c * bar * 2;
-      ch.v.forEach(function (f, vi) { // rolled chord on the one, softer answer mid-phrase
-        var pan = (vi - 1.5) * 0.22;
-        tone(f, t0 + 0.001 + vi * 0.014, 2.4, 0.075, "sine", pan);
-        tone(f, t0 + bar + beat * 1.5 + sw + vi * 0.01, 1.6, 0.05, "sine", pan);
-      });
-      [0, beat * 2, bar, bar + beat * 2].forEach(function (bt, i) { // bass on 1 and 3
-        tone(ch.b, t0 + bt + 0.001, i % 2 ? 0.5 : 0.7, 0.17, "sine", 0);
-      });
-      for (var b2 = 0; b2 < 2; b2++) {
-        var bt0 = t0 + b2 * bar;
-        kick(bt0); kick(bt0 + beat * 2);
-        if (b2 === 1 && c === 3) kick(bt0 + beat * 3.5 + sw); // fill into the loop seam
-        snare(bt0 + beat); snare(bt0 + beat * 3);
-        for (var e = 0; e < 8; e++) hat(bt0 + e * beat * 0.5 + (e % 2 ? sw : 0), e % 4 === 0);
-      }
-    });
-    [ // the melody drifts in for the back half
-      { t: bar * 4 + beat * 0.5 + sw, f: N.E4, d: 0.9 },
-      { t: bar * 4 + beat * 2, f: N.D4, d: 1.4 },
-      { t: bar * 5 + beat * 1.5 + sw, f: N.B3, d: 1.1 },
-      { t: bar * 6 + beat * 0.5 + sw, f: N.G4, d: 0.8 },
-      { t: bar * 6 + beat * 2, f: N.E4, d: 1.6 },
-      { t: bar * 7 + beat * 1.5 + sw, f: N.A4, d: 0.7 },
-      { t: bar * 7 + beat * 2.5 + sw, f: N.G4, d: 1.8 }
-    ].forEach(function (m) { tone(m.f, m.t, m.d, 0.055, "triangle", 0.15); });
-    oc.startRendering().then(done);
-  }
-  // thunder, if the box is on. strength ~1 = overhead crack, ~0.3 = far grumble
-  function rumble(strength) {
-    if (!ac || !audioOn) return;
-    var s = strength == null ? 1 : strength;
-    var secs = 1.0 + (1 - s) * 1.3; // distant thunder rolls longer
-    var len = ac.sampleRate * secs, buf = ac.createBuffer(1, len, ac.sampleRate), d = buf.getChannelData(0);
-    for (var i = 0; i < len; i++) d[i] = (Math.random() * 2 - 1) * (1 - i / len);
-    var src = ac.createBufferSource(); src.buffer = buf;
-    var f = ac.createBiquadFilter(); f.type = "lowpass"; f.frequency.value = 70 + 80 * s;
-    var g = ac.createGain(); g.gain.value = 0.08 + 0.17 * s;
-    src.connect(f); f.connect(g); g.connect(acNodes.master); src.start();
-  }
-  function clickSfx(freq) { // a dry little switch tick
-    if (!ac || !audioOn) return;
-    var o = ac.createOscillator(); o.type = "square"; o.frequency.value = freq || 1600;
-    var g = ac.createGain();
-    g.gain.setValueAtTime(0.035, ac.currentTime);
-    g.gain.exponentialRampToValueAtTime(0.0001, ac.currentTime + 0.04);
-    o.connect(g); g.connect(acNodes.master); o.start(); o.stop(ac.currentTime + 0.06);
-  }
-  function ratchetSfx() { // winding the robot: five quick spring clicks
-    if (!ac || !audioOn) return;
-    for (var i = 0; i < 5; i++) {
-      var t0 = ac.currentTime + i * 0.065;
-      var o = ac.createOscillator(); o.type = "square"; o.frequency.value = 540 + i * 55;
-      var g = ac.createGain();
-      g.gain.setValueAtTime(0.03, t0);
-      g.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.035);
-      o.connect(g); g.connect(acNodes.master); o.start(t0); o.stop(t0 + 0.05);
-    }
-  }
-  function snoreSfx() { // a low purr in, a breathy sigh out
-    if (!ac || !audioOn) return;
-    var t0 = ac.currentTime;
-    var o = ac.createOscillator(); o.type = "sine";
-    o.frequency.setValueAtTime(64, t0); o.frequency.linearRampToValueAtTime(46, t0 + 1.0);
-    var g = ac.createGain();
-    g.gain.setValueAtTime(0.0001, t0);
-    g.gain.exponentialRampToValueAtTime(0.07, t0 + 0.4);
-    g.gain.exponentialRampToValueAtTime(0.0001, t0 + 1.2);
-    o.connect(g); g.connect(acNodes.master); o.start(t0); o.stop(t0 + 1.3);
-    var len = ac.sampleRate * 0.9, b = ac.createBuffer(1, len, ac.sampleRate), d = b.getChannelData(0);
-    for (var i = 0; i < len; i++) d[i] = (Math.random() * 2 - 1) * (i / len);
-    var n = ac.createBufferSource(); n.buffer = b;
-    var f = ac.createBiquadFilter(); f.type = "lowpass"; f.frequency.value = 480;
-    var ng = ac.createGain();
-    ng.gain.setValueAtTime(0.0001, t0 + 1.25);
-    ng.gain.exponentialRampToValueAtTime(0.03, t0 + 1.65);
-    ng.gain.exponentialRampToValueAtTime(0.0001, t0 + 2.2);
-    n.connect(f); f.connect(ng); ng.connect(acNodes.master); n.start(t0 + 1.25);
-  }
-  function knockSfx() { // knuckles on a hollow door: two firm, one shy
-    if (!ac || !audioOn) return;
-    [0, 0.24, 0.46].forEach(function (at, i) {
-      var t0 = ac.currentTime + at;
-      var o = ac.createOscillator(); o.type = "sine";
-      o.frequency.setValueAtTime(115 - i * 10, t0);
-      o.frequency.exponentialRampToValueAtTime(55, t0 + 0.09);
-      var g = ac.createGain();
-      g.gain.setValueAtTime(i === 2 ? 0.09 : 0.15, t0);
-      g.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.16);
-      o.connect(g); g.connect(acNodes.master); o.start(t0); o.stop(t0 + 0.2);
-    });
-  }
   var powerLED = new THREE.Mesh(new THREE.SphereGeometry(0.012, 8, 8),
     new THREE.MeshBasicMaterial({ color: 0x552222 }));
   powerLED.position.set(0, 0.215, 0.088); boom.add(powerLED);
   boom.children.forEach(function (m) {
     clickable(m, "the boombox", function () {
-      if (!ac) buildAudio();
-      audioOn = !audioOn;
-      if (audioOn) { ac.resume(); powerLED.material.color.set(0xff3b30); }
-      else { ac.suspend(); powerLED.material.color.set(0x552222); }
+      var on = AUDIO.toggle(phase.rainG);
+      powerLED.material.color.set(on ? 0xff3b30 : 0x552222);
     }, "the boombox — a lofi tape and the rain");
   });
   // up on its own wall shelf over the bed head (right wall), angled into the room
@@ -1234,8 +1058,7 @@ import * as PROFILE from "./profile.js";
 
   window.__roomEnter = function () {
     introT = noMotion ? 1 : 0; // reduced motion skips the dolly, keeps the music
-    if (!ac) buildAudio();
-    audioOn = true; ac.resume(); powerLED.material.color.set(0xff3b30);
+    AUDIO.start(phase.rainG); powerLED.material.color.set(0xff3b30);
     kidGreet = true; // he looks up and waves as you walk in
     try { // how many times you've stepped in before (drives his greeting)
       priorVisits = parseInt(localStorage.getItem("room-visits") || "0", 10) || 0;
@@ -1274,8 +1097,7 @@ import * as PROFILE from "./profile.js";
   })();
   if (window.__entered) window.__roomEnter(); // card clicked before this module loaded
   document.addEventListener("visibilitychange", function () { // the tape pauses when you leave
-    if (!ac || !audioOn) return;
-    if (document.hidden) ac.suspend(); else ac.resume();
+    AUDIO.followVisibility(document.hidden);
   });
 
   /* ---- DUST MOTES in the lamplight ------------------------------------------- */
@@ -1390,7 +1212,7 @@ import * as PROFILE from "./profile.js";
     shaftG.children.forEach(function (m) { m.material.opacity = p.shaft; });
     shaftG.visible = p.shaft > 0.001;
     winViewM.color.setRGB(p.lift, p.lift, p.lift * p.liftB);
-    if (acNodes && acNodes.rain) acNodes.rain.gain.value = p.rainG;
+    AUDIO.setRain(p.rainG);
   }
   function applyPhase() {
     if (phaseOverride) { applyPhaseObj(PHASES[phaseOverride]); return; }
@@ -1875,7 +1697,7 @@ import * as PROFILE from "./profile.js";
   var KID_DANCE = { x: 0.6, z: 1.62, act: "dance" }; // clear patch of rug (not on the army men), facing the room
   function kidPickStation() {
     // when the boombox is going, he can't help himself — dance on the rug
-    var s = (audioOn && kidActions.dance && Math.random() < 0.45)
+    var s = (AUDIO.isOn() && kidActions.dance && Math.random() < 0.45)
       ? KID_DANCE
       : KID_STATIONS[(Math.random() * KID_STATIONS.length) | 0];
     kidState.station = s;
@@ -3991,7 +3813,7 @@ import * as PROFILE from "./profile.js";
         }
       }
       // if the boombox stops mid-dance, wander off
-      if (actNow === "dance" && !audioOn) kidState.t = Math.min(kidState.t, 0.5);
+      if (actNow === "dance" && !AUDIO.isOn()) kidState.t = Math.min(kidState.t, 0.5);
       // mid-tour he holds his spot instead of wandering off to the next station
       if (kidState.t <= 0 && !tourOn) { kidState.targetY = 0; kidState.mode = "roam"; kidPickStation(); }
     } else if (kidState.mode === "toBed") { // hoist up at the bedside — over the rail, not through it
@@ -4083,7 +3905,7 @@ import * as PROFILE from "./profile.js";
       if (fin.t >= 1) { fin.mats.forEach(function (m) { m.transparent = m.__wasTransparent; m.__fading = false; }); fadeIns.splice(fi, 1); }
     }
     // the boombox thumps its cones to the tape (72bpm = 1.2 beats/s)
-    var thump = audioOn ? Math.pow(Math.max(0, Math.sin(t * Math.PI * 1.2)), 6) : 0;
+    var thump = AUDIO.isOn() ? Math.pow(Math.max(0, Math.sin(t * Math.PI * 1.2)), 6) : 0;
     for (var bc = 0; bc < boomCones.length; bc++) {
       var cn = boomCones[bc];
       cn.position.z = cn.__z0 + thump * 0.012;
@@ -4246,6 +4068,7 @@ import * as PROFILE from "./profile.js";
     light: { mode: function () { return lightMode; }, set: setLightMode, cycle: cycleLights, modes: LIGHT_MODES },
     tour: { start: startTour, end: endTour, stops: TOUR, on: function () { return tourOn; },
       eligible: tourEligible, step: tourStep },
+    audio: AUDIO,
     profile: { ctx: profileCtx, evaluate: PROFILE.evaluate, rank: PROFILE.rankFor,
       achievements: PROFILE.ACHIEVEMENTS, state: PROFILE.profileState,
       days: PROFILE.daysVisited, touch: PROFILE.touchVisit, markSeen: PROFILE.markSeen },
