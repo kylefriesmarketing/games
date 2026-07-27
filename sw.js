@@ -11,7 +11,7 @@
  *                          contents, and they effectively never change — so serve them
  *                          instantly and only hit the network on a miss.
  */
-var CACHE = "the-room-v1";
+var CACHE = "the-room-v2";
 var SHELL = ["./", "./index.html", "./js/room.js", "./manifest.webmanifest", "./icon.svg"];
 
 // heavy, effectively-immutable things worth keeping on disk
@@ -40,12 +40,18 @@ self.addEventListener("fetch", function (e) {
   try { url = new URL(req.url); } catch (err) { return; }
   if (url.origin !== location.origin) return;   // the games live on their own origins
 
-  if (isAsset(url)) {                            // cache first
+  if (isAsset(url)) {
+    // stale-while-revalidate: hand back the cached copy immediately (these are
+    // megabytes of props, so the wait matters), but always re-fetch in the
+    // background so the NEXT load is current. Plain cache-first would pin an old
+    // prop forever whenever one is re-exported under the same name — which is
+    // exactly what happened when the textures were shrunk.
     e.respondWith(caches.match(req).then(function (hit) {
-      return hit || fetch(req).then(function (res) {
+      var net = fetch(req).then(function (res) {
         if (res.ok) { var copy = res.clone(); caches.open(CACHE).then(function (c) { c.put(req, copy); }); }
         return res;
-      });
+      }).catch(function () { return hit; });
+      return hit || net;
     }));
     return;
   }
