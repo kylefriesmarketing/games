@@ -1866,6 +1866,7 @@ import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
       zoomLookFrom = new THREE.Vector3(), zoomLookTo = new THREE.Vector3();
   function kidSummon(mesh) {
     if (pendingNav) return;
+    endTour(true);   // they've found their own way — the tour bows out
     pendingNav = mesh.userData.action; navTarget = mesh;
     kidState.fetchName = mesh.userData.name; // so he can react when he hands it over
     var box = new THREE.Box3().setFromObject(mesh);
@@ -2415,7 +2416,7 @@ import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
     if (b) b.textContent = on ? "done decorating" : "decorate";
     tip.classList.remove("show");
     document.body.style.cursor = "default";
-    if (on) { dwTab(dwTabName); dismissNudge(); } // the drawer wakes up on whatever tab it was left on
+    if (on) { dwTab(dwTabName); dismissNudge(); endTour(true); } // the drawer wakes up on whatever tab it was left on
     if (on && !decorSaidLine) {
       decorSaidLine = true;
       try { kidSay("rearranging? okay — mom will never believe it wasn't me.", 4.5); } catch (e) { }
@@ -3385,6 +3386,7 @@ import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
   (function decorNudge() { // pulse the decorate button once for first-timers, after they're inside
     var seen; try { seen = localStorage.getItem("room-decor-seen"); } catch (e) { }
     if (seen) return;
+    if (tourEligible()) return; // the tour ends by lighting this button itself — don't do both
     var iv = setInterval(function () {
       var ec = document.getElementById("enter");
       if (ec && !ec.classList.contains("gone")) return; // still on the entry card
@@ -3988,6 +3990,96 @@ import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
   document.getElementById("st-close").addEventListener("click", function () { closeStore(); clickSfx(1100); });
   applyStore();
 
+  /* ============================================================================
+   * THE TOUR — the kid shows a first-timer around.
+   * Everything in this room is discoverable only by clicking things at random,
+   * which means most of it never gets found. So on a first visit he walks the
+   * circuit himself and points out the four doorways and the decorate button.
+   * It never blocks anything: touch a doorway (or open the drawer) and it steps
+   * aside for good. Returning visitors, and anyone who already has progress,
+   * never see it.
+   * ========================================================================== */
+  var TOUR = [
+    { x: -1.25, z: -1.5, say: "so — these are the books. every one's a whole story. pick any of them.", dur: 5.2 },
+    { x: 1.4, z: -1.0, say: "that chest is the toy war. it keeps track of how your campaign's going.", dur: 5.0 },
+    // stands off the bag rather than beside it: that corner is boxed in by the beanbag
+    // and the island, and threading the gap took him ~50s of shuffling
+    { x: -1.7, z: 1.75, say: "the bag by the door is the newest one. best not to ask.", dur: 4.4 },
+    { x: 0.72, z: 2.05, say: "this shoebox holds everything the games leave behind. it fills up as you play.", dur: 5.4 },
+    { x: 0.35, z: 1.4, say: "oh — and all of it moves. hit DECORATE up there and make the place yours.", dur: 6.0, nudge: true },
+  ];
+  var tourOn = false, tourTimer = null, tourWatch = null;
+  function tourEligible() {
+    try {
+      if (localStorage.getItem("room-toured")) return false;      // already shown once
+      if (localStorage.getItem("room-decor-seen")) return false;  // they already found it themselves
+    } catch (e) { return false; }
+    for (var t in GAME_SAVES) { var p = gameProgress(t); if (p && p.started) return false; } // not a newcomer
+    return true;
+  }
+  function endTour(quiet) {
+    if (!tourOn) return;
+    tourOn = false;
+    clearTimeout(tourTimer); clearInterval(tourWatch);
+    try { localStorage.setItem("room-toured", "1"); } catch (e) { }
+    var b = document.getElementById("tour-skip"); if (b) b.remove();
+    kidState.mode = "roam"; kidPickStation();
+    if (!quiet) { try { kidSay("go on then. it's your room.", 3.6); } catch (e) { } }
+  }
+  function tourStep(i) {
+    if (!tourOn) return;
+    if (i >= TOUR.length) { endTour(); return; }
+    var s = TOUR[i];
+    kidState.mode = "roam"; kidState.station = null; kidState.ignoreObs = -1; kidState.walkT = 0;
+    kidGoto(s.x, s.z);
+    var started = performance.now();
+    clearInterval(tourWatch);
+    tourWatch = setInterval(function () {
+      if (!tourOn) { clearInterval(tourWatch); return; }
+      var dx = kid.position.x - s.x, dz = kid.position.z - s.z;
+      var arrived = Math.sqrt(dx * dx + dz * dz) < 0.5;
+      // he may be blocked, or the tab may be throttling his walk — say it anyway
+      if (!arrived && performance.now() - started < 9000) return;
+      clearInterval(tourWatch);
+      kidSay(s.say, s.dur);
+      if (s.nudge) {  // the last beat lights up the button he's talking about
+        var n = document.getElementById("decor-nudge");
+        document.body.classList.add("nudge-decor");
+        if (n) n.classList.add("show");
+      }
+      tourTimer = setTimeout(function () { tourStep(i + 1); }, s.dur * 1000 + 500);
+    }, 450);
+  }
+  function startTour() {
+    if (tourOn || decorMode) return;
+    tourOn = true;
+    document.body.insertAdjacentHTML("beforeend",
+      '<button id="tour-skip" type="button">skip the tour</button>');
+    var sk = document.getElementById("tour-skip");
+    sk.addEventListener("click", function () { endTour(true); clickSfx(1100); });
+    kidSay("first time? come on, i'll show you round.", 4);
+    tourTimer = setTimeout(function () { tourStep(0); }, 3800);
+  }
+  var tourStyle = document.createElement("style");
+  tourStyle.textContent =
+    "#tour-skip{position:fixed;bottom:18px;left:50%;transform:translateX(-50%);z-index:9;" +
+    "font-family:'Inter',sans-serif;font-size:10px;letter-spacing:.16em;text-transform:uppercase;" +
+    "color:var(--dim);background:rgba(10,14,20,.72);border:1px solid var(--line);border-radius:6px;" +
+    "padding:8px 14px;cursor:pointer}" +
+    "#tour-skip:hover{color:var(--bone);border-color:var(--dim)}" +
+    "body.listing #tour-skip,body.no3d #tour-skip,body.decorating #tour-skip{display:none}" +
+    "#tour-skip:focus-visible{outline:2px solid #ff5aa8;outline-offset:3px}";
+  document.head.appendChild(tourStyle);
+  (function tourWaiter() {   // wait until they're actually inside the room
+    if (!tourEligible()) return;
+    var iv = setInterval(function () {
+      var ec = document.getElementById("enter");
+      if (ec && !ec.classList.contains("gone")) return;
+      clearInterval(iv);
+      setTimeout(function () { if (tourEligible()) startTour(); }, 2600);
+    }, 1200);
+  })();
+
   var frameCount = 0, lastT = performance.now() / 1000;
   function tick() {
     requestAnimationFrame(tick);
@@ -4077,7 +4169,8 @@ import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
       }
       // if the boombox stops mid-dance, wander off
       if (actNow === "dance" && !audioOn) kidState.t = Math.min(kidState.t, 0.5);
-      if (kidState.t <= 0) { kidState.targetY = 0; kidState.mode = "roam"; kidPickStation(); }
+      // mid-tour he holds his spot instead of wandering off to the next station
+      if (kidState.t <= 0 && !tourOn) { kidState.targetY = 0; kidState.mode = "roam"; kidPickStation(); }
     } else if (kidState.mode === "toBed") { // hoist up at the bedside — over the rail, not through it
       setKidAction("idle", 0.3);
       kid.position.x += (KID_BED.upX - kid.position.x) * Math.min(1, dt * 1.4);
@@ -4328,6 +4421,8 @@ import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
     screen: { draw: drawScreensaver, cycle: cycleScreen, kind: function () { return ssKind; },
       kinds: SCREENSAVERS, canvas: ssCanvas },
     light: { mode: function () { return lightMode; }, set: setLightMode, cycle: cycleLights, modes: LIGHT_MODES },
+    tour: { start: startTour, end: endTour, stops: TOUR, on: function () { return tourOn; },
+      eligible: tourEligible, step: tourStep },
     season: { fx: function () { return seasonFX; }, on: function () { return seaPoints.visible; },
       set: function (v) { seasonFX = SEASON_LOOKS[v] ? v : null; applySeasonFX(); }, apply: applySeasonFX, points: seaPoints },
     decor: { movables: movables, byKey: movableByKey, set: decorSet, mode: function () { return decorMode; },
