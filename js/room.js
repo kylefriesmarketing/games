@@ -911,16 +911,35 @@ import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
   if (season === "yule") bulbCols = [0xff4444, 0x3fae5a, 0xffd166, 0xff4444, 0x3fae5a];
   else if (season === "spook") bulbCols = [0xff8c2a, 0x9b5de5, 0xff8c2a, 0x9b5de5, 0xff8c2a];
   var twinkleRate = season === "bday" ? 3.4 : 1.6; // party lights on the room's birthday
-  for (var li = 0; li < 13; li++) {
-    var bx = -4.1 + li * 0.68, sag = 0.1 * Math.sin((li % 4) / 3 * Math.PI);
+  // Strung along the RIGHT wall over the bed, where you'd actually hang them —
+  // they used to run the back wall and fought the neon sign for the same eyeline.
+  // They swag between two nails, so the sag is a curve across the run, not per-bulb.
+  var LIGHT_Z0 = -0.55, LIGHT_Z1 = 2.75, LIGHT_N = 13;
+  for (var li = 0; li < LIGHT_N; li++) {
+    var f = li / (LIGHT_N - 1);
+    var bz = LIGHT_Z0 + f * (LIGHT_Z1 - LIGHT_Z0);
+    var sag = Math.sin(f * Math.PI) * 0.17;          // deepest in the middle of the run
+    var by = 2.46 - sag;
     var bulb = new THREE.Mesh(new THREE.SphereGeometry(0.026, 10, 8),
       new THREE.MeshBasicMaterial({ color: bulbCols[li % 5], transparent: true, opacity: 0.9 }));
-    bulb.position.set(bx, 2.42 - sag, -2.5);
+    bulb.position.set(3.5, by, bz);
     bulb.userData.phase = li * 0.7;
-    var bglow = glow(bulbCols[li % 5], bx, 2.42 - sag, -2.48, 0.16, 0.16, 0.5);
+    var bglow = glow(bulbCols[li % 5], 3.47, by, bz, 0.16, 0.16, 0.5);
     bulb.userData.glow = bglow; scene.add(bglow); // little halo so each bulb reads as lit
     scene.add(bulb); bulbs.push(bulb);
   }
+  // the wire they hang from, sagging through the same curve
+  (function lightWire() {
+    var pts = [];
+    for (var w = 0; w <= 40; w++) {
+      var f2 = w / 40;
+      pts.push(new THREE.Vector3(3.53, 2.46 - Math.sin(f2 * Math.PI) * 0.17 + 0.03,
+        LIGHT_Z0 + f2 * (LIGHT_Z1 - LIGHT_Z0)));
+    }
+    var wire = new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts), 40, 0.006, 5, false),
+      new THREE.MeshStandardMaterial({ color: 0x2f2a24, roughness: 0.9 }));
+    scene.add(wire);
+  })();
   scene.add(glow(0xffb060, 1.95, 2.28, -2.5, 0.55, 0.55, 0.45)); // the streetlamp out the window
 
   /* ---- THE BOOMBOX: synth lo-fi + rain (WebAudio, no files) ------------------ */
@@ -2885,11 +2904,33 @@ import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
       g.fillStyle = "#ffb23e"; g.beginPath(); g.moveTo(0, 52); g.lineTo(-9, 24); g.lineTo(9, 24); g.fill(); } },
     { id: "planet", label: "🪐", draw: function (g) { g.fillStyle = "#c98af0"; g.beginPath(); g.arc(0, 0, 30, 0, 7); g.fill();
       g.strokeStyle = "#ffd23e"; g.lineWidth = 7; g.save(); g.rotate(-0.4); g.beginPath(); g.ellipse(0, 0, 52, 16, 0, 0, 7); g.stroke(); g.restore(); } },
-    { id: "dino", label: "🦖", draw: function (g) { g.fillStyle = "#5ac86a"; g.beginPath(); g.moveTo(-46, 18);
-      g.quadraticCurveTo(-30, -6, -6, -8); g.quadraticCurveTo(4, -46, 30, -30); g.quadraticCurveTo(20, -14, 34, -8);
-      g.quadraticCurveTo(48, 0, 30, 22); g.lineTo(24, 40); g.lineTo(14, 40); g.lineTo(16, 24);
-      g.lineTo(-8, 24); g.lineTo(-6, 42); g.lineTo(-16, 42); g.lineTo(-20, 22); g.quadraticCurveTo(-40, 30, -46, 18); g.fill();
-      g.fillStyle = "#1a1a1a"; g.beginPath(); g.arc(18, -24, 3.5, 0, 7); g.fill(); } },
+    // built from separate fills of one colour — they merge into a single silhouette,
+    // which is far easier to keep readable than one long hand-plotted outline
+    { id: "dino", label: "🦖", draw: function (g) {
+      g.fillStyle = "#5ac86a";
+      g.beginPath(); g.moveTo(-12, -2);                       // tail
+      g.quadraticCurveTo(-36, -4, -56, 12);
+      g.quadraticCurveTo(-34, 12, -10, 18); g.closePath(); g.fill();
+      g.beginPath(); g.ellipse(0, 6, 24, 18, 0, 0, 7); g.fill();   // body
+      g.beginPath(); g.moveTo(10, -6);                        // neck + head, facing right
+      g.quadraticCurveTo(16, -32, 32, -34);
+      g.lineTo(52, -32); g.quadraticCurveTo(58, -26, 52, -20); // snout
+      g.lineTo(34, -17); g.quadraticCurveTo(22, -13, 20, 2);
+      g.closePath(); g.fill();
+      g.beginPath(); g.moveTo(-6, 16); g.lineTo(-16, 44);      // back leg
+      g.lineTo(0, 44); g.lineTo(6, 18); g.closePath(); g.fill();
+      g.beginPath(); g.moveTo(12, 16); g.lineTo(8, 44);        // front leg
+      g.lineTo(24, 44); g.lineTo(24, 16); g.closePath(); g.fill();
+      g.beginPath(); g.moveTo(20, 0); g.lineTo(32, 8);         // the famous little arm
+      g.lineTo(21, 10); g.closePath(); g.fill();
+      [[-8, -12], [2, -14]].forEach(function (p) {             // ridges along the back
+        g.beginPath(); g.moveTo(p[0] - 6, p[1] + 4); g.lineTo(p[0], p[1] - 6);
+        g.lineTo(p[0] + 6, p[1] + 4); g.closePath(); g.fill();
+      });
+      g.fillStyle = "#f4fff4"; g.beginPath(); g.arc(40, -27, 4.5, 0, 7); g.fill();  // eye
+      g.fillStyle = "#1a1a1a"; g.beginPath(); g.arc(41, -27, 2.4, 0, 7); g.fill();
+      g.strokeStyle = "#2f7f3c"; g.lineWidth = 2; g.beginPath();                    // mouth line
+      g.moveTo(52, -21); g.lineTo(35, -18); g.stroke(); } },
     { id: "lightning", label: "⚡", draw: function (g) { g.fillStyle = "#ffd23e"; g.beginPath(); g.moveTo(8, -52);
       g.lineTo(-22, 6); g.lineTo(-2, 6); g.lineTo(-10, 52); g.lineTo(24, -12); g.lineTo(2, -12); g.closePath(); g.fill(); } },
     { id: "smiley", label: "☺", draw: function (g) { g.fillStyle = "#ffd23e"; g.beginPath(); g.arc(0, 0, 46, 0, 7); g.fill();
@@ -2899,9 +2940,18 @@ import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
       g.lineTo(-32, -6); g.quadraticCurveTo(-32, -48, 0, -48); g.quadraticCurveTo(32, -48, 32, -6); g.lineTo(32, 44);
       g.lineTo(20, 32); g.lineTo(10, 44); g.lineTo(0, 32); g.lineTo(-10, 44); g.lineTo(-20, 32); g.closePath(); g.fill();
       g.fillStyle = "#1a1a1a"; g.beginPath(); g.arc(-12, -8, 5, 0, 7); g.arc(12, -8, 5, 0, 7); g.fill(); } },
-    { id: "flower", label: "❀", draw: function (g) { for (var i = 0; i < 6; i++) { var a = i / 6 * Math.PI * 2;
-      g.fillStyle = "#ff8ac8"; g.beginPath(); g.ellipse(Math.cos(a) * 26, Math.sin(a) * 26, 16, 22, a, 0, 7); g.fill(); }
-      g.fillStyle = "#ffd23e"; g.beginPath(); g.arc(0, 0, 15, 0, 7); g.fill(); } },
+    // five outlined petals, not six overlapping ones — without the gaps and the
+    // darker edge they fuse into a solid ring and it reads as a donut
+    { id: "flower", label: "❀", draw: function (g) {
+      for (var i = 0; i < 5; i++) {
+        var a = -Math.PI / 2 + i / 5 * Math.PI * 2;
+        g.save(); g.translate(Math.cos(a) * 25, Math.sin(a) * 25); g.rotate(a + Math.PI / 2);
+        g.fillStyle = "#ff8ac8"; g.strokeStyle = "#d95a9a"; g.lineWidth = 3;
+        g.beginPath(); g.ellipse(0, 0, 13, 21, 0, 0, 7); g.fill(); g.stroke();
+        g.restore();
+      }
+      g.fillStyle = "#ffd23e"; g.strokeStyle = "#d9a017"; g.lineWidth = 3;
+      g.beginPath(); g.arc(0, 0, 14, 0, 7); g.fill(); g.stroke(); } },
     { id: "moon", label: "🌙", draw: function (g) { g.fillStyle = "#ffe08a"; g.beginPath(); g.arc(0, 0, 40, 0, 7); g.fill();
       g.globalCompositeOperation = "destination-out"; g.beginPath(); g.arc(16, -8, 36, 0, 7); g.fill();
       g.globalCompositeOperation = "source-over"; } },
@@ -3239,7 +3289,8 @@ import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
     ".dw-card{font-family:inherit;color:inherit;background:rgba(255,255,255,.04);border:1px solid var(--line);" +
     "border-radius:7px;padding:7px 4px;text-align:center;cursor:pointer}" +
     ".dw-card.on{border-color:#8a6f4a;background:rgba(255,194,125,.08)}" +
-    ".dw-card.locked{opacity:.45;cursor:default}" +
+    ".dw-card.locked{opacity:.62;cursor:default}" +
+    ".dw-earn{font-size:8.5px;line-height:1.25;font-style:italic;color:var(--faint);margin-top:3px}" +
     ".dw-card .i{font-size:20px}" +
     ".dw-card .n{font-size:9px;letter-spacing:.03em;margin-top:3px;color:var(--dim)}" +
     ".dw-card.on .n{color:#ffd9a0}" +
@@ -3512,8 +3563,11 @@ import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
       var placed = !!shoeState.placed[c.key];
       if (placed) out++;
       if (!got) {
-        return '<div class="dw-card locked" title="' + c.earn + '"><div class="i">?</div>' +
-          '<div class="n">' + c.from + "</div></div>";
+        // say what it takes, on the card. This used to be a hover title only, which is
+        // invisible on a phone and reads as "there's no way to get this thing".
+        return '<div class="dw-card locked"><div class="i">?</div>' +
+          '<div class="n">' + c.from + '</div>' +
+          '<div class="dw-earn">' + c.earn + "</div></div>";
       }
       return '<button type="button" class="dw-card' + (placed ? " on" : "") + '" data-coll="' + c.key +
         '" aria-pressed="' + (placed ? "true" : "false") +
@@ -3614,22 +3668,32 @@ import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
     var nm = roomOwnerName();
     if (!nm) return;
     var text = nm.toUpperCase() + (/s$/i.test(nm) ? "'" : "'S") + " ROOM";
-    var bT = canvasTex(512, 64, function (g, w, h) { // same crayon recipe as the birthday banner
-      g.fillStyle = "#efe6d0"; g.fillRect(0, 0, w, h);
-      g.strokeStyle = "#c9b895"; g.lineWidth = 3; g.strokeRect(3, 3, w - 6, h - 6);
-      var cols = ["#c0392b", "#2980b9", "#27ae60", "#8e44ad", "#e67e22"];
-      g.font = "bold 30px Georgia, serif"; g.textBaseline = "middle";
+    // bigger canvas + a dark outline on every letter: this hangs right under the neon,
+    // and washed-out crayon on cream disappears into all that pink
+    var bT = canvasTex(1024, 128, function (g, w, h) {
+      // the paper is unlit but tone mapping still lifts it, so the crayon has to be
+      // deep to survive — pastel letters bleach out to nothing up here
+      g.fillStyle = "#f2ead4"; g.fillRect(0, 0, w, h);
+      g.strokeStyle = "#a89268"; g.lineWidth = 6; g.strokeRect(5, 5, w - 10, h - 10);
+      var cols = ["#8f1d13", "#123f73", "#0f5c30", "#4e2263", "#9c4409"];
+      g.font = "bold 66px Georgia, serif"; g.textBaseline = "middle";
+      g.lineJoin = "round";
       var tw = 0;
-      for (var m = 0; m < text.length; m++) tw += g.measureText(text[m]).width + 2;
-      var x = Math.max(14, (w - tw) / 2);
+      for (var m = 0; m < text.length; m++) tw += g.measureText(text[m]).width + 4;
+      var x = Math.max(24, (w - tw) / 2);
       for (var i = 0; i < text.length; i++) {
+        var yy = h / 2 + (i % 2 ? 5 : -5);
+        g.strokeStyle = "#2b2118"; g.lineWidth = 5;
+        g.strokeText(text[i], x, yy);              // outline first, so colour reads on any wall
         g.fillStyle = cols[i % cols.length];
-        g.fillText(text[i], x, h / 2 + (i % 2 ? 3 : -3));
-        x += g.measureText(text[i]).width + 2;
+        g.fillText(text[i], x, yy);
+        x += g.measureText(text[i]).width + 4;
       }
     });
-    nameMesh = new THREE.Mesh(new THREE.PlaneGeometry(1.7, 0.21), new THREE.MeshBasicMaterial({ map: bT }));
-    nameMesh.position.set(-1.3, season === "bday" ? 2.32 : 2.56, -2.52); // the birthday banner outranks you one day a year
+    nameMesh = new THREE.Mesh(new THREE.PlaneGeometry(1.82, 0.23), new THREE.MeshBasicMaterial({ map: bT }));
+    // z sits IN FRONT of the neon's additive halo (-2.46) so depth-testing keeps the
+    // glow off the paper — behind it, the sign simply bleaches the name away
+    nameMesh.position.set(-1.3, season === "bday" ? 2.30 : 2.50, -2.43); // the birthday banner outranks you one day a year
     nameMesh.rotation.z = 0.02;
     scene.add(nameMesh);
   }
