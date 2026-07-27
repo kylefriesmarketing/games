@@ -271,6 +271,13 @@ import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
   lampLight.shadow.radius = 2.5;
   var crtLight = new THREE.PointLight(0x7db4ff, 0.7, 4, 2); crtLight.position.set(2.3, 1.0, -1.4); scene.add(crtLight);
   var shelfGlow = new THREE.PointLight(0xffd9a0, 0.55, 5, 2); shelfGlow.position.set(-1.3, 1.8, -1.4); scene.add(shelfGlow);
+  // Flat ambient lights every face identically, which is why unlit corners went dead.
+  // A hemisphere carries part of that load instead: cool from the ceiling, warm bounced
+  // up off the carpet. AMB_FLAT hands the difference over so the room doesn't just get
+  // brighter — it gets shaped. Both scale together per phase (and when the bed dims it).
+  var AMB_FLAT = 0.76, BOUNCE_K = 0.44;
+  var bounce = new THREE.HemisphereLight(0x2c3440, 0x4a3526, 0.44);
+  bounce.position.set(0, 3.2, 0); scene.add(bounce);
 
   // (pick/clickable/go/BASE are declared up with the helpers, before the room shell)
 
@@ -1257,8 +1264,41 @@ import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
     motePos[mi * 3 + 2] = -1.4 + Math.random() * 1.6;
   }
   moteGeo.setAttribute("position", new THREE.BufferAttribute(motePos, 3));
-  var motes = new THREE.Points(moteGeo, new THREE.PointsMaterial({ color: 0xffd9a0, size: 0.014, transparent: true, opacity: 0.45, depthWrite: false }));
+  // additive so they catch the desk lamp and read as dust in the light, not grey specks
+  var motes = new THREE.Points(moteGeo, new THREE.PointsMaterial({ color: 0xffd9a0, size: 0.016,
+    transparent: true, opacity: 0.5, depthWrite: false, blending: THREE.AdditiveBlending }));
   scene.add(motes);
+
+  /* ---- the streetlight leans in through the window ------------------------------
+   * A soft wedge of light on the floor under the window. Not a real volumetric — a
+   * pair of additive planes with a gradient that fades at both ends, which holds up
+   * because the camera only ever pans a little. Brightest at night, gone by day. */
+  var shaftTex = canvasTex(64, 128, function (g, w, h) {
+    var lg = g.createLinearGradient(0, 0, 0, h);      // fade in from the glass, out on the floor
+    lg.addColorStop(0, "rgba(255,214,160,0.0)");
+    lg.addColorStop(0.18, "rgba(255,214,160,0.55)");
+    lg.addColorStop(0.65, "rgba(255,214,160,0.22)");
+    lg.addColorStop(1, "rgba(255,214,160,0)");
+    g.fillStyle = lg; g.fillRect(0, 0, w, h);
+    var eg = g.createLinearGradient(0, 0, w, 0);      // soften the long edges
+    eg.addColorStop(0, "rgba(0,0,0,1)");
+    eg.addColorStop(0.5, "rgba(0,0,0,0)");
+    eg.addColorStop(1, "rgba(0,0,0,1)");
+    g.globalCompositeOperation = "destination-out";
+    g.fillStyle = eg; g.fillRect(0, 0, w, h);
+  });
+  var shaftG = new THREE.Group();
+  [0, Math.PI / 2].forEach(function (rot) {           // crossed planes hold up as the view pans
+    var m = new THREE.Mesh(new THREE.PlaneGeometry(1.5, 3.1), new THREE.MeshBasicMaterial({
+      map: shaftTex, transparent: true, blending: THREE.AdditiveBlending,
+      depthWrite: false, side: THREE.DoubleSide, opacity: 0.5,
+    }));
+    m.rotation.y = rot; shaftG.add(m);
+  });
+  shaftG.position.set(2.3, 1.15, -1.55);
+  shaftG.rotation.x = 0.62;                           // tipped so it lands on the floor, not the wall
+  shaftG.renderOrder = 2;
+  scene.add(shaftG);
 
   /* ---- the season drifts through the room (view-only) --------------------------
    * A gentle fall keyed to the real month — snow in winter, petals in spring, leaves
@@ -1301,10 +1341,10 @@ import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
   // it rains (streaks + audio), how the TV behaves, and how often the storm
   // flashes. ?hour=23 in the URL pins a phase for tinkering.
   var PHASES = {
-    day:     { amb: 0x4a5468, ambI: 1.3,  moonC: 0xbcc8da, moonI: 0.8,  lift: 1.85, liftB: 1.0,  stars: 0.12, streaks: 36, rainG: 0.04,  test: false, fMin: 20, fRnd: 30, on: [13, 9], off: [2, 3] },
-    dusk:    { amb: 0x4a3c40, ambI: 1.15, moonC: 0xe8935a, moonI: 0.55, lift: 1.5,  liftB: 0.94, stars: 0.3,  streaks: 44, rainG: 0.05,  test: false, fMin: 16, fRnd: 26, on: [9, 8],  off: [3, 4] },
-    evening: { amb: 0x2c3440, ambI: 1.0,  moonC: 0x7d9cc4, moonI: 0.4,  lift: 1.25, liftB: 1.06, stars: 0.45, streaks: 44, rainG: 0.05,  test: false, fMin: 14, fRnd: 26, on: [9, 8],  off: [3, 4] },
-    night:   { amb: 0x1e2634, ambI: 0.85, moonC: 0x8fb4e8, moonI: 0.52, lift: 0.92, liftB: 1.1,  stars: 0.78, streaks: 64, rainG: 0.085, test: true,  fMin: 8,  fRnd: 14, on: [7, 5],  off: [4, 5] },
+    day:     { amb: 0x4a5468, ambI: 1.3, shaft: 0.0,  moonC: 0xbcc8da, moonI: 0.8,  lift: 1.85, liftB: 1.0,  stars: 0.12, streaks: 36, rainG: 0.04,  test: false, fMin: 20, fRnd: 30, on: [13, 9], off: [2, 3] },
+    dusk:    { amb: 0x4a3c40, ambI: 1.15, shaft: 0.28, moonC: 0xe8935a, moonI: 0.55, lift: 1.5,  liftB: 0.94, stars: 0.3,  streaks: 44, rainG: 0.05,  test: false, fMin: 16, fRnd: 26, on: [9, 8],  off: [3, 4] },
+    evening: { amb: 0x2c3440, ambI: 1.0, shaft: 0.5,  moonC: 0x7d9cc4, moonI: 0.4,  lift: 1.25, liftB: 1.06, stars: 0.45, streaks: 44, rainG: 0.05,  test: false, fMin: 14, fRnd: 26, on: [9, 8],  off: [3, 4] },
+    night:   { amb: 0x1e2634, ambI: 0.85, shaft: 0.62, moonC: 0x8fb4e8, moonI: 0.52, lift: 0.92, liftB: 1.1,  stars: 0.78, streaks: 64, rainG: 0.085, test: true,  fMin: 8,  fRnd: 14, on: [7, 5],  off: [4, 5] },
   };
   var HOUR_DEBUG = (function () {
     var m = /[?&]hour=(\d+)/.exec(location.search);
@@ -1319,10 +1359,14 @@ import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
   }
   var phase = PHASES.evening, phaseHour = -1, phaseOverride = null; // the wall switch can pin a mood
   function applyPhaseObj(p) {
-    if (p === phase && amb.intensity === p.ambI) return;
+    if (p === phase && amb.intensity === p.ambI * AMB_FLAT) return; // must match what we set below
     phase = p;
-    amb.color.set(p.amb); amb.intensity = p.ambI;
+    amb.color.set(p.amb); amb.intensity = p.ambI * AMB_FLAT;
+    bounce.color.set(p.amb); bounce.intensity = p.ambI * BOUNCE_K;
     moon.color.set(p.moonC); moon.intensity = p.moonI;
+    // the streetlight only reads once the room is darker than it is
+    shaftG.children.forEach(function (m) { m.material.opacity = p.shaft; });
+    shaftG.visible = p.shaft > 0.001;
     winViewM.color.setRGB(p.lift, p.lift, p.lift * p.liftB);
     if (acNodes && acNodes.rain) acNodes.rain.gain.value = p.rainG;
   }
@@ -4073,7 +4117,8 @@ import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
     // five more minutes: while the bed has you, the whole room breathes lower
     nap += (((t < napUntil) ? 1 : 0) - nap) * Math.min(1, dt * 1.8);
     var dim = 1 - 0.8 * nap;
-    amb.intensity = phase.ambI * (1 - 0.65 * nap);
+    amb.intensity = phase.ambI * AMB_FLAT * (1 - 0.65 * nap);
+    bounce.intensity = phase.ambI * BOUNCE_K * (1 - 0.65 * nap); // the bounce sleeps too
     lampLight.intensity = (lampOn ? 1.5 : 0.12) * dim;
     lavaLight.intensity = (lavaOn ? 0.8 : 0.05) * dim;
     shelfGlow.intensity = 0.55 * dim;
