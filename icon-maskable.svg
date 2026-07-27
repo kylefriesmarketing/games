@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="THE ROOM">
+  <defs>
+    <filter id="glowm" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur stdDeviation="9" result="b"/>
+      <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+  </defs>
+  <!-- full bleed: the launcher crops this to its own shape, so no rounded corners here -->
+  <rect width="512" height="512" fill="#05070a"/>
+  <!-- and the door sits inside the 80% safe zone so nothing important gets cropped -->
+  <g filter="url(#glowm)">
+    <rect x="184" y="146" width="144" height="220" rx="14" fill="none" stroke="#ff5aa8" stroke-width="22"/>
+    <circle cx="298" cy="256" r="14" fill="#ff5aa8"/>
+  </g>
+</svg>

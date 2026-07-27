@@ -1,0 +1,16 @@
+{
+  "name": "THE ROOM — games by Kyle Fries",
+  "short_name": "THE ROOM",
+  "description": "A 90s bedroom you can click. Every object is a doorway: stories on the shelf, an RTS in the toy chest, and a room you can make your own.",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#05070a",
+  "theme_color": "#05070a",
+  "categories": ["games", "entertainment"],
+  "icons": [
+    { "src": "./icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" },
+    { "src": "./icon-maskable.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "maskable" }
+  ]
+}

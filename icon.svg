@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="THE ROOM">
+  <defs>
+    <filter id="glow" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur stdDeviation="10" result="b"/>
+      <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+  </defs>
+  <rect width="512" height="512" rx="96" fill="#05070a"/>
+  <!-- the doorway, standing open on a lit room -->
+  <g filter="url(#glow)">
+    <rect x="150" y="96" width="212" height="320" rx="18" fill="none" stroke="#ff5aa8" stroke-width="26"/>
+    <circle cx="318" cy="256" r="18" fill="#ff5aa8"/>
+  </g>
+</svg>

@@ -1,0 +1,63 @@
+/* THE ROOM — service worker.
+ *
+ * Two strategies on purpose, because this room is ~11MB of props but its code
+ * changes several times a day:
+ *
+ *   code (html/js/json)  → NETWORK FIRST, cache as fallback.  A deploy is live the
+ *                          moment you reload; the cache only steps in when offline.
+ *                          (Cache-first here is the classic PWA trap: it pins an old
+ *                          room.js in place until someone remembers to bump a version.)
+ *   assets (glb/img/lib) → CACHE FIRST.  These are big, they're named for their
+ *                          contents, and they effectively never change — so serve them
+ *                          instantly and only hit the network on a miss.
+ */
+var CACHE = "the-room-v1";
+var SHELL = ["./", "./index.html", "./js/room.js", "./manifest.webmanifest", "./icon.svg"];
+
+// heavy, effectively-immutable things worth keeping on disk
+function isAsset(url) {
+  return /\.(glb|jpg|jpeg|png|svg|webp|wasm|bin)$/i.test(url.pathname) ||
+         url.pathname.indexOf("/assets/lib/") >= 0;
+}
+
+self.addEventListener("install", function (e) {
+  // never let one missing file abort the whole install
+  e.waitUntil(caches.open(CACHE).then(function (c) {
+    return Promise.all(SHELL.map(function (u) { return c.add(u).catch(function () {}); }));
+  }).then(function () { return self.skipWaiting(); }));
+});
+
+self.addEventListener("activate", function (e) {
+  e.waitUntil(caches.keys().then(function (keys) {
+    return Promise.all(keys.map(function (k) { return k === CACHE ? null : caches.delete(k); }));
+  }).then(function () { return self.clients.claim(); }));
+});
+
+self.addEventListener("fetch", function (e) {
+  var req = e.request;
+  if (req.method !== "GET") return;
+  var url;
+  try { url = new URL(req.url); } catch (err) { return; }
+  if (url.origin !== location.origin) return;   // the games live on their own origins
+
+  if (isAsset(url)) {                            // cache first
+    e.respondWith(caches.match(req).then(function (hit) {
+      return hit || fetch(req).then(function (res) {
+        if (res.ok) { var copy = res.clone(); caches.open(CACHE).then(function (c) { c.put(req, copy); }); }
+        return res;
+      });
+    }));
+    return;
+  }
+
+  e.respondWith(                                 // network first, fall back to cache
+    fetch(req).then(function (res) {
+      if (res.ok) { var copy = res.clone(); caches.open(CACHE).then(function (c) { c.put(req, copy); }); }
+      return res;
+    }).catch(function () {
+      return caches.match(req).then(function (hit) {
+        return hit || caches.match("./index.html");   // offline deep-link still opens the room
+      });
+    })
+  );
+});
