@@ -54,6 +54,8 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
       t.wrapS = t.wrapT = THREE.RepeatWrapping;
       t.repeat.set(repX || 1, repY || 1);
       t.anisotropy = 8;
+      m.userData.baseMap = t; // "as found" restores this (the material swap system)
+      if (m.userData.customMap) return; // a swapped wallpaper got here first — don't clobber it
       m.map = t; m.color.set(m.userData.tint || 0xffffff); m.needsUpdate = true; // tint survives the async load (the paint box)
     });
     return m;
@@ -2391,6 +2393,63 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
   registerMovable({ key: "nstand", label: "the nightstand", root: nstand, r: 0.3, rot: true, attachObjs: [gLava] });
   registerMovable({ key: "hoodbag", label: "the duffel bag", root: hoodG, r: 0.34, rot: true, obs: 7, stations: [8] });
 
+  /* ---- THE CAT: she came with the room (Higgsfield plush bake, 2026-07-27) -------
+   * A sleeping tabby. Mostly the bed is hers; sometimes the rug, sometimes the
+   * beanbag. She relocates when the mood takes her — a blink, not a walk; she is a
+   * very lazy cat. Her perch is recomputed every frame, so she rides the furniture
+   * live while you drag it. Pet her and she purrs (the thunder synth, tiny). */
+  var catG = null, catSpot = "bed", catNextMove = 1e9, catPetOnce = false;
+  var CAT_OB = { x: 0, z: 0, r: 0 }; // solid only when she's down on the rug
+  KID_OBSTACLES.push(CAT_OB);
+  var catV = new THREE.Vector3();
+  function catSpotPos(which) {
+    if (which === "rug") return { x: rug.position.x + 0.62, y: 0.02, z: rug.position.z + 0.42 };
+    if (which === "bean" && movableByKey.bean) {
+      var b = movableByKey.bean.root.position;
+      return { x: b.x - 0.02, y: 0.33, z: b.z + 0.04 };
+    }
+    catV.set(0.13, 0, 0.54); bed.localToWorld(catV); // the foot corner — clear of where the kid lies
+    return { x: catV.x, y: 0.42, z: catV.z };        // KID_BED.upY: the mattress top
+  }
+  function catSyncOb() {
+    CAT_OB.r = (catSpot === "rug" && catG && catG.visible !== false && !outState.cat) ? 0.30 : 0;
+  }
+  function catSettle() { // glue her to the current perch (called every frame — furniture moves)
+    if (!catG) return;
+    var p = catSpotPos(catSpot);
+    catG.position.set(p.x, p.y, p.z);
+    CAT_OB.x = p.x; CAT_OB.z = p.z;
+  }
+  function catRelocate() {
+    var spots = ["bed", "bed", "bed", "rug", "bean"]; // she has a favorite
+    var next = spots[(Math.random() * spots.length) | 0];
+    catNextMove = performance.now() / 1000 + 200 + Math.random() * 260;
+    if (next === catSpot) return;
+    catSpot = next;
+    catG.visible = false; // blink out…
+    setTimeout(function () {
+      if (outState.cat) return; // hidden in the underbed box meanwhile — stay away
+      catG.rotation.y = ({ bed: 2.3, rug: -0.8, bean: 0.7 })[catSpot] + (Math.random() - 0.5) * 0.6;
+      catG.visible = true; // BEFORE catSyncOb — it reads visibility, and she must be solid the frame she lands
+      catSettle(); catSyncOb();
+      fadeInObject(catG); // …and she was always there
+    }, 900 + Math.random() * 1400);
+  }
+  function catPet() {
+    rumble(0.12); // the thunder generator makes a passable purr at this size
+    clickSfx(500);
+    if (!catPetOnce) {
+      catPetOnce = true;
+      try { kidSay("that's the cat. she came with the room. or we came with her.", 5); } catch (e) { }
+    }
+  }
+  prop("assets/props/cat.glb", 0.26, 3.14, 0.42, 1.70, 2.3, function (wrap) {
+    catG = wrap;
+    wrap.traverse(function (o) { if (o.isMesh) clickable(o, "the cat", catPet, "the cat — do not wake"); });
+    catSettle(); catSyncOb();
+    catNextMove = performance.now() / 1000 + 200 + Math.random() * 260;
+  });
+
   /* ---- THE SHOEBOX: one collectible per game ------------------------------------ */
   // one collectible per game — have() reads the same-origin saves; Tony's three
   // unlock by walking through their doorway (go() stamps the visit).
@@ -2742,6 +2801,10 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
     paintState.rug = (Math.random() * PAINT.rug.opts.length) | 0;
     paintState.neon = (Math.random() * NEON_OPTS.length) | 0;
     var pk = Object.keys(LIGHT_PALS); paintState.lights = pk[(Math.random() * pk.length) | 0];
+    // half the time the dice reach for a real material too — that's the fun ones
+    paintState.wallsTex = Math.random() < 0.5 ? (Math.random() * MAT_TEX.walls.opts.length) | 0 : 0;
+    paintState.carpetTex = Math.random() < 0.4 ? (Math.random() * MAT_TEX.carpet.opts.length) | 0 : 0;
+    paintState.rugTex = Math.random() < 0.35 ? 1 : 0;
     saveJSON("room-paint", paintState); applyPaint();
     if (decorMode) dwRender();
   }
@@ -2755,15 +2818,20 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
   var ROOM_THEMES = [
     { key: "asfound", name: "as found", icon: "🛏️", need: 0, reset: true, hour: null },
     { key: "cabin", name: "cozy cabin", icon: "🔥", need: 0,
-      paint: { walls: 5, carpet: 1, wood: 1, door: 1, rug: 1, neon: 1, lights: "warm glow", screen: "stars" }, hour: "evening" },
+      paint: { walls: 0, carpet: 1, wood: 1, door: 1, rug: 1, neon: 1, lights: "warm glow", screen: "stars",
+               wallsTex: 3, carpetTex: 1, rugTex: 0 }, hour: "evening" }, // real pine walls + shag underfoot
     { key: "arcade", name: "neon arcade", icon: "🕹️", need: 2,
-      paint: { walls: 0, carpet: 3, wood: 4, door: 4, rug: 0, neon: 3, lights: "ocean", screen: "logo" }, hour: "night" },
+      paint: { walls: 0, carpet: 3, wood: 4, door: 4, rug: 0, neon: 3, lights: "ocean", screen: "logo",
+               wallsTex: 2, carpetTex: 0, rugTex: 0 }, hour: "night" }, // the neon grid print
     { key: "attic", name: "haunted attic", icon: "🕸️", need: 4,
-      paint: { walls: 4, carpet: 3, wood: 2, door: 4, rug: 0, neon: 4, lights: "candy", screen: "rain" }, hour: "night" },
+      paint: { walls: 0, carpet: 3, wood: 2, door: 4, rug: 0, neon: 4, lights: "candy", screen: "rain",
+               wallsTex: 5, carpetTex: 2, rugTex: 0 }, hour: "night" }, // ghost wallpaper over bare boards
     { key: "sunroom", name: "sunroom", icon: "🌿", need: 6,
-      paint: { walls: 1, carpet: 2, wood: 3, door: 3, rug: 2, neon: 2, lights: "classic", screen: "mystify" }, hour: "day" },
+      paint: { walls: 0, carpet: 2, wood: 3, door: 3, rug: 2, neon: 2, lights: "classic", screen: "mystify",
+               wallsTex: 4, carpetTex: 0, rugTex: 1 }, hour: "day" }, // daisies + the racetrack rug
     { key: "winter", name: "winter room", icon: "❄️", need: 9,
-      paint: { walls: 3, carpet: 3, wood: 3, door: 2, rug: 3, neon: 3, lights: "ocean", screen: "stars" }, hour: "dusk" },
+      paint: { walls: 3, carpet: 3, wood: 3, door: 2, rug: 3, neon: 3, lights: "ocean", screen: "stars",
+               wallsTex: 1, carpetTex: 1, rugTex: 0 }, hour: "dusk" }, // glow stars under a sky tint
   ];
   var THEME_BY_KEY = {};
   ROOM_THEMES.forEach(function (t) { THEME_BY_KEY[t.key] = t; });
@@ -2779,7 +2847,8 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
     if (t.reset) pbWash();
     else {
       var p = t.paint || {};
-      ["walls", "carpet", "wood", "door", "rug", "neon", "lights", "screen"].forEach(function (f) {
+      ["walls", "carpet", "wood", "door", "rug", "neon", "lights", "screen",
+       "wallsTex", "carpetTex", "rugTex"].forEach(function (f) {
         if (p[f] != null) paintState[f] = p[f];
       });
       saveJSON("room-paint", paintState); applyPaint();
@@ -2887,6 +2956,9 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
     ".dw-sw{display:flex;gap:7px;flex-wrap:wrap;margin-bottom:4px}" +
     ".dw-sw button{width:30px;height:30px;border-radius:50%;cursor:pointer;border:2px solid var(--line);padding:0}" +
     ".dw-sw button.on{border-color:#ffd9a0;box-shadow:0 0 0 2px rgba(9,13,20,1),0 0 0 4px #8a6f4a}" +
+    // material swatches: little rectangles that show the actual print
+    ".dw-sw.dw-tex button{width:44px;height:30px;border-radius:7px;background-size:cover;background-position:center;" +
+    "background-color:#1a2130;color:#8fa0b8;font-size:13px;line-height:1}" +
     ".dw-name{display:flex;gap:7px;margin-top:4px}" +
     ".dw-name input{flex:1;font-family:Georgia,serif;font-size:13px;background:rgba(255,255,255,.06);" +
     "color:var(--bone);border:1px solid var(--line);border-radius:5px;padding:7px 9px;min-width:0}" +
@@ -3054,6 +3126,8 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
       dwRender();
     } else if ((key = b.getAttribute("data-paint"))) {
       pushUndo(); setPaint(key, +b.getAttribute("data-i")); dwRender(); clickSfx(1600);
+    } else if ((key = b.getAttribute("data-tex"))) {
+      pushUndo(); setPaint(key + "Tex", +b.getAttribute("data-i")); dwRender(); clickSfx(1600);
     } else if (b.getAttribute("data-neon") != null && b.getAttribute("data-neon") !== "") {
       pushUndo(); setPaint("neon", +b.getAttribute("data-neon")); dwRender(); clickSfx(1600);
     } else if ((key = b.getAttribute("data-lights"))) {
@@ -3207,6 +3281,65 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
       ["as found", 0xffffff], ["red", 0x9e3b30], ["blue", 0x3c5a86],
       ["green", 0x3f6b45], ["black", 0x2a2a2e]] },
   };
+  /* Real MATERIAL swaps — actual wallpaper prints, floors and a second rug, not just
+   * tints (the tints still multiply over whichever material is up). Each opt is
+   * [label, file|null, repX, repY]; keys mirror PAINT rows so the swatches can sit
+   * under their tint row. paintState.<k>Tex indexes opts; 0/absent = as found. */
+  var MAT_TEX = {
+    walls: { mats: [wallM, wallMSide], scales: [1, 0.78], label: "the wallpaper", opts: [
+      ["as found", null],
+      ["glow stars", "wp-stars.webp", 4.4, 1.65],
+      ["arcade grid", "wp-arcade.webp", 3.2, 1.2],
+      ["knotty pine", "wp-pine.webp", 2.6, 1.0],
+      ["daisy field", "wp-floral.webp", 3.8, 1.45],
+      ["spooky cute", "wp-spooky.webp", 3.8, 1.45],
+      ["pinstripe", "wp-stripe.webp", 3.0, 1.15]] },
+    carpet: { mats: [floorM], scales: [1], label: "the floor", opts: [
+      ["as found", null],
+      ["shag pile", "fl-shag.webp", 3.2, 2.5],
+      ["oak boards", "fl-oak.webp", 3.0, 2.35]] },
+    rug: { mats: null /* rug.material, resolved at apply */, scales: [1], label: "the rug print", opts: [
+      ["galaxy", null],
+      ["racetrack", "rug-racetrack.webp", 1, 1]] },
+  };
+  var matTexCache = {};
+  function texFor(file, rx, ry, cb) {
+    var ck = file + "@" + rx.toFixed(2) + "x" + ry.toFixed(2);
+    if (matTexCache[ck]) { cb(matTexCache[ck]); return; }
+    texLoader.load("assets/tex/" + file, function (t) {
+      // mirrored repeat hides the AI tiles' imperfect seams — every edge meets itself
+      t.wrapS = t.wrapT = THREE.MirroredRepeatWrapping;
+      t.repeat.set(rx, ry); t.anisotropy = 8;
+      matTexCache[ck] = t; cb(t);
+    });
+  }
+  function applyMaterials() {
+    for (var k in MAT_TEX) (function (k) {
+      var row = MAT_TEX[k], opt = row.opts[paintState[k + "Tex"] || 0] || row.opts[0];
+      (row.mats || [rug.material]).forEach(function (m, mi) {
+        if (!opt[1]) { // as found — the original texture comes back (it may still be loading)
+          m.userData.customMap = null;
+          if (m.map !== (m.userData.baseMap || null)) { m.map = m.userData.baseMap || null; m.needsUpdate = true; }
+          return;
+        }
+        m.userData.customMap = opt[1];
+        texFor(opt[1], opt[2] * (row.scales[mi] || 1), opt[3], function (t) {
+          if (m.userData.customMap !== opt[1]) return; // they clicked again while this loaded
+          m.map = t; m.needsUpdate = true;
+        });
+      });
+    })(k);
+  }
+  function matTexRowHTML(k) {
+    var row = MAT_TEX[k], cur = paintState[k + "Tex"] || 0;
+    var h = '<div class="dw-sw dw-tex">';
+    row.opts.forEach(function (o, i) {
+      h += '<button type="button" data-tex="' + k + '" data-i="' + i + '"' + (i === cur ? ' class="on"' : "") +
+        (o[1] ? ' style="background-image:url(assets/tex/' + o[1] + ')"' : "") +
+        ' title="' + o[0] + '" aria-label="' + row.label + ": " + o[0] + '">' + (o[1] ? "" : "✕") + "</button>";
+    });
+    return h + "</div>";
+  }
   var NEON_OPTS = [ // [label, hue-rotate degrees, light color]
     ["pink", 0, 0xff5aa8], ["gold", 60, 0xffb84d], ["lime", 130, 0x8ae05a],
     ["cyan", 200, 0x4dd8ff], ["violet", 265, 0x9a7dff]];
@@ -3298,6 +3431,7 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
         if (bulbs[b].userData.glow) bulbs[b].userData.glow.material.color.set(pal[b % pal.length]);
       }
     }
+    applyMaterials(); // material swaps first conceptually, but tints above only touch .color so order is safe
     var wantSS = paintState.screen || "stars";           // the PC keeps whichever it was left on
     for (var s = 0; s < SCREENSAVERS.length; s++) if (SCREENSAVERS[s][0] === wantSS) ssKind = wantSS;
     applyNeonPaint();
@@ -3333,6 +3467,7 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
           '" aria-label="' + row.label + ": " + o[0] + '"></button>';
       });
       html += "</div>";
+      if (MAT_TEX[k]) html += matTexRowHTML(k); // the material swatches live right under their tint row
     }
     html += '<div class="dw-sec">the neon sign</div><div class="dw-sw">';
     NEON_OPTS.forEach(function (o, i) {
@@ -3435,6 +3570,8 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
       get: function () { return [chest]; } },
     { key: "war", sec: "toys", label: "the army men on the rug",
       get: function () { return [war]; } },
+    { key: "cat", sec: "toys", label: "the cat (she won't mind)",
+      get: function () { return [catG]; } },
     { key: "island", sec: "toys", label: "the toy island (TIDEBOUND)", obs: 3,
       get: function () { return movableByKey.island ? [movableByKey.island.root] : []; } },
     { key: "hoodbag", sec: "toys", label: "the duffel bag (HOOD RUN) + poster", obs: 7,
@@ -3460,6 +3597,7 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
       });
     });
     kbListDirty = true;
+    catSyncOb(); // her floor-obstacle follows her visibility (dynamic r — the generic obs path can't own it)
     if (selCfg && selCfg.root.visible === false) decorSelect(null);
   }
 
@@ -3911,6 +4049,11 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
       cn.position.z = cn.__z0 + thump * 0.012;
       cn.scale.set(1 + thump * 0.16, 1 + thump * 0.16, 1);
     }
+    if (catG && catG.visible) { // the cat: breathes, rides her furniture, occasionally teleports
+      catSettle();
+      catG.scale.set(1, 1 + Math.sin(t * 1.35) * 0.018, 1); // slow sleeping breath (base at y=0, so only the top rises)
+      if (t > catNextMove && !decorMode) catRelocate();
+    }
     if (robotWrap) { // wind-up tin robot: circles the rug with a little waddle-rock
       robotBoost *= Math.pow(0.5, dt / 2.5); // the spring unwinds
       if (robotBoost < 0.02) robotBoost = 0;
@@ -4081,8 +4224,12 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
       place: placeColl, unplace: unplaceColl, render: sbxRender,
       newCount: function () { return sbxNew; } },
     paint: { state: function () { return paintState; }, set: setPaint, apply: applyPaint, open: pbOpen, close: pbClose,
-      defs: { PAINT: PAINT, NEON_OPTS: NEON_OPTS, LIGHT_PALS: LIGHT_PALS },
+      defs: { PAINT: PAINT, NEON_OPTS: NEON_OPTS, LIGHT_PALS: LIGHT_PALS, MAT_TEX: MAT_TEX },
+      materials: applyMaterials, texCache: matTexCache,
       name: roomOwnerName, banner: function () { return nameMesh; } },
+    cat: { g: function () { return catG; }, spot: function () { return catSpot; }, ob: CAT_OB,
+      relocate: catRelocate, settle: catSettle, pet: catPet,
+      hurry: function () { catNextMove = 0; } },
     out: { defs: HIDEABLES, state: function () { return outState; }, apply: applyOut, open: obOpen, close: obClose,
       set: function (key, hidden) {
         if (hidden) outState[key] = 1; else delete outState[key];
