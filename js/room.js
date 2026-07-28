@@ -2622,59 +2622,62 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
   function anyOf(key, pickFn) { var v = readSave(key, pickFn); return v != null && v > 0; }
   var COLLECT = [
     { key: "bracelet", title: "the friendship bracelet", from: "CHOOSE WISELY", icon: "🧶",
-      earn: "find an ending in CHOOSE WISELY",
+      earn: "find an ending in CHOOSE WISELY", where: "on the windowsill",
       have: function () { return anyOf("chooseWisely.meta.v2", function (m) { return countOf(m.endingsFound); }); },
       home: { x: 2.65, y: 1.021, z: -2.44 }, build: COLL.buildBracelet },
     { key: "laurel", title: "the gold laurel", from: "NINE CIRCLES", icon: "🏵️",
-      earn: "reach an ending in NINE CIRCLES",
+      earn: "reach an ending in NINE CIRCLES", where: "on the windowsill",
       have: function () { return anyOf("nc_persist", function (m) { return countOf(m.endings); }); },
-      home: { x: -1.45, y: 2.392, z: -2.32 }, build: COLL.buildLaurel },
+      // ⚠️ flat items NEVER go on the shelf top (y 2.392) — it's above eye level, so the
+      // shelf's own front edge hides anything short. It looked like "nothing spawned".
+      home: { x: 1.55, y: 1.021, z: -2.44 }, build: COLL.buildLaurel },
     { key: "compass", title: "the brass compass", from: "STILL BREATHING", icon: "🧭",
-      earn: "survive an ordeal in STILL BREATHING",
+      earn: "survive an ordeal in STILL BREATHING", where: "on the windowsill",
       have: function () { return anyOf("sb_persist", function (m) { return countOf(m.endings); }); },
       home: { x: 1.75, y: 1.021, z: -2.44 }, build: COLL.buildCompass },
     { key: "bottle", title: "the ship in a bottle", from: "SOUTH", icon: "⛵",
-      earn: "bring a voyage home in SOUTH",
+      earn: "bring a voyage home in SOUTH", where: "on the floor by the rug",
       have: function () { return anyOf("south_persist", function (m) { return countOf(m.endings); }); },
       home: { x: 1.9, y: 0, z: 0.35 }, build: COLL.buildBottle },
     { key: "horse", title: "the little wooden horse", from: "NOBODY", icon: "🐴",
-      earn: "reach an ending in NOBODY",
+      earn: "reach an ending in NOBODY", where: "up on top of the big shelf",
       have: function () { return anyOf("nobody_persist", function (m) { return countOf(m.endings); }); },
       home: { x: -1.85, y: 2.392, z: -2.32 }, build: COLL.buildHorse },
     { key: "watch", title: "the White Rabbit's watch", from: "CURIOUSER", icon: "⌚",
-      earn: "wake from the dream in CURIOUSER",
+      earn: "wake from the dream in CURIOUSER", where: "on the windowsill",
       have: function () { return anyOf("alice_persist", function (m) { return countOf(m.wakings); }); },
       home: { x: 2.05, y: 1.021, z: -2.44 }, build: COLL.buildWatch },
     { key: "inkwell", title: "the red inkwell", from: "DRACULA — THE RED INK", icon: "🖋️",
-      earn: "decide the book's fate in DRACULA",
+      earn: "decide the book's fate in DRACULA", where: "on the windowsill",
       have: function () { return anyOf("dracula_persist", function (m) { return countOf(m.endings); }); },
       home: { x: 2.35, y: 1.021, z: -2.44 }, build: COLL.buildInkwell },
     { key: "lens", title: "the magnifying glass", from: "ELEMENTARY", icon: "🔍",
-      earn: "solve a case in ELEMENTARY",
+      earn: "solve a case in ELEMENTARY", where: "on the floor, mid-room",
       have: function () { return anyOf("sherlock_persist", function (m) { return m && m.solved ? countOf(m.solved) : null; }); },
       home: { x: -1.35, y: 0, z: 1.9 }, build: COLL.buildLens },
     { key: "spitfire", title: "the model Spitfire", from: "G FOR GEORGE", icon: "✈️",
-      earn: "finish a telling in G FOR GEORGE",
+      earn: "finish a telling in G FOR GEORGE", where: "up on top of the big shelf",
       have: function () { return anyOf("gg_persist", function (m) { return countOf(m.endings); }); },
       home: { x: -1.05, y: 2.392, z: -2.32 }, build: COLL.buildSpitfire },
     { key: "crown", title: "the Shelf King's crown", from: "AGE OF TOYS", icon: "👑",
-      earn: "win a campaign mission in AGE OF TOYS",
+      earn: "win a campaign mission in AGE OF TOYS", where: "up on top of the big shelf",
       have: function () { var c = ttCampaign(); return c.done + c.secrets > 0; },
       home: { x: -2.25, y: 2.392, z: -2.32 }, build: COLL.buildCrown },
     { key: "brainball", title: "the squishy brain", from: "BRAINROT", icon: "🧠",
-      earn: "visit BRAINROT — the brain on the desk",
+      earn: "visit BRAINROT — the brain on the desk", where: "on the windowsill",
       have: function () { try { return !!localStorage.getItem("room-visited-brainball"); } catch (e) { return false; } },
       home: { x: 2.95, y: 1.021, z: -2.44 }, build: COLL.buildBrainball },
     { key: "goldbar", title: "the gold bar", from: "HOOD RUN", icon: "🟨",
-      earn: "make a run in HOOD RUN",
+      earn: "make a run in HOOD RUN", where: "in the getaway corner, by the safe",
       have: function () {
         return !!readSave("hr-save", function (m) {
           return (m && ((m.lifetime && m.lifetime.runs > 0) || m.bestDist > 0)) ? 1 : null;
         });
       },
-      home: { x: -0.65, y: 2.392, z: -2.32 }, build: COLL.buildGoldBar },
+      // was the shelf top (y 2.392) — a 1.7cm ingot up there is invisible from below
+      home: { x: -2.55, y: 0, z: 1.35 }, build: COLL.buildGoldBar },
     { key: "palm", title: "the pocket island", from: "TIDEBOUND", icon: "🌴",
-      earn: "visit TIDEBOUND — the toy island",
+      earn: "visit TIDEBOUND — the toy island", where: "on the floor by the shoebox",
       have: function () { try { return !!localStorage.getItem("room-visited-palm"); } catch (e) { return false; } },
       home: { x: -0.9, y: 0, z: 2.8 }, build: COLL.buildPalm },
   ];
@@ -3305,7 +3308,12 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
     var key, act = b.getAttribute("data-act");
     if ((key = b.getAttribute("data-coll"))) {
       pushUndo();
-      if (shoeState.placed[key]) unplaceColl(key); else { placeColl(key); clickSfx(1700); }
+      if (shoeState.placed[key]) unplaceColl(key);
+      else {
+        placeColl(key); clickSfx(1700);
+        var pc = collByKey[key]; // say where it landed — half the room is off-camera
+        if (pc && pc.where) { try { kidSay(pc.title + " is out — " + pc.where + ".", 4.5); } catch (e8) { } }
+      }
       dwRender();
     } else if ((key = b.getAttribute("data-paint"))) {
       pushUndo(); setPaint(key, +b.getAttribute("data-i")); dwRender(); clickSfx(1600);
@@ -3428,6 +3436,16 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
   function sbxOpen() { decorSet(true); dwTab("stuff"); }
   function sbxClose() { decorSet(false); }
 
+  // 2026-07-27: the gold bar + laurel used to home on the SHELF TOP — above eye level,
+  // where the shelf's front edge hides flat things ("nothing spawned"). If a save still
+  // holds that exact spot (never dragged), blank it so the new home applies. {} keeps
+  // the key in `placed` (so it still restores) while placeColl falls through to home.
+  [["goldbar", -0.65, 2.392, -2.32], ["laurel", -1.45, 2.392, -2.32]].forEach(function (mh) {
+    var sv = shoeState.placed[mh[0]];
+    if (sv && sv.x != null && Math.abs(sv.x - mh[1]) < 0.02 &&
+        Math.abs((sv.y || 0) - mh[2]) < 0.02 && Math.abs(sv.z - mh[3]) < 0.02)
+      shoeState.placed[mh[0]] = {};
+  });
   // restore what was on display, and count anything newly earned
   for (var pk in shoeState.placed) if (collByKey[pk]) placeColl(pk);
   sbxRefreshNew();
