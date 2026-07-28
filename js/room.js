@@ -2621,20 +2621,23 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
   // unlock by walking through their doorway (go() stamps the visit).
   function anyOf(key, pickFn) { var v = readSave(key, pickFn); return v != null && v > 0; }
   var COLLECT = [
+    // ⚠️ nothing homes on the WINDOWSILL — the toy chest + TV stand in front of that wall
+    // hide it from the room camera entirely (Kyle: "hard to see or grab"). Small treasures
+    // live on the surfaces the camera favors: the lamplit desk, the nightstand, the TV
+    // stand. `anchor` makes home x/z OFFSETS from that movable's live position.
     { key: "bracelet", title: "the friendship bracelet", from: "CHOOSE WISELY", icon: "🧶",
-      earn: "find an ending in CHOOSE WISELY", where: "on the windowsill",
+      earn: "find an ending in CHOOSE WISELY", where: "on the TV stand",
       have: function () { return anyOf("chooseWisely.meta.v2", function (m) { return countOf(m.endingsFound); }); },
-      home: { x: 2.65, y: 1.021, z: -2.44 }, build: COLL.buildBracelet },
+      anchor: "tv", home: { x: -0.44, y: 0.442, z: 0.27 }, build: COLL.buildBracelet },
     { key: "laurel", title: "the gold laurel", from: "NINE CIRCLES", icon: "🏵️",
-      earn: "reach an ending in NINE CIRCLES", where: "on the windowsill",
+      earn: "reach an ending in NINE CIRCLES", where: "on the nightstand, in the lava light",
       have: function () { return anyOf("nc_persist", function (m) { return countOf(m.endings); }); },
-      // ⚠️ flat items NEVER go on the shelf top (y 2.392) — it's above eye level, so the
-      // shelf's own front edge hides anything short. It looked like "nothing spawned".
-      home: { x: 1.55, y: 1.021, z: -2.44 }, build: COLL.buildLaurel },
+      // (and never the shelf top either — y 2.392 is above eye level, flat things vanish)
+      anchor: "nstand", home: { x: -0.17, y: 0.552, z: 0.12 }, build: COLL.buildLaurel },
     { key: "compass", title: "the brass compass", from: "STILL BREATHING", icon: "🧭",
-      earn: "survive an ordeal in STILL BREATHING", where: "on the windowsill",
+      earn: "survive an ordeal in STILL BREATHING", where: "on the desk, in the lamplight",
       have: function () { return anyOf("sb_persist", function (m) { return countOf(m.endings); }); },
-      home: { x: 1.75, y: 1.021, z: -2.44 }, build: COLL.buildCompass },
+      anchor: "desk", home: { x: 0.57, y: 0.851, z: 0.25 }, build: COLL.buildCompass },
     { key: "bottle", title: "the ship in a bottle", from: "SOUTH", icon: "⛵",
       earn: "bring a voyage home in SOUTH", where: "on the floor by the rug",
       have: function () { return anyOf("south_persist", function (m) { return countOf(m.endings); }); },
@@ -2644,13 +2647,13 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
       have: function () { return anyOf("nobody_persist", function (m) { return countOf(m.endings); }); },
       home: { x: -1.85, y: 2.392, z: -2.32 }, build: COLL.buildHorse },
     { key: "watch", title: "the White Rabbit's watch", from: "CURIOUSER", icon: "⌚",
-      earn: "wake from the dream in CURIOUSER", where: "on the windowsill",
+      earn: "wake from the dream in CURIOUSER", where: "on the nightstand, by the lava lamp",
       have: function () { return anyOf("alice_persist", function (m) { return countOf(m.wakings); }); },
-      home: { x: 2.05, y: 1.021, z: -2.44 }, build: COLL.buildWatch },
+      anchor: "nstand", home: { x: 0.16, y: 0.552, z: 0.10 }, build: COLL.buildWatch },
     { key: "inkwell", title: "the red inkwell", from: "DRACULA — THE RED INK", icon: "🖋️",
-      earn: "decide the book's fate in DRACULA", where: "on the windowsill",
+      earn: "decide the book's fate in DRACULA", where: "on the desk, by the lamp",
       have: function () { return anyOf("dracula_persist", function (m) { return countOf(m.endings); }); },
-      home: { x: 2.35, y: 1.021, z: -2.44 }, build: COLL.buildInkwell },
+      anchor: "desk", home: { x: -0.55, y: 0.851, z: 0.30 }, build: COLL.buildInkwell },
     { key: "lens", title: "the magnifying glass", from: "ELEMENTARY", icon: "🔍",
       earn: "solve a case in ELEMENTARY", where: "on the floor, mid-room",
       have: function () { return anyOf("sherlock_persist", function (m) { return m && m.solved ? countOf(m.solved) : null; }); },
@@ -2664,9 +2667,9 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
       have: function () { var c = ttCampaign(); return c.done + c.secrets > 0; },
       home: { x: -2.25, y: 2.392, z: -2.32 }, build: COLL.buildCrown },
     { key: "brainball", title: "the squishy brain", from: "BRAINROT", icon: "🧠",
-      earn: "visit BRAINROT — the brain on the desk", where: "on the windowsill",
+      earn: "visit BRAINROT — the brain on the desk", where: "on the TV stand, by the screen",
       have: function () { try { return !!localStorage.getItem("room-visited-brainball"); } catch (e) { return false; } },
-      home: { x: 2.95, y: 1.021, z: -2.44 }, build: COLL.buildBrainball },
+      anchor: "tv", home: { x: -0.28, y: 0.452, z: 0.31 }, build: COLL.buildBrainball },
     { key: "goldbar", title: "the gold bar", from: "HOOD RUN", icon: "🟨",
       earn: "make a run in HOOD RUN", where: "in the getaway corner, by the safe",
       have: function () {
@@ -2704,7 +2707,18 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
     var c = collByKey[key];
     if (!c || c.inst) return;
     var gp = c.build();
-    gp.position.set(c.home.x, c.home.y || 0, c.home.z);
+    var hx = c.home.x, hz = c.home.z;
+    if (c.anchor && movableByKey[c.anchor]) { // anchored homes ride their furniture, even after a remodel
+      var ar = movableByKey[c.anchor].root.position;
+      hx = ar.x + c.home.x; hz = ar.z + c.home.z;
+    }
+    gp.position.set(hx, c.home.y || 0, hz);
+    // a fingertip-sized grab proxy: these are 4-12cm trinkets, often across the room —
+    // an invisible sphere makes them clickable/draggable without pixel-hunting.
+    // (MeshBasicMaterial has no emissive, so the hover highlight can never light it up.)
+    var proxy = new THREE.Mesh(new THREE.SphereGeometry(0.085, 8, 8),
+      new THREE.MeshBasicMaterial({ transparent: true, opacity: 0, depthWrite: false }));
+    proxy.position.y = 0.05; gp.add(proxy);
     scene.add(gp);
     c.inst = gp;
     var hint = c.title + " — from " + c.from;
@@ -3440,7 +3454,11 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
   // where the shelf's front edge hides flat things ("nothing spawned"). If a save still
   // holds that exact spot (never dragged), blank it so the new home applies. {} keeps
   // the key in `placed` (so it still restores) while placeColl falls through to home.
-  [["goldbar", -0.65, 2.392, -2.32], ["laurel", -1.45, 2.392, -2.32]].forEach(function (mh) {
+  // …and the WINDOWSILL emptied the same day: the chest + TV hide it from the camera.
+  [["goldbar", -0.65, 2.392, -2.32], ["laurel", -1.45, 2.392, -2.32],
+   ["laurel", 1.55, 1.021, -2.44], ["bracelet", 2.65, 1.021, -2.44],
+   ["compass", 1.75, 1.021, -2.44], ["watch", 2.05, 1.021, -2.44],
+   ["inkwell", 2.35, 1.021, -2.44], ["brainball", 2.95, 1.021, -2.44]].forEach(function (mh) {
     var sv = shoeState.placed[mh[0]];
     if (sv && sv.x != null && Math.abs(sv.x - mh[1]) < 0.02 &&
         Math.abs((sv.y || 0) - mh[2]) < 0.02 && Math.abs(sv.z - mh[3]) < 0.02)
