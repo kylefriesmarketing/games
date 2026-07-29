@@ -1967,6 +1967,8 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
       days: PROFILE.daysVisited(),
       lateNight: pst.lateNight,
       first: pst.first,
+      catPetted: (function () { try { return !!localStorage.getItem("room-cat-pet"); } catch (e) { return false; } })(),
+      posterSwapped: !!(posterState.p1 || posterState.p2 || posterState.p3), // any frame ever changed
     };
   }
   function buildPages() {
@@ -2568,7 +2570,7 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
    * beanbag. She relocates when the mood takes her — a blink, not a walk; she is a
    * very lazy cat. Her perch is recomputed every frame, so she rides the furniture
    * live while you drag it. Pet her and she purrs (the thunder synth, tiny). */
-  var catG = null, catSpot = "bed", catNextMove = 1e9, catPetOnce = false;
+  var catG = null, catSpot = "bed", catNextMove = 1e9, catPetOnce = false, catNoticed = false;
   var catAnim = "sleep", catAnimT = 0; // procedural life: dream-twitch, wake-stretch, pet-wiggle
   // (the rig library is biped-only — an auto-rigged curled cat unfolds into a sleeping
   // human, so her animation is hand-rolled on the group instead)
@@ -2612,6 +2614,7 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
     rumble(0.12); // the thunder generator makes a passable purr at this size
     clickSfx(500);
     catAnim = "wiggle"; catAnimT = 0; // a happy shiver under the hand
+    try { localStorage.setItem("room-cat-pet", "1"); } catch (ec) { } // Friend of the cat
     if (!catPetOnce) {
       catPetOnce = true;
       try { kidSay("that's the cat. she came with the room. or we came with her.", 5); } catch (e) { }
@@ -3502,6 +3505,11 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
           if (newsDue) {
             kidSay("while you were out: we got a cat. and real wallpaper. and every game printed a poster. it's all in the drawer.", 8);
             localStorage.setItem("room-news-1", "1");
+            // "…in the drawer" points somewhere — light the DECORATE button so they find it
+            if (!decorMode) {
+              var nn = document.getElementById("decor-nudge");
+              if (nn) { document.body.classList.add("nudge-decor"); nn.classList.add("show"); setTimeout(dismissNudge, 9000); }
+            }
           }
           else if (sbxNew > 0) kidSay("psst — the shoebox has something new in it.", 5);
           else if (Object.keys(savedLayout).length && Math.random() < 0.4)
@@ -4331,6 +4339,14 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
     }
     if (catG && catG.visible) { // the cat: breathes, twitches in dreams, stretches before she moves
       catSettle();
+      // the kid tiptoes past her once — the two living things acknowledge each other
+      if (!catNoticed && t > 30 && kidState.mode === "roam") {
+        var cdx = kid.position.x - catG.position.x, cdz = kid.position.z - catG.position.z;
+        if (cdx * cdx + cdz * cdz < 1.1) {
+          catNoticed = true;
+          try { kidSay("shh — she's sleeping. she's always sleeping.", 4); } catch (ek) { }
+        }
+      }
       catAnimT += dt;
       if (catAnim === "stretch") {        // wake + arch, THEN blink to the next perch
         var cf = Math.min(1, catAnimT / 0.9), ca = Math.sin(cf * Math.PI);

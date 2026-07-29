@@ -70,6 +70,10 @@ export var ACHIEVEMENTS = [
     check: function (c) { return c.days >= 7; } },
   { id: "owl", icon: "🦉", name: "Night owl", hint: "visit after midnight",
     check: function (c) { return !!c.lateNight; } },
+  { id: "catfriend", icon: "🐱", name: "Friend of the cat", hint: "pet the sleeping cat",
+    check: function (c) { return !!c.catPetted; } },
+  { id: "gallery", icon: "🖼️", name: "Gallery night", hint: "change what hangs in a poster frame",
+    check: function (c) { return !!c.posterSwapped; } },
 ];
 
 /* Evaluate every award against the context, persist newly-earned ones, and report
