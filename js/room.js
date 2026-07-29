@@ -3338,6 +3338,7 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
         placeColl(key); clickSfx(1700);
         var pc = collByKey[key]; // say where it landed AND ping it — half the room is off-camera
         if (pc && pc.inst) pingAt(pc.inst.position.x, pc.inst.position.y + 0.06, pc.inst.position.z);
+        if (pc && pc.cfg) pc.cfg.pop = 1; // the same little landing bounce a click gives it
         if (pc && pc.where) { try { kidSay(pc.title + " is out — " + pc.where + ".", 4.5); } catch (e8) { } }
       }
       dwRender();
@@ -3481,13 +3482,28 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
   sbxRefreshNew();
   // once you're inside, the kid mentions new arrivals (or your remodeling) — once
   (function kidNoticer() {
+    // the room grew (the cat, real wallpaper, a poster per game) — RETURNING visitors
+    // get told once; newcomers see it all as baseline, so their flag sets silently.
+    var newsDue = false;
+    try {
+      if (!localStorage.getItem("room-news-1")) {
+        var returning = !!(localStorage.getItem("room-toured") || localStorage.getItem("room-decor-seen"));
+        if (!returning) for (var t in GAME_SAVES) { var pr = gameProgress(t); if (pr && pr.started) { returning = true; break; } }
+        if (returning) newsDue = true;
+        else localStorage.setItem("room-news-1", "1"); // a newcomer's first night IS the news
+      }
+    } catch (e9) { }
     var iv = setInterval(function () {
       var ec = document.getElementById("enter");
       if (ec && !ec.classList.contains("gone")) return; // still on the porch
       clearInterval(iv);
       setTimeout(function () {
         try {
-          if (sbxNew > 0) kidSay("psst — the shoebox has something new in it.", 5);
+          if (newsDue) {
+            kidSay("while you were out: we got a cat. and real wallpaper. and every game printed a poster. it's all in the drawer.", 8);
+            localStorage.setItem("room-news-1", "1");
+          }
+          else if (sbxNew > 0) kidSay("psst — the shoebox has something new in it.", 5);
           else if (Object.keys(savedLayout).length && Math.random() < 0.4)
             kidSay("you moved my stuff around… no, it's good. it's good.", 4.5);
         } catch (e) { }
@@ -4045,7 +4061,7 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
     // and the island, and threading the gap took him ~50s of shuffling
     { x: -1.7, z: 1.75, say: "the bag by the door is the newest one. best not to ask.", dur: 4.4 },
     { x: 0.72, z: 2.05, say: "this shoebox holds everything the games leave behind. it fills up as you play.", dur: 5.4 },
-    { x: 0.35, z: 1.4, say: "oh — and all of it moves. hit DECORATE up there and make the place yours.", dur: 6.0, nudge: true },
+    { x: 0.35, z: 1.4, say: "oh — and all of it moves. hit DECORATE up there: paint it, wallpaper it, hang the posters you like.", dur: 6.4, nudge: true },
   ];
   var tourOn = false, tourTimer = null, tourWatch = null;
   function tourEligible() {
