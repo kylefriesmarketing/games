@@ -225,12 +225,13 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
       wrap.position.set(x, y, z); wrap.rotation.y = rotY || 0;
       scene.add(wrap);
       fadeInObject(root);
+      var mx = null;
       if (g.animations && g.animations.length) {
-        var mx = new THREE.AnimationMixer(root);
-        mx.clipAction(g.animations[0]).play();
+        mx = new THREE.AnimationMixer(root);
+        mx.clipAction(g.animations[0]).play(); // first clip is the idle, by convention
         mixers.push(mx);
       }
-      if (onReady) onReady(wrap, root);
+      if (onReady) onReady(wrap, root, mx, g.animations || []); // mixer + clips: props with a second clip drive it themselves
     });
   }
 
@@ -1337,9 +1338,33 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
     propTip("the beanbag", "the beanbag — best seat in the house")(wrap);
     registerMovable({ key: "bean", label: "the beanbag", root: wrap, r: 0.42, rot: true, obs: 4, stations: [6] });
   });
-  prop("assets/props/trex.glb", 0.3, 0.95, 0, -1.35, 0.7, function (wrap) { // guards the relocated chest, facing the room
-    propTip("rex", "rex — he guards the toy chest")(wrap);
+  // REX — rigged headlessly in Blender 2026-07-29 (16 bones, heat-weighted). "idle"
+  // loops on its own via prop(); poking him plays "roar" once and hands back to idle.
+  prop("assets/props/trex.glb", 0.3, 0.95, 0, -1.35, 0.7, function (wrap, root, mx, clips) {
     registerMovable({ key: "trex", label: "rex", root: wrap, r: 0.2, rot: true });
+    var idleA = null, roarA = null;
+    (clips || []).forEach(function (c) {
+      if (!mx) return;
+      if (/idle/i.test(c.name)) idleA = mx.clipAction(c);
+      else if (/roar/i.test(c.name)) roarA = mx.clipAction(c);
+    });
+    // a skinned mesh whose bones move outside its bind-pose bounds can vanish when the
+    // camera swings — cheap insurance on a prop this small
+    root.traverse(function (o) { if (o.isSkinnedMesh) o.frustumCulled = false; });
+    function rexRoar() {
+      clickSfx(300);
+      try { rumble(0.3); } catch (e) { }   // the thunder synth, doing dinosaur duty
+      if (!mx || !roarA) return;
+      if (idleA) idleA.fadeOut(0.12);
+      roarA.reset(); roarA.setLoop(THREE.LoopOnce, 1); roarA.clampWhenFinished = false;
+      roarA.fadeIn(0.08).play();
+    }
+    if (mx) mx.addEventListener("finished", function (e) {
+      if (roarA && e.action === roarA && idleA) { idleA.reset().fadeIn(0.25).play(); }
+    });
+    wrap.traverse(function (o) {
+      if (o.isMesh) clickable(o, "rex", roarA ? rexRoar : null, "rex — he guards the toy chest" + (roarA ? " · poke him" : ""));
+    });
   });
   prop("assets/props/skate.glb", 0.78, -3.33, 0, 0.55, 1.45, function (wrap) {
     wrap.rotateOnWorldAxis(new THREE.Vector3(0, 0, 1), 0.10); // top rests against the left wall (inner face x=-3.55)
@@ -4770,6 +4795,7 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
     cat: { g: function () { return catG; }, spot: function () { return catSpot; }, ob: CAT_OB,
       relocate: catRelocate, settle: catSettle, pet: catPet,
       hurry: function () { catNextMove = 0; } },
+    mixers: mixers, // animation mixers (the pane suspends rAF — tests drive these by hand)
     pets: { kind: function () { return petKind; }, set: setPet, group: function () { return petGroup(petKind); },
       labels: PET_LABEL, turtle: function () { return { g: turtleG, s: turtle }; },
       fish: function () { return { g: fishG, s: fish }; }, hamster: function () { return { g: hamG, s: ham }; },

@@ -163,6 +163,20 @@ screen, light, season, tour, profile, audio, cat, posters, extras).
 - Balance/AI work in Age of Toys: see that project's own docs (`CLAUDE.md` at the
   workspace root is the Age of Toys bible).
 
+## 5b. Rigging & animation — FREE, headless Blender
+
+Blender 5.1.2 is installed (`C:\Program Files\Blender Foundation\Blender 5.1\`) and
+everything can be scripted with `-b -P script.py`. **See `tools/blender/README.md`
+for the full pipeline and every trap.** Rex is the worked example: 16 bones, heat
+weights, idle + roar, done for 0 credits with no login or GUI.
+
+Headline traps: AI bakes must be **merged by distance before binding** (heat
+weighting fails *silently* on non-manifold geometry — assert 100% weighted);
+Blender 5 replaced `action.fcurves` with slotted actions; bump `sw.js` CACHE when
+a binary asset changes. Alternatives considered — Mixamo (Adobe login + drag UI),
+Anything World (account + API key), AccuRIG (GUI only), Higgsfield rigging (8cr,
+humanoid-only clip library) — none are needed.
+
 ## 6. Asset pipeline (Higgsfield MCP — when credits are available)
 
 - Images: `nano_banana_2` (auto-swaps to flash), ~0–2cr, vet via `_min.webp`
