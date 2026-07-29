@@ -82,6 +82,14 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
     return s;
   }
   var gLava = null, gLamp = null; // halos wired to the lava/lamp on-off toggles
+  // A "look here" ping: a warm pulse that hangs over a spot for a few seconds. Used when
+  // a treasure is placed from the drawer — half the room is off-camera at that moment.
+  var pings = [];
+  function pingAt(x, y, z) {
+    var sp = glow(0xffd9a0, x, y + 0.12, z, 0.01, 0.01, 0.9);
+    scene.add(sp);
+    pings.push({ sp: sp, t: 0 });
+  }
 
   // Contact shadows: the soft dark pool a thing sits in. One real shadow-casting lamp
   // can't ground everything in the room, and without this every toy looks like it's
@@ -3153,8 +3161,11 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
     ".dw-sw.dw-tex button.locked{filter:grayscale(.85) brightness(.6)}" +
     // the poster-frame cyclers (◀ TITLE ▶)
     ".dw-cyc{display:flex;align-items:center;gap:6px}" +
-    ".dw-cyc b{min-width:106px;text-align:center;font-size:11px;letter-spacing:0.4px}" +
+    ".dw-cyc b{min-width:106px;text-align:center;font-size:11px;letter-spacing:0.4px;white-space:nowrap}" +
     ".dw-cyc button{width:26px;height:26px;border-radius:6px;border:1px solid var(--line);background:#1a2130;color:#cfd8e6;cursor:pointer}" +
+    // thumbs are wider than cursors — the new small controls grow on touch screens
+    "@media (pointer:coarse){.dw-cyc button{width:34px;height:34px}" +
+    ".dw-sw.dw-tex button{width:52px;height:36px}.dw-sw button{width:34px;height:34px}}" +
     ".dw-name{display:flex;gap:7px;margin-top:4px}" +
     ".dw-name input{flex:1;font-family:Georgia,serif;font-size:13px;background:rgba(255,255,255,.06);" +
     "color:var(--bone);border:1px solid var(--line);border-radius:5px;padding:7px 9px;min-width:0}" +
@@ -3325,7 +3336,8 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
       if (shoeState.placed[key]) unplaceColl(key);
       else {
         placeColl(key); clickSfx(1700);
-        var pc = collByKey[key]; // say where it landed — half the room is off-camera
+        var pc = collByKey[key]; // say where it landed AND ping it — half the room is off-camera
+        if (pc && pc.inst) pingAt(pc.inst.position.x, pc.inst.position.y + 0.06, pc.inst.position.z);
         if (pc && pc.where) { try { kidSay(pc.title + " is out — " + pc.where + ".", 4.5); } catch (e8) { } }
       }
       dwRender();
@@ -4285,6 +4297,14 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
       var fin = fadeIns[fi]; fin.t = Math.min(1, fin.t + dt / 0.6);
       for (var fm = 0; fm < fin.mats.length; fm++) fin.mats[fm].opacity = fin.t;
       if (fin.t >= 1) { fin.mats.forEach(function (m) { m.transparent = m.__wasTransparent; m.__fading = false; }); fadeIns.splice(fi, 1); }
+    }
+    for (var pi = pings.length - 1; pi >= 0; pi--) { // "look here" pulses breathe, then let go
+      var pg = pings[pi]; pg.t += dt;
+      var pf = pg.t / 2.6;
+      if (pf >= 1) { scene.remove(pg.sp); pg.sp.material.dispose(); pings.splice(pi, 1); continue; }
+      var ps = (0.42 + Math.sin(pg.t * 8) * 0.12) * Math.min(1, pf / 0.1);
+      pg.sp.scale.set(ps, ps, 1);
+      pg.sp.material.opacity = pf > 0.65 ? 0.9 * (1 - pf) / 0.35 : 0.9;
     }
     // the boombox thumps its cones to the tape (72bpm = 1.2 beats/s)
     var thump = AUDIO.isOn() ? Math.pow(Math.max(0, Math.sin(t * Math.PI * 1.2)), 6) : 0;
