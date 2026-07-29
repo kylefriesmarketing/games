@@ -1010,7 +1010,7 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
     "CURIOUSER":      { key: "alice_persist",   pick: function (m) { return countOf(m.wakings); }, total: 8, noun: "wakings" },
     "DRACULA":        { key: "dracula_persist", pick: function (m) { return countOf(m.endings); }, total: 6, noun: "endings" },
     "ELEMENTARY":     { key: "sherlock_persist",pick: function (m) { return m && m.solved ? countOf(m.solved) : null; }, total: 11, noun: "cases" },
-    "G FOR GEORGE":   { key: "gg_persist",      pick: function (m) { return countOf(m.endings); }, total: 15, noun: "tellings" }
+    "G FOR GEORGE":   { key: "gg_persist",      pick: function (m) { return countOf(m.endings); }, total: 14, noun: "tellings" }
   };
   function gameProgress(title) {
     var g = GAME_SAVES[title]; if (!g) return null;
@@ -2003,7 +2003,7 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
       ["NOBODY", readSave("nobody_persist", function (m) { return countOf(m.endings); }), null],
       ["CURIOUSER", readSave("alice_persist", function (m) { return countOf(m.wakings); }), 8],
       ["DRACULA", readSave("dracula_persist", function (m) { return countOf(m.endings); }), 6],
-      ["G for George", readSave("gg_persist", function (m) { return countOf(m.endings); }), 15],
+      ["G for George", readSave("gg_persist", function (m) { return countOf(m.endings); }), 14],
     ];
     var html = rows.map(function (r) {
       return nbRow(r[0], r[1] == null ? "not started" : r[1] + (r[2] ? " / " + r[2] : "") + " endings");
