@@ -113,11 +113,16 @@ screen, light, season, tour, profile, audio, cat, posters, extras).
   Cycle in the walls tab; **frames drag along any wall** like stickers; positions
   in `room-posters` (`_pos`). Clicking a frame opens the game whose print hangs
   in it. Unowned prints hang **wrapped** (storefront).
-- **THE CAT** — sleeping plush tabby (`assets/props/cat.glb`). Beds mostly; blinks
-  to rug/beanbag; rides furniture live; breathes/dream-twitches/stretches before
-  moving/wiggles when petted (**all procedural — the rig library is biped-only,
-  a rigged curled cat unfolds into a sleeping human; do not pay for rigging**).
-  Purr = `rumble(0.12)`.
+- **PETS ("who lives here")** — one resident at a time, picked in the stuff tab,
+  `room-pet`, rides share codes (`blob.pt`). THE CAT: sleeping plush GLB
+  (`assets/props/cat.glb`), beds mostly, blinks to rug/beanbag, rides furniture,
+  breathes/twitches/stretches/wiggles (**all procedural — the rig library is
+  biped-only, a rigged curled cat unfolds into a sleeping human; do not pay for
+  rigging**; purr = `rumble(0.12)`). Plus three procedural pets: TURTLE (truly walks
+  the floor, shells up on bumps/pets), FISH (bowl rides the TV stand), HAMSTER
+  (ball rolls roomba-style, bounces off obstacles). Shared kid-obstacle CAT_OB.
+  ⚠️ `fadeInObject` preserves `__designOp` — translucent materials (ball, bowl)
+  must fade up to their DESIGN opacity, never to 1.
 - **THE KID** — GLB with 7 clips, walks stations, sits/lies (poses hand-tuned —
   don't nudge), waves, dances, gives the first-visit **tour**, speaks via
   `kidSay` (floating div). One-time **news whisper** for returning visitors

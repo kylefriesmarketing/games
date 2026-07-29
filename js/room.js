@@ -188,7 +188,11 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
     root.traverse(function (o) {
       if (!o.isMesh || !o.material) return;
       (Array.isArray(o.material) ? o.material : [o.material]).forEach(function (m) {
-        if (m && !m.__fading) { m.__fading = true; m.__wasTransparent = m.transparent; m.transparent = true; m.opacity = 0; mats.push(m); }
+        if (m && !m.__fading) {
+          m.__fading = true; m.__wasTransparent = m.transparent;
+          m.__designOp = m.opacity; // glass stays glass — never fade UP past the designed opacity
+          m.transparent = true; m.opacity = 0; mats.push(m);
+        }
       });
     });
     if (!mats.length) return;
@@ -197,7 +201,10 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
     setTimeout(function () { // safety: never leave a prop invisible if the tab was backgrounded (rAF paused)
       if (entry.t >= 1) return;
       entry.t = 1;
-      for (var i = 0; i < mats.length; i++) { mats[i].opacity = 1; mats[i].transparent = mats[i].__wasTransparent; mats[i].__fading = false; }
+      for (var i = 0; i < mats.length; i++) {
+        mats[i].opacity = mats[i].__designOp != null ? mats[i].__designOp : 1;
+        mats[i].transparent = mats[i].__wasTransparent; mats[i].__fading = false;
+      }
       var ix = fadeIns.indexOf(entry); if (ix >= 0) fadeIns.splice(ix, 1);
     }, 1600);
   }
@@ -2565,16 +2572,19 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
   registerMovable({ key: "nstand", label: "the nightstand", root: nstand, r: 0.3, rot: true, attachObjs: [gLava] });
   registerMovable({ key: "hoodbag", label: "the duffel bag", root: hoodG, r: 0.34, rot: true, obs: 7, stations: [8] });
 
-  /* ---- THE CAT: she came with the room (Higgsfield plush bake, 2026-07-27) -------
-   * A sleeping tabby. Mostly the bed is hers; sometimes the rug, sometimes the
-   * beanbag. She relocates when the mood takes her — a blink, not a walk; she is a
-   * very lazy cat. Her perch is recomputed every frame, so she rides the furniture
-   * live while you drag it. Pet her and she purrs (the thunder synth, tiny). */
+  /* ---- WHO LIVES HERE: the pet system (2026-07-29) -------------------------------
+   * One pet at a time, picked in the drawer (🧸 stuff tab), persisted in "room-pet"
+   * and carried by share codes. The CAT is the Higgsfield plush bake — she doesn't
+   * walk (curled mesh, no rig; the rig library is biped-only), she BLINKS between
+   * perches. The other three are procedural in the room's toy style: the TURTLE
+   * genuinely walks the floor, the FISH orbits a bowl on the TV stand, the HAMSTER
+   * rolls his ball like a very small roomba. All of them can be petted. */
+  var petKind = (function () { try { return localStorage.getItem("room-pet") || "cat"; } catch (e) { return "cat"; } })();
+  if (["cat", "turtle", "fish", "hamster", "none"].indexOf(petKind) < 0) petKind = "cat";
+  var PET_LABEL = { cat: "the cat", turtle: "the turtle", fish: "the fish", hamster: "the hamster", none: "no pet" };
   var catG = null, catSpot = "bed", catNextMove = 1e9, catPetOnce = false, catNoticed = false;
   var catAnim = "sleep", catAnimT = 0; // procedural life: dream-twitch, wake-stretch, pet-wiggle
-  // (the rig library is biped-only — an auto-rigged curled cat unfolds into a sleeping
-  // human, so her animation is hand-rolled on the group instead)
-  var CAT_OB = { x: 0, z: 0, r: 0 }; // solid only when she's down on the rug
+  var CAT_OB = { x: 0, z: 0, r: 0 }; // the shared pet obstacle (cat-on-rug / turtle / hamster)
   KID_OBSTACLES.push(CAT_OB);
   var catV = new THREE.Vector3();
   function catSpotPos(which) {
@@ -2586,9 +2596,16 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
     catV.set(0.13, 0, 0.54); bed.localToWorld(catV); // the foot corner — clear of where the kid lies
     return { x: catV.x, y: 0.42, z: catV.z };        // KID_BED.upY: the mattress top
   }
-  function catSyncOb() {
-    CAT_OB.r = (catSpot === "rug" && catG && catG.visible !== false && !outState.cat) ? 0.30 : 0;
+  function petSyncOb() { // the kid walks around whoever is actually on the floor
+    var r = 0;
+    if (!(outState && outState.cat)) { // outState is declared later in the file — boot-order safe
+      if (petKind === "cat" && catG && catG.visible && catSpot === "rug") r = 0.30;
+      else if (petKind === "turtle" && turtleG && turtleG.visible) r = 0.20;
+      else if (petKind === "hamster" && hamG && hamG.visible) r = 0.16;
+    }
+    CAT_OB.r = r;
   }
+  var catSyncOb = petSyncOb; // the cat paths predate the menagerie
   function catSettle() { // glue her to the current perch (called every frame — furniture moves)
     if (!catG) return;
     var p = catSpotPos(catSpot);
@@ -2623,9 +2640,144 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
   prop("assets/props/cat.glb", 0.26, 3.14, 0.42, 1.70, 2.3, function (wrap) {
     catG = wrap;
     wrap.traverse(function (o) { if (o.isMesh) clickable(o, "the cat", catPet, "the cat — do not wake"); });
-    catSettle(); catSyncOb();
+    catG.visible = petKind === "cat" && !(outState && outState.cat); // she only comes out if she lives here
+    catSettle(); petSyncOb();
     catNextMove = performance.now() / 1000 + 200 + Math.random() * 260;
   });
+
+  /* ---- the procedural pets ---- */
+  function petTouched() { try { localStorage.setItem("room-cat-pet", "1"); } catch (e) { } }
+  // THE TURTLE: the only resident who actually walks. Slow wander between clear floor
+  // spots; head bobs while moving; bumps (or pets) send him into his shell for a beat.
+  var turtleG = null, turtle = { tx: 0, tz: 1.9, waitT: 2, headT: 0, moving: false, legP: 0 };
+  function buildTurtle() {
+    var g = new THREE.Group();
+    var shellM = mat(0x3f6b45, 0.7), shellD = mat(0x2e5236, 0.75), skinM = mat(0x8a9a5c, 0.8);
+    var shell = new THREE.Mesh(new THREE.SphereGeometry(0.085, 16, 12), shellM);
+    shell.scale.set(1.15, 0.62, 1.0); shell.position.y = 0.062; shell.castShadow = true; g.add(shell);
+    var rim = new THREE.Mesh(new THREE.CylinderGeometry(0.092, 0.098, 0.02, 16), shellD);
+    rim.position.y = 0.036; g.add(rim);
+    var headG = new THREE.Group(); headG.position.set(0, 0.05, 0.095); g.add(headG);
+    var neck = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.024, 0.05, 8), skinM);
+    neck.rotation.x = Math.PI / 2.6; neck.position.z = 0.012; headG.add(neck);
+    var head = new THREE.Mesh(new THREE.SphereGeometry(0.026, 10, 8), skinM);
+    head.position.set(0, 0.022, 0.038); headG.add(head);
+    [-1, 1].forEach(function (s) {
+      var eye = new THREE.Mesh(new THREE.SphereGeometry(0.005, 6, 6), mat(0x1a1a1a, 0.4));
+      eye.position.set(s * 0.014, 0.03, 0.055); headG.add(eye);
+    });
+    g.userData.head = headG;
+    var legs = [];
+    [[-0.06, 0.05], [0.06, 0.05], [-0.06, -0.06], [0.06, -0.06]].forEach(function (p) {
+      var leg = new THREE.Mesh(new THREE.CylinderGeometry(0.014, 0.017, 0.035, 8), skinM);
+      leg.position.set(p[0], 0.018, p[1]); g.add(leg); legs.push(leg);
+    });
+    g.userData.legs = legs;
+    var tail = new THREE.Mesh(new THREE.ConeGeometry(0.012, 0.035, 6), skinM);
+    tail.rotation.x = Math.PI / 2; tail.position.set(0, 0.035, -0.1); g.add(tail);
+    g.position.set(-0.4, 0, 2.1);
+    g.traverse(function (o) { if (o.isMesh) { o.castShadow = true; clickable(o, "the turtle", turtlePet, "the turtle — he'll get there"); } });
+    return g;
+  }
+  function turtlePet() {
+    turtle.headT = 1; turtle.waitT = Math.max(turtle.waitT, 2.5); turtle.moving = false;
+    clickSfx(420); petTouched();
+    if (!catPetOnce) { catPetOnce = true; try { kidSay("that's the turtle. he's been crossing the room since tuesday.", 5); } catch (e) { } }
+  }
+  function turtlePickTarget() {
+    for (var i = 0; i < 12; i++) {
+      var x = -3.0 + Math.random() * 6.0, z = -1.6 + Math.random() * 3.8, ok = true;
+      for (var o = 0; o < KID_OBSTACLES.length; o++) {
+        var ob = KID_OBSTACLES[o], dx = x - ob.x, dz = z - ob.z;
+        if (ob.r > 0 && ob !== CAT_OB && dx * dx + dz * dz < (ob.r + 0.3) * (ob.r + 0.3)) { ok = false; break; }
+      }
+      if (ok) { turtle.tx = x; turtle.tz = z; return true; }
+    }
+    return false;
+  }
+  // THE FISH: a bowl on the TV stand; she orbits, wiggles, and darts when tapped.
+  var fishG = null, fish = { a: 0, dart: 0 };
+  function buildFish() {
+    var g = new THREE.Group();
+    var bowl = new THREE.Mesh(new THREE.SphereGeometry(0.09, 18, 14, 0, Math.PI * 2, 0.5, 2.2),
+      new THREE.MeshStandardMaterial({ color: 0xbfe8e0, roughness: 0.1, transparent: true, opacity: 0.28, side: THREE.DoubleSide }));
+    bowl.position.y = 0.075; g.add(bowl);
+    var water = new THREE.Mesh(new THREE.CircleGeometry(0.075, 18),
+      new THREE.MeshStandardMaterial({ color: 0x5ab8d8, roughness: 0.2, transparent: true, opacity: 0.5 }));
+    water.rotation.x = -Math.PI / 2; water.position.y = 0.115; g.add(water);
+    var grav = new THREE.Mesh(new THREE.CylinderGeometry(0.062, 0.07, 0.014, 16), mat(0xc9b68a, 0.9));
+    grav.position.y = 0.022; g.add(grav);
+    var fg = new THREE.Group();
+    var body = new THREE.Mesh(new THREE.SphereGeometry(0.02, 10, 8), mat(0xe8863a, 0.5));
+    body.scale.set(1.5, 1, 0.8); fg.add(body);
+    var tail = new THREE.Mesh(new THREE.ConeGeometry(0.013, 0.028, 6), mat(0xf0a05a, 0.5));
+    tail.rotation.z = Math.PI / 2; tail.position.x = -0.036; fg.add(tail);
+    fg.position.y = 0.075; g.add(fg);
+    g.userData.fish = fg; g.userData.tail = tail;
+    g.traverse(function (o) { if (o.isMesh) clickable(o, "the fish", fishPet, "the fish — thinks about the ocean"); });
+    return g;
+  }
+  function fishPet() {
+    fish.dart = 1; clickSfx(1900); petTouched();
+    if (!catPetOnce) { catPetOnce = true; try { kidSay("that's the fish. she has seen things. bowl things.", 5); } catch (e) { } }
+  }
+  function fishSettle() { // the bowl rides the TV stand
+    if (!fishG) return;
+    var tv = movableByKey.tv;
+    if (tv) fishG.position.set(tv.root.position.x + 0.38, 0.442, tv.root.position.z + 0.24);
+  }
+  // THE HAMSTER: a clear ball, a small determined pilot, no brakes.
+  var hamG = null, ham = { ang: 0.8, speed: 0.32 };
+  function buildHamster() {
+    var g = new THREE.Group();
+    var ball = new THREE.Mesh(new THREE.SphereGeometry(0.085, 16, 12),
+      new THREE.MeshStandardMaterial({ color: 0xd8ecff, roughness: 0.15, transparent: true, opacity: 0.3 }));
+    ball.position.y = 0.085; g.add(ball);
+    g.userData.ball = ball;
+    var hg = new THREE.Group(); hg.position.y = 0.048; hg.scale.setScalar(1.3); g.add(hg);
+    var body = new THREE.Mesh(new THREE.SphereGeometry(0.038, 10, 8), mat(0xd8a86a, 0.85));
+    body.scale.set(1.15, 0.9, 1); body.position.y = 0.012; hg.add(body);
+    var rump = new THREE.Mesh(new THREE.SphereGeometry(0.03, 8, 8), mat(0xf0e2c8, 0.85));
+    rump.position.set(0, 0.006, -0.02); hg.add(rump);
+    [-1, 1].forEach(function (s) {
+      var ear = new THREE.Mesh(new THREE.SphereGeometry(0.009, 6, 6), mat(0xb8875a, 0.8));
+      ear.position.set(s * 0.018, 0.045, 0.02); hg.add(ear);
+      var eye = new THREE.Mesh(new THREE.SphereGeometry(0.004, 6, 6), mat(0x1a1a1a, 0.4));
+      eye.position.set(s * 0.013, 0.026, 0.035); hg.add(eye);
+    });
+    var nose = new THREE.Mesh(new THREE.SphereGeometry(0.005, 6, 6), mat(0xe89aa0, 0.6));
+    nose.position.set(0, 0.018, 0.042); hg.add(nose);
+    g.userData.pilot = hg;
+    g.position.set(0.9, 0, 2.3);
+    g.traverse(function (o) { if (o.isMesh) clickable(o, "the hamster", hamPet, "the hamster — places to be"); });
+    return g;
+  }
+  function hamPet() {
+    ham.speed = 0.85; ham.ang += (Math.random() - 0.5) * 2; // spooked into the fast lane
+    clickSfx(640); petTouched();
+    if (!catPetOnce) { catPetOnce = true; try { kidSay("that's the hamster. the ball was his idea.", 5); } catch (e) { } }
+  }
+  function petGroup(kind) {
+    return kind === "cat" ? catG : kind === "turtle" ? turtleG : kind === "fish" ? fishG : kind === "hamster" ? hamG : null;
+  }
+  function setPet(kind) {
+    if (["cat", "turtle", "fish", "hamster", "none"].indexOf(kind) < 0) kind = "cat";
+    petKind = kind;
+    try { localStorage.setItem("room-pet", kind); } catch (e) { }
+    // build lazily, then show only the resident
+    if (kind === "turtle" && !turtleG) { turtleG = buildTurtle(); scene.add(turtleG); turtlePickTarget(); }
+    if (kind === "fish" && !fishG) { fishG = buildFish(); scene.add(fishG); fishSettle(); }
+    if (kind === "hamster" && !hamG) { hamG = buildHamster(); scene.add(hamG); }
+    ["cat", "turtle", "fish", "hamster"].forEach(function (k) {
+      var g = petGroup(k);
+      if (g) g.visible = (k === kind) && !(outState && outState.cat); // boot-order safe
+    });
+    var g2 = petGroup(kind);
+    if (g2 && g2.visible) fadeInObject(g2);
+    petSyncOb();
+    kbListDirty = true;
+  }
+  setPet(petKind); // build whoever the save says lives here (the cat arrives async regardless)
 
   /* ---- THE SHOEBOX: one collectible per game ------------------------------------ */
   // one collectible per game — have() reads the same-origin saves; Tony's three
@@ -2885,10 +3037,12 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
       c: JSON.parse(JSON.stringify(shoeState.placed || {})),
       k: stickers.map(function (e) { return { d: e.design, w: e.wall, x: e.x, y: e.y, z: e.z, s: e.scale || 1, r: e.rot || 0 }; }),
       ps: JSON.parse(JSON.stringify(posterState)), // which print hangs in each frame
+      pt: petKind, // who lives here
     };
   }
   function applyRoomState(b) {
     if (!b) return;
+    if (b.pt) setPet(b.pt); // older blobs have no pet — leave the resident alone
     posterState = b.ps || {}; saveJSON("room-posters", posterState); applyPosters();
     paintState = b.p || {}; saveJSON("room-paint", paintState); applyPaint();
     outState = b.o || {}; saveJSON("room-out", outState); applyOut();
@@ -3356,6 +3510,12 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
       } else { pushUndo(); setPaint(key + "Tex", ti); dwRender(); clickSfx(1600); }
     } else if ((key = b.getAttribute("data-postspot"))) {
       pushUndo(); cyclePoster(key, +b.getAttribute("data-dir")); dwRender(); clickSfx(1600);
+    } else if ((key = b.getAttribute("data-pet"))) {
+      pushUndo(); setPet(key); dwRender(); clickSfx(1500);
+      var pl = { cat: "the cat's back on the bed.", turtle: "a turtle. he set off already.",
+        fish: "a fish for the TV stand. she's doing laps.", hamster: "the hamster. mind your ankles.",
+        none: "just us then. quieter this way." }[key];
+      if (pl) { try { kidSay(pl, 4.5); } catch (ep) { } }
     } else if (b.getAttribute("data-neon") != null && b.getAttribute("data-neon") !== "") {
       pushUndo(); setPaint("neon", +b.getAttribute("data-neon")); dwRender(); clickSfx(1600);
     } else if ((key = b.getAttribute("data-lights"))) {
@@ -3458,7 +3618,14 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
         '" title="' + c.title + " — " + (placed ? "out in the room · click to box it" : "click to put it in the room") + '">' +
         '<div class="i">' + c.icon + '</div><div class="n">' + c.title.replace(/^the /, "") + "</div></button>";
     }).join("");
+    var petCards = [["cat", "🐱", "the cat"], ["turtle", "🐢", "the turtle"], ["fish", "🐟", "the fish"],
+      ["hamster", "🐹", "the hamster"], ["none", "🚫", "no pet"]].map(function (p) {
+      return '<button type="button" class="dw-card' + (petKind === p[0] ? " on" : "") + '" data-pet="' + p[0] +
+        '" aria-pressed="' + (petKind === p[0] ? "true" : "false") + '"><div class="i">' + p[1] +
+        '</div><div class="n">' + p[2] + "</div></button>";
+    }).join("");
     return '<div class="dw-hint">drag anything in the room to move it · scroll spins it · shelves and sills catch the little things</div>' +
+      '<div class="dw-sec">who lives here</div><div class="dw-grid">' + petCards + "</div>" +
       '<div class="dw-sec">the shoebox — ' + found + " of " + COLLECT.length + " found · " + out + " on display</div>" +
       '<div class="dw-grid">' + cards + "</div>";
   }
@@ -3849,8 +4016,8 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
       get: function () { return [chest]; } },
     { key: "war", sec: "toys", label: "the army men on the rug",
       get: function () { return [war]; } },
-    { key: "cat", sec: "toys", label: "the cat (she won't mind)",
-      get: function () { return [catG]; } },
+    { key: "cat", sec: "toys", label: "the pet (they won't mind)",
+      get: function () { return [petGroup(petKind)]; } },
     { key: "island", sec: "toys", label: "the toy island (TIDEBOUND)", obs: 3,
       get: function () { return movableByKey.island ? [movableByKey.island.root] : []; } },
     { key: "hoodbag", sec: "toys", label: "the duffel bag (HOOD RUN) + poster", obs: 7,
@@ -4319,7 +4486,10 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
     for (var mi = 0; mi < mixers.length; mi++) mixers[mi].update(dt);
     for (var fi = fadeIns.length - 1; fi >= 0; fi--) { // props ease in as they finish loading
       var fin = fadeIns[fi]; fin.t = Math.min(1, fin.t + dt / 0.6);
-      for (var fm = 0; fm < fin.mats.length; fm++) fin.mats[fm].opacity = fin.t;
+      for (var fm = 0; fm < fin.mats.length; fm++) {
+        var fmm = fin.mats[fm];
+        fmm.opacity = fin.t * (fmm.__designOp != null ? fmm.__designOp : 1); // glass fades up to glass, not to solid
+      }
       if (fin.t >= 1) { fin.mats.forEach(function (m) { m.transparent = m.__wasTransparent; m.__fading = false; }); fadeIns.splice(fi, 1); }
     }
     for (var pi = pings.length - 1; pi >= 0; pi--) { // "look here" pulses breathe, then let go
@@ -4337,7 +4507,7 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
       cn.position.z = cn.__z0 + thump * 0.012;
       cn.scale.set(1 + thump * 0.16, 1 + thump * 0.16, 1);
     }
-    if (catG && catG.visible) { // the cat: breathes, twitches in dreams, stretches before she moves
+    if (petKind === "cat" && catG && catG.visible) { // the cat: breathes, twitches in dreams, stretches before she moves
       catSettle();
       // the kid tiptoes past her once — the two living things acknowledge each other
       if (!catNoticed && t > 30 && kidState.mode === "roam") {
@@ -4366,6 +4536,63 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
         if (Math.random() < dt / 24) { catAnim = "twitch"; catAnimT = 0; }
         else if (t > catNextMove && !decorMode) { catAnim = "stretch"; catAnimT = 0; }
       }
+    } else if (petKind === "turtle" && turtleG && turtleG.visible) { // the turtle: the room's only true pedestrian
+      var T = turtle;
+      T.headT = Math.max(0, T.headT - dt / 1.6);
+      turtleG.userData.head.scale.setScalar(1 - T.headT * 0.8); // into the shell and back out
+      turtleG.userData.head.position.z = 0.095 - T.headT * 0.06;
+      if (T.moving) {
+        var tdx = T.tx - turtleG.position.x, tdz = T.tz - turtleG.position.z;
+        if (tdx * tdx + tdz * tdz < 0.003) { T.moving = false; T.waitT = 6 + Math.random() * 14; }
+        else {
+          var twant = Math.atan2(tdx, tdz), tdr = twant - turtleG.rotation.y;
+          while (tdr > Math.PI) tdr -= Math.PI * 2; while (tdr < -Math.PI) tdr += Math.PI * 2;
+          turtleG.rotation.y += tdr * Math.min(1, dt * 2);
+          var tsp = 0.065 * (1 - T.headT); // no walking while shy
+          turtleG.position.x = Math.max(-3.3, Math.min(3.3, turtleG.position.x + Math.sin(turtleG.rotation.y) * tsp * dt));
+          turtleG.position.z = Math.max(-2.25, Math.min(2.4, turtleG.position.z + Math.cos(turtleG.rotation.y) * tsp * dt));
+          T.legP += dt * 6;
+          for (var li = 0; li < turtleG.userData.legs.length; li++)
+            turtleG.userData.legs[li].position.y = 0.018 + Math.max(0, Math.sin(T.legP + li * Math.PI / 2)) * 0.008;
+          turtleG.userData.head.position.y = 0.05 + Math.sin(T.legP * 0.5) * 0.006;
+          for (var toi = 0; toi < KID_OBSTACLES.length; toi++) { // bump → shell → new plan
+            var tob = KID_OBSTACLES[toi];
+            if (tob === CAT_OB || tob.r <= 0) continue;
+            var tbx = turtleG.position.x - tob.x, tbz = turtleG.position.z - tob.z;
+            if (tbx * tbx + tbz * tbz < (tob.r + 0.12) * (tob.r + 0.12)) { T.headT = 1; T.moving = false; T.waitT = 3 + Math.random() * 4; break; }
+          }
+        }
+      } else {
+        T.waitT -= dt;
+        if (T.waitT <= 0 && turtlePickTarget()) T.moving = true;
+      }
+      CAT_OB.x = turtleG.position.x; CAT_OB.z = turtleG.position.z;
+    } else if (petKind === "fish" && fishG && fishG.visible) { // the fish: laps of the known world
+      fishSettle();
+      fish.dart = Math.max(0, fish.dart - dt / 1.4);
+      fish.a += dt * (0.9 + fish.dart * 5);
+      var ff = fishG.userData.fish;
+      ff.position.set(Math.cos(fish.a) * 0.048, 0.075 + Math.sin(fish.a * 2.3) * 0.012, Math.sin(fish.a) * -0.048);
+      ff.rotation.y = fish.a + Math.PI / 2; // nose along the orbit
+      fishG.userData.tail.rotation.y = Math.sin(t * (6 + fish.dart * 10)) * 0.5;
+    } else if (petKind === "hamster" && hamG && hamG.visible) { // the hamster: no brakes, no regrets
+      ham.speed += (0.32 - ham.speed) * Math.min(1, dt * 0.5); // calms back down after a fright
+      var hnx = hamG.position.x + Math.sin(ham.ang) * ham.speed * dt;
+      var hnz = hamG.position.z + Math.cos(ham.ang) * ham.speed * dt;
+      var hb = false;
+      if (hnx < -3.25 || hnx > 3.25) { ham.ang = -ham.ang + (Math.random() - 0.5) * 0.4; hb = true; }
+      if (!hb && (hnz < -2.25 || hnz > 2.4)) { ham.ang = Math.PI - ham.ang + (Math.random() - 0.5) * 0.4; hb = true; }
+      if (!hb) for (var hoi = 0; hoi < KID_OBSTACLES.length; hoi++) {
+        var hob = KID_OBSTACLES[hoi];
+        if (hob === CAT_OB || hob.r <= 0) continue;
+        var hdx = hnx - hob.x, hdz = hnz - hob.z;
+        if (hdx * hdx + hdz * hdz < (hob.r + 0.1) * (hob.r + 0.1)) { ham.ang = Math.atan2(hdx, hdz) + (Math.random() - 0.5) * 0.5; hb = true; break; }
+      }
+      if (!hb) { hamG.position.x = hnx; hamG.position.z = hnz; }
+      hamG.userData.ball.rotation.x += ham.speed * dt / 0.085; // rolling
+      hamG.userData.pilot.rotation.y = ham.ang;                 // the pilot faces travel
+      hamG.userData.pilot.position.y = 0.052 + Math.abs(Math.sin(t * 10)) * (ham.speed > 0.5 ? 0.004 : 0.0016);
+      CAT_OB.x = hamG.position.x; CAT_OB.z = hamG.position.z;
     }
     if (robotWrap) { // wind-up tin robot: circles the rug with a little waddle-rock
       robotBoost *= Math.pow(0.5, dt / 2.5); // the spring unwinds
@@ -4543,6 +4770,10 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
     cat: { g: function () { return catG; }, spot: function () { return catSpot; }, ob: CAT_OB,
       relocate: catRelocate, settle: catSettle, pet: catPet,
       hurry: function () { catNextMove = 0; } },
+    pets: { kind: function () { return petKind; }, set: setPet, group: function () { return petGroup(petKind); },
+      labels: PET_LABEL, turtle: function () { return { g: turtleG, s: turtle }; },
+      fish: function () { return { g: fishG, s: fish }; }, hamster: function () { return { g: hamG, s: ham }; },
+      petTurtle: turtlePet, petFish: fishPet, petHamster: hamPet },
     posters: { art: POSTER_ART, spots: POSTER_SPOTS, frames: posterFrames, cycleList: POSTER_CYCLE,
       state: function () { return posterState; }, cycle: cyclePoster, apply: applyPosters,
       move: moveFrameTo, place: framePlace, locked: posterLocked },
