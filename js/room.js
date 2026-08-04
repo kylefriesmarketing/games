@@ -256,16 +256,321 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
   /* ---- window: the street below, behind live rain streaks ------------------ */
   // Wall front face is z=-2.55, stripe -2.54. Layering back→front: photo -2.53,
   // rain -2.515, frame bars proud at -2.51 (they embed into the wall, never coplanar).
-  var winViewM = new THREE.MeshBasicMaterial({ color: 0xb8c2d6 }); // placeholder tint; texture loads over it
-  winViewM.color.setRGB(1.25, 1.25, 1.325); // resting lift — the photo is a dark night shot
-  texLoader.load("assets/tex/window_view.jpg", function (t) { t.anisotropy = 8; winViewM.map = t; winViewM.needsUpdate = true; });
-  var winView = new THREE.Mesh(new THREE.PlaneGeometry(1.44, 1.74), winViewM);
-  winView.position.set(2.35, 1.95, -2.53); scene.add(winView);
+  /* The view is PAINTED now (the old photo read as a flat photograph inside a
+   * storybook room) and it has real depth: three canvas layers — sky, scenery,
+   * foreground — each drawn 1.5 windows wide; tick() scrolls their texture offsets
+   * against the camera sway, so the world outside parallaxes. What's out there is
+   * a paint-box choice (WINDOW_VIEWS, further down) and every layer repaints for
+   * the room's hour. */
+  var WIN_OVER = 1.5, WIN_OFF0 = (1 - 1 / WIN_OVER) / 2;         // horizontal overscan for parallax
+  var WIN_OVERY = 1.12, WIN_OFFY = (1 - 1 / WIN_OVERY) / 2;      // a little vertical headroom too
+  var winLayerT = [], winLayerM = [];
+  for (var wl = 0; wl < 3; wl++) (function (wl) {
+    var t = canvasTex(768, 512, function (g, w, h) { g.clearRect(0, 0, w, h); });
+    t.repeat.set(1 / WIN_OVER, 1 / WIN_OVERY); t.offset.set(WIN_OFF0, WIN_OFFY); t.anisotropy = 8;
+    var m = new THREE.MeshBasicMaterial({ map: t, transparent: wl > 0, depthWrite: wl === 0 });
+    var p = new THREE.Mesh(new THREE.PlaneGeometry(1.44, 1.74), m);
+    p.position.set(2.35, 1.95, -2.538 + wl * 0.005); // far behind, near almost at the glass
+    scene.add(p);
+    winLayerT.push(t); winLayerM.push(m);
+  })(wl);
+  function winLift(r, g2, b) { for (var i = 0; i < 3; i++) winLayerM[i].color.setRGB(r, g2, b); }
+  winLift(1, 1, 1);
   var rainT = canvasTex(256, 320, function (g) { g.clearRect(0, 0, 256, 320); });
   var winPane = new THREE.Mesh(new THREE.PlaneGeometry(1.4, 1.7),
     new THREE.MeshBasicMaterial({ map: rainT, transparent: true, depthWrite: false }));
   winPane.position.set(2.35, 1.95, -2.515); scene.add(winPane);
   clickable(winPane, "the window", null, "the window — still raining out there");
+
+  /* ---- WINDOW VIEWS: what's out there is up to you ------------------------------
+   * Five painted worlds, three layers each (far / mid / near), storybook-flat like
+   * everything else in the room. Painters are deterministic (seeded scatter) so a
+   * repaint never shimmers. Layer fns get (ctx, w, h, phaseName). */
+  var WIN_SKY = { // per phase: [skyTop, skyBottom, starAlpha, moon?, groundTone]
+    day:     ["#7d9cc0", "#b8ccd8", 0,    0, "#55645c"],
+    dusk:    ["#464070", "#e8935a", 0.25, 0, "#3c3844"],
+    evening: ["#232c46", "#54648e", 0.6,  1, "#262b38"],
+    night:   ["#10162a", "#28324e", 1,    1, "#151a26"],
+  };
+  function _wr(seed) { var s = seed || 7; return function () { s = (s * 16807 + 11) % 2147483647; return (s & 0xffff) / 0x10000; }; }
+  function _sky(g, w, h, ph, horizon) {
+    var s = WIN_SKY[ph] || WIN_SKY.evening;
+    var gr = g.createLinearGradient(0, 0, 0, h * (horizon == null ? 1 : horizon));
+    gr.addColorStop(0, s[0]); gr.addColorStop(1, s[1]);
+    g.fillStyle = gr; g.fillRect(0, 0, w, h);
+    if (s[2] > 0) {
+      var r = _wr(7); g.fillStyle = "rgba(240,242,255," + 0.85 * s[2] + ")";
+      for (var i = 0; i < 70; i++) { var sx = r() * w, sy = r() * h * 0.55, big = r() < 0.18 ? 2 : 1; g.fillRect(sx, sy, big, big); }
+    }
+    return s;
+  }
+  function _moon(g, x, y, rad) {
+    var halo = g.createRadialGradient(x, y, rad * 0.6, x, y, rad * 3.2);
+    halo.addColorStop(0, "rgba(240,236,214,0.35)"); halo.addColorStop(1, "rgba(240,236,214,0)");
+    g.fillStyle = halo; g.beginPath(); g.arc(x, y, rad * 3.2, 0, 7); g.fill();
+    g.fillStyle = "#f0ecd6"; g.beginPath(); g.arc(x, y, rad, 0, 7); g.fill();
+    g.fillStyle = "rgba(200,196,180,0.5)";
+    g.beginPath(); g.arc(x - rad * 0.3, y - rad * 0.2, rad * 0.18, 0, 7); g.fill();
+    g.beginPath(); g.arc(x + rad * 0.25, y + rad * 0.3, rad * 0.12, 0, 7); g.fill();
+  }
+  function _winGrid(g, x, y, w, h, cols, rows, litP, seed) { // lit windows on a dark tower
+    var r = _wr(seed), cw = w / cols, ch = h / rows;
+    for (var i = 0; i < cols; i++) for (var j = 0; j < rows; j++) {
+      g.fillStyle = r() < litP ? "rgba(255,214,138,0.9)" : "rgba(70,80,100,0.4)";
+      g.fillRect(x + i * cw + 1, y + j * ch + 1, Math.max(1, cw - 2), Math.max(1, ch - 2));
+    }
+  }
+  function _house(g, x, base, w, h, lit) {
+    g.fillStyle = "#232733"; g.fillRect(x, base - h, w, h);
+    g.beginPath(); g.moveTo(x - w * 0.08, base - h); g.lineTo(x + w / 2, base - h - w * 0.34); g.lineTo(x + w * 1.08, base - h); g.fill();
+    g.fillStyle = lit ? "rgba(255,214,138,0.95)" : "rgba(60,72,90,0.6)";
+    g.fillRect(x + w * 0.14, base - h * 0.72, w * 0.22, h * 0.3);
+    g.fillRect(x + w * 0.6, base - h * 0.72, w * 0.22, h * 0.3);
+  }
+  function _pine(g, x, base, w, h) {
+    g.beginPath(); g.moveTo(x, base);
+    g.lineTo(x + w * 0.5, base - h); g.lineTo(x + w, base); g.fill();
+    g.beginPath(); g.moveTo(x + w * 0.12, base - h * 0.45);
+    g.lineTo(x + w * 0.5, base - h * 1.12); g.lineTo(x + w * 0.88, base - h * 0.45); g.fill();
+  }
+  var WINDOW_VIEWS = {
+    street: { label: "the street", icon: "🌧️", rain: true, hint: "still raining out there", layers: [
+      function (g, w, h, ph) { // far: sky, moon, a HAZY distant roofline (unmistakably far away)
+        var s = _sky(g, w, h, ph, 0.8);
+        if (s[3]) _moon(g, w * 0.68, h * 0.16, 18);
+        g.globalAlpha = ph === "day" ? 0.35 : 0.5; // atmosphere: the block behind fades into the sky
+        g.fillStyle = ph === "day" ? "#8095ae" : "#232c40";
+        var r = _wr(31), x = -10;
+        g.beginPath(); g.moveTo(x, h * 0.78);
+        while (x < w + 20) { // one continuous silhouette, gable after gable — never loose boxes
+          var rw = 60 + r() * 60, rh = 22 + r() * 26;
+          g.lineTo(x, h * 0.78 - rh); g.lineTo(x + rw * 0.5, h * 0.78 - rh - 14); g.lineTo(x + rw, h * 0.78 - rh);
+          x += rw;
+        }
+        g.lineTo(x, h * 0.78); g.closePath(); g.fill();
+        g.globalAlpha = 1;
+        g.fillStyle = s[4]; g.fillRect(0, h * 0.78, w, h); // the wet street
+        if (ph !== "day") { g.fillStyle = "rgba(255,214,138,0.12)"; g.fillRect(0, h * 0.78, w, 3); }
+      },
+      function (g, w, h, ph) { // mid: a REAL fence line, two houses on it, tree, streetlamp
+        var lit = ph !== "day", base = h * 0.84;
+        // the picket fence runs the whole street, rails first so every picket connects
+        g.fillStyle = "#2a2f3c";
+        g.fillRect(0, base - 40, w, 5); g.fillRect(0, base - 18, w, 5);
+        for (var px2 = 4; px2 < w; px2 += 16) {
+          g.fillRect(px2, base - 48, 7, 48);
+          g.beginPath(); g.moveTo(px2, base - 48); g.lineTo(px2 + 3.5, base - 55); g.lineTo(px2 + 7, base - 48); g.fill();
+        }
+        _house(g, w * 0.16, base, 120, 100, lit);
+        _house(g, w * 0.62, base, 140, 116, lit && ph !== "dusk");
+        g.strokeStyle = "#1a1f2b"; g.lineWidth = 7; // the tree
+        g.beginPath(); g.moveTo(w * 0.47, base); g.quadraticCurveTo(w * 0.46, base - 90, w * 0.44, base - 130); g.stroke();
+        g.lineWidth = 3;
+        [[-30, -160], [18, -172], [40, -140]].forEach(function (b) {
+          g.beginPath(); g.moveTo(w * 0.45, base - 110); g.quadraticCurveTo(w * 0.45 + b[0] * 0.6, base + b[1] * 0.8, w * 0.45 + b[0], base + b[1]); g.stroke();
+        });
+        // streetlamp — the room's shaft light is THIS lamp
+        g.fillStyle = "#161a24"; g.fillRect(w * 0.86, base - 150, 5, 150);
+        g.fillRect(w * 0.855, base - 156, 16, 8);
+        if (lit) {
+          var lg = g.createRadialGradient(w * 0.865, base - 150, 2, w * 0.865, base - 150, 60);
+          lg.addColorStop(0, "rgba(255,214,138,0.55)"); lg.addColorStop(1, "rgba(255,214,138,0)");
+          g.fillStyle = lg; g.beginPath(); g.arc(w * 0.865, base - 150, 60, 0, 7); g.fill();
+          g.fillStyle = "rgba(255,214,138,0.10)";
+          g.beginPath(); g.ellipse(w * 0.865, base + 6, 54, 10, 0, 0, 7); g.fill();
+        }
+      },
+      function (g, w, h, ph) { // near: the hedge, the mailbox, a puddle
+        var base = h * 0.95; // sits inside the parallax crop — content past ~0.95h never shows
+        g.fillStyle = "#101521";
+        for (var x = -20; x < w + 20; x += 34) { g.beginPath(); g.arc(x, base + 4, 34, Math.PI, 0); g.fill(); }
+        g.fillRect(0, base - 2, w, h - base + 2);
+        g.fillStyle = "#151a26"; g.fillRect(w * 0.31, base - 74, 5, 48); // mailbox
+        g.fillRect(w * 0.29, base - 86, 20, 13);
+        if (ph !== "day") { g.strokeStyle = "rgba(200,220,250,0.25)"; g.lineWidth = 2;
+          g.beginPath(); g.ellipse(w * 0.55, base - 16, 26, 4, 0, 0, 7); g.stroke(); }
+      },
+    ] },
+    city: { label: "the city", icon: "🌃", rain: false, hint: "the city never blinks", layers: [
+      function (g, w, h, ph) { // far: haze towers
+        var s = _sky(g, w, h, ph, 0.85);
+        if (s[3]) _moon(g, w * 0.2, h * 0.14, 14);
+        var r = _wr(53), x = 0;
+        g.fillStyle = ph === "day" ? "#6a7a92" : "#1d2436";
+        while (x < w) { var tw = 34 + r() * 44, th = h * (0.22 + r() * 0.3); g.fillRect(x, h * 0.85 - th, tw, th); x += tw + 6; }
+        g.fillStyle = s[4]; g.fillRect(0, h * 0.85, w, h);
+      },
+      function (g, w, h, ph) { // mid: the near skyline, lit up
+        var r = _wr(97), litP = ph === "day" ? 0.10 : ph === "dusk" ? 0.5 : 0.8;
+        var xs = [0.03, 0.2, 0.4, 0.58, 0.78], tallest = 0, tx = 0;
+        xs.forEach(function (fx, i) {
+          var tw = 70 + r() * 50, th = h * (0.34 + r() * 0.34), x = fx * w;
+          g.fillStyle = "#121826"; g.fillRect(x, h * 0.9 - th, tw, th);
+          _winGrid(g, x + 6, h * 0.9 - th + 8, tw - 12, th - 16, 5, Math.max(4, (th / 26) | 0), litP, 100 + i);
+          if (th > tallest) { tallest = th; tx = x + tw / 2; }
+        });
+        g.strokeStyle = "#0d1320"; g.lineWidth = 3; // antenna + beacon on the tallest
+        g.beginPath(); g.moveTo(tx, h * 0.9 - tallest); g.lineTo(tx, h * 0.9 - tallest - 26); g.stroke();
+        g.fillStyle = "rgba(255,70,70,0.9)"; g.beginPath(); g.arc(tx, h * 0.9 - tallest - 28, 3.4, 0, 7); g.fill();
+        if (ph !== "day") { // one neon smudge low in the streets
+          var ng = g.createRadialGradient(w * 0.52, h * 0.86, 4, w * 0.52, h * 0.86, 70);
+          ng.addColorStop(0, "rgba(255,90,168,0.4)"); ng.addColorStop(1, "rgba(255,90,168,0)");
+          g.fillStyle = ng; g.beginPath(); g.arc(w * 0.52, h * 0.86, 70, 0, 7); g.fill();
+        }
+      },
+      function (g, w, h) { // near: our own rooftop
+        g.fillStyle = "#0b0f1a"; g.fillRect(0, h * 0.87, w, h * 0.13);
+        g.fillRect(0, h * 0.85, w, 6);
+        g.fillRect(w * 0.1, h * 0.82, 26, 14); g.fillRect(w * 0.7, h * 0.81, 34, 16); // vents
+        g.fillRect(w * 0.315, h * 0.68, 4, 34); g.fillRect(w * 0.365, h * 0.68, 4, 34); // water tower
+        g.fillRect(w * 0.3, h * 0.56, 48, 34);
+        g.beginPath(); g.moveTo(w * 0.295, h * 0.56); g.lineTo(w * 0.324, h * 0.5); g.lineTo(w * 0.352, h * 0.56); g.fill();
+      },
+    ] },
+    woods: { label: "the pines", icon: "🌲", rain: false, hint: "the pines are patient", layers: [
+      function (g, w, h, ph) { // far: the ridge and a big moon
+        var s = _sky(g, w, h, ph, 0.8);
+        if (s[3]) _moon(g, w * 0.3, h * 0.2, 30); else if (ph === "dusk") _moon(g, w * 0.3, h * 0.22, 22);
+        g.fillStyle = ph === "day" ? "#5e7086" : "#1a2230";
+        g.beginPath(); g.moveTo(0, h * 0.62); g.lineTo(w * 0.22, h * 0.44); g.lineTo(w * 0.4, h * 0.58);
+        g.lineTo(w * 0.62, h * 0.4); g.lineTo(w * 0.8, h * 0.54); g.lineTo(w, h * 0.48); g.lineTo(w, h); g.lineTo(0, h); g.fill();
+        g.fillStyle = s[4]; g.fillRect(0, h * 0.8, w, h);
+      },
+      function (g, w, h, ph) { // mid: two ranks of pines, mist in the day
+        var r = _wr(41);
+        g.fillStyle = "#1c2836";
+        for (var x = -20; x < w + 20; x += 44) _pine(g, x, h * 0.72, 52, 78 + r() * 30);
+        if (ph === "day" || ph === "dusk") { g.fillStyle = "rgba(200,212,220,0.16)"; g.fillRect(0, h * 0.6, w, h * 0.1); }
+        g.fillStyle = "#141d29";
+        for (var x2 = -30; x2 < w + 30; x2 += 58) _pine(g, x2, h * 0.86, 68, 100 + r() * 36);
+      },
+      function (g, w, h, ph) { // near: boughs in the corners, fireflies after dark
+        g.fillStyle = "#0e1420"; g.fillRect(0, h * 0.88, w, h * 0.12);
+        g.fillStyle = "#0d1420";
+        [[0, 0, 1], [w, 0, -1]].forEach(function (c) {
+          for (var i = 0; i < 4; i++) {
+            g.beginPath(); g.ellipse(c[0] + c[2] * (20 + i * 34), 20 + i * 26, 56, 16, c[2] * (0.5 - i * 0.12), 0, 7); g.fill();
+          }
+        });
+        if (ph === "evening" || ph === "night") {
+          var r = _wr(61); g.fillStyle = "rgba(255,224,130,0.85)";
+          for (var i2 = 0; i2 < 9; i2++) { g.beginPath(); g.arc(r() * w, h * (0.45 + r() * 0.4), 1.6, 0, 7); g.fill(); }
+        }
+      },
+    ] },
+    sea: { label: "the sea", icon: "🌊", rain: false, hint: "the tide is thinking", layers: [
+      function (g, w, h, ph) { // far: horizon, moon glint on the water
+        var s = _sky(g, w, h, ph, 0.55);
+        var sg = g.createLinearGradient(0, h * 0.55, 0, h);
+        sg.addColorStop(0, ph === "day" ? "#4a7a96" : "#17293e"); sg.addColorStop(1, ph === "day" ? "#356078" : "#0d1a2c");
+        g.fillStyle = sg; g.fillRect(0, h * 0.55, w, h * 0.45);
+        if (s[3]) {
+          _moon(g, w * 0.62, h * 0.18, 20);
+          g.fillStyle = "rgba(240,236,214,0.18)";
+          var r = _wr(19);
+          for (var y = h * 0.57; y < h * 0.95; y += 7) { var gw = 8 + r() * 30; g.fillRect(w * 0.62 - gw / 2 + (r() - 0.5) * 14, y, gw, 2); }
+        }
+      },
+      function (g, w, h, ph) { // mid: wave lines and a little sail
+        g.strokeStyle = ph === "day" ? "rgba(220,236,240,0.5)" : "rgba(140,180,210,0.35)"; g.lineWidth = 2.5;
+        [0.62, 0.72, 0.83].forEach(function (fy, i) {
+          g.beginPath();
+          for (var x = -20; x < w + 20; x += 46) g.quadraticCurveTo(x + 12, h * fy - 7, x + 23, h * fy), g.quadraticCurveTo(x + 34, h * fy + 7, x + 46, h * fy);
+          g.stroke();
+        });
+        g.fillStyle = "#101724"; // the sail out there
+        g.fillRect(w * 0.285, h * 0.585, 3, 26);
+        g.beginPath(); g.moveTo(w * 0.29, h * 0.585); g.lineTo(w * 0.29, h * 0.63); g.lineTo(w * 0.33, h * 0.625); g.fill();
+        g.beginPath(); g.moveTo(w * 0.27, h * 0.635); g.lineTo(w * 0.34, h * 0.635); g.lineTo(w * 0.325, h * 0.65); g.lineTo(w * 0.283, h * 0.65); g.fill();
+      },
+      function (g, w, h, ph) { // near: the dunes, grass, a gull or two
+        g.fillStyle = "#231f19"; g.beginPath();
+        g.moveTo(0, h); g.lineTo(0, h * 0.9); g.quadraticCurveTo(w * 0.3, h * 0.84, w * 0.55, h * 0.92);
+        g.quadraticCurveTo(w * 0.8, h * 0.98, w, h * 0.93); g.lineTo(w, h); g.fill();
+        g.strokeStyle = "#1a1712"; g.lineWidth = 2;
+        var r = _wr(23);
+        for (var i = 0; i < 22; i++) {
+          var gx = r() * w, gy = h * (0.88 + r() * 0.07);
+          g.beginPath(); g.moveTo(gx, gy); g.quadraticCurveTo(gx + (r() - 0.5) * 10, gy - 16, gx + (r() - 0.5) * 22, gy - 26); g.stroke();
+        }
+        if (ph === "day" || ph === "dusk") {
+          g.strokeStyle = "#20242e"; g.lineWidth = 2.5;
+          [[0.42, 0.3], [0.5, 0.24]].forEach(function (b) {
+            g.beginPath(); g.moveTo(w * b[0] - 10, h * b[1]); g.quadraticCurveTo(w * b[0] - 4, h * b[1] - 7, w * b[0], h * b[1]);
+            g.quadraticCurveTo(w * b[0] + 4, h * b[1] - 7, w * b[0] + 10, h * b[1]); g.stroke();
+          });
+        }
+      },
+    ] },
+    space: { label: "space", icon: "🚀", rain: false, hint: "second star to the right", layers: [
+      function (g, w, h) { // far: the deep field — space ignores the clock
+        var gr = g.createLinearGradient(0, 0, 0, h);
+        gr.addColorStop(0, "#05060e"); gr.addColorStop(1, "#0d1024");
+        g.fillStyle = gr; g.fillRect(0, 0, w, h);
+        var r = _wr(11); g.fillStyle = "rgba(240,242,255,0.9)";
+        for (var i = 0; i < 110; i++) { var big = r() < 0.12 ? 2 : 1; g.fillRect(r() * w, r() * h, big, big); }
+        [["rgba(122,74,138,0.14)", 0.3, 0.35, 130], ["rgba(58,90,138,0.12)", 0.75, 0.6, 110]].forEach(function (n) {
+          var ng = g.createRadialGradient(w * n[1], h * n[2], 8, w * n[1], h * n[2], n[3]);
+          ng.addColorStop(0, n[0]); ng.addColorStop(1, "rgba(0,0,0,0)");
+          g.fillStyle = ng; g.beginPath(); g.arc(w * n[1], h * n[2], n[3], 0, 7); g.fill();
+        });
+        g.fillStyle = "#c8a06a"; g.beginPath(); g.arc(w * 0.72, h * 0.28, 26, 0, 7); g.fill(); // the ringed one
+        g.fillStyle = "rgba(160,130,90,0.5)"; g.beginPath(); g.arc(w * 0.7, h * 0.265, 26, 0, 7); g.fill();
+        g.strokeStyle = "rgba(220,200,160,0.7)"; g.lineWidth = 3;
+        g.beginPath(); g.ellipse(w * 0.72, h * 0.28, 44, 12, -0.3, 0, 7); g.stroke();
+      },
+      function (g, w, h) { // mid: the belt, and somebody's rocket
+        var r = _wr(83); g.fillStyle = "#3c4250";
+        for (var i = 0; i < 8; i++) {
+          var ax = r() * w, ay = h * (0.5 + (r() - 0.5) * 0.24), ar = 4 + r() * 9;
+          g.beginPath(); g.ellipse(ax, ay, ar, ar * (0.6 + r() * 0.4), r() * 3, 0, 7); g.fill();
+        }
+        var rx = w * 0.24, ry = h * 0.62; // the little rocket
+        g.save(); g.translate(rx, ry); g.rotate(-0.5);
+        g.fillStyle = "#c8ccd6"; g.beginPath(); g.ellipse(0, 0, 11, 24, 0, 0, 7); g.fill();
+        g.fillStyle = "#9e3b30";
+        g.beginPath(); g.moveTo(-10, 12); g.lineTo(-18, 26); g.lineTo(-6, 20); g.fill();
+        g.beginPath(); g.moveTo(10, 12); g.lineTo(18, 26); g.lineTo(6, 20); g.fill();
+        g.beginPath(); g.arc(0, -24, 7, Math.PI, 0); g.fill();
+        g.fillStyle = "#2c3440"; g.beginPath(); g.arc(0, -6, 5, 0, 7); g.fill();
+        g.fillStyle = "rgba(255,190,90,0.9)";
+        g.beginPath(); g.moveTo(-5, 25); g.lineTo(0, 42); g.lineTo(5, 25); g.fill();
+        g.restore();
+      },
+      function (g, w, h) { // near: the moon below, a satellite above
+        g.fillStyle = "#cfd2da";
+        g.beginPath(); g.arc(w * 0.5, h * 1.55, h * 0.75, 0, 7); g.fill();
+        g.fillStyle = "rgba(150,152,162,0.6)";
+        var r = _wr(29);
+        for (var i = 0; i < 7; i++) { g.beginPath(); g.arc(w * (0.2 + r() * 0.6), h * (0.86 + r() * 0.1), 4 + r() * 8, 0, 7); g.fill(); }
+        g.fillStyle = "#a8adb8"; g.fillRect(w * 0.82, h * 0.12, 14, 10); // the satellite
+        g.fillStyle = "#3a5a8a"; g.fillRect(w * 0.795, h * 0.135, 22, 4); g.fillRect(w * 0.845, h * 0.135, 22, 4);
+      },
+    ] },
+  };
+  var curViewKey = "street", winDrawnKey = null;
+  function winPhaseName() { for (var k in PHASES) if (PHASES[k] === phase) return k; return "evening"; }
+  function redrawWindow() {
+    var v = WINDOW_VIEWS[curViewKey] || WINDOW_VIEWS.street;
+    var stamp = curViewKey + "|" + winPhaseName();
+    if (stamp === winDrawnKey) return;
+    winDrawnKey = stamp;
+    for (var i = 0; i < 3; i++) {
+      var t = winLayerT[i], g = t.image.getContext("2d");
+      g.clearRect(0, 0, 768, 512);
+      v.layers[i](g, 768, 512, winPhaseName());
+      t.needsUpdate = true;
+    }
+  }
+  function curViewRain() { return (WINDOW_VIEWS[curViewKey] || WINDOW_VIEWS.street).rain; }
+  function applyWindowView() {
+    curViewKey = WINDOW_VIEWS[paintState.view] ? paintState.view : "street";
+    var v = WINDOW_VIEWS[curViewKey];
+    redrawWindow();
+    winPane.userData.hint = "the window — " + v.hint;
+    if (!v.rain) { rainCtx.clearRect(0, 0, 256, 320); rainT.needsUpdate = true; }
+    AUDIO.setRain(v.rain ? phase.rainG : 0);
+  }
   var frameM = mat(0x2a2019, 0.8);
   [[2.35, 2.85, 1.64, 0.10], [2.35, 1.05, 1.64, 0.10]].forEach(function (b) { // top + bottom rails
     var m = box(b[2], b[3], 0.09, frameM); m.position.set(b[0], b[1], -2.51); scene.add(m);
@@ -955,7 +1260,7 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
       new THREE.MeshStandardMaterial({ color: 0x2f2a24, roughness: 0.9 }));
     scene.add(wire);
   })();
-  scene.add(glow(0xffb060, 1.95, 2.28, -2.5, 0.55, 0.55, 0.45)); // the streetlamp out the window
+  // (the old photo-era streetlamp glow sprite is gone — the painted views draw their own lamps)
 
   /* ---- THE BOOMBOX: synth lo-fi + rain (WebAudio, no files) ------------------ */
   var boom = new THREE.Group();
@@ -1203,10 +1508,10 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
   // it rains (streaks + audio), how the TV behaves, and how often the storm
   // flashes. ?hour=23 in the URL pins a phase for tinkering.
   var PHASES = {
-    day:     { amb: 0x4a5468, ambI: 1.3, shaft: 0.0,  moonC: 0xbcc8da, moonI: 0.8,  lift: 1.85, liftB: 1.0,  stars: 0.12, streaks: 36, rainG: 0.04,  test: false, fMin: 20, fRnd: 30, on: [13, 9], off: [2, 3] },
-    dusk:    { amb: 0x4a3c40, ambI: 1.15, shaft: 0.28, moonC: 0xe8935a, moonI: 0.55, lift: 1.5,  liftB: 0.94, stars: 0.3,  streaks: 44, rainG: 0.05,  test: false, fMin: 16, fRnd: 26, on: [9, 8],  off: [3, 4] },
-    evening: { amb: 0x2c3440, ambI: 1.0, shaft: 0.5,  moonC: 0x7d9cc4, moonI: 0.4,  lift: 1.25, liftB: 1.06, stars: 0.45, streaks: 44, rainG: 0.05,  test: false, fMin: 14, fRnd: 26, on: [9, 8],  off: [3, 4] },
-    night:   { amb: 0x1e2634, ambI: 0.85, shaft: 0.62, moonC: 0x8fb4e8, moonI: 0.52, lift: 0.92, liftB: 1.1,  stars: 0.78, streaks: 64, rainG: 0.085, test: true,  fMin: 8,  fRnd: 14, on: [7, 5],  off: [4, 5] },
+    day:     { amb: 0x4a5468, ambI: 1.3, shaft: 0.0,  moonC: 0xbcc8da, moonI: 0.8,  lift: 1.04, liftB: 1.0,  stars: 0.12, streaks: 36, rainG: 0.04,  test: false, fMin: 20, fRnd: 30, on: [13, 9], off: [2, 3] },
+    dusk:    { amb: 0x4a3c40, ambI: 1.15, shaft: 0.28, moonC: 0xe8935a, moonI: 0.55, lift: 1.0,  liftB: 0.96, stars: 0.3,  streaks: 44, rainG: 0.05,  test: false, fMin: 16, fRnd: 26, on: [9, 8],  off: [3, 4] },
+    evening: { amb: 0x2c3440, ambI: 1.0, shaft: 0.5,  moonC: 0x7d9cc4, moonI: 0.4,  lift: 0.96, liftB: 1.05, stars: 0.45, streaks: 44, rainG: 0.05,  test: false, fMin: 14, fRnd: 26, on: [9, 8],  off: [3, 4] },
+    night:   { amb: 0x1e2634, ambI: 0.85, shaft: 0.62, moonC: 0x8fb4e8, moonI: 0.52, lift: 0.88, liftB: 1.1,  stars: 0.78, streaks: 64, rainG: 0.085, test: true,  fMin: 8,  fRnd: 14, on: [7, 5],  off: [4, 5] },
   };
   var HOUR_DEBUG = (function () {
     var m = /[?&]hour=(\d+)/.exec(location.search);
@@ -1229,8 +1534,9 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
     // the streetlight only reads once the room is darker than it is
     shaftG.children.forEach(function (m) { m.material.opacity = p.shaft; });
     shaftG.visible = p.shaft > 0.001;
-    winViewM.color.setRGB(p.lift, p.lift, p.lift * p.liftB);
-    AUDIO.setRain(p.rainG);
+    winLift(p.lift, p.lift, p.lift * p.liftB);
+    redrawWindow(); // the painted view follows the hour
+    AUDIO.setRain(curViewRain() ? p.rainG : 0);
   }
   function applyPhase() {
     if (phaseOverride) { applyPhaseObj(PHASES[phaseOverride]); return; }
@@ -3186,6 +3492,8 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
     paintState.wallsTex = texRoll(MAT_TEX.walls, 0.5);
     paintState.carpetTex = texRoll(MAT_TEX.carpet, 0.4);
     paintState.rugTex = texRoll(MAT_TEX.rug, 0.35);
+    var wvKeys = Object.keys(WINDOW_VIEWS);
+    paintState.view = Math.random() < 0.4 ? wvKeys[(Math.random() * wvKeys.length) | 0] : "street";
     saveJSON("room-paint", paintState); applyPaint();
     if (decorMode) dwRender();
   }
@@ -3200,16 +3508,16 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
     { key: "asfound", name: "as found", icon: "🛏️", need: 0, reset: true, hour: null },
     { key: "cabin", name: "cozy cabin", icon: "🔥", need: 0,
       paint: { walls: 0, carpet: 1, wood: 1, door: 1, rug: 1, neon: 1, lights: "warm glow", screen: "stars",
-               wallsTex: 3, carpetTex: 1, rugTex: 0 }, hour: "evening" }, // real pine walls + shag underfoot
+               wallsTex: 3, carpetTex: 1, rugTex: 0, view: "woods" }, hour: "evening" }, // pine walls, pines outside
     { key: "arcade", name: "neon arcade", icon: "🕹️", need: 2,
       paint: { walls: 0, carpet: 3, wood: 4, door: 4, rug: 0, neon: 3, lights: "ocean", screen: "logo",
-               wallsTex: 2, carpetTex: 0, rugTex: 0 }, hour: "night" }, // the neon grid print
+               wallsTex: 2, carpetTex: 0, rugTex: 0, view: "city" }, hour: "night" }, // the neon grid print, city lights out there
     { key: "attic", name: "haunted attic", icon: "🕸️", need: 4,
       paint: { walls: 0, carpet: 3, wood: 2, door: 4, rug: 0, neon: 4, lights: "candy", screen: "rain",
                wallsTex: 5, carpetTex: 2, rugTex: 0 }, hour: "night" }, // ghost wallpaper over bare boards
     { key: "sunroom", name: "sunroom", icon: "🌿", need: 6,
       paint: { walls: 0, carpet: 2, wood: 3, door: 3, rug: 2, neon: 2, lights: "classic", screen: "mystify",
-               wallsTex: 4, carpetTex: 0, rugTex: 1 }, hour: "day" }, // daisies + the racetrack rug
+               wallsTex: 4, carpetTex: 0, rugTex: 1, view: "sea" }, hour: "day" }, // daisies, racetrack rug, the sea out there
     { key: "winter", name: "winter room", icon: "❄️", need: 9,
       paint: { walls: 3, carpet: 3, wood: 3, door: 2, rug: 3, neon: 3, lights: "ocean", screen: "stars",
                wallsTex: 1, carpetTex: 1, rugTex: 0 }, hour: "dusk" }, // glow stars under a sky tint
@@ -3229,7 +3537,7 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
     else {
       var p = t.paint || {};
       ["walls", "carpet", "wood", "door", "rug", "neon", "lights", "screen",
-       "wallsTex", "carpetTex", "rugTex"].forEach(function (f) {
+       "wallsTex", "carpetTex", "rugTex", "view"].forEach(function (f) {
         if (p[f] != null) paintState[f] = p[f];
       });
       saveJSON("room-paint", paintState); applyPaint();
@@ -3535,6 +3843,8 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
       } else { pushUndo(); setPaint(key + "Tex", ti); dwRender(); clickSfx(1600); }
     } else if ((key = b.getAttribute("data-postspot"))) {
       pushUndo(); cyclePoster(key, +b.getAttribute("data-dir")); dwRender(); clickSfx(1600);
+    } else if ((key = b.getAttribute("data-view"))) {
+      pushUndo(); setPaint("view", key); dwRender(); clickSfx(1600);
     } else if ((key = b.getAttribute("data-pet"))) {
       pushUndo(); setPet(key); dwRender(); clickSfx(1500);
       var pl = { cat: "the cat's back on the bed.", turtle: "a turtle. he set off already.",
@@ -3894,6 +4204,7 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
       }
     }
     applyMaterials(); // material swaps first conceptually, but tints above only touch .color so order is safe
+    applyWindowView(); // what's out the window is paint too
     var wantSS = paintState.screen || "stars";           // the PC keeps whichever it was left on
     for (var s = 0; s < SCREENSAVERS.length; s++) if (SCREENSAVERS[s][0] === wantSS) ssKind = wantSS;
     applyNeonPaint();
@@ -3958,6 +4269,14 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
         (m === "day" ? "☀️" : m === "dusk" ? "🌇" : m === "evening" ? "🌆" : m === "night" ? "🌙" : "🕰️") +
         '</div><div class="n">' + (m ? LIGHT_LABEL[m] : "your clock") + "</div></button>";
     });
+    html += "</div>";
+    html += '<div class="dw-sec">out the window</div><div class="dw-grid">';
+    for (var wvk in WINDOW_VIEWS) {
+      var wvv = WINDOW_VIEWS[wvk], wvon = (WINDOW_VIEWS[paintState.view] ? paintState.view : "street") === wvk;
+      html += '<button type="button" class="dw-card' + (wvon ? " on" : "") + '" data-view="' + wvk +
+        '" aria-pressed="' + (wvon ? "true" : "false") + '"><div class="i">' + wvv.icon +
+        '</div><div class="n">' + wvv.label + "</div></button>";
+    }
     html += "</div>";
     html += '<div class="dw-sec">the computer screen</div><div class="dw-grid">';
     SCREENSAVERS.forEach(function (s) {
@@ -4848,21 +5167,30 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
       neonMesh.material.opacity = hum * (0.35 + 0.65 * dim);
       neonLight.intensity = 1.1 * hum * dim;
     }
-    // the storm outside — light first, thunder when the distance allows
-    nextFlash -= dt;
-    if (nextFlash <= 0) {
-      flash = 1; nextFlash = phase.fMin + Math.random() * phase.fRnd;
-      thunderStrength = 0.25 + Math.random() * 0.75;
-      thunderIn = 0.15 + (1 - thunderStrength) * 2.2; // nearer strikes speak sooner
+    // the storm outside — light first, thunder when the distance allows.
+    // Only the rainy view HAS a storm; the pines/sea/city/space sit it out.
+    if (curViewRain()) {
+      nextFlash -= dt;
+      if (nextFlash <= 0) {
+        flash = 1; nextFlash = phase.fMin + Math.random() * phase.fRnd;
+        thunderStrength = 0.25 + Math.random() * 0.75;
+        thunderIn = 0.15 + (1 - thunderStrength) * 2.2; // nearer strikes speak sooner
+      }
+      if (thunderIn > 0) { thunderIn -= dt; if (thunderIn <= 0) rumble(thunderStrength); }
+      if (flash > 0.01) {
+        flash *= Math.pow(0.02, dt); // fast decay
+        moon.intensity = phase.moonI + flash * 2.2;
+        var wv = phase.lift + flash * 1.5; // lightning lifts the whole painted view
+        winLift(wv, wv, wv * phase.liftB);
+        if ((frameCount & 1) === 0) drawRain(flash > 0.25);
+      } else if ((frameCount % 6) === 0) drawRain(false);
+    } else if (flash > 0.01) { flash = 0; moon.intensity = phase.moonI; winLift(phase.lift, phase.lift, phase.lift * phase.liftB); }
+    // parallax: the painted layers slide against the camera sway — depth through glass.
+    // Far tracks the camera hardest (that's how windows work); both axes move.
+    for (var wli = 0; wli < 3; wli++) {
+      winLayerT[wli].offset.x = WIN_OFF0 - camera.position.x * [0.10, 0.052, 0.02][wli];
+      winLayerT[wli].offset.y = WIN_OFFY - (camera.position.y - 1.72) * [0.11, 0.06, 0.024][wli];
     }
-    if (thunderIn > 0) { thunderIn -= dt; if (thunderIn <= 0) rumble(thunderStrength); }
-    if (flash > 0.01) {
-      flash *= Math.pow(0.02, dt); // fast decay
-      moon.intensity = phase.moonI + flash * 2.2;
-      var wv = phase.lift + flash * 1.5; // photo is a dark night shot — lift it so the streetlamp reads
-      winViewM.color.setRGB(wv, wv, wv * phase.liftB);
-      if ((frameCount & 1) === 0) drawRain(flash > 0.25);
-    } else if ((frameCount % 6) === 0) drawRain(false);
     // raycast every frame only while the pointer is live; coast otherwise
     if (decorMode) {
       var mc = dragging ? dragging.cfg : decorPickMovable();
