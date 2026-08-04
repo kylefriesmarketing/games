@@ -144,6 +144,12 @@ screen, light, season, tour, profile, audio, cat, posters, extras).
   (`room-slots`), undo stack, presets, surprise-me.
 - **Seasons & hours** — date-driven decoration (`seasonFX`) + light phases
   (day/dusk/evening/night in `PHASES`), light mode in `room-light`.
+- **THE WINDOW** — a painted place, not a photo: three parallax canvas layers
+  (`WINDOW_VIEWS`), five pickable views (street/city/woods/sea/space) in the
+  paint tab, phase-aware repaints, storms only on the rainy street. Painters
+  are seeded-deterministic; foreground content must stay above ~0.95h (the
+  vertical parallax crop). `PHASES.lift` is now ~1.0 — the old 1.85 was
+  compensation for the removed photo.
 - **Profile/notebook** — cross-game progress + awards + key ring, `room-profile`.
 
 ## 5. Testing & verification recipes (hard-won)
