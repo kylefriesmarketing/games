@@ -274,7 +274,18 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
     scene.add(p);
     winLayerT.push(t); winLayerM.push(m);
   })(wl);
-  function winLift(r, g2, b) { for (var i = 0; i < 3; i++) winLayerM[i].color.setRGB(r, g2, b); }
+  // a fourth layer for TRANSIENT LIFE — cars, gulls, owls, shooting stars. Cleared when
+  // idle; only re-uploaded while something is actually crossing the view.
+  var winEvT = canvasTex(768, 512, function (g, w, h) { g.clearRect(0, 0, w, h); });
+  winEvT.repeat.set(1 / WIN_OVER, 1 / WIN_OVERY); winEvT.offset.set(WIN_OFF0, WIN_OFFY); winEvT.anisotropy = 8;
+  var winEvM = new THREE.MeshBasicMaterial({ map: winEvT, transparent: true, depthWrite: false });
+  var winEvP = new THREE.Mesh(new THREE.PlaneGeometry(1.44, 1.74), winEvM);
+  winEvP.position.set(2.35, 1.95, -2.5245); // in front of the near layer, behind the glass
+  scene.add(winEvP);
+  function winLift(r, g2, b) {
+    for (var i = 0; i < 3; i++) winLayerM[i].color.setRGB(r, g2, b);
+    winEvM.color.setRGB(r, g2, b);
+  }
   winLift(1, 1, 1);
   var rainT = canvasTex(256, 320, function (g) { g.clearRect(0, 0, 256, 320); });
   var winPane = new THREE.Mesh(new THREE.PlaneGeometry(1.4, 1.7),
@@ -570,6 +581,114 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
     winPane.userData.hint = "the window — " + v.hint;
     if (!v.rain) { rainCtx.clearRect(0, 0, 256, 320); rainT.needsUpdate = true; }
     AUDIO.setRain(v.rain ? phase.rainG : 0);
+    if (winEv) { winEv.ev = null; winEvClear(); winEv.next = 6 + Math.random() * 8; } // fresh view, fresh traffic
+  }
+
+  /* ---- window LIFE: every half-minute or so, something crosses the view --------- */
+  function _evCar(g, w, h, f, ev) { // headlights slide the road; taillight going the other way
+    var ph = winPhaseName(), road = h * 0.80;
+    var x = w * (0.1 + f * 0.8); if (ev.dir < 0) x = w - x;
+    g.fillStyle = "#11141d";
+    g.beginPath(); g.roundRect(x - 26, road - 20, 52, 15, 5); g.fill();
+    g.beginPath(); g.roundRect(x - 14, road - 30, 28, 12, 4); g.fill();
+    var nose = x + ev.dir * 26;
+    if (ph !== "day") {
+      var cg = g.createRadialGradient(nose, road - 12, 1, nose, road - 12, 60);
+      cg.addColorStop(0, "rgba(255,236,180,0.7)"); cg.addColorStop(1, "rgba(255,236,180,0)");
+      g.fillStyle = cg; g.beginPath();
+      g.moveTo(nose, road - 16); g.lineTo(nose + ev.dir * 62, road - 26);
+      g.lineTo(nose + ev.dir * 62, road + 4); g.lineTo(nose, road - 6); g.fill();
+    }
+    g.fillStyle = "#ffecb4"; g.fillRect(nose - 2, road - 15, 4, 4);
+    g.fillStyle = "#ff5a5a"; g.fillRect(x - ev.dir * 26 - 2, road - 15, 4, 4);
+  }
+  function _evFenceCat(g, w, h, f, ev) { // a neighbourhood cat takes the fence route
+    var y = h * 0.84 - 52 + Math.sin(f * 26) * 1.6;
+    var x = w * (0.2 + f * 0.6); if (ev.dir < 0) x = w - x;
+    g.fillStyle = "#0d1119";
+    g.beginPath(); g.ellipse(x, y, 13, 5.5, 0, 0, 7); g.fill();                  // body
+    g.beginPath(); g.arc(x + ev.dir * 12, y - 4, 4.5, 0, 7); g.fill();           // head
+    g.beginPath(); g.moveTo(x + ev.dir * 9, y - 7); g.lineTo(x + ev.dir * 11, y - 12); g.lineTo(x + ev.dir * 13, y - 7); g.fill();
+    g.beginPath(); g.moveTo(x + ev.dir * 13, y - 8); g.lineTo(x + ev.dir * 15, y - 12); g.lineTo(x + ev.dir * 17, y - 7); g.fill();
+    g.strokeStyle = "#0d1119"; g.lineWidth = 2.4;                                 // tail asks a question
+    g.beginPath(); g.moveTo(x - ev.dir * 12, y - 2);
+    g.quadraticCurveTo(x - ev.dir * 22, y - 6 - Math.sin(f * 26) * 3, x - ev.dir * 20, y - 16); g.stroke();
+  }
+  function _evPlane(g, w, h, f, ev) { // red-eye crossing, contrail and all
+    var x = w * (0.08 + f * 0.84); if (ev.dir < 0) x = w - x;
+    var y = h * (0.12 + f * 0.03);
+    g.strokeStyle = "rgba(220,228,240,0.10)"; g.lineWidth = 3;
+    g.beginPath(); g.moveTo(x - ev.dir * 10, y); g.lineTo(x - ev.dir * 120, y + 4); g.stroke();
+    g.fillStyle = "rgba(235,240,250,0.9)"; g.fillRect(x - 1.5, y - 1.5, 3, 3);
+    if (Math.sin(f * 90) > 0.2) { g.fillStyle = "rgba(255,80,80,0.95)"; g.fillRect(x + ev.dir * 5 - 1.5, y - 1.5, 3, 3); }
+  }
+  function _evShootStar(g, w, h, f, ev) { // there and gone
+    var r = _wr(ev.seed), x0 = w * (0.25 + r() * 0.4), y0 = h * (0.08 + r() * 0.2);
+    var dx = (r() > 0.5 ? 1 : -1) * (60 + r() * 60), dy = 40 + r() * 30;
+    var x = x0 + dx * f, y = y0 + dy * f, a = Math.sin(f * Math.PI);
+    var tg = g.createLinearGradient(x - dx * 0.22, y - dy * 0.22, x, y);
+    tg.addColorStop(0, "rgba(240,244,255,0)"); tg.addColorStop(1, "rgba(240,244,255," + 0.9 * a + ")");
+    g.strokeStyle = tg; g.lineWidth = 2;
+    g.beginPath(); g.moveTo(x - dx * 0.22, y - dy * 0.22); g.lineTo(x, y); g.stroke();
+  }
+  function _evOwl(g, w, h, f, ev) { // low glide between the pines
+    var x = w * (0.15 + f * 0.7); if (ev.dir < 0) x = w - x;
+    var y = h * (0.48 + Math.sin(f * 6.5) * 0.05);
+    var flap = Math.sin(f * 34) * 8;
+    g.strokeStyle = "#0c111c"; g.lineWidth = 4; g.lineCap = "round";
+    g.beginPath(); g.moveTo(x - 12, y - flap); g.quadraticCurveTo(x, y - 3, x + 12, y - flap); g.stroke();
+    g.fillStyle = "#0c111c"; g.beginPath(); g.ellipse(x, y, 5, 3.4, 0, 0, 7); g.fill();
+  }
+  function _evGull(g, w, h, f, ev) { // one lazy loop over the water
+    var x = w * (0.12 + f * 0.76); if (ev.dir < 0) x = w - x;
+    var y = h * (0.3 + Math.sin(f * 4) * 0.06);
+    var flap = Math.sin(f * 22) * 5;
+    g.strokeStyle = "#2a3140"; g.lineWidth = 2.6; g.lineCap = "round";
+    g.beginPath(); g.moveTo(x - 9, y - flap); g.quadraticCurveTo(x, y + 2, x + 9, y - flap); g.stroke();
+  }
+  function _evShip(g, w, h, f) { // a light on the horizon, saying something slowly
+    var x = w * 0.72, y = h * 0.565;
+    g.fillStyle = "#0e1622"; g.fillRect(x - 9, y - 3, 18, 4);
+    if (Math.sin(f * 22) > 0.3) {
+      g.fillStyle = "rgba(255,230,150,0.95)"; g.fillRect(x - 1.5, y - 7, 3, 3);
+      var lg = g.createRadialGradient(x, y - 6, 1, x, y - 6, 14);
+      lg.addColorStop(0, "rgba(255,230,150,0.4)"); lg.addColorStop(1, "rgba(255,230,150,0)");
+      g.fillStyle = lg; g.beginPath(); g.arc(x, y - 6, 14, 0, 7); g.fill();
+    }
+  }
+  function _evSat(g, w, h, f, ev) { // the satellite makes its rounds
+    var x = w * (0.1 + f * 0.8); if (ev.dir < 0) x = w - x;
+    var y = h * (0.14 + f * 0.1);
+    g.fillStyle = "#a8adb8"; g.fillRect(x - 4, y - 3, 8, 6);
+    g.fillStyle = "#3a5a8a"; g.fillRect(x - 16, y - 1.5, 10, 3); g.fillRect(x + 6, y - 1.5, 10, 3);
+    if (Math.sin(f * 50) > 0.92) { g.fillStyle = "rgba(255,255,255,0.9)"; g.fillRect(x - 1, y - 6, 2, 2); }
+  }
+  var WIN_EVENTS = {
+    street: [{ dur: 4.2, draw: _evCar }, { dur: 6.0, draw: _evFenceCat }],
+    city: [{ dur: 8.0, draw: _evPlane }, { dur: 0.9, draw: _evShootStar }],
+    woods: [{ dur: 3.4, draw: _evOwl }, { dur: 0.9, draw: _evShootStar }],
+    sea: [{ dur: 5.5, draw: _evGull }, { dur: 3.2, draw: _evShip }],
+    space: [{ dur: 0.8, draw: _evShootStar }, { dur: 11, draw: _evSat }],
+  };
+  var winEv = { next: 9 + Math.random() * 12, ev: null, t: 0, dir: 1, seed: 1 };
+  function winEvClear() { winEvT.image.getContext("2d").clearRect(0, 0, 768, 512); winEvT.needsUpdate = true; }
+  function winEvStart(i) { // (also the debug handle's way in)
+    var pool = WIN_EVENTS[curViewKey] || [];
+    if (!pool.length) { winEv.next = 20; return; }
+    winEv.ev = pool[i != null ? i % pool.length : (Math.random() * pool.length) | 0];
+    winEv.t = 0; winEv.dir = Math.random() < 0.5 ? -1 : 1; winEv.seed = (Math.random() * 1e6) | 0;
+  }
+  function winEvTick(dt2, fc) {
+    if (winEv.ev) {
+      winEv.t += dt2;
+      if (winEv.t >= winEv.ev.dur) { winEv.ev = null; winEvClear(); winEv.next = 14 + Math.random() * 26; }
+      else if ((fc % 3) === 0) { // 20fps is plenty for a passing car
+        var g = winEvT.image.getContext("2d");
+        g.clearRect(0, 0, 768, 512);
+        winEv.ev.draw(g, 768, 512, winEv.t / winEv.ev.dur, winEv);
+        winEvT.needsUpdate = true;
+      }
+    } else { winEv.next -= dt2; if (winEv.next <= 0) winEvStart(); }
   }
   var frameM = mat(0x2a2019, 0.8);
   [[2.35, 2.85, 1.64, 0.10], [2.35, 1.05, 1.64, 0.10]].forEach(function (b) { // top + bottom rails
@@ -5191,6 +5310,9 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
       winLayerT[wli].offset.x = WIN_OFF0 - camera.position.x * [0.10, 0.052, 0.02][wli];
       winLayerT[wli].offset.y = WIN_OFFY - (camera.position.y - 1.72) * [0.11, 0.06, 0.024][wli];
     }
+    winEvT.offset.x = WIN_OFF0 - camera.position.x * 0.03; // the life layer rides mid-depth
+    winEvT.offset.y = WIN_OFFY - (camera.position.y - 1.72) * 0.034;
+    winEvTick(dt, frameCount);
     // raycast every frame only while the pointer is live; coast otherwise
     if (decorMode) {
       var mc = dragging ? dragging.cfg : decorPickMovable();
@@ -5253,6 +5375,7 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
       relocate: catRelocate, settle: catSettle, pet: catPet,
       hurry: function () { catNextMove = 0; } },
     mixers: mixers, // animation mixers (the pane suspends rAF — tests drive these by hand)
+    winlife: { start: winEvStart, tick: winEvTick, state: winEv, clear: winEvClear, events: WIN_EVENTS },
     pets: { kind: function () { return petKind; }, set: setPet, group: function () { return petGroup(petKind); },
       labels: PET_LABEL, turtle: function () { return { g: turtleG, s: turtle }; },
       fish: function () { return { g: fishG, s: fish }; }, hamster: function () { return { g: hamG, s: ham }; },
