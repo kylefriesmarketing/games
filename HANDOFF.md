@@ -127,6 +127,13 @@ screen, light, season, tour, profile, audio, cat, posters, extras).
   don't nudge), waves, dances, gives the first-visit **tour**, speaks via
   `kidSay` (floating div). One-time **news whisper** for returning visitors
   (`room-news-1`).
+- **WELCOME GUIDE** — parchment card explaining which game style lives where
+  (books = stories you steer, chest = the RTS, duffel = the runner, desk/island =
+  Tony's, shoebox = treasures, DECORATE = the rest). Auto-opens once
+  (`room-welcome-seen`), forever after under the ❔ top-right. "show me" rows
+  ping the real spot via `pingAt`. It hands off to the kid's tour on close for
+  true newcomers (`tourWaiter` defers when `welcomeWillShow`). DOM overlays DO
+  screenshot in the pane even over WebGL — only the canvas itself doesn't.
 - **Storefront skeleton** — `GAME_KEYS` (all `free:true` today — NOTHING is locked
   for real visitors). `?store=demo` previews the locked experience: books wrapped
   as gifts, posters wrapped, key card modal (`KEY-<SKU>` redeems), notebook "key

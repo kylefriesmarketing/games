@@ -4325,7 +4325,136 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
     "body.listing #tour-skip,body.no3d #tour-skip,body.decorating #tour-skip{display:none}" +
     "#tour-skip:focus-visible{outline:2px solid #ff5aa8;outline-offset:3px}";
   document.head.appendChild(tourStyle);
+  /* ============================================================================
+   * WELCOME TO THE ROOM — the front page. The kid's tour walks the FLOOR; this
+   * explains the OFFER: which style of game lives in which corner (the books are
+   * stories you steer, the chest is the strategy game, the duffel is the runner…).
+   * Opens once for everyone, then lives under the ❔ button forever. Each row's
+   * "show me" closes the card and pings the real spot in the room.
+   * ========================================================================== */
+  var WELCOME_KEY = "room-welcome-seen";
+  var welcomeWillShow = false;
+  try { welcomeWillShow = !localStorage.getItem(WELCOME_KEY); } catch (e) { }
+  var welcomeStyle = document.createElement("style");
+  welcomeStyle.textContent =
+    "#wel-ov{position:fixed;inset:0;z-index:27;display:none;align-items:center;justify-content:center;" +
+    "background:rgba(5,7,10,.78)}" +
+    "#wel-ov.open{display:flex}" +
+    ".wel-card{width:min(460px,94vw);max-height:88vh;overflow:auto;background:#f2ead4;color:#2b2118;" +
+    "border:1px solid #b7a888;border-radius:10px;padding:22px 24px 18px;transform:rotate(-.4deg);" +
+    "box-shadow:0 30px 80px rgba(0,0,0,.65);font-family:Georgia,serif}" +
+    ".wel-kick{font-size:11px;letter-spacing:.22em;text-transform:uppercase;color:#8a6f4a;text-align:center}" +
+    ".wel-title{font-size:30px;font-weight:800;text-align:center;margin:2px 0 4px;letter-spacing:.04em}" +
+    ".wel-sub{font-style:italic;font-size:13.5px;text-align:center;color:#5a4632;margin-bottom:14px;line-height:1.45}" +
+    ".wel-row{display:flex;gap:10px;align-items:flex-start;margin-bottom:11px;font-size:13px;line-height:1.5}" +
+    ".wel-ic{font-size:20px;line-height:1.2;flex:none}" +
+    ".wel-row b{letter-spacing:.02em}" +
+    ".wel-row button{flex:none;align-self:center;font-family:'Inter',sans-serif;font-size:9px;letter-spacing:.1em;" +
+    "text-transform:uppercase;color:#5a4632;background:none;border:1px solid #b7a888;border-radius:6px;" +
+    "padding:6px 9px;cursor:pointer;white-space:nowrap}" +
+    ".wel-row button:hover{color:#2b2118;border-color:#5a4632}" +
+    ".wel-foot{font-size:12px;font-style:italic;color:#5a4632;border-top:1px solid #d8ccae;padding-top:10px;" +
+    "margin-top:4px;line-height:1.5}" +
+    "#wel-close{display:block;width:100%;margin-top:12px;font-family:'Inter',sans-serif;font-size:11px;" +
+    "letter-spacing:.14em;text-transform:uppercase;color:#f2ead4;background:#5a4632;border:none;" +
+    "border-radius:7px;padding:11px;cursor:pointer}" +
+    "#wel-close:hover{background:#6d5741}" +
+    ".wel-hint{font-size:10px;text-align:center;color:#8a6f4a;margin-top:8px}" +
+    "#wel-btn{position:fixed;top:22px;right:22px;z-index:6;font-family:'Inter',sans-serif;font-size:10px;" +
+    "letter-spacing:.14em;text-transform:uppercase;color:var(--dim);background:rgba(10,14,20,.66);" +
+    "border:1px solid var(--line);border-radius:6px;padding:9px 12px;cursor:pointer}" +
+    "#wel-btn:hover{color:var(--bone);border-color:var(--dim)}" +
+    "body.listing #wel-btn,body.no3d #wel-btn{display:none}" +
+    "#wel-btn:focus-visible,.wel-card button:focus-visible{outline:2px solid #ff5aa8;outline-offset:2px}";
+  document.head.appendChild(welcomeStyle);
+  document.body.insertAdjacentHTML("beforeend",
+    '<div id="wel-ov" role="dialog" aria-modal="true" aria-label="welcome to the room"><div class="wel-card">' +
+    '<div class="wel-kick">a guide to</div>' +
+    '<div class="wel-title">THE ROOM</div>' +
+    '<div class="wel-sub">every toy in here opens a game.<br>different corners, different kinds of night:</div>' +
+    '<div class="wel-row"><span class="wel-ic">📚</span><div><b>the bookshelf</b> — eleven story games. ' +
+    "books you read and <i>steer</i>: shipwrecks and mountains, a shop that remembers you, Sherlock, Wonderland, " +
+    'Dracula, the Odyssey, a prison camp, hell itself. every spine is its own night.</div>' +
+    '<button type="button" data-wel="shelf">show me</button></div>' +
+    '<div class="wel-row"><span class="wel-ic">🧸</span><div><b>the toy chest</b> — AGE OF TOYS, the big one. ' +
+    'a real strategy game: raise a toy army, wage the bedroom war, keep a campaign going for weeks.</div>' +
+    '<button type="button" data-wel="chest">show me</button></div>' +
+    '<div class="wel-row"><span class="wel-ic">💰</span><div><b>the getaway corner</b> — HOOD RUN, the arcade runner. ' +
+    'the duffel bag by the door. grab the take and go; it only ends when you do.</div>' +
+    '<button type="button" data-wel="bag">show me</button></div>' +
+    '<div class="wel-row"><span class="wel-ic">🖥️</span><div><b>the desk &amp; the island</b> — doorways to a ' +
+    "friend's games: the brain on the desk is BRAINROT, the toy island is TIDEBOUND.</div>" +
+    '<button type="button" data-wel="desk">show me</button></div>' +
+    '<div class="wel-row"><span class="wel-ic">👟</span><div><b>the shoebox</b> — every game leaves a treasure ' +
+    'behind when you play it. collect them, put them out on display; some unlock looks for the room itself.</div>' +
+    '<button type="button" data-wel="shoebox">show me</button></div>' +
+    '<div class="wel-row"><span class="wel-ic">🎨</span><div><b>and the room is yours</b> — hit DECORATE: ' +
+    'move the furniture, paint and wallpaper, hang the game posters, pick a pet, then save your room or ' +
+    'share it as a code.</div>' +
+    '<button type="button" data-wel="decor">show me</button></div>' +
+    '<div class="wel-foot">the notebook on the desk keeps your whole story — progress in every game, your ' +
+    'awards, your keys. and if you ever want the walking version, the kid gives tours.</div>' +
+    '<button id="wel-close" type="button">let me look around</button>' +
+    '<div class="wel-hint">this guide stays under the ❔ button, top right</div>' +
+    "</div></div>" +
+    '<button id="wel-btn" type="button" title="welcome — a guide to the room">❔ guide</button>');
+  var welcomeFirst = false;
+  function welPing(key) {
+    var mk = movableByKey;
+    if (key === "shelf") { pingAt(-0.2, 1.75, -2.3); pingAt(0.8, 1.15, -2.3); }
+    else if (key === "chest") pingAt(1.45, 0.62, -1.85);
+    else if (key === "bag") { var h = mk.hoodbag; pingAt(h ? h.root.position.x : -2.85, 0.4, h ? h.root.position.z : 1.75); }
+    else if (key === "desk") {
+      var d = mk.desk; pingAt(d ? d.root.position.x + 0.4 : -1.95, 1.05, d ? d.root.position.z : -0.8);
+      var isl = mk.island; if (isl && isl.root.visible) pingAt(isl.root.position.x, 0.5, isl.root.position.z);
+    }
+    else if (key === "shoebox") { var s = mk.shoebox; pingAt(s ? s.root.position.x : 0.72, 0.35, s ? s.root.position.z : 2.62); }
+    else if (key === "decor") {
+      var n = document.getElementById("decor-nudge");
+      document.body.classList.add("nudge-decor");
+      if (n) n.classList.add("show");
+      setTimeout(dismissNudge, 8000);
+    }
+  }
+  function welKey(e) { if (e.key === "Escape") { e.preventDefault(); closeWelcome(); } }
+  function openWelcome(first) {
+    welcomeFirst = !!first;
+    try { localStorage.setItem(WELCOME_KEY, "1"); } catch (e) { }
+    document.getElementById("wel-ov").classList.add("open");
+    document.addEventListener("keydown", welKey, true);
+    var c = document.getElementById("wel-close"); if (c) c.focus();
+  }
+  function closeWelcome() {
+    document.getElementById("wel-ov").classList.remove("open");
+    document.removeEventListener("keydown", welKey, true);
+    if (welcomeFirst) {
+      welcomeFirst = false;
+      if (tourEligible()) setTimeout(function () { startTour(); }, 1400); // the card hands off to the walking tour
+      else { try { kidSay("that's the lay of the land. start anywhere — the books don't bite. mostly.", 5.5); } catch (e) { } }
+    }
+  }
+  document.getElementById("wel-btn").addEventListener("click", function () { openWelcome(false); clickSfx(1400); });
+  document.getElementById("wel-close").addEventListener("click", function () { closeWelcome(); clickSfx(1300); });
+  document.getElementById("wel-ov").addEventListener("click", function (e) {
+    if (e.target && e.target.id === "wel-ov") closeWelcome(); // the dim backdrop closes it too
+    var b = e.target && e.target.closest ? e.target.closest("button[data-wel]") : null;
+    if (b) { closeWelcome(); welPing(b.getAttribute("data-wel")); clickSfx(1600); }
+  });
+  (function welcomeWaiter() { // the front page opens once, just after you step inside
+    if (!welcomeWillShow) return;
+    var iv = setInterval(function () {
+      var ec = document.getElementById("enter");
+      if (ec && !ec.classList.contains("gone")) return;
+      clearInterval(iv);
+      setTimeout(function () {
+        var seen = null; try { seen = localStorage.getItem(WELCOME_KEY); } catch (e) { }
+        if (!seen) openWelcome(true);
+      }, 2000);
+    }, 1200);
+  })();
+
   (function tourWaiter() {   // wait until they're actually inside the room
+    if (welcomeWillShow) return; // the welcome card starts the tour itself when it closes
     if (!tourEligible()) return;
     var iv = setInterval(function () {
       var ec = document.getElementById("enter");
