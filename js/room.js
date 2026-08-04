@@ -2210,8 +2210,10 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
     { x: -1.25, z: -1.65, act: "idle" },             // the shelf
     { x: -2.0, z: 1.52, act: "sit", seat: 4, y: 0.1, yaw: 0 }, // nestled in the beanbag, legs out the front toward the room
     { x: 2.12, z: 1.05, act: "bed", seat: 1 },       // the bedside → climb up and lie down (may enter the bed's circle)
-    { x: -2.42, z: 1.62, act: "fidget" }             // crouched over the duffel bag, counting it
+    { x: -2.42, z: 1.62, act: "fidget" },            // crouched over the duffel bag, counting it
+    { x: 2.25, z: -1.72, act: "window" }             // between the chest and the TV, watching the world go by
   ];
+  var KID_WINDOW = KID_STATIONS[KID_STATIONS.length - 1]; // the traffic outside can pull him over
   // side: where he stands; up: hoisted onto the mattress edge; lie: head on the pillow
   var KID_BED = { sideX: 2.12, sideZ: 1.05, upX: 2.62, upY: 0.42, x: 2.9, y: 0.04, z: 0.88 };
   // furniture he must walk AROUND, not through (circles in floor-plane; kid body ~0.18)
@@ -2289,9 +2291,12 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
   }
   var KID_DANCE = { x: 0.6, z: 1.62, act: "dance" }; // clear patch of rug (not on the army men), facing the room
   function kidPickStation() {
-    // when the boombox is going, he can't help himself — dance on the rug
+    // when the boombox is going, he can't help himself — dance on the rug.
+    // and when something's crossing the window, it sometimes catches his eye.
     var s = (AUDIO.isOn() && kidActions.dance && Math.random() < 0.45)
       ? KID_DANCE
+      : (typeof winEv === "object" && winEv && winEv.ev && Math.random() < 0.35)
+      ? KID_WINDOW
       : KID_STATIONS[(Math.random() * KID_STATIONS.length) | 0];
     kidState.station = s;
     kidState.ignoreObs = (s.seat == null) ? -1 : s.seat; // may sit on the beanbag
@@ -4968,12 +4973,18 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
         else if (kidState.station && kidState.station.act === "bed") { kidState.mode = "toBed"; }
         else {
           var act = (kidState.station && kidState.station.act) || "idle";
-          setKidAction(act, 0.35);
+          setKidAction(act === "window" ? "idle" : act, 0.35); // window-watching stands on the idle clip
           kidState.ignoreObs = -1;
           kidState.targetY = (kidState.station && kidState.station.y) || 0;
           kidState.glanceT = 2.5 + Math.random() * 4; // first look-at-you a beat after he settles
           kidState.mode = "act";
-          kidState.t = (act === "dance" ? 11 : act === "sit" ? 8 : 3.5) + Math.random() * 5;
+          kidState.t = (act === "dance" ? 11 : act === "sit" ? 8 : act === "window" ? 9 : 3.5) + Math.random() * 5;
+          if (act === "window" && Math.random() < 0.65) { // a thought for whatever's out there
+            var wline = { street: "still raining. good.", city: "somebody's always awake over there.",
+              woods: "the owl's out there somewhere.", sea: "the tide's thinking it over.",
+              space: "second star to the right. that one." }[curViewKey];
+            if (wline) { try { kidSay(wline, 4.5); } catch (ew) { } }
+          }
         }
       }
     } else if (kidState.mode === "act") { // sitting / idling / fidgeting / dancing where he stopped
@@ -4987,6 +4998,14 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
         if (kidState.glanceT <= 0) {
           kidFace(Math.atan2(camera.position.x - kid.position.x, camera.position.z - kid.position.z), 2.2);
           if (kidState.glanceT <= -2) kidState.glanceT = 4 + Math.random() * 4;
+        }
+      } else if (actNow === "window") { // face the glass; one quick "you seeing this?" look back
+        kidState.glanceT -= dt;
+        if (kidState.glanceT <= 0 && kidState.glanceT > -1.3)
+          kidFace(Math.atan2(camera.position.x - kid.position.x, camera.position.z - kid.position.z), 2.2);
+        else {
+          if (kidState.glanceT <= -1.3) kidState.glanceT = 6 + Math.random() * 6;
+          kidFace(Math.atan2(2.35 - kid.position.x, -2.53 - kid.position.z), 3);
         }
       }
       // if the boombox stops mid-dance, wander off
