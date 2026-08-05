@@ -255,7 +255,7 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
 
   /* ---- the room shell ---------------------------------------------------- */
   var floorM = texMat("assets/tex/carpet.jpg", 0x6b5a48, 0.98, 4, 3);
-  var floor = new THREE.Mesh(new THREE.PlaneGeometry(9, 7), floorM);
+  var floor = new THREE.Mesh(new THREE.PlaneGeometry(10.6, 7), floorM);
   floor.rotation.x = -Math.PI / 2; floor.receiveShadow = true; scene.add(floor);
   var rugCX = 0.1, rugCZ = 1.0; // the rug is movable — the war and the robot's patrol follow it
   var rug = new THREE.Mesh(new THREE.CircleGeometry(1.45, 48), texMat("assets/tex/rug.jpg", 0x27506b, 0.95, 1, 1));
@@ -263,12 +263,17 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
   clickable(rug, "the rug", null, "the rug — the whole galaxy, floor version");
   var wallM = texMat("assets/tex/wallpaper.jpg", 0x38404f, 0.95, 3.4, 1.3);
   var wallMSide = texMat("assets/tex/wallpaper.jpg", 0x38404f, 0.95, 2.6, 1.3);
-  var back = box(9, 3.4, 0.1, wallM); back.position.set(0, 1.7, -2.6); scene.add(back);
-  var left = box(0.1, 3.4, 7, wallMSide); left.position.set(-3.6, 1.7, 0); scene.add(left);
-  var right = box(0.1, 3.4, 7, wallMSide); right.position.set(3.6, 1.7, 0); scene.add(right);
-  var stripe = new THREE.Mesh(new THREE.PlaneGeometry(9, 0.28), mat(0x8a4d5e, 0.95)); // 90s wallpaper border
+  // ⚠️ WALL_X is the side walls' centre; their inner faces are at ±(WALL_X - 0.05).
+  // The room was 7.1m across and had filled up (Kyle: "starting to feel crowded"), so
+  // it was widened to 8.6m. Anything mounted on a side wall reads from WALL_X — door,
+  // switch, poster frames, garland, sticker bounds — so the next widening is one edit.
+  var WALL_X = 4.3, WALL_IN = WALL_X - 0.05;
+  var back = box(10.6, 3.4, 0.1, wallM); back.position.set(0, 1.7, -2.6); scene.add(back);
+  var left = box(0.1, 3.4, 7, wallMSide); left.position.set(-WALL_X, 1.7, 0); scene.add(left);
+  var right = box(0.1, 3.4, 7, wallMSide); right.position.set(WALL_X, 1.7, 0); scene.add(right);
+  var stripe = new THREE.Mesh(new THREE.PlaneGeometry(10.6, 0.28), mat(0x8a4d5e, 0.95)); // 90s wallpaper border
   stripe.position.set(0, 2.6, -2.54); scene.add(stripe);
-  var skirt = new THREE.Mesh(new THREE.PlaneGeometry(9, 0.14), mat(0x2a2019, 0.85));
+  var skirt = new THREE.Mesh(new THREE.PlaneGeometry(10.6, 0.14), mat(0x2a2019, 0.85));
   skirt.position.set(0, 0.07, -2.54); scene.add(skirt);
 
   /* ---- window: the street below, behind live rain streaks ------------------ */
@@ -1142,7 +1147,7 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
   note.position.set(-0.42, 0.83, 0.42); note.rotation.y = 0.3; desk.add(note);
   clickable(note, "the notebook", showNotebook, "the notebook — what you have finished");
 
-  desk.position.set(-2.35, 0, -0.8); desk.rotation.y = 1.05; scene.add(desk);
+  desk.position.set(-3.02, 0, -0.8); desk.rotation.y = 1.05; scene.add(desk);
 
   /* ---- THE TV: channel guide (list view) + VHS decor ------------------------ */
   var crt = new THREE.Group();
@@ -1157,7 +1162,7 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
   vhs.position.set(0.28, 0.465, 0.12); vhs.rotation.y = 0.25; crt.add(vhs);
   function toListView() { document.body.classList.add("listing"); }
   [tv, screen, vhs, stand].forEach(function (m) { clickable(m, "the channel guide", toListView, "the TV — every channel we have (list view)"); });
-  crt.position.set(3.0, 0, -1.35); crt.rotation.y = -0.7; scene.add(crt);
+  crt.position.set(3.62, 0, -1.35); crt.rotation.y = -0.7; scene.add(crt);
 
   /* ---- glow stars on the ceiling (pure 90s, breathing) ---------------------- */
   var stars = [];
@@ -1233,13 +1238,13 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
 
   /* ---- the door (left wall; the rest of the house is out there) --------------- */
   var doorM = mat(0x4a3524, 0.75);
-  var doorSlab = box(0.05, 2.05, 0.92, doorM); doorSlab.position.set(-3.56, 1.025, 2.1); scene.add(doorSlab);
+  var doorSlab = box(0.05, 2.05, 0.92, doorM); doorSlab.position.set(-WALL_X - 0.01, 1.025, 2.1); scene.add(doorSlab);
   [[2.09, 0.08, 1.06, 2.1], [1.02, 2.12, 0.08, 1.62], [1.02, 2.12, 0.08, 2.58]].forEach(function (j) {
-    var m = box(0.09, j[1], j[2], mat(0x2a2019, 0.8)); m.position.set(-3.53, j[0], j[3]); scene.add(m);
+    var m = box(0.09, j[1], j[2], mat(0x2a2019, 0.8)); m.position.set(-WALL_IN + 0.02, j[0], j[3]); scene.add(m);
   });
   var knob = new THREE.Mesh(new THREE.SphereGeometry(0.028, 12, 10),
     new THREE.MeshStandardMaterial({ color: 0xb08d3f, roughness: 0.3, metalness: 0.6 }));
-  knob.position.set(-3.52, 1.0, 1.78); scene.add(knob);
+  knob.position.set(-WALL_IN + 0.03, 1.0, 1.78); scene.add(knob);
   var spill = new THREE.Mesh(new THREE.PlaneGeometry(0.9, 0.09),
     new THREE.MeshBasicMaterial({ color: 0xffc98a, transparent: true, opacity: 0.32, blending: THREE.AdditiveBlending, depthWrite: false }));
   spill.rotation.x = -Math.PI / 2; spill.rotation.z = Math.PI / 2;
@@ -1390,7 +1395,7 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
     var pts = [];
     for (var w = 0; w <= 40; w++) {
       var f2 = w / 40;
-      pts.push(new THREE.Vector3(3.53, 2.46 - Math.sin(f2 * Math.PI) * 0.17 + 0.03,
+      pts.push(new THREE.Vector3(WALL_IN - 0.02, 2.46 - Math.sin(f2 * Math.PI) * 0.17 + 0.03,
         LIGHT_Z0 + f2 * (LIGHT_Z1 - LIGHT_Z0)));
     }
     var wire = new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts), 40, 0.006, 5, false),
@@ -1421,12 +1426,40 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
     }, "the boombox — a lofi tape and the rain");
   });
   // up on its own wall shelf over the bed head (right wall), angled into the room
-  var bShelf = box(0.75, 0.045, 0.28, woodM); bShelf.position.set(3.41, 1.35, 0.35); scene.add(bShelf);
+  var bShelf = box(0.75, 0.045, 0.28, woodM); bShelf.position.set(WALL_IN - 0.14, 1.35, 0.35); scene.add(bShelf);
   [0.12, 0.58].forEach(function (bz) {
     var bracket = box(0.035, 0.16, 0.2, mat(0x2a2019, 0.8));
-    bracket.position.set(3.5, 1.25, bz); scene.add(bracket);
+    bracket.position.set(WALL_IN - 0.05, 1.25, bz); scene.add(bracket);
   });
-  boom.position.set(3.41, 1.373, 0.35); boom.rotation.y = -Math.PI / 2 + 0.12; scene.add(boom);
+  boom.position.set(WALL_IN - 0.14, 1.373, 0.35); boom.rotation.y = -Math.PI / 2 + 0.12; scene.add(boom);
+
+  /* ---- FLOATING SHELVES: the wider walls earn their keep ----------------------
+   * The room filled up faster than it grew, so widening it came with somewhere to
+   * PUT things: four plank shelves with little brackets, two per side wall, above
+   * the furniture line. They're real surfaces — SURFACES picks them up, so any
+   * treasure from the shoebox can be dragged onto one. */
+  var wallShelves = [];
+  function wallShelf(side, y, z, len) {
+    var g = new THREE.Group();
+    var plank = box(0.26, 0.04, len, woodM);
+    plank.castShadow = plank.receiveShadow = true;
+    g.add(plank);
+    [-len * 0.34, len * 0.34].forEach(function (bz) {
+      var br = box(0.05, 0.14, 0.05, mat(0x2a2019, 0.8));
+      br.position.set(side * 0.06, -0.09, bz); g.add(br);
+    });
+    g.position.set(side * (WALL_IN - 0.13), y, z);
+    scene.add(g);
+    clickable(plank, "a shelf", null, "a shelf — put something on it");
+    wallShelves.push(plank);
+    return plank;
+  }
+  var shelfTops = [
+    wallShelf(-1, 1.62, -0.05, 0.9),  // left wall, over the desk
+    wallShelf(-1, 2.12, 0.95, 0.75),  // left wall, higher, toward the door
+    wallShelf(1, 1.88, -0.55, 0.8),   // right wall, past the speakers
+    wallShelf(1, 2.24, 1.15, 0.7),    // right wall, over the bed
+  ];
 
   /* ---- the entry: camera dolly in + the tape starts (click unlocked audio) ---- */
   var introT = -1, INTRO = 3.2, kidGreet = false; // kidGreet: wave hello once we're inside
@@ -1706,8 +1739,8 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
   applyPhase();
 
   /* ---- the light switch by the door: day / night / follow-the-clock ----------- */
-  var swPlate = box(0.03, 0.14, 0.09, mat(0xeae4d6, 0.6)); swPlate.position.set(-3.55, 1.32, 1.62); scene.add(swPlate);
-  var swNub = box(0.03, 0.05, 0.035, mat(0x3a3a3a, 0.4)); swNub.position.set(-3.53, 1.32, 1.62); scene.add(swNub);
+  var swPlate = box(0.03, 0.14, 0.09, mat(0xeae4d6, 0.6)); swPlate.position.set(-WALL_IN,  1.32, 1.62); scene.add(swPlate);
+  var swNub = box(0.03, 0.05, 0.035, mat(0x3a3a3a, 0.4)); swNub.position.set(-WALL_IN + 0.02, 1.32, 1.62); scene.add(swNub);
   // The room has four hours of the day built in; the switch used to reach only two.
   // lightMode is null (follow your clock) or a PHASES key. Old saves stored 1/2.
   var LIGHT_MODES = [null, "day", "dusk", "evening", "night"];
@@ -1776,7 +1809,7 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
     else { napUntil = now + 12; nextSnore = now + 1.8; clickSfx(800); }
   }
   var bed = new THREE.Group();
-  bed.position.set(2.92, 0, 1.1); bed.rotation.y = -0.05; scene.add(bed);
+  bed.position.set(3.58, 0, 1.1); bed.rotation.y = -0.05; scene.add(bed);
   var BED_LEN = 1.72, BED_YAW = 0; // long axis runs front-to-back (z); the chest moved off the wall so it can grow
   queueGLB("assets/props/bed.glb", function (g) {
     var root = g.scene;
@@ -1798,7 +1831,7 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
   function propDoor(name, hint, url) { // a generated prop that is also a doorway
     return function (wrap) { wrap.traverse(function (o) { if (o.isMesh) clickable(o, name, go(url), hint); }); };
   }
-  prop("assets/props/bean.glb", 0.62, -2.05, 0, 1.2, 0.95, function (wrap) {
+  prop("assets/props/bean.glb", 0.62, -2.62, 0, 1.2, 0.95, function (wrap) {
     propTip("the beanbag", "the beanbag — best seat in the house")(wrap);
     registerMovable({ key: "bean", label: "the beanbag", root: wrap, r: 0.42, rot: true, obs: 4, stations: [6] });
   });
@@ -1830,7 +1863,7 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
       if (o.isMesh) clickable(o, "rex", roarA ? rexRoar : null, "rex — he guards the toy chest" + (roarA ? " · poke him" : ""));
     });
   });
-  prop("assets/props/skate.glb", 0.78, -3.33, 0, 0.55, 1.45, function (wrap) {
+  prop("assets/props/skate.glb", 0.78, -4.03, 0, 0.55, 1.45, function (wrap) {
     wrap.rotateOnWorldAxis(new THREE.Vector3(0, 0, 1), 0.10); // top rests against the left wall (inner face x=-3.55)
     propTip("the skateboard", "the skateboard — one day, the driveway")(wrap);
   });
@@ -1843,7 +1876,7 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
     }
   });
   var CHAIR_YAW = 1.05 + Math.PI; // faces back toward the desk; tuned after render
-  prop("assets/props/chair.glb", 0.82, -1.86, 0, -0.32, CHAIR_YAW, function (wrap) {
+  prop("assets/props/chair.glb", 0.82, -2.5, 0, -0.32, CHAIR_YAW, function (wrap) {
     propTip("the chair", "the desk chair — worn in just right")(wrap);
     registerMovable({ key: "chair", label: "the desk chair", root: wrap, r: 0.34, rot: true, obs: 6 });
   });
@@ -1968,9 +2001,9 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
   var posterByKey = { none: POSTER_CYCLE[0] };
   POSTER_ART.forEach(function (p) { posterByKey[p.key] = p; });
   var POSTER_SPOTS = [ // wall inner faces are x=±3.55
-    { key: "p1", label: "the frame over the bed", x: 3.53, y: 2.08, z: 1.05, ry: -Math.PI / 2, rz: 0.02, def: "ageoftoys" },
-    { key: "p2", label: "the frame by the speakers", x: 3.53, y: 1.98, z: 0.05, ry: -Math.PI / 2, rz: -0.015, def: "south" },
-    { key: "p3", label: "the frame by the beanbag", x: -3.53, y: 1.82, z: 1.6, ry: Math.PI / 2, rz: 0.02, def: "curiouser" },
+    { key: "p1", label: "the frame over the bed", x: WALL_IN - 0.02, y: 2.08, z: 1.05, ry: -Math.PI / 2, rz: 0.02, def: "ageoftoys" },
+    { key: "p2", label: "the frame by the speakers", x: WALL_IN - 0.02, y: 1.98, z: 0.05, ry: -Math.PI / 2, rz: -0.015, def: "south" },
+    { key: "p3", label: "the frame by the beanbag", x: -WALL_IN + 0.02, y: 1.82, z: 1.6, ry: Math.PI / 2, rz: 0.02, def: "curiouser" },
   ];
   var posterState = loadJSON("room-posters") || {};
   var posterFrames = {}, posterTexCache = {};
@@ -2125,7 +2158,7 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
   var spoke = new THREE.Mesh(new THREE.BoxGeometry(0.008, 0.05, 0.02), mat(0xd9d9dd, 0.4));
   spoke.position.set(0.24, 0.12, 0.2); spoke.rotation.z = 0.6; safeG.add(spoke);
   safeG.position.set(-0.34, 0, -0.16); safeG.rotation.y = 0.45; hoodG.add(safeG);
-  hoodG.position.set(-2.85, 0, 1.75); hoodG.rotation.y = 0.35; scene.add(hoodG);
+  hoodG.position.set(-3.5, 0, 1.75); hoodG.rotation.y = 0.35; scene.add(hoodG);
   var hoodHint = !HOOD_RUN_URL ? "HOOD RUN — the take from City Trust · coming soon"
     : hrNow.played ? "HOOD RUN — " + Math.round(hrNow.best).toLocaleString() + " m best · go further"
     : "HOOD RUN — the Crosstown Dash · click to run";
@@ -2242,30 +2275,30 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
   // (ignored while approaching + during the sit); bed = the special climb-and-lie sequence.
   var KID_STATIONS = [
     { x: 1.4, z: -1.0, act: "fidget" },              // in front of the chest
-    { x: 2.3, z: -0.75, act: "idle" },               // the TV
+    { x: 2.85, z: -0.75, act: "idle" },              // the TV
     { x: 0.35, z: 1.35, act: "fidget" },             // the rug (the army men)
     { x: -1.1, z: 2.05, act: "fidget" },             // at the island's shore
-    { x: -1.35, z: 0.4, act: "idle" },               // the desk
+    { x: -2.0, z: 0.4, act: "idle" },                // the desk
     { x: -1.25, z: -1.65, act: "idle" },             // the shelf
-    { x: -2.0, z: 1.52, act: "sit", seat: 4, y: 0.1, yaw: 0 }, // nestled in the beanbag, legs out the front toward the room
-    { x: 2.12, z: 1.05, act: "bed", seat: 1 },       // the bedside → climb up and lie down (may enter the bed's circle)
-    { x: -2.42, z: 1.62, act: "fidget" },            // crouched over the duffel bag, counting it
-    { x: 2.25, z: -1.72, act: "window" }             // between the chest and the TV, watching the world go by
+    { x: -2.57, z: 1.52, act: "sit", seat: 4, y: 0.1, yaw: 0 }, // nestled in the beanbag, legs out the front toward the room
+    { x: 2.78, z: 1.05, act: "bed", seat: 1 },       // the bedside → climb up and lie down (may enter the bed's circle)
+    { x: -3.07, z: 1.62, act: "fidget" },            // crouched over the duffel bag, counting it
+    { x: 2.35, z: -1.9, act: "window" }             // between the chest and the TV, watching the world go by
   ];
   var KID_WINDOW = KID_STATIONS[KID_STATIONS.length - 1]; // the traffic outside can pull him over
   // side: where he stands; up: hoisted onto the mattress edge; lie: head on the pillow
-  var KID_BED = { sideX: 2.12, sideZ: 1.05, upX: 2.62, upY: 0.42, x: 2.9, y: 0.04, z: 0.88 };
+  var KID_BED = { sideX: 2.78, sideZ: 1.05, upX: 3.28, upY: 0.42, x: 3.56, y: 0.04, z: 0.88 };
   // furniture he must walk AROUND, not through (circles in floor-plane; kid body ~0.18)
   var KID_R = 0.18;
   var KID_OBSTACLES = [
     { x: 1.45, z: -1.85, r: 0.62 },  // the toy chest (left of the window, off the wall)
-    { x: 2.93, z: 1.0, r: 0.82 },    // the bed
-    { x: -2.35, z: -0.8, r: 0.82 },  // the desk
+    { x: 3.59, z: 1.0, r: 0.82 },   // the bed
+    { x: -3.02, z: -0.8, r: 0.82 }, // the desk
     { x: -1.9, z: 2.45, r: 0.5 },    // the island
-    { x: -2.05, z: 1.2, r: 0.42 },   // the beanbag
-    { x: 3.0, z: -1.35, r: 0.55 },   // the TV stand
-    { x: -1.86, z: -0.32, r: 0.34 }, // the desk chair
-    { x: -2.85, z: 1.75, r: 0.34 }   // the duffel bag + safe (index 7)
+    { x: -2.62, z: 1.2, r: 0.42 },  // the beanbag
+    { x: 3.62, z: -1.35, r: 0.55 }, // the TV stand
+    { x: -2.5, z: -0.32, r: 0.34 }, // the desk chair
+    { x: -3.5, z: 1.75, r: 0.34 }   // the duffel bag + safe (index 7)
   ];
   // One avoidance step toward (tx,tz): steer around obstacles, then hard-clamp out
   // of any we'd still penetrate. Returns remaining distance to the target.
@@ -2703,10 +2736,11 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
   var camRestZ = 4.9;
   function frameForAspect() {
     var a = window.innerWidth / window.innerHeight;
-    if (a < 0.65) { camera.fov = 74; camRestZ = 6.9; }
-    else if (a < 0.9) { camera.fov = 66; camRestZ = 5.9; }
-    else if (a < 1.25) { camera.fov = 60; camRestZ = 5.3; }
-    else { camera.fov = 55; camRestZ = 4.9; }
+    // a step further back than the old 7.1m room needed — the walls are 8.6m apart now
+    if (a < 0.65) { camera.fov = 74; camRestZ = 7.2; }
+    else if (a < 0.9) { camera.fov = 66; camRestZ = 6.2; }
+    else if (a < 1.25) { camera.fov = 60; camRestZ = 5.6; }
+    else { camera.fov = 55; camRestZ = 5.25; }
     camera.aspect = a; camera.updateProjectionMatrix();
   }
   frameForAspect();
@@ -3055,10 +3089,10 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
   } });
   registerMovable({ key: "bed", label: "the bed", root: bed, r: 0.82, obs: 1, stations: [7],
     shadowR: 0.62, shadowRZ: 1.02, onMove: function (x, z) {
-    var dx = x - 2.92, dz = z - 1.1; // the climb waypoints ride with the bed (translate only — the lie clip owns the yaw)
-    KID_BED.sideX = 2.12 + dx; KID_BED.sideZ = 1.05 + dz;
-    KID_BED.upX = 2.62 + dx;
-    KID_BED.x = 2.9 + dx; KID_BED.z = 0.88 + dz;
+    var dx = x - 3.58, dz = z - 1.1; // the climb waypoints ride with the bed (translate only — the lie clip owns the yaw)
+    KID_BED.sideX = 2.78 + dx; KID_BED.sideZ = 1.05 + dz;
+    KID_BED.upX = 3.28 + dx;
+    KID_BED.x = 3.56 + dx; KID_BED.z = 0.88 + dz;
   } });
   registerMovable({ key: "desk", label: "the desk", root: desk, r: 0.82, obs: 2, stations: [4],
     shadowR: 1.12, shadowRZ: 0.58, attachObjs: [lampLight, gLamp, gBrain] });
@@ -3350,7 +3384,8 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
       if (url.indexOf(k) >= 0) { try { localStorage.setItem("room-visited-" + VISIT_KEYS[k], "1"); } catch (e) { } }
     }
   }
-  var SURFACES = [floor, rug, dTop, caseTop, sill, stand, nsTop]; // flat tops a collectible can sit on
+  // flat tops a collectible can sit on — including the new floating wall shelves
+  var SURFACES = [floor, rug, dTop, caseTop, sill, stand, nsTop].concat(shelfTops);
   var shoeState = loadJSON("room-shoebox") || { placed: {}, seen: {} };
   if (!shoeState.placed) shoeState.placed = {};
   if (!shoeState.seen) shoeState.seen = {};
@@ -3453,8 +3488,8 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
   // world placement + facing for a hit on each wall (a hair off the surface, into the room)
   function wallPlace(wallName, x, y, z) {
     if (wallName === "back") return { x: clamp(x, -2.2, 2.2), y: clamp(y, 0.5, 3.0), z: -2.54, ry: 0 };
-    if (wallName === "left") return { x: -3.54, y: clamp(y, 0.5, 3.0), z: clamp(z, -2.2, 2.4), ry: Math.PI / 2 };
-    return { x: 3.54, y: clamp(y, 0.5, 3.0), z: clamp(z, -2.2, 2.2), ry: -Math.PI / 2 };
+    if (wallName === "left") return { x: -WALL_IN + 0.01, y: clamp(y, 0.5, 3.0), z: clamp(z, -2.2, 2.4), ry: Math.PI / 2 };
+    return { x: WALL_IN - 0.01, y: clamp(y, 0.5, 3.0), z: clamp(z, -2.2, 2.2), ry: -Math.PI / 2 };
   }
   function clamp(v, lo, hi) { return v < lo ? lo : v > hi ? hi : v; }
   function wallPoint() { // raycast the three walls; report which one and where
