@@ -274,6 +274,33 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
   // up hovering over the computer, which is exactly what happened when the room widened.
   var DESK_X = -3.02, DESK_Z = -0.8;
   var TV_X = 3.62, TV_Z = -1.35;
+
+  /* ---- the two game posters can be moved too -----------------------------------
+   * The BRAINROT and HOOD RUN posters were pinned to their walls in code, unlike the
+   * three swappable frames. They ride the same wall-drag path the frames use (a cfg
+   * on userData.__frame), but keep their own saved spot. Declared up here because the
+   * posters are built long before the decorator is. */
+  var wallPropState = loadJSON("room-wallprops") || {};
+  function wallPoster(group, key, label, defWall, defY, defOther, tilt) {
+    var def = { wall: defWall, y: defY, other: defOther, tilt: tilt || 0 };
+    function place(s) {
+      var p = wallPlace(s.wall, s.wall === "back" ? s.other : 0, s.y, s.wall === "back" ? 0 : s.other);
+      group.position.set(p.x, p.y, p.z);
+      group.rotation.y = p.ry; group.rotation.z = def.tilt;
+    }
+    var cfg = {
+      isFrame: true, root: group, label: label, rot: false, kind: "frame",
+      onWallMove: function (wp) {
+        var s = { wall: wp.wall, y: wp.place.y, other: wp.wall === "back" ? wp.place.x : wp.place.z };
+        wallPropState[key] = s; place(s);
+      },
+      persist: function () { saveJSON("room-wallprops", wallPropState); },
+      home: function () { delete wallPropState[key]; place(def); saveJSON("room-wallprops", wallPropState); },
+    };
+    group.traverse(function (o) { if (o.isMesh) o.userData.__frame = cfg; });
+    place(wallPropState[key] || def);
+    return cfg;
+  }
   var back = box(10.6, 3.4, 0.1, wallM); back.position.set(0, 1.7, -2.6); scene.add(back);
   var left = box(0.1, 3.4, 7, wallMSide); left.position.set(-WALL_X, 1.7, 0); scene.add(left);
   var right = box(0.1, 3.4, 7, wallMSide); right.position.set(WALL_X, 1.7, 0); scene.add(right);
@@ -1281,15 +1308,15 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
   });
 
   /* ---- soft bloom halos on the bright sources (billboards, additive) ---------- */
-  var gNeon = glow(0xff5aa8, -1.3, 2.86, -2.46, 2.7, 1.5, 0.5);  // the neon sign (recolorable)
+  var gNeon = glow(0xff5aa8, -1.3, 2.86, -2.46, 1.7, 0.95, 0.34);  // the neon sign (recolorable)
   scene.add(gNeon);
-  var gBrain = glow(0xff4d7d, 0, 1.0, 0, 0.85, 0.85, 0.5); // the Brainrot brain — placed below
+  var gBrain = glow(0xff4d7d, 0, 1.0, 0, 0.38, 0.38, 0.4); // the Brainrot brain — placed below
   scene.add(gBrain);
-  gLava = glow(0xff5a7d, 0.55, 0.86, -2.16, 0.7, 0.95, 0.55);    // the lava lamp
+  gLava = glow(0xff5a7d, 0.55, 0.86, -2.16, 0.42, 0.6, 0.42);    // the lava lamp
   scene.add(gLava);
-  gLamp = glow(0xffb14d, 0, 1.62, 0, 0.95, 0.95, 0.4);    // the desk lamp — placed below
+  gLamp = glow(0xffb14d, 0, 1.62, 0, 0.42, 0.42, 0.34);    // the desk lamp — placed below
   scene.add(gLamp);
-  var gCrt = glow(0x8fb8ff, 0, 0.82, 0, 0.9, 0.72, 0.4);   // the CRT screen — placed below
+  var gCrt = glow(0x8fb8ff, 0, 0.82, 0, 0.5, 0.4, 0.32);   // the CRT screen — placed below
   scene.add(gCrt);
 
   /* ---- the calendar has opinions ---------------------------------------------- */
@@ -1919,11 +1946,14 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
     texLoader.load("assets/tex/poster_brainrot.jpg", function (t) { t.anisotropy = 8; m.map = t; m.color.set(0xffffff); m.needsUpdate = true; });
     var art = new THREE.Mesh(new THREE.PlaneGeometry(0.52, 0.78), m);
     art.position.z = 0.012; g.add(art);
-    g.position.set(-3.53, 1.75, 0.35); g.rotation.y = Math.PI / 2; g.rotation.z = 0.02; // faces into the room off the left wall
+    // ⚠️ was hard-coded to the OLD left wall (-3.53) and ended up floating in mid-air
+    // when the room widened. Reads WALL_IN now, like everything else on a side wall.
+    g.position.set(-WALL_IN + 0.02, 1.75, 0.35); g.rotation.y = Math.PI / 2; g.rotation.z = 0.02;
     scene.add(g);
     [backing, art].forEach(function (mm) {
       clickable(mm, "BRAINROT", go("https://dumb-tony.github.io/GameRepos/brainrot/"), "BRAINROT: RISE OF THE MEME — click to play (Dumb Tony's)");
     });
+    wallPoster(g, "brainrot", "the BRAINROT poster", "left", 1.75, 0.35, 0.02);
   })();
   // HOOD RUN's poster takes the back-wall spot beside the shelf. Drawn, not photographed:
   // a night skyline, the last of the sun behind it, and somebody already running.
@@ -1984,6 +2014,7 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
       clickable(mm, "HOOD RUN", HOOD_RUN_URL ? go(HOOD_RUN_URL) : null,
         HOOD_RUN_URL ? "HOOD RUN — the Crosstown Dash · click to run" : "HOOD RUN — coming soon");
     });
+    wallPoster(g, "hood", "the HOOD RUN poster", "back", 1.9, -3.05, -0.02);
   })();
 
   /* ---- THE POSTER FRAMES: swappable prints, one per game (2026-07-27) ---------
@@ -2872,7 +2903,7 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
   function persistLayout() { saveJSON("room-layout", currentLayout()); }
   function persistFor(cfg) {
     if (cfg.isSticker) persistStickers();
-    else if (cfg.isFrame) saveJSON("room-posters", posterState);
+    else if (cfg.isFrame) { if (cfg.persist) cfg.persist(); else saveJSON("room-posters", posterState); }
     else if (cfg.kind === "coll") persistColl(cfg);
     else persistLayout();
   }
@@ -2940,7 +2971,7 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
     setPointer(e);
     var cfg = dragging.cfg;
     if (cfg.isSticker) { var wp = wallPoint(); if (wp) moveStickerTo(cfg.entry, wp); return; }
-    if (cfg.isFrame) { var fp = wallPoint(); if (fp) moveFrameTo(cfg.spot, fp); return; }
+    if (cfg.isFrame) { var fp = wallPoint(); if (fp) { if (cfg.onWallMove) cfg.onWallMove(fp); else moveFrameTo(cfg.spot, fp); } return; }
     var p = cfg.surface ? (surfacePoint() || floorPoint()) : floorPoint();
     if (!p) return;
     applyMove(cfg, p.x + dragging.ox, p.z + dragging.oz, cfg.root.rotation.y, cfg.surface ? p.y : null);
@@ -2994,9 +3025,9 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
     if (k === "Delete" || k === "Backspace") {
       e.preventDefault(); pushUndo();
       if (selCfg.isSticker) { removeSticker(selCfg.entry); decorSelect(null); }
-      else if (selCfg.isFrame) { // a frame goes back to its home spot
-        if (posterState._pos) delete posterState._pos[selCfg.spot.key];
-        framePlace(selCfg.spot); persistFor(selCfg);
+      else if (selCfg.isFrame) { // a frame (or a game poster) goes home
+        if (selCfg.home) selCfg.home();
+        else { if (posterState._pos) delete posterState._pos[selCfg.spot.key]; framePlace(selCfg.spot); persistFor(selCfg); }
       }
       else { applyMove(selCfg, selCfg.def.x, selCfg.def.z, selCfg.def.ry, selCfg.surface ? selCfg.def.y : null); persistFor(selCfg); }
       dwRender(); return true;
@@ -3009,6 +3040,17 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
   }
   function nudgeSelected(dx, dy) {
     if (!selCfg) return;
+    if (selCfg.isFrame && selCfg.onWallMove) { // a game poster nudges through its own mover
+      var pg = selCfg.root;
+      var pw = Math.abs(pg.position.z + 2.53) < 0.2 ? "back" : pg.position.x < 0 ? "left" : "right";
+      var py = clamp(pg.position.y - dy, 0.62, 2.85);
+      var po = pw === "back" ? clamp(pg.position.x + dx, -2.2, 2.2)
+                             : clamp(pg.position.z + (pw === "left" ? dx : -dx), -2.2, 2.2);
+      selCfg.onWallMove({ wall: pw, place: { x: pw === "back" ? po : pg.position.x, y: py,
+                                             z: pw === "back" ? pg.position.z : po } });
+      persistFor(selCfg);
+      return;
+    }
     if (selCfg.isFrame) { // arrows slide a frame along its wall
       var sk = selCfg.spot.key, g0 = selCfg.root;
       if (!posterState._pos) posterState._pos = {};
@@ -3507,7 +3549,7 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
   var WALL_MESHES = [back, left, right];
   // world placement + facing for a hit on each wall (a hair off the surface, into the room)
   function wallPlace(wallName, x, y, z) {
-    if (wallName === "back") return { x: clamp(x, -2.2, 2.2), y: clamp(y, 0.5, 3.0), z: -2.54, ry: 0 };
+    if (wallName === "back") return { x: clamp(x, -3.9, 3.9), y: clamp(y, 0.5, 3.0), z: -2.54, ry: 0 };
     if (wallName === "left") return { x: -WALL_IN + 0.01, y: clamp(y, 0.5, 3.0), z: clamp(z, -2.2, 2.4), ry: Math.PI / 2 };
     return { x: WALL_IN - 0.01, y: clamp(y, 0.5, 3.0), z: clamp(z, -2.2, 2.2), ry: -Math.PI / 2 };
   }
@@ -3997,8 +4039,9 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
     pushUndo();
     if (selCfg.isSticker) { removeSticker(selCfg.entry); decorSelect(null); dwRender(); clickSfx(900); return; }
     if (selCfg.isFrame) {
-      if (posterState._pos) delete posterState._pos[selCfg.spot.key];
-      framePlace(selCfg.spot); persistFor(selCfg); clickSfx(1100); return;
+      if (selCfg.home) selCfg.home();
+      else { if (posterState._pos) delete posterState._pos[selCfg.spot.key]; framePlace(selCfg.spot); persistFor(selCfg); }
+      clickSfx(1100); return;
     }
     applyMove(selCfg, selCfg.def.x, selCfg.def.z, selCfg.def.ry, selCfg.surface ? selCfg.def.y : null);
     persistFor(selCfg); clickSfx(1100);
