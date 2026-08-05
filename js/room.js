@@ -16,6 +16,7 @@ import { STICKER_DESIGNS } from "./stickers.js";
 import * as COLL from "./collectibles.js";
 import * as PROFILE from "./profile.js";
 import * as AUDIO from "./audio.js";
+import { createPost } from "./post.js";
 // the sound effects are called from all over the room; keep the short names
 var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchetSfx,
     snoreSfx = AUDIO.snoreSfx, knockSfx = AUDIO.knockSfx;
@@ -44,6 +45,23 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
   camera.position.set(0, 1.72, 4.9);
   var lookAt = new THREE.Vector3(0, 1.2, -0.4);
   camera.lookAt(lookAt);
+
+  /* ---- the lens: real bloom instead of faked halos --------------------------- */
+  var post = createPost(renderer, scene, camera);
+  try { // phones get it too, but it's the first thing to turn off if a room feels heavy
+    var _pw = localStorage.getItem("room-glow");
+    if (_pw === "0") post.enabled = false;
+  } catch (e) { }
+  function drawFrame() {
+    if (post.available && post.enabled) post.render();
+    else { renderer.setRenderTarget(null); renderer.render(scene, camera); }
+  }
+  function setGlow(on) {
+    if (!post.available) return;
+    post.enabled = !!on;
+    try { localStorage.setItem("room-glow", on ? "1" : "0"); } catch (e) { }
+    drawFrame();
+  }
 
   /* ---- helpers ---------------------------------------------------------- */
   var texLoader = new THREE.TextureLoader();
@@ -1627,10 +1645,10 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
   // it rains (streaks + audio), how the TV behaves, and how often the storm
   // flashes. ?hour=23 in the URL pins a phase for tinkering.
   var PHASES = {
-    day:     { amb: 0x4a5468, ambI: 1.3, shaft: 0.0,  moonC: 0xbcc8da, moonI: 0.8,  lift: 1.04, liftB: 1.0,  stars: 0.12, streaks: 36, rainG: 0.04,  test: false, fMin: 20, fRnd: 30, on: [13, 9], off: [2, 3] },
-    dusk:    { amb: 0x4a3c40, ambI: 1.15, shaft: 0.28, moonC: 0xe8935a, moonI: 0.55, lift: 1.0,  liftB: 0.96, stars: 0.3,  streaks: 44, rainG: 0.05,  test: false, fMin: 16, fRnd: 26, on: [9, 8],  off: [3, 4] },
-    evening: { amb: 0x2c3440, ambI: 1.0, shaft: 0.5,  moonC: 0x7d9cc4, moonI: 0.4,  lift: 0.96, liftB: 1.05, stars: 0.45, streaks: 44, rainG: 0.05,  test: false, fMin: 14, fRnd: 26, on: [9, 8],  off: [3, 4] },
-    night:   { amb: 0x1e2634, ambI: 0.85, shaft: 0.62, moonC: 0x8fb4e8, moonI: 0.52, lift: 0.88, liftB: 1.1,  stars: 0.78, streaks: 64, rainG: 0.085, test: true,  fMin: 8,  fRnd: 14, on: [7, 5],  off: [4, 5] },
+    day:     { amb: 0x4a5468, ambI: 1.3, shaft: 0.0,  moonC: 0xbcc8da, moonI: 0.8,  lift: 1.04, liftB: 1.0,  stars: 0.12, streaks: 36, rainG: 0.04,  grade: [1.0, 1.0, 1.01, 1.0],  test: false, fMin: 20, fRnd: 30, on: [13, 9], off: [2, 3] },
+    dusk:    { amb: 0x4a3c40, ambI: 1.15, shaft: 0.28, moonC: 0xe8935a, moonI: 0.55, lift: 1.0,  liftB: 0.96, stars: 0.3,  streaks: 44, rainG: 0.05,  grade: [1.03, 0.995, 0.97, 1.0],  test: false, fMin: 16, fRnd: 26, on: [9, 8],  off: [3, 4] },
+    evening: { amb: 0x2c3440, ambI: 1.0, shaft: 0.5,  moonC: 0x7d9cc4, moonI: 0.4,  lift: 0.96, liftB: 1.05, stars: 0.45, streaks: 44, rainG: 0.05,  grade: [1.0, 0.995, 1.03, 0.99],  test: false, fMin: 14, fRnd: 26, on: [9, 8],  off: [3, 4] },
+    night:   { amb: 0x1e2634, ambI: 0.85, shaft: 0.62, moonC: 0x8fb4e8, moonI: 0.52, lift: 0.88, liftB: 1.1,  stars: 0.78, streaks: 64, rainG: 0.085, grade: [0.97, 0.99, 1.06, 0.96], test: true,  fMin: 8,  fRnd: 14, on: [7, 5],  off: [4, 5] },
   };
   var HOUR_DEBUG = (function () {
     var m = /[?&]hour=(\d+)/.exec(location.search);
@@ -1655,6 +1673,8 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
     shaftG.visible = p.shaft > 0.001;
     winLift(p.lift, p.lift, p.lift * p.liftB);
     redrawWindow(); // the painted view follows the hour
+    // the lens takes the hour too: colder and dimmer as the night gets later
+    if (post.available && post.setGrade) post.setGrade(p.grade[0], p.grade[1], p.grade[2], p.grade[3]);
     AUDIO.setRain(curViewRain() ? p.rainG : 0);
   }
   function applyPhase() {
@@ -2674,6 +2694,7 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
   window.addEventListener("resize", function () {
     frameForAspect();
     renderer.setSize(window.innerWidth, window.innerHeight);
+    if (post && post.setSize) post.setSize();
   });
 
   /* ============================================================================
@@ -4007,6 +4028,8 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
       applyPaint(); dwRender(); clickSfx(1700);
       var nm = roomOwnerName();
       if (nm) { try { kidSay(nm + "'s room. it's official — it's on the wall.", 4.5); } catch (e3) { } }
+    } else if (act === "glow") {
+      setGlow(!post.enabled); dwRender(); clickSfx(post.enabled ? 1700 : 900);
     } else if (act === "wash") {
       pushUndo(); pbWash(); dwRender(); clickSfx(900);
     } else if (act === "seasontoggle") {
@@ -4394,6 +4417,11 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
         '</div><div class="n">' + (m ? LIGHT_LABEL[m] : "your clock") + "</div></button>";
     });
     html += "</div>";
+    if (post.available) {
+      html += '<div class="dw-sec">the lens</div>' +
+        '<button type="button" class="dw-wide" data-act="glow" aria-pressed="' + (post.enabled ? "true" : "false") + '">' +
+        (post.enabled ? "✨ the glow is on — turn it off" : "turn the glow back on") + "</button>";
+    }
     html += '<div class="dw-sec">out the window</div><div class="dw-grid">';
     for (var wvk in WINDOW_VIEWS) {
       var wvv = WINDOW_VIEWS[wvk], wvon = (WINDOW_VIEWS[paintState.view] ? paintState.view : "street") === wvk;
@@ -5358,12 +5386,12 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
       }
       decorTick(t, dt);
     }
-    renderer.render(scene, camera);
+    drawFrame();
   }
   // Bake world matrices + paint one frame immediately, so picking works even
   // before the animation loop has run (background tabs throttle rAF).
   scene.updateMatrixWorld(true);
-  renderer.render(scene, camera);
+  drawFrame();
   tick();
   window.__room = { scene: scene, camera: camera, renderer: renderer, pick: pick, ray: ray, THREE: THREE, // debug hook (THREE: modules hide the global)
     kid: kid, kidState: kidState, kidStep: kidStep, kidGoto: kidGoto, kidObstacles: KID_OBSTACLES, kidStations: KID_STATIONS,
@@ -5395,6 +5423,7 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
       hurry: function () { catNextMove = 0; } },
     mixers: mixers, // animation mixers (the pane suspends rAF — tests drive these by hand)
     winlife: { start: winEvStart, tick: winEvTick, state: winEv, clear: winEvClear, events: WIN_EVENTS },
+    post: post, draw: drawFrame, setGlow: setGlow, // tune live: __room.post.p.bloomStrength = … ; __room.draw()
     pets: { kind: function () { return petKind; }, set: setPet, group: function () { return petGroup(petKind); },
       labels: PET_LABEL, turtle: function () { return { g: turtleG, s: turtle }; },
       fish: function () { return { g: fishG, s: fish }; }, hamster: function () { return { g: hamG, s: ham }; },
