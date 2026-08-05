@@ -268,6 +268,12 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
   // it was widened to 8.6m. Anything mounted on a side wall reads from WALL_X — door,
   // switch, poster frames, garland, sticker bounds — so the next widening is one edit.
   var WALL_X = 4.3, WALL_IN = WALL_X - 0.05;
+  // ⚠️ Where the two wall-side pieces of furniture stand. Their point lights and glow
+  // halos are SCENE-level (so the decorator can carry them), which means those halos
+  // are authored as offsets from these — get them out of step and the lamp's glow ends
+  // up hovering over the computer, which is exactly what happened when the room widened.
+  var DESK_X = -3.02, DESK_Z = -0.8;
+  var TV_X = 3.62, TV_Z = -1.35;
   var back = box(10.6, 3.4, 0.1, wallM); back.position.set(0, 1.7, -2.6); scene.add(back);
   var left = box(0.1, 3.4, 7, wallMSide); left.position.set(-WALL_X, 1.7, 0); scene.add(left);
   var right = box(0.1, 3.4, 7, wallMSide); right.position.set(WALL_X, 1.7, 0); scene.add(right);
@@ -726,12 +732,12 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
   /* ---- lights ------------------------------------------------------------ */
   var amb = new THREE.AmbientLight(0x2c3440, 1.0); scene.add(amb);
   var moon = new THREE.DirectionalLight(0x7d9cc4, 0.4); moon.position.set(2.4, 3.5, 1.0); scene.add(moon);
-  var lampLight = new THREE.PointLight(0xffc27d, 1.5, 9, 1.5); lampLight.position.set(-2.4, 1.6, -0.2); lampLight.castShadow = true; scene.add(lampLight);
+  var lampLight = new THREE.PointLight(0xffc27d, 1.5, 9, 1.5); lampLight.position.set(DESK_X - 0.05, 1.6, DESK_Z + 0.6); lampLight.castShadow = true; scene.add(lampLight);
   // a point light shadows through a cube map — 6 faces, so phones keep the cheap one
   lampLight.shadow.mapSize.set(coarse ? 512 : 1024, coarse ? 512 : 1024);
   lampLight.shadow.bias = -0.004;   // kills the acne the default 0 leaves on the desk
   lampLight.shadow.radius = 2.5;
-  var crtLight = new THREE.PointLight(0x7db4ff, 0.7, 4, 2); crtLight.position.set(2.3, 1.0, -1.4); scene.add(crtLight);
+  var crtLight = new THREE.PointLight(0x7db4ff, 0.7, 4, 2); crtLight.position.set(TV_X - 0.7, 1.0, TV_Z - 0.05); scene.add(crtLight);
   var shelfGlow = new THREE.PointLight(0xffd9a0, 0.55, 5, 2); shelfGlow.position.set(-1.3, 1.8, -1.4); scene.add(shelfGlow);
   // Flat ambient lights every face identically, which is why unlit corners went dead.
   // A hemisphere carries part of that load instead: cool from the ceiling, warm bounced
@@ -1147,7 +1153,7 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
   note.position.set(-0.42, 0.83, 0.42); note.rotation.y = 0.3; desk.add(note);
   clickable(note, "the notebook", showNotebook, "the notebook — what you have finished");
 
-  desk.position.set(-3.02, 0, -0.8); desk.rotation.y = 1.05; scene.add(desk);
+  desk.position.set(DESK_X, 0, DESK_Z); desk.rotation.y = 1.05; scene.add(desk);
 
   /* ---- THE TV: channel guide (list view) + VHS decor ------------------------ */
   var crt = new THREE.Group();
@@ -1162,7 +1168,7 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
   vhs.position.set(0.28, 0.465, 0.12); vhs.rotation.y = 0.25; crt.add(vhs);
   function toListView() { document.body.classList.add("listing"); }
   [tv, screen, vhs, stand].forEach(function (m) { clickable(m, "the channel guide", toListView, "the TV — every channel we have (list view)"); });
-  crt.position.set(3.62, 0, -1.35); crt.rotation.y = -0.7; scene.add(crt);
+  crt.position.set(TV_X, 0, TV_Z); crt.rotation.y = -0.7; scene.add(crt);
 
   /* ---- glow stars on the ceiling (pure 90s, breathing) ---------------------- */
   var stars = [];
@@ -1277,13 +1283,13 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
   /* ---- soft bloom halos on the bright sources (billboards, additive) ---------- */
   var gNeon = glow(0xff5aa8, -1.3, 2.86, -2.46, 2.7, 1.5, 0.5);  // the neon sign (recolorable)
   scene.add(gNeon);
-  var gBrain = glow(0xff4d7d, -2.52, 1.0, -0.38, 0.85, 0.85, 0.5); // the Brainrot brain (follows the desk)
+  var gBrain = glow(0xff4d7d, 0, 1.0, 0, 0.85, 0.85, 0.5); // the Brainrot brain — placed below
   scene.add(gBrain);
   gLava = glow(0xff5a7d, 0.55, 0.86, -2.16, 0.7, 0.95, 0.55);    // the lava lamp
   scene.add(gLava);
-  gLamp = glow(0xffb14d, -2.4, 1.62, -0.18, 0.95, 0.95, 0.4);    // the desk lamp
+  gLamp = glow(0xffb14d, 0, 1.62, 0, 0.95, 0.95, 0.4);    // the desk lamp — placed below
   scene.add(gLamp);
-  var gCrt = glow(0x8fb8ff, 2.7, 0.82, -0.98, 0.9, 0.72, 0.4);   // the CRT screen (follows the TV)
+  var gCrt = glow(0x8fb8ff, 0, 0.82, 0, 0.9, 0.72, 0.4);   // the CRT screen — placed below
   scene.add(gCrt);
 
   /* ---- the calendar has opinions ---------------------------------------------- */
@@ -1384,9 +1390,9 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
     var by = 2.46 - sag;
     var bulb = new THREE.Mesh(new THREE.SphereGeometry(0.026, 10, 8),
       new THREE.MeshBasicMaterial({ color: bulbCols[li % 5], transparent: true, opacity: 0.9 }));
-    bulb.position.set(3.5, by, bz);
+    bulb.position.set(WALL_IN - 0.25, by, bz);
     bulb.userData.phase = li * 0.7;
-    var bglow = glow(bulbCols[li % 5], 3.47, by, bz, 0.16, 0.16, 0.5);
+    var bglow = glow(bulbCols[li % 5], WALL_IN - 0.28, by, bz, 0.16, 0.16, 0.5);
     bulb.userData.glow = bglow; scene.add(bglow); // little halo so each bulb reads as lit
     scene.add(bulb); bulbs.push(bulb);
   }
@@ -1867,7 +1873,7 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
     wrap.rotateOnWorldAxis(new THREE.Vector3(0, 0, 1), 0.10); // top rests against the left wall (inner face x=-3.55)
     propTip("the skateboard", "the skateboard — one day, the driveway")(wrap);
   });
-  prop("assets/props/globe.glb", 0.36, -2.26, 0.815, -0.75, -0.3, function (wrap) { // desk-local (0, 0.10) — verified on the rotated slab
+  prop("assets/props/globe.glb", 0.36, DESK_X + 0.09, 0.815, DESK_Z + 0.05, -0.3, function (wrap) { // desk-local (0, 0.10) — verified on the rotated slab
     propTip("the globe", "the globe — somewhere better, probably")(wrap);
     var dcfg = movableByKey.desk; // the globe rides the desk if the desk has been moved
     if (dcfg) {
@@ -2293,10 +2299,10 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
   var KID_OBSTACLES = [
     { x: 1.45, z: -1.85, r: 0.62 },  // the toy chest (left of the window, off the wall)
     { x: 3.59, z: 1.0, r: 0.82 },   // the bed
-    { x: -3.02, z: -0.8, r: 0.82 }, // the desk
+    { x: DESK_X, z: DESK_Z, r: 0.82 }, // the desk
     { x: -1.9, z: 2.45, r: 0.5 },    // the island
     { x: -2.62, z: 1.2, r: 0.42 },  // the beanbag
-    { x: 3.62, z: -1.35, r: 0.55 }, // the TV stand
+    { x: TV_X, z: TV_Z, r: 0.55 },  // the TV stand
     { x: -2.5, z: -0.32, r: 0.34 }, // the desk chair
     { x: -3.5, z: 1.75, r: 0.34 }   // the duffel bag + safe (index 7)
   ];
@@ -3094,6 +3100,20 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
     KID_BED.upX = 3.28 + dx;
     KID_BED.x = 3.56 + dx; KID_BED.z = 0.88 + dz;
   } });
+  /* ⚠️ Pin each halo to the thing it belongs to, from the REAL world position of that
+   * mesh. Hand-authored halo coordinates were 0.6m out — the desk is rotated 1.05 rad
+   * and the numbers had been written as if it were square to the room, so the lamp's
+   * glow sat over the computer and the brain's sat under it (Kyle's report). Deriving
+   * them means a rotation or a move can never desync them again. This must run BEFORE
+   * registerMovable, which snapshots the offsets it will carry when you drag. */
+  (function anchorHalos() {
+    scene.updateMatrixWorld(true);
+    var v = new THREE.Vector3();
+    shade.getWorldPosition(v);   gLamp.position.set(v.x, v.y + 0.04, v.z);
+    lampLight.position.set(v.x, v.y - 0.06, v.z); // the bulb is under the shade, not beside the desk
+    brainG.getWorldPosition(v);  gBrain.position.set(v.x, v.y + 0.98, v.z); // brainG's origin is the desktop
+    screen.getWorldPosition(v);  gCrt.position.set(v.x, v.y, v.z);
+  })();
   registerMovable({ key: "desk", label: "the desk", root: desk, r: 0.82, obs: 2, stations: [4],
     shadowR: 1.12, shadowRZ: 0.58, attachObjs: [lampLight, gLamp, gBrain] });
   registerMovable({ key: "tv", label: "the TV", root: crt, r: 0.55, rot: true, obs: 5, stations: [1],
