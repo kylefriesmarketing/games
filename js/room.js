@@ -1560,18 +1560,37 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
     AUDIO.followVisibility(document.hidden);
   });
 
-  /* ---- DUST MOTES in the lamplight ------------------------------------------- */
-  var moteGeo = new THREE.BufferGeometry(), moteN = 60, motePos = new Float32Array(moteN * 3);
+  /* ---- DUST MOTES: the whole room's air, lit by whatever they drift through -----
+   * They used to be 60 specks parked in the desk corner at one flat brightness. Now
+   * they fill the room and each one is coloured every frame by the lights it happens
+   * to be near — so a mote is invisible in the dark, warms up crossing the lamp,
+   * turns pink through the lava lamp's glow, blue in front of the TV. With the bloom
+   * pass they flare as they pass, which is the whole trick. */
+  var moteGeo = new THREE.BufferGeometry(), moteN = 150;
+  var motePos = new Float32Array(moteN * 3), moteCol = new Float32Array(moteN * 3);
+  var moteDrift = new Float32Array(moteN); // each speck falls at its own lazy rate
   for (var mi = 0; mi < moteN; mi++) {
-    motePos[mi * 3] = -2.6 + Math.random() * 1.6;
-    motePos[mi * 3 + 1] = 0.8 + Math.random() * 1.2;
-    motePos[mi * 3 + 2] = -1.4 + Math.random() * 1.6;
+    motePos[mi * 3] = -3.2 + Math.random() * 6.4;
+    motePos[mi * 3 + 1] = 0.25 + Math.random() * 2.5;
+    motePos[mi * 3 + 2] = -2.3 + Math.random() * 4.6;
+    moteCol[mi * 3] = moteCol[mi * 3 + 1] = moteCol[mi * 3 + 2] = 0;
+    moteDrift[mi] = 0.6 + Math.random() * 0.9;
   }
   moteGeo.setAttribute("position", new THREE.BufferAttribute(motePos, 3));
-  // additive so they catch the desk lamp and read as dust in the light, not grey specks
-  var motes = new THREE.Points(moteGeo, new THREE.PointsMaterial({ color: 0xffd9a0, size: 0.016,
-    transparent: true, opacity: 0.5, depthWrite: false, blending: THREE.AdditiveBlending }));
+  moteGeo.setAttribute("color", new THREE.BufferAttribute(moteCol, 3));
+  // additive + per-vertex colour: the room lights them, nothing else
+  var motes = new THREE.Points(moteGeo, new THREE.PointsMaterial({ size: 0.018, vertexColors: true,
+    transparent: true, opacity: 0.85, depthWrite: false, blending: THREE.AdditiveBlending,
+    sizeAttenuation: true }));
   scene.add(motes);
+  // what can light a speck. `o` reads a live light (it moves with its furniture).
+  var MOTE_LIGHTS = [
+    { o: lampLight, c: [1.0, 0.80, 0.52], fall: 3.2, gain: 0.95 },   // the desk lamp
+    { o: crtLight, c: [0.52, 0.72, 1.0], fall: 3.6, gain: 0.75 },    // the TV
+    { p: [0.55, 0.86, -2.16], c: [1.0, 0.42, 0.58], fall: 6.0, gain: 0.8 },  // the lava lamp
+    { p: [-1.3, 2.42, -2.45], c: [1.0, 0.45, 0.75], fall: 5.0, gain: 0.55 }, // the neon sign
+    { p: [2.35, 1.95, -2.45], c: [0.72, 0.82, 1.0], fall: 2.2, gain: 0.5 },  // the window
+  ];
 
   /* ---- the streetlight leans in through the window ------------------------------
    * A soft wedge of light on the floor under the window. Not a real volumetric — a
@@ -5308,14 +5327,34 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
       shootStar.material.opacity = Math.sin(shootT * Math.PI);
       if (shootT >= 1) { shootT = -1; shootStar.material.opacity = 0; }
     }
-    var mp = motes.geometry.attributes.position;
+    var mp = motes.geometry.attributes.position, mc = motes.geometry.attributes.color;
+    var moteLit = (frameCount % 2) === 0; // relight every other frame — nobody can tell
     for (var mo = 0; mo < moteN; mo++) {
-      var y = mp.getY(mo) + dt * 0.03 * (0.5 + Math.sin(mo));
-      if (y > 2.1) y = 0.8;
-      mp.setY(mo, y);
-      mp.setX(mo, mp.getX(mo) + dt * 0.01 * Math.sin(t * 0.4 + mo));
+      var my = mp.getY(mo) + dt * 0.022 * moteDrift[mo];
+      if (my > 2.85) { // back to the floor, somewhere else in the room
+        my = 0.2;
+        mp.setX(mo, -3.2 + Math.random() * 6.4);
+        mp.setZ(mo, -2.3 + Math.random() * 4.6);
+      }
+      mp.setY(mo, my);
+      var mx = mp.getX(mo) + dt * 0.012 * Math.sin(t * 0.35 + mo);
+      mp.setX(mo, mx);
+      if (!moteLit) continue;
+      // colour this speck by whatever light it's drifting through
+      var mz = mp.getZ(mo), lr = 0, lg = 0, lb = 0;
+      for (var ml = 0; ml < MOTE_LIGHTS.length; ml++) {
+        var src = MOTE_LIGHTS[ml], sp = src.o ? src.o.position : src.p;
+        var sx = src.o ? sp.x : sp[0], sy = src.o ? sp.y : sp[1], sz = src.o ? sp.z : sp[2];
+        var ddx = mx - sx, ddy = my - sy, ddz = mz - sz;
+        var k = src.gain / (1 + (ddx * ddx + ddy * ddy + ddz * ddz) * src.fall);
+        if (src.o) k *= Math.min(1.4, src.o.intensity); // a dimmed lamp lights less dust
+        lr += src.c[0] * k; lg += src.c[1] * k; lb += src.c[2] * k;
+      }
+      var mdim = dim * 0.9 + 0.1;
+      mc.setXYZ(mo, Math.min(1.3, lr) * mdim, Math.min(1.3, lg) * mdim, Math.min(1.3, lb) * mdim);
     }
     mp.needsUpdate = true;
+    if (moteLit) mc.needsUpdate = true;
     if (seaPoints.visible) { // the season falls: down + a lazy sway, recycled at the ceiling
       var look = SEASON_LOOKS[seasonFX], sp = seaGeo.attributes.position;
       for (var se = 0; se < seaN; se++) {
