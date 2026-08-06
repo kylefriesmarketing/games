@@ -2329,7 +2329,7 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
     { x: -1.25, z: -1.65, act: "idle" },             // the shelf
     { x: -2.57, z: 1.52, act: "sit", seat: 4, y: 0.1, yaw: 0 }, // nestled in the beanbag, legs out the front toward the room
     { x: 2.78, z: 1.05, act: "bed", seat: 1 },       // the bedside → climb up and lie down (may enter the bed's circle)
-    { x: -3.07, z: 1.62, act: "fidget" },            // crouched over the duffel bag, counting it
+    { x: -3.07, z: 1.62, act: "fidget", over: 7 },  // crouched over the duffel — allowed inside its circle            // crouched over the duffel bag, counting it
     { x: 2.35, z: -1.9, act: "window" }             // between the chest and the TV, watching the world go by
   ];
   var KID_WINDOW = KID_STATIONS[KID_STATIONS.length - 1]; // the traffic outside can pull him over
@@ -3867,7 +3867,7 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
   // screens get a bottom sheet.
   var decorStyle = document.createElement("style");
   decorStyle.textContent =
-    "#decor-btn{position:fixed;top:64px;right:22px;z-index:6;font-family:'Inter',sans-serif;font-size:10px;" +
+    "#decor-btn{position:fixed;top:106px;right:22px;z-index:6;font-family:'Inter',sans-serif;font-size:10px;" +
     "letter-spacing:.16em;text-transform:uppercase;color:var(--dim);background:rgba(10,14,20,.6);" +
     "border:1px solid var(--line);border-radius:6px;padding:8px 12px;cursor:pointer}" +
     "#decor-btn:hover{color:var(--bone);border-color:var(--dim)}" +
@@ -3939,7 +3939,7 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
     "background:none;border:1px solid var(--line);border-radius:6px;padding:7px 2px;cursor:pointer}" +
     "#dw-actions button:hover:not(:disabled){color:var(--bone);border-color:var(--dim)}" +
     "#dw-actions button:disabled{opacity:.35;cursor:default}" +
-    "#decor-nudge{position:fixed;top:100px;right:22px;z-index:7;font-family:'Inter',sans-serif;font-size:12px;" +
+    "#decor-nudge{position:fixed;top:142px;right:22px;z-index:7;font-family:'Inter',sans-serif;font-size:12px;" +
     "font-weight:600;color:#0a0c12;background:#ffd9a0;border-radius:8px;padding:8px 12px;max-width:180px;" +
     "box-shadow:0 6px 20px rgba(0,0,0,.4);opacity:0;transition:opacity .5s;pointer-events:none}" +
     "#decor-nudge.show{opacity:1}" +
@@ -4958,7 +4958,7 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
     "border-radius:7px;padding:11px;cursor:pointer}" +
     "#wel-close:hover{background:#6d5741}" +
     ".wel-hint{font-size:10px;text-align:center;color:#8a6f4a;margin-top:8px}" +
-    "#wel-btn{position:fixed;top:22px;right:22px;z-index:6;font-family:'Inter',sans-serif;font-size:10px;" +
+    "#wel-btn{position:fixed;top:64px;right:22px;z-index:6;font-family:'Inter',sans-serif;font-size:10px;" +
     "letter-spacing:.14em;text-transform:uppercase;color:var(--dim);background:rgba(10,14,20,.66);" +
     "border:1px solid var(--line);border-radius:6px;padding:9px 12px;cursor:pointer}" +
     "#wel-btn:hover{color:var(--bone);border-color:var(--dim)}" +
@@ -5540,7 +5540,90 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
   scene.updateMatrixWorld(true);
   drawFrame();
   tick();
-  window.__room = { scene: scene, camera: camera, renderer: renderer, pick: pick, ray: ray, THREE: THREE, // debug hook (THREE: modules hide the global)
+  /* ============================================================================
+   * ROOM AUDIT — run `__room.audit()` in the console.
+   *
+   * Widening the room from 7.1m to 8.6m broke six separate things, and every one
+   * was found by eye, one report at a time: a poster left floating in mid-air, the
+   * door sunk into the wall, the light under it stranded on the carpet, halos
+   * hovering over the wrong furniture, a shelf through a poster, the window shaft
+   * pointing backwards. They were all the SAME bug — a coordinate written against
+   * the old geometry — so this checks the whole class in one call. Run it after
+   * moving anything structural. Empty findings array = the room is sane.
+   *
+   * ⚠️ Wall mounts derive from WALL_IN (the wall's FACE). Deriving from WALL_X
+   * (its centre) is what buried the door.
+   * ========================================================================== */
+  function audit() {
+    scene.updateMatrixWorld(true);
+    var F = [], V = THREE.Vector3;
+    var bb = function (o) { var b = new THREE.Box3().setFromObject(o); return isFinite(b.min.x) ? b : null; };
+    function say(sev, what, detail) { F.push({ severity: sev, what: what, detail: detail }); }
+
+    // 1. nothing a player can click may sit past a wall or under the floor.
+    // ⚠️ dedupe by MESH, not by name — the desk brain and the poster are both
+    // called "BRAINROT", and skipping by name hid a poster shoved through a wall.
+    var seen = {}, told = {};
+    pick.forEach(function (m) {
+      var n = m.userData.name; if (!n) return;
+      seen[n] = 1;
+      var p = m; while (p) { if (!p.visible) return; p = p.parent; }
+      var b = bb(m); if (!b) return;
+      var c = b.getCenter(new V());
+      function once(why, detail) { var k = n + why; if (told[k]) return; told[k] = 1; say("error", n, detail); }
+      if (Math.abs(c.x) > WALL_IN + 0.12) once("wall", "is past the wall at x " + c.x.toFixed(2));
+      if (c.z < -2.7 || c.z > 3.6) once("room", "is outside the room at z " + c.z.toFixed(2));
+      if (b.max.y < 0.005) once("floor", "is under the floor");
+    });
+
+    // 2. things mounted on the walls must not intersect each other
+    var mounted = [];
+    function mount(n, o) { if (o && mounted.every(function (x) { return x.o !== o; })) mounted.push({ n: n, o: o }); }
+    scene.traverse(function (o) {
+      var f = o.userData && o.userData.__frame;
+      if (f && f.root) mount(f.label || "a frame", f.root);
+      if (o.userData && o.userData.name === "a shelf") mount("a shelf", o.parent);
+    });
+    POSTER_SPOTS.forEach(function (s) { if (posterFrames[s.key].g.visible) mount("frame " + s.key, posterFrames[s.key].g); });
+    for (var i = 0; i < mounted.length; i++) for (var j = i + 1; j < mounted.length; j++) {
+      var a = bb(mounted[i].o), b2 = bb(mounted[j].o);
+      if (!a || !b2) continue;
+      if (!(a.max.x < b2.min.x || a.min.x > b2.max.x || a.max.y < b2.min.y ||
+            a.min.y > b2.max.y || a.max.z < b2.min.z || a.min.z > b2.max.z))
+        say("error", mounted[i].n, "overlaps " + mounted[j].n);
+    }
+
+    // 3. each halo belongs ON its light source. Compare HORIZONTALLY only: several
+    // halos ride deliberately high (the brain's sits ~1m above its group origin),
+    // so a plain 3D distance flags correct placements as broken.
+    [[gLamp, shade, "the lamp halo"], [gBrain, brainG, "the brain halo"],
+     [gCrt, screen, "the TV halo"]].forEach(function (pair) {
+      if (!pair[0] || !pair[1]) return;
+      var a = pair[0].getWorldPosition(new V()), b3 = pair[1].getWorldPosition(new V());
+      var d = Math.hypot(a.x - b3.x, a.z - b3.z);
+      if (d > 0.15) say("error", pair[2], "is " + d.toFixed(2) + "m from its source");
+    });
+
+    // 4. the window light must arrive FROM the glass and fall INTO the room
+    var top = new V(0, 1.55, 0).applyEuler(shaftG.rotation).add(shaftG.position);
+    var bot = new V(0, -1.55, 0).applyEuler(shaftG.rotation).add(shaftG.position);
+    if (Math.abs(top.z - (-2.53)) > 0.5) say("error", "the window shaft", "starts at z " + top.z.toFixed(2) + ", not the glass");
+    if (bot.z <= top.z) say("error", "the window shaft", "is inverted — it fades toward the window");
+
+    // 5. the kid must be able to stand at every station he picks
+    KID_STATIONS.forEach(function (s, si) {
+      KID_OBSTACLES.forEach(function (ob, oi) {
+        if (ob.r <= 0 || oi === s.seat || oi === s.over) return; // a seat/over station may enter its own furniture
+        var dx = s.x - ob.x, dz = s.z - ob.z;
+        if (Math.sqrt(dx * dx + dz * dz) < ob.r + KID_R)
+          say("warn", "kid station " + si + " (" + s.act + ")", "sits inside obstacle " + oi);
+      });
+    });
+    return { findings: F, checked: seen, ok: F.filter(function (f) { return f.severity === "error"; }).length === 0 };
+  }
+
+  window.__room = { audit: audit, // one call to prove the room is still geometrically sane
+    scene: scene, camera: camera, renderer: renderer, pick: pick, ray: ray, THREE: THREE, // debug hook (THREE: modules hide the global)
     kid: kid, kidState: kidState, kidStep: kidStep, kidGoto: kidGoto, kidObstacles: KID_OBSTACLES, kidStations: KID_STATIONS,
     kidActions: function () { return kidActions; }, setKidAction: setKidAction, kidMixer: function () { return kidMixer; },
     kidSay: kidSay, kidGreetLine: kidGreetLine, kidFetchLine: kidFetchLine, gameProgress: gameProgress,
