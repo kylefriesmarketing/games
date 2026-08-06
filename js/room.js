@@ -1487,11 +1487,16 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
     wallShelves.push(plank);
     return plank;
   }
+  // ⚠️ These have to thread between everything already mounted on the side walls:
+  // LEFT — the BRAINROT poster (z 0.07..0.63), the CURIOUSER frame (z 1.32..1.88), the
+  // door (z 1.64..2.56) and the light switch. RIGHT — the boombox shelf (z -0.03..0.73)
+  // and the two frames (z -0.23..0.33 and 0.77..1.33). The first pass ran a shelf
+  // straight through the BRAINROT poster; check the neighbours before moving one.
   var shelfTops = [
-    wallShelf(-1, 1.62, -0.05, 0.9),  // left wall, over the desk
-    wallShelf(-1, 2.12, 0.95, 0.75),  // left wall, higher, toward the door
-    wallShelf(1, 1.88, -0.55, 0.8),   // right wall, past the speakers
-    wallShelf(1, 2.24, 1.15, 0.7),    // right wall, over the bed
+    wallShelf(-1, 1.70, -1.50, 0.80), // left wall, above the desk
+    wallShelf(-1, 2.15, -0.55, 0.70), // left wall, higher, still clear of the poster
+    wallShelf(1, 1.75, -1.15, 0.80),  // right wall, before the frames start
+    wallShelf(1, 1.75, 1.90, 0.75),   // right wall, past the frames, over the bed
   ];
 
   /* ---- the entry: camera dolly in + the tape starts (click unlocked audio) ---- */
@@ -1684,8 +1689,13 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
     }));
     m.rotation.y = rot; shaftG.add(m);
   });
-  shaftG.position.set(2.3, 1.15, -1.55);
-  shaftG.rotation.x = 0.62;                           // tipped so it lands on the floor, not the wall
+  shaftG.position.set(2.3, 1.15, -1.62);
+  // ⚠️ NEGATIVE. The tilt was +0.62, which put the bright end of the gradient high up
+  // OUT in the room and faded it INTO the wall — light arriving from the middle of the
+  // bedroom and dying at the window, the exact opposite of a streetlight leaning in
+  // (Kyle: "it's all off and looks like it comes from the wall"). Tilting the other way
+  // starts it at the glass and lays it down the floor into the room.
+  shaftG.rotation.x = -0.62;
   shaftG.renderOrder = 2;
   scene.add(shaftG);
 
