@@ -65,21 +65,75 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
 
   /* ---- helpers ---------------------------------------------------------- */
   var texLoader = new THREE.TextureLoader();
+
+  /* SURFACE RELIEF. Every material in this room was a flat colour at a uniform
+   * roughness — no bump, no normal, no roughness map anywhere — which is why the
+   * carpet, the wallpaper and the wood all read as the same sheet of plastic under
+   * the new lighting. A texture already knows where its own highs and lows are, so
+   * derive the bump from the colour map itself: greyscale, push the contrast around
+   * mid, hand it back as a bumpMap. Costs one canvas pass per texture, no new files.
+   * (The images are same-origin, so the canvas never taints.) */
+  var bumpCache = {};
+  function bumpFor(tex, key) {
+    if (bumpCache[key]) return bumpCache[key];
+    var img = tex.image;
+    if (!img || !img.width) return null;
+    var W = Math.min(img.width, 512), H = Math.min(img.height, 512);
+    var c = document.createElement("canvas"); c.width = W; c.height = H;
+    var g = c.getContext("2d");
+    g.drawImage(img, 0, 0, W, H);
+    var d;
+    try { d = g.getImageData(0, 0, W, H); } catch (e) { return null; } // tainted: skip relief
+    var p = d.data;
+    for (var i = 0; i < p.length; i += 4) {
+      var lum = p[i] * 0.299 + p[i + 1] * 0.587 + p[i + 2] * 0.114;
+      var v = 128 + (lum - 128) * 1.7;                 // relief needs more contrast than the eye reads
+      p[i] = p[i + 1] = p[i + 2] = v < 0 ? 0 : v > 255 ? 255 : v;
+      p[i + 3] = 255;
+    }
+    g.putImageData(d, 0, 0);
+    var bt = new THREE.CanvasTexture(c);
+    bt.wrapS = bt.wrapT = THREE.RepeatWrapping;
+    bumpCache[key] = bt;
+    return bt;
+  }
+  /* Give a material relief that lines up with whatever colour map it is wearing.
+   * ⚠️ CLONE the cached bump. The cache is keyed by file, but the two wall materials
+   * tile the same wallpaper at different repeats — sharing one texture object meant
+   * the second one overwrote the first's tiling and the relief slid off the colour.
+   * A clone shares the image (no extra memory that matters) and owns its own repeat.
+   * ⚠️ bumpScale here is BIG on purpose. These textures are stretched over metres —
+   * the carpet tiles once per 2.6m — so the derived slopes are very low frequency.
+   * Measured on the carpet: 0.05 moved the image 0.2% (i.e. nothing), 1.0 gave 11%,
+   * 8.0 gave 170% and looked like gravel. Tune by measuring, not by intuition. */
+  function relief(m, tex, key, scale) {
+    var base = bumpFor(tex, key);
+    if (!base) return;
+    var b = base.clone();
+    b.needsUpdate = true;
+    b.wrapS = b.wrapT = THREE.RepeatWrapping;
+    b.repeat.copy(tex.repeat); b.offset.copy(tex.offset);
+    m.bumpMap = b; m.bumpScale = scale;
+    m.needsUpdate = true;
+  }
   // Generated texture with graceful color fallback; applies repeat wrapping.
-  function texMat(url, fallbackColor, rough, repX, repY) {
+  function texMat(url, fallbackColor, rough, repX, repY, bump) {
     var m = mat(fallbackColor, rough);
     texLoader.load(url, function (t) {
       t.wrapS = t.wrapT = THREE.RepeatWrapping;
       t.repeat.set(repX || 1, repY || 1);
       t.anisotropy = 8;
       m.userData.baseMap = t; // "as found" restores this (the material swap system)
+      m.userData.baseBump = bump || 0;
       if (m.userData.customMap) return; // a swapped wallpaper got here first — don't clobber it
-      m.map = t; m.color.set(m.userData.tint || 0xffffff); m.needsUpdate = true; // tint survives the async load (the paint box)
+      m.map = t; m.color.set(m.userData.tint || 0xffffff); // tint survives the async load (the paint box)
+      if (bump) relief(m, t, url, bump);
+      m.needsUpdate = true;
     });
     return m;
   }
-  var woodM = texMat("assets/tex/wood.jpg", 0x8a6a42, 0.75, 1, 1);
-  var woodMSide = texMat("assets/tex/wood.jpg", 0x8a6a42, 0.75, 0.35, 1);
+  var woodM = texMat("assets/tex/wood.jpg", 0x8a6a42, 0.75, 1, 1, 0.95);
+  var woodMSide = texMat("assets/tex/wood.jpg", 0x8a6a42, 0.75, 0.35, 1, 0.95);
 
   // Cheap "bloom": a soft additive halo billboard around each bright source. Sprites
   // always face the camera, so the glow reads right from every angle without a
@@ -254,15 +308,15 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
   }
 
   /* ---- the room shell ---------------------------------------------------- */
-  var floorM = texMat("assets/tex/carpet.jpg", 0x6b5a48, 0.98, 4, 3);
+  var floorM = texMat("assets/tex/carpet.jpg", 0x6b5a48, 0.98, 4, 3, 2.4);
   var floor = new THREE.Mesh(new THREE.PlaneGeometry(10.6, 7), floorM);
   floor.rotation.x = -Math.PI / 2; floor.receiveShadow = true; scene.add(floor);
   var rugCX = 0.1, rugCZ = 1.0; // the rug is movable — the war and the robot's patrol follow it
-  var rug = new THREE.Mesh(new THREE.CircleGeometry(1.45, 48), texMat("assets/tex/rug.jpg", 0x27506b, 0.95, 1, 1));
+  var rug = new THREE.Mesh(new THREE.CircleGeometry(1.45, 48), texMat("assets/tex/rug.jpg", 0x27506b, 0.95, 1, 1, 0.8));
   rug.rotation.x = -Math.PI / 2; rug.position.set(rugCX, 0.012, rugCZ); rug.receiveShadow = true; scene.add(rug);
   clickable(rug, "the rug", null, "the rug — the whole galaxy, floor version");
-  var wallM = texMat("assets/tex/wallpaper.jpg", 0x38404f, 0.95, 3.4, 1.3);
-  var wallMSide = texMat("assets/tex/wallpaper.jpg", 0x38404f, 0.95, 2.6, 1.3);
+  var wallM = texMat("assets/tex/wallpaper.jpg", 0x38404f, 0.95, 3.4, 1.3, 0.9);
+  var wallMSide = texMat("assets/tex/wallpaper.jpg", 0x38404f, 0.95, 2.6, 1.3, 0.9);
   // ⚠️ WALL_X is the side walls' centre; their inner faces are at ±(WALL_X - 0.05).
   // The room was 7.1m across and had filled up (Kyle: "starting to feel crowded"), so
   // it was widened to 8.6m. Anything mounted on a side wall reads from WALL_X — door,
@@ -4326,7 +4380,7 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
   // opts: [label, file, repX, repY, treasuresNeeded] — materials unlock like themes do,
   // by collectibles earned (the play-to-decorate loop). 0/absent = free from night one.
   var MAT_TEX = {
-    walls: { mats: [wallM, wallMSide], scales: [1, 0.78], label: "the wallpaper", opts: [
+    walls: { mats: [wallM, wallMSide], scales: [1, 0.78], bump: 0.9, label: "the wallpaper", opts: [
       // order is FROZEN (saved paintState + theme wallsTex index into it) — needs vary, order doesn't
       ["as found", null],
       ["glow stars", "wp-stars.webp", 4.4, 1.65, 0],
@@ -4335,11 +4389,11 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
       ["daisy field", "wp-floral.webp", 3.8, 1.45, 2],
       ["spooky cute", "wp-spooky.webp", 3.8, 1.45, 4],
       ["pinstripe", "wp-stripe.webp", 3.0, 1.15, 1]] },
-    carpet: { mats: [floorM], scales: [1], label: "the floor", opts: [
+    carpet: { mats: [floorM], scales: [1], bump: 2.4, label: "the floor", opts: [
       ["as found", null],
       ["shag pile", "fl-shag.webp", 3.2, 2.5, 1],
       ["oak boards", "fl-oak.webp", 3.0, 2.35, 3]] },
-    rug: { mats: null /* rug.material, resolved at apply */, scales: [1], label: "the rug print", opts: [
+    rug: { mats: null /* rug.material, resolved at apply */, scales: [1], bump: 0.8, label: "the rug print", opts: [
       ["galaxy", null],
       ["racetrack", "rug-racetrack.webp", 1, 1, 2]] },
   };
@@ -4359,15 +4413,23 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
     for (var k in MAT_TEX) (function (k) {
       var row = MAT_TEX[k], opt = row.opts[paintState[k + "Tex"] || 0] || row.opts[0];
       (row.mats || [rug.material]).forEach(function (m, mi) {
-        if (!opt[1]) { // as found — the original texture comes back (it may still be loading)
+        if (!opt[1]) { // as found — the original texture and its relief both come back
           m.userData.customMap = null;
-          if (m.map !== (m.userData.baseMap || null)) { m.map = m.userData.baseMap || null; m.needsUpdate = true; }
+          if (m.map !== (m.userData.baseMap || null)) {
+            m.map = m.userData.baseMap || null;
+            if (m.map && m.userData.baseBump) relief(m, m.map, m.map.image && m.map.image.src, m.userData.baseBump);
+            else { m.bumpMap = null; }
+            m.needsUpdate = true;
+          }
           return;
         }
         m.userData.customMap = opt[1];
         texFor(opt[1], opt[2] * (row.scales[mi] || 1), opt[3], function (t) {
           if (m.userData.customMap !== opt[1]) return; // they clicked again while this loaded
-          m.map = t; m.needsUpdate = true;
+          m.map = t;
+          // a swapped-in wallpaper or floor gets relief too, or it reads flat beside the rest
+          relief(m, t, opt[1], row.bump || 0.02); // ⚠️ per-ROW: opt[4] is the treasure gate, not a depth
+          m.needsUpdate = true;
         });
       });
     })(k);
