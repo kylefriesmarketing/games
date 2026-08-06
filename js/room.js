@@ -1271,7 +1271,7 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
 
   /* ---- the door (left wall; the rest of the house is out there) --------------- */
   var doorM = mat(0x4a3524, 0.75);
-  var doorSlab = box(0.05, 2.05, 0.92, doorM); doorSlab.position.set(-WALL_X - 0.01, 1.025, 2.1); scene.add(doorSlab);
+  var doorSlab = box(0.05, 2.05, 0.92, doorM); doorSlab.position.set(-WALL_IN - 0.01, 1.025, 2.1); scene.add(doorSlab);
   [[2.09, 0.08, 1.06, 2.1], [1.02, 2.12, 0.08, 1.62], [1.02, 2.12, 0.08, 2.58]].forEach(function (j) {
     var m = box(0.09, j[1], j[2], mat(0x2a2019, 0.8)); m.position.set(-WALL_IN + 0.02, j[0], j[3]); scene.add(m);
   });
@@ -1281,7 +1281,7 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
   var spill = new THREE.Mesh(new THREE.PlaneGeometry(0.9, 0.09),
     new THREE.MeshBasicMaterial({ color: 0xffc98a, transparent: true, opacity: 0.32, blending: THREE.AdditiveBlending, depthWrite: false }));
   spill.rotation.x = -Math.PI / 2; spill.rotation.z = Math.PI / 2;
-  spill.position.set(-3.47, 0.013, 2.1); scene.add(spill);
+  spill.position.set(-WALL_IN + 0.08, 0.013, 2.1); scene.add(spill);
   [doorSlab, knob].forEach(function (m) {
     clickable(m, "the door", null, "the door — the rest of the house can wait");
   });
@@ -5001,7 +5001,7 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
     var mk = movableByKey;
     if (key === "shelf") { pingAt(-0.2, 1.75, -2.3); pingAt(0.8, 1.15, -2.3); }
     else if (key === "chest") pingAt(1.45, 0.62, -1.85);
-    else if (key === "bag") { var h = mk.hoodbag; pingAt(h ? h.root.position.x : -2.85, 0.4, h ? h.root.position.z : 1.75); }
+    else if (key === "bag") { var h = mk.hoodbag; pingAt(h ? h.root.position.x : -3.5, 0.4, h ? h.root.position.z : 1.75); }
     else if (key === "desk") {
       var d = mk.desk; pingAt(d ? d.root.position.x + 0.4 : -1.95, 1.05, d ? d.root.position.z : -0.8);
       var isl = mk.island; if (isl && isl.root.visible) pingAt(isl.root.position.x, 0.5, isl.root.position.z);
