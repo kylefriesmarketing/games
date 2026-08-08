@@ -199,6 +199,8 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
   // Declared up here because BOTH the duffel bag and its wall poster read it, and the
   // poster is built earlier in the file. Empty string ⇒ both revert to "coming soon".
   var HOOD_RUN_URL = BASE + "hood-run/"; // live 2026-07-22
+  var BLOODRIFT_URL = BASE + "bloodrift/";   // live 2026-08-05
+  var VICTORY_LAP_URL = BASE + "victory-lap/"; // live 2026-08-05
 
   /* ---- reading the sibling games' saves (same origin) ------------------------ */
   // Age of Toys: 15 storybook missions on the shelf, three secret pages beyond it.
@@ -212,6 +214,55 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
     var secrets = 0;
     ["midnight", "alliance", "zero"].forEach(function (id) { if (p[id]) secrets++; });
     return { done: done, secrets: secrets, started: Object.keys(p).length > 0 };
+  }
+  // BLOODRIFT keeps a profile PER FIGHTER, so the room sums the twenty of them:
+  // matches, wins, the deepest tower floor anyone reached, and whoever you've put
+  // the most XP into — that fighter's faction is what the cabinet glows.
+  var BR_FACTION = { // fighter → faction tint, for the cabinet marquee (roster doc order)
+    zenith: 0x4ea8ff, triage: 0x4ea8ff, centurion: 0x4ea8ff, joule: 0x4ea8ff, marrow: 0x4ea8ff,
+    sovereign: 0xffb03a, terminus: 0xffb03a, halflight: 0xffb03a, chorus: 0xffb03a, kestrel: 0xffb03a,
+    strigoi: 0xc4232f, lycaon: 0xc4232f, graft: 0xc4232f, khet: 0xc4232f, harrow: 0xc4232f,
+    flux: 0x9a5ce8, vespra: 0x9a5ce8, ordnance: 0x9a5ce8, null: 0x9a5ce8, vyrm: 0x9a5ce8,
+  };
+  function brProfile() {
+    var p = readSave("br-profile-v1", function (m) { return m; });
+    var out = { played: false, matches: 0, wins: 0, best: 0, clears: 0, top: null, topXp: -1 };
+    if (!p || !p.chars) return out;
+    for (var id in p.chars) {
+      var c = p.chars[id] || {};
+      out.matches += c.matches || 0;
+      out.wins += c.wins || 0;
+      if (c.gauntlet) {
+        out.best = Math.max(out.best, c.gauntlet.bestFloor || 0);
+        out.clears += c.gauntlet.clears || 0;
+      }
+      if ((c.xp || 0) > out.topXp) { out.topXp = c.xp || 0; out.top = id; }
+    }
+    out.played = out.matches > 0;
+    return out;
+  }
+  function brRun() { // a tower left half-climbed — the cabinet keeps your place
+    return readSave("br-gauntlet-run", function (m) {
+      return m && m.state ? { floor: m.state.floor || 1, who: (m.run && m.run.player) || null } : null;
+    });
+  }
+  // VICTORY LAP's morning-after meta. `knows` is the real progress — four things
+  // the town teaches you that survive the week — and they're literally what the
+  // corkboard pins in, one string at a time.
+  // labels are SHORT on purpose — they get drawn into 84px notes on a 320px board
+  var VL_KNOWS = [
+    { k: "window", label: "propped window" },
+    { k: "blind", label: "camera blind spot" },
+    { k: "drop", label: "bank-drop night" },
+    { k: "dog", label: "the dog" },
+  ];
+  function vlMeta() {
+    var m = readSave("vl-meta-v1", function (x) { return x; });
+    if (!m) return { played: false, runs: 0, cred: 0, scars: 0, lessons: 0, knows: {}, known: 0 };
+    var k = m.knows || {}, known = 0;
+    VL_KNOWS.forEach(function (n) { if (k[n.k]) known++; });
+    return { played: (m.runs || 0) > 0, runs: m.runs || 0, cred: m.cred || 0,
+             scars: m.scars || 0, lessons: m.lessons || 0, knows: k, known: known };
   }
 
   /* ---- generated GLB hero props --------------------------------------------- */
@@ -1585,7 +1636,14 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
     "CURIOUSER":      { key: "alice_persist",   pick: function (m) { return countOf(m.wakings); }, total: 8, noun: "wakings" },
     "DRACULA":        { key: "dracula_persist", pick: function (m) { return countOf(m.endings); }, total: 6, noun: "endings" },
     "ELEMENTARY":     { key: "sherlock_persist",pick: function (m) { return m && m.solved ? countOf(m.solved) : null; }, total: 11, noun: "cases" },
-    "G FOR GEORGE":   { key: "gg_persist",      pick: function (m) { return countOf(m.endings); }, total: 14, noun: "tellings" }
+    "G FOR GEORGE":   { key: "gg_persist",      pick: function (m) { return countOf(m.endings); }, total: 14, noun: "tellings" },
+    // these two count attempts rather than endings — the roster you've actually
+    // fought with, and the weeks you've tried to get out of town
+    // `attempts` keeps these OUT of the endings tally: fighters played and weeks
+    // survived are progress, but they are not endings, and without the flag the
+    // "Twenty endings" award could be won without reading a single story.
+    "BLOODRIFT":      { key: "br-profile-v1",   pick: function (m) { return m && m.chars ? countOf(m.chars) : null; }, total: 20, noun: "fighters", attempts: true },
+    "VICTORY LAP":    { key: "vl-meta-v1",      pick: function (m) { return (m && m.runs) || null; }, noun: "weeks", attempts: true }
   };
   function gameProgress(title) {
     var g = GAME_SAVES[title]; if (!g) return null;
@@ -2085,6 +2143,105 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
    * Every game got a painted 90s poster; three frames around the room each hold
    * whichever print you choose (🌟 walls tab). Clicking a frame opens the game
    * whose poster hangs in it. Persists in "room-posters" and rides share codes. */
+  /* Painted-in-code prints. Every other poster is a real painting in assets/tex,
+   * but BLOODRIFT and VICTORY LAP don't ship a single image file between them —
+   * both games render everything procedurally — so their prints are painted here.
+   * applyPosters falls back to these ONLY when the .jpg 404s, which means dropping
+   * a real assets/tex/poster-<key>.jpg in later replaces them with no code change. */
+  var POSTER_PAINT = {
+    bloodrift: function () {
+      return canvasTex(384, 576, function (g, w, h) {
+        var sky = g.createLinearGradient(0, 0, 0, h);
+        sky.addColorStop(0, "#1a0610"); sky.addColorStop(0.55, "#3d0812"); sky.addColorStop(1, "#0d0409");
+        g.fillStyle = sky; g.fillRect(0, 0, w, h);
+        // the Rift: a torn seam of light, widest at the horizon
+        var seam = [];
+        for (var y = 0; y <= h; y += 24) seam.push([w / 2 + (Math.sin(y * 0.045) * 16) + ((y / 24) % 2 ? 10 : -10), y]);
+        [[46, "rgba(214,42,66,0.20)"], [22, "rgba(255,96,120,0.35)"], [7, "rgba(255,214,222,0.95)"]]
+          .forEach(function (pass) {
+            g.strokeStyle = pass[1]; g.lineWidth = pass[0]; g.lineJoin = "round";
+            g.beginPath(); g.moveTo(seam[0][0], 0);
+            seam.forEach(function (p) { g.lineTo(p[0], p[1]); });
+            g.stroke();
+          });
+        // two fighters, squared up across it, thrown into silhouette by the light
+        function fighter(cx, face, scale) {
+          g.save(); g.translate(cx, h * 0.70); g.scale(face * scale, scale);
+          g.fillStyle = "#080308";
+          g.beginPath(); g.arc(0, -128, 26, 0, 7); g.fill();                 // head
+          g.beginPath();                                                      // torso, leaning in
+          g.moveTo(-30, -104); g.lineTo(30, -110); g.lineTo(24, -18); g.lineTo(-26, -14); g.fill();
+          g.fillRect(-72, -96, 46, 20);                                       // rear arm
+          g.save(); g.translate(26, -84); g.rotate(-0.34);                    // the thrown one
+          g.fillRect(0, -11, 74, 22); g.beginPath(); g.arc(78, 0, 17, 0, 7); g.fill();
+          g.restore();
+          g.fillRect(-34, -18, 26, 76); g.fillRect(6, -18, 26, 66);           // legs
+          g.fillRect(-46, 50, 42, 16); g.fillRect(0, 40, 46, 16);             // planted feet
+          g.restore();
+        }
+        fighter(w * 0.27, 1, 0.72); fighter(w * 0.73, -1, 0.72);
+        // title
+        g.textAlign = "center";
+        g.fillStyle = "rgba(0,0,0,0.55)"; g.fillRect(0, h - 118, w, 118);
+        g.fillStyle = "#ffe6ea"; g.font = "bold 52px Georgia, serif";
+        g.fillText("BLOODRIFT", w / 2, h - 66);
+        g.fillStyle = "#e88a98"; g.font = "italic 19px Georgia, serif";
+        g.fillText("three realities. one wound.", w / 2, h - 38);
+        // the four factions, as a colour bar
+        [0x4ea8ff, 0xffb03a, 0xc4232f, 0x9a5ce8].forEach(function (c, i) {
+          g.fillStyle = "#" + c.toString(16).padStart(6, "0");
+          g.fillRect(i * (w / 4), h - 14, w / 4, 14);
+        });
+      });
+    },
+    victorylap: function () {
+      return canvasTex(384, 576, function (g, w, h) {
+        var dawn = g.createLinearGradient(0, 0, 0, h * 0.62);
+        dawn.addColorStop(0, "#1d2a44"); dawn.addColorStop(0.62, "#7d6a72"); dawn.addColorStop(1, "#e8a566");
+        g.fillStyle = dawn; g.fillRect(0, 0, w, h * 0.62);
+        g.fillStyle = "#2a2129"; g.fillRect(0, h * 0.62, w, h * 0.38);          // the road
+        var sun = g.createRadialGradient(w * 0.5, h * 0.61, 4, w * 0.5, h * 0.61, 130);
+        sun.addColorStop(0, "rgba(255,222,160,0.95)"); sun.addColorStop(1, "rgba(255,190,120,0)");
+        g.fillStyle = sun; g.fillRect(0, h * 0.30, w, h * 0.4);
+        // the Mile: storefronts either side, shrinking to the vanishing point
+        function block(x0, x1, top, side) {
+          g.fillStyle = side ? "#1b1620" : "#221b26";
+          g.beginPath(); g.moveTo(x0, h * 0.62); g.lineTo(x0, top);
+          g.lineTo(x1, top + (side ? 22 : -22)); g.lineTo(x1, h * 0.62); g.closePath(); g.fill();
+        }
+        block(0, w * 0.34, h * 0.30, false); block(w, w * 0.66, h * 0.28, true);
+        g.fillStyle = "#0f0c14";                                                 // near storefronts
+        g.fillRect(0, h * 0.34, w * 0.17, h * 0.28); g.fillRect(w * 0.83, h * 0.32, w * 0.17, h * 0.30);
+        [[w * 0.06, h * 0.44], [w * 0.885, h * 0.42]].forEach(function (win) {   // one light still on
+          g.fillStyle = "rgba(255,206,138,0.85)"; g.fillRect(win[0], win[1], 22, 16);
+        });
+        g.strokeStyle = "#0f0c14"; g.lineWidth = 5;                              // poles + wires
+        [w * 0.20, w * 0.30, w * 0.37].forEach(function (px, i) {
+          g.beginPath(); g.moveTo(px, h * 0.62); g.lineTo(px, h * (0.40 + i * 0.04)); g.stroke();
+        });
+        g.lineWidth = 2; g.beginPath();
+        g.moveTo(w * 0.20, h * 0.40); g.quadraticCurveTo(w * 0.28, h * 0.46, w * 0.37, h * 0.48); g.stroke();
+        g.strokeStyle = "rgba(232,220,190,0.55)"; g.lineWidth = 4;               // centre line
+        g.setLineDash([16, 22]);
+        g.beginPath(); g.moveTo(w * 0.5, h * 0.63); g.lineTo(w * 0.5, h); g.stroke();
+        g.setLineDash([]);
+        // him, stood in the road with the bag he keeps not carrying anywhere
+        g.save(); g.translate(w * 0.46, h * 0.90); g.fillStyle = "#0a0810";
+        g.beginPath(); g.arc(0, -78, 13, 0, 7); g.fill();
+        g.fillRect(-15, -66, 30, 46); g.fillRect(-14, -20, 12, 42); g.fillRect(4, -20, 12, 42);
+        g.fillRect(14, -56, 30, 12); g.fillRect(40, -50, 26, 20);                 // the duffel, still in hand
+        g.fillStyle = "rgba(0,0,0,0.45)";
+        g.beginPath(); g.ellipse(-52, 24, 84, 11, 0, 0, 7); g.fill();             // the long dawn shadow
+        g.restore();
+        g.textAlign = "center";
+        g.fillStyle = "rgba(0,0,0,0.5)"; g.fillRect(0, h - 108, w, 108);
+        g.fillStyle = "#f2e6cf"; g.font = "bold 50px Georgia, serif";
+        g.fillText("VICTORY LAP", w / 2, h - 58);
+        g.fillStyle = "#d8a878"; g.font = "italic 19px Georgia, serif";
+        g.fillText("the 6 a.m. bus leaves without you", w / 2, h - 28);
+      });
+    },
+  };
   var POSTER_ART = [ // title = the GAME_KEYS/PLAY title, so ownership flows into the frames
     { key: "ageoftoys", label: "AGE OF TOYS", url: BASE + "toybox-tactics/", tip: "AGE OF TOYS — the toy chest's own war story" },
     { key: "south", label: "SOUTH", title: "SOUTH", url: BASE + "south/", tip: "SOUTH — bring all 27 home" },
@@ -2097,6 +2254,11 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
     { key: "curiouser", label: "CURIOUSER", title: "CURIOUSER", url: BASE + "alice/", tip: "CURIOUSER — wake as yourself" },
     { key: "redink", label: "THE RED INK", title: "DRACULA", url: BASE + "dracula/", tip: "DRACULA: THE RED INK — argue with the book" },
     { key: "george", label: "G FOR GEORGE", title: "G FOR GEORGE", url: BASE + "george/", tip: "G FOR GEORGE — 336 feet to the trees" },
+    // `painted` = no .jpg ships for this one, go straight to POSTER_PAINT. Without it
+    // the loader still recovers via its 404 handler, but every visitor eats a console
+    // error on load. Delete the flag the day a real print lands in assets/tex.
+    { key: "bloodrift", label: "BLOODRIFT", url: BLOODRIFT_URL, painted: true, tip: "BLOODRIFT — three realities, one wound" },
+    { key: "victorylap", label: "VICTORY LAP", url: VICTORY_LAP_URL, painted: true, tip: "VICTORY LAP — an open town you keep not leaving" },
   ];
   var POSTER_CYCLE = [{ key: "none", label: "(bare wall)" }].concat(POSTER_ART); // cycling to "none" takes the frame down
   var posterByKey = { none: POSTER_CYCLE[0] };
@@ -2104,7 +2266,11 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
   var POSTER_SPOTS = [ // wall inner faces are x=±3.55
     { key: "p1", label: "the frame over the bed", x: WALL_IN - 0.02, y: 2.08, z: 1.05, ry: -Math.PI / 2, rz: 0.02, def: "ageoftoys" },
     { key: "p2", label: "the frame by the speakers", x: WALL_IN - 0.02, y: 1.98, z: 0.05, ry: -Math.PI / 2, rz: -0.015, def: "south" },
-    { key: "p3", label: "the frame by the beanbag", x: -WALL_IN + 0.02, y: 1.82, z: 1.6, ry: Math.PI / 2, rz: 0.02, def: "curiouser" },
+    // ⚠️ p3 used to sit at z 1.6, which put its right-hand 23cm ON THE DOOR (door
+    // spans z 1.65–2.55). Nobody had noticed because the print there was dark. The
+    // left wall's free gap is z 0.75–1.65 — between the skateboard and the door —
+    // so 1.20 centres the frame in it. Anyone who has dragged it keeps their spot.
+    { key: "p3", label: "the frame by the beanbag", x: -WALL_IN + 0.02, y: 1.82, z: 1.20, ry: Math.PI / 2, rz: 0.02, def: "curiouser" },
   ];
   var posterState = loadJSON("room-posters") || {};
   var posterFrames = {}, posterTexCache = {};
@@ -2186,7 +2352,17 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
         f.m.map = t; f.m.color.set(0xffffff); f.m.needsUpdate = true;
       };
       if (posterTexCache[d.key]) apply(posterTexCache[d.key]);
-      else texLoader.load("assets/tex/poster-" + d.key + ".jpg", function (t) { t.anisotropy = 8; posterTexCache[d.key] = t; apply(t); });
+      else if (d.painted && POSTER_PAINT[d.key]) {
+        var pt = POSTER_PAINT[d.key]();
+        posterTexCache[d.key] = pt; apply(pt);
+      } else texLoader.load("assets/tex/poster-" + d.key + ".jpg",
+        function (t) { t.anisotropy = 8; posterTexCache[d.key] = t; apply(t); },
+        undefined,
+        function () { // no painted print shipped for this one — paint it here instead
+          if (!POSTER_PAINT[d.key]) return;
+          var t = POSTER_PAINT[d.key]();
+          posterTexCache[d.key] = t; apply(t);
+        });
       f.meshes.forEach(function (mm) {
         mm.userData.name = d.label; mm.userData.action = go(d.url);
         mm.userData.hint = d.tip + " · click to play";
@@ -2269,6 +2445,268 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
       clickSfx(1100);
     }, hoodHint);
   });
+
+  /* ---- BLOODRIFT: the arcade cabinet, beside the bed -------------------------- */
+  // A fighting game wants a cabinet, and this room never had one. Placed at
+  // (2.5, 1.55) ON PURPOSE: from the default camera every object sits in its own
+  // screen column, and that spot is the only free floor tall enough for a cabinet
+  // that doesn't stand in front of the window OR the TV (both sightline cones were
+  // measured before it went in — see the free-floor grid in the session notes).
+  var brNow = brProfile(), brOpen = brRun();
+  var arcade = new THREE.Group();
+  var cabM = mat(0x22242c, 0.72), cabDark = mat(0x15161b, 0.8), cabTrim = mat(0x8e1526, 0.5);
+  var AW = 0.60, AD = 0.64;
+  // the fighter you've sunk the most XP into tints the whole machine
+  var brTint = (brNow.top && BR_FACTION[brNow.top]) || 0xc4232f;
+  var kick = box(AW - 0.02, 0.10, AD - 0.08, cabDark); kick.position.y = 0.05; arcade.add(kick);
+  var cabBody = box(AW, 0.78, AD, cabM); cabBody.position.y = 0.49; arcade.add(cabBody);
+  var coin = box(0.22, 0.14, 0.03, cabDark); coin.position.set(0, 0.42, AD / 2 + 0.005); arcade.add(coin);
+  [-0.05, 0.05].forEach(function (cx) {
+    var slot = box(0.015, 0.045, 0.02, mat(0x0a0b0e, 0.9));
+    slot.position.set(cx, 0.45, AD / 2 + 0.018); arcade.add(slot);
+  });
+  // control panel, angled up toward the player: two sticks, six buttons each
+  var panel = box(AW, 0.045, 0.30, cabDark);
+  panel.position.set(0, 0.905, 0.26); panel.rotation.x = -0.40; arcade.add(panel);
+  [-0.145, 0.145].forEach(function (px) {
+    var ballTop = new THREE.Mesh(new THREE.SphereGeometry(0.019, 10, 8), mat(0xd8d8dc, 0.35));
+    ballTop.position.set(px - 0.075, 0.965, 0.30); arcade.add(ballTop);
+    var shaft = new THREE.Mesh(new THREE.CylinderGeometry(0.006, 0.006, 0.03, 8), mat(0x8a8f98, 0.4));
+    shaft.position.set(px - 0.075, 0.948, 0.30); arcade.add(shaft);
+    for (var bi = 0; bi < 6; bi++) { // two rows of three, the fighting-game layout
+      var btn = new THREE.Mesh(new THREE.CylinderGeometry(0.011, 0.011, 0.008, 12),
+        mat(bi < 3 ? 0xd94b52 : 0xe0a83c, 0.4));
+      btn.position.set(px + 0.02 + (bi % 3) * 0.033, 0.958 + (bi < 3 ? 0.006 : -0.006), 0.325 - (bi < 3 ? 0 : 0.042));
+      btn.rotation.x = -0.40; arcade.add(btn);
+    }
+  });
+  var screenBox = box(AW, 0.46, 0.46, cabM); screenBox.position.set(0, 1.15, -0.01); arcade.add(screenBox);
+  // the attract screen — a VS card that reads your profile
+  function arcadeScreenTex() {
+    return canvasTex(256, 192, function (g, w, h) {
+      var grd = g.createLinearGradient(0, 0, 0, h);
+      grd.addColorStop(0, "#1a0910"); grd.addColorStop(1, "#31060f");
+      g.fillStyle = grd; g.fillRect(0, 0, w, h);
+      // the Rift: a jagged tear straight down the middle
+      g.strokeStyle = "#ff5a6e"; g.lineWidth = 4; g.beginPath();
+      var rx = w / 2;
+      g.moveTo(rx, 0);
+      for (var y = 0; y <= h; y += 16) { rx = w / 2 + (((y / 16) % 2) ? 9 : -9); g.lineTo(rx, y); }
+      g.stroke();
+      g.strokeStyle = "rgba(255,150,170,0.35)"; g.lineWidth = 12; g.stroke();
+      // two fighters, squared up
+      [[w * 0.26, -1], [w * 0.74, 1]].forEach(function (f) {
+        g.save(); g.translate(f[0], h * 0.60); g.scale(f[1], 1);
+        g.fillStyle = f[1] < 0 ? "#0d0508" : "#0a0409";
+        g.beginPath(); g.arc(0, -46, 11, 0, 7); g.fill();              // head
+        g.fillRect(-13, -35, 26, 34);                                   // torso
+        g.fillRect(-26, -30, 15, 9); g.fillRect(10, -22, 20, 8);        // arms, one thrown
+        g.fillRect(-15, -1, 11, 26); g.fillRect(6, -1, 11, 22);         // legs
+        g.restore();
+      });
+      g.fillStyle = "#ffd9df"; g.textAlign = "center";
+      g.font = "bold 27px Georgia, serif"; g.fillText("BLOODRIFT", w / 2, 30);
+      g.fillStyle = "rgba(0,0,0,0.55)"; g.fillRect(0, h - 26, w, 26);
+      g.fillStyle = "#ffb9c4"; g.font = "bold 14px Georgia, serif";
+      var line = brOpen ? "TOWER · FLOOR " + brOpen.floor + " — RESUME"
+        : brNow.played ? brNow.wins + " WIN" + (brNow.wins === 1 ? "" : "S") +
+            (brNow.best ? " · BEST FLOOR " + brNow.best : "")
+        : "PRESS START · 20 FIGHTERS";
+      g.fillText(line, w / 2, h - 8);
+    });
+  }
+  var arcScreenT = arcadeScreenTex();
+  // ⚠️ emissive, not MeshBasic: bloomThreshold is 1.0 in LINEAR light, so a plain
+  // mapped material tops out AT the threshold and never blooms. Intensity 1.25
+  // pushes the lit pixels over it, which is what makes the cabinet throw light.
+  var arcScreenM = new THREE.MeshStandardMaterial({
+    map: arcScreenT, emissive: 0xffffff, emissiveMap: arcScreenT, emissiveIntensity: 1.25, roughness: 0.4,
+  });
+  var arcScreen = new THREE.Mesh(new THREE.PlaneGeometry(0.46, 0.345), arcScreenM);
+  arcScreen.position.set(0, 1.16, AD / 2 - 0.09); arcScreen.rotation.x = 0.10; arcade.add(arcScreen);
+  var bezel = box(0.52, 0.40, 0.02, cabDark); bezel.position.set(0, 1.16, AD / 2 - 0.105); arcade.add(bezel);
+  // the marquee, lit from behind like the real thing
+  var marqT = canvasTex(256, 72, function (g, w, h) {
+    g.fillStyle = "#12060a"; g.fillRect(0, 0, w, h);
+    g.fillStyle = "#" + brTint.toString(16).padStart(6, "0");
+    g.fillRect(0, 0, w, 5); g.fillRect(0, h - 5, w, 5);
+    g.textAlign = "center"; g.textBaseline = "middle";
+    g.font = "bold 40px Georgia, serif";
+    g.fillStyle = "#ffe3e8"; g.fillText("BLOODRIFT", w / 2, h / 2 + 2);
+    g.strokeStyle = "#ff4d63"; g.lineWidth = 3;                      // the tear through the word
+    g.beginPath(); g.moveTo(w / 2 - 7, 4); g.lineTo(w / 2 + 6, h / 2); g.lineTo(w / 2 - 5, h - 4); g.stroke();
+  });
+  var marqM = new THREE.MeshStandardMaterial({
+    map: marqT, emissive: 0xffffff, emissiveMap: marqT, emissiveIntensity: 1.5, roughness: 0.5,
+  });
+  var marqBox = box(AW, 0.18, 0.20, cabDark); marqBox.position.set(0, 1.45, 0.14); arcade.add(marqBox);
+  var marquee = new THREE.Mesh(new THREE.PlaneGeometry(0.54, 0.145), marqM);
+  marquee.position.set(0, 1.45, 0.243); arcade.add(marquee);
+  var crown = box(AW + 0.04, 0.05, AD - 0.04, cabTrim); crown.position.y = 1.565; arcade.add(crown);
+  // side art: the rift crack down both flanks
+  var sideT = canvasTex(128, 256, function (g, w, h) {
+    g.fillStyle = "#1b1d24"; g.fillRect(0, 0, w, h);
+    var gr = g.createLinearGradient(0, 0, w, h);
+    gr.addColorStop(0, "rgba(196,35,47,0.75)"); gr.addColorStop(1, "rgba(90,12,26,0.2)");
+    g.fillStyle = gr;
+    g.beginPath(); g.moveTo(w * 0.5, 0);
+    for (var y = 0; y <= h; y += 22) g.lineTo(w * (0.5 + (((y / 22) % 2) ? 0.16 : -0.16)), y);
+    for (var y2 = h; y2 >= 0; y2 -= 22) g.lineTo(w * (0.5 + (((y2 / 22) % 2) ? 0.30 : -0.30)), y2);
+    g.closePath(); g.fill();
+  });
+  [-1, 1].forEach(function (s) {
+    var sm = new THREE.Mesh(new THREE.PlaneGeometry(AD - 0.02, 0.76),
+      new THREE.MeshStandardMaterial({ map: sideT, roughness: 0.8 }));
+    sm.position.set(s * (AW / 2 + 0.002), 0.49, 0); sm.rotation.y = s * Math.PI / 2; arcade.add(sm);
+  });
+  var arcLight = new THREE.PointLight(brTint, brOpen ? 0.85 : 0.55, 3.2, 2);
+  // ⚠️ (2.32, 1.92) and not the 0.4m further forward it started at: the audit caught
+  // the cabinet's circle overlapping kid station 7, the spot he stands on to climb
+  // into bed. He'd have clipped straight through it every bedtime.
+  arcLight.position.set(2.15, 1.00, 1.95 + 0.50); scene.add(arcLight); // scene-level: rides via attachObjs
+  // ⚠️ Scale and spot were MEASURED, not eyeballed. The TV sits at NDC 0.44–0.85 and
+  // the frame edge is 1.0, so a full-size cabinet cannot fit between them — every
+  // position that got the whole machine on screen put it straight in front of the
+  // TV. Raycasting the TV screen at four scales found this one: 1.35m tall (a real
+  // compact cabinet), 82% in frame, and 3 of 25 sample rays clipped — the TV's
+  // corner, not its picture. Don't "fix" the size back up without redoing that test.
+  arcade.scale.setScalar(0.85);
+  arcade.position.set(2.15, 0, 1.95); arcade.rotation.y = 0.32; scene.add(arcade);
+  var brHint = brOpen
+    ? "BLOODRIFT — a tower left on floor " + brOpen.floor + " · click to climb"
+    : brNow.played
+      ? "BLOODRIFT — " + brNow.matches + " match" + (brNow.matches === 1 ? "" : "es") + ", " +
+        brNow.wins + " won" + (brNow.best ? " · best floor " + brNow.best : "") + " · click to fight"
+      : "BLOODRIFT — 20 fighters, four realities, one wound · click to fight";
+  arcade.traverse(function (o) { if (o.isMesh) clickable(o, "BLOODRIFT", go(BLOODRIFT_URL), brHint); });
+
+  /* ---- VICTORY LAP: the corner that keeps not leaving ------------------------- */
+  // A milk crate with the jacket he still wears, and the board where the week gets
+  // planned. The board FILLS IN as you play: vl-meta's `knows` is the only thing
+  // that survives a run, so each thing the town teaches you becomes a pin, and the
+  // red string between them is literally the plan you can now make.
+  var vlNow = vlMeta();
+  var vlG = new THREE.Group();
+  // ⚠️ the first pass built this at CR 0.32 in a dark blue-grey and it read as a
+  // smudge from the default camera — 5.5m away, unlit, and small. A real milk crate
+  // is a LOUD colour for exactly this reason. Bigger, warmer, and closer in.
+  var crateM = mat(0x8f3b30, 0.85), crateIn = mat(0x2a1512, 0.9);
+  var CR = 0.40, CRH = 0.34;
+  var crateFloor = box(CR, 0.02, CR, crateIn); crateFloor.position.y = 0.01; vlG.add(crateFloor);
+  [[0, -1], [0, 1], [-1, 0], [1, 0]].forEach(function (s) { // four slatted walls
+    var wall = box(s[0] ? 0.02 : CR, CRH, s[0] ? CR : 0.02, crateM);
+    wall.position.set(s[0] * CR / 2, CRH / 2, s[1] * CR / 2); vlG.add(wall);
+    var slot = box(s[0] ? 0.025 : CR * 0.6, 0.10, s[0] ? CR * 0.6 : 0.025, crateIn);
+    slot.position.set(s[0] * CR / 2, CRH * 0.62, s[1] * CR / 2); vlG.add(slot);
+  });
+  // the letterman jacket, folded on top — cream body, one dark sleeve, the letter
+  var jacketT = canvasTex(128, 128, function (g, w, h) {
+    g.fillStyle = "#e6e0cf"; g.fillRect(0, 0, w, h);
+    g.fillStyle = "#2f3b52"; g.fillRect(0, 0, w, h * 0.30);        // the folded sleeve
+    g.fillStyle = "#8a1f2b";                                        // the chenille letter
+    g.font = "bold 62px Georgia, serif"; g.textAlign = "center"; g.textBaseline = "middle";
+    g.fillText("V", w * 0.5, h * 0.64);
+    g.strokeStyle = "#d9c98a"; g.lineWidth = 4; g.strokeRect(6, h * 0.30 + 5, w - 12, h * 0.66);
+  });
+  var jacket = new THREE.Mesh(new THREE.BoxGeometry(CR - 0.02, 0.085, 0.26),
+    new THREE.MeshStandardMaterial({ map: jacketT, roughness: 0.95 }));
+  jacket.position.set(0, CRH + 0.0425, 0.05); jacket.castShadow = true; vlG.add(jacket);
+  // the board, leaning back against the crate
+  var boardT = canvasTex(320, 256, function (g, w, h) {
+    g.fillStyle = "#c2a273"; g.fillRect(0, 0, w, h);               // cork
+    for (var i = 0; i < 700; i++) {                                 // speckle
+      g.fillStyle = "rgba(90,62,32," + (0.05 + Math.random() * 0.14).toFixed(2) + ")";
+      g.fillRect(Math.random() * w, Math.random() * h, 2, 2);
+    }
+    g.fillStyle = "#4a3a24"; g.fillRect(0, 0, w, 9); g.fillRect(0, h - 9, w, 9);
+    g.fillRect(0, 0, 9, h); g.fillRect(w - 9, 0, 9, h);
+    // ⚠️ LAYOUT IS ZONED, and it has to stay that way: map left, timetable right,
+    // pins+labels along the bottom, tally top-left. The first pass scattered the pins
+    // across the middle and their little white labels landed square on the town map,
+    // which then read as a blank sheet of paper.
+    // the town: a scrap of the Miracle Mile, pinned crooked
+    g.save(); g.translate(w * 0.28, h * 0.38); g.rotate(-0.06);
+    g.fillStyle = "#efe7d2"; g.fillRect(-64, -48, 128, 96);
+    g.strokeStyle = "#9c8a68"; g.lineWidth = 2; g.strokeRect(-64, -48, 128, 96);
+    g.strokeStyle = "#7f6a44"; g.lineWidth = 3;
+    g.beginPath(); g.moveTo(-64, 6); g.lineTo(64, -2); g.stroke();       // the Mile itself
+    g.fillStyle = "#8a9a7c";
+    [[-44, -28], [-8, -30], [30, -24], [-36, 24], [10, 22], [44, 26]].forEach(function (b) {
+      g.fillRect(b[0], b[1], 20, 15);
+    });
+    g.fillStyle = "#3a3020"; g.font = "italic 13px Georgia, serif"; g.textAlign = "center";
+    g.fillText("the mile", 0, 44);
+    g.restore();
+    // the bus timetable — the 6 a.m. is circled, every time
+    g.save(); g.translate(w * 0.79, h * 0.30); g.rotate(0.08);
+    g.fillStyle = "#f4efe0"; g.fillRect(-38, -44, 76, 88);
+    g.strokeStyle = "#9c8a68"; g.lineWidth = 2; g.strokeRect(-38, -44, 76, 88);
+    g.fillStyle = "#3a3020"; g.font = "bold 12px Georgia, serif"; g.textAlign = "center";
+    g.fillText("DEPARTURES", 0, -30);
+    g.font = "12px Georgia, serif"; g.textAlign = "left";
+    ["6:00a", "11:15a", "4:40p", "9:05p"].forEach(function (t, i) { g.fillText(t, -26, -10 + i * 17); });
+    g.strokeStyle = "#a8202e"; g.lineWidth = 2.5;
+    g.beginPath(); g.ellipse(-6, -14, 26, 11, 0, 0, 7); g.stroke();
+    g.restore();
+    // what the town has taught you: a pin per lesson along the bottom, red string
+    // between the ones you know — the plan you can finally make
+    var pinY = h * 0.70;
+    // labels alternate onto two rows — side by side they collided, because
+    // "the camera blind spot" is wider than a quarter of the board
+    var pins = [[w * 0.18, pinY], [w * 0.40, pinY - 8], [w * 0.62, pinY], [w * 0.82, pinY - 8]];
+    var got = [];
+    VL_KNOWS.forEach(function (n, i) { if (vlNow.knows[n.k]) got.push(pins[i]); });
+    if (got.length > 1) {
+      g.strokeStyle = "#a8202e"; g.lineWidth = 2;
+      g.beginPath(); g.moveTo(got[0][0], got[0][1]);
+      for (var p = 1; p < got.length; p++) g.lineTo(got[p][0], got[p][1]);
+      g.stroke();
+    }
+    VL_KNOWS.forEach(function (n, i) {
+      var known = !!vlNow.knows[n.k], px = pins[i][0], py = pins[i][1];
+      g.fillStyle = known ? "#c02a38" : "rgba(120,96,60,0.35)";
+      g.beginPath(); g.arc(px, py, known ? 6 : 4, 0, 7); g.fill();
+      if (known) {
+        g.save(); g.translate(px, py + (i % 2 ? 46 : 22)); g.rotate((i % 2 ? 1 : -1) * 0.04);
+        g.fillStyle = "#f4efe0"; g.fillRect(-43, -10, 86, 21);
+        g.fillStyle = "#3a3020"; g.font = "10px Georgia, serif"; g.textAlign = "center";
+        g.fillText(n.label, 0, 5);
+        g.restore();
+        g.strokeStyle = "rgba(58,48,32,0.5)"; g.lineWidth = 1;  // a thread down to its note
+        g.beginPath(); g.moveTo(px, py); g.lineTo(px, py + (i % 2 ? 36 : 12)); g.stroke();
+      }
+    });
+    // the week, tallied top-left — five-bar gates, same as anyone counting
+    if (vlNow.runs > 0) {
+      g.fillStyle = "#4a3a24"; g.font = "italic 12px Georgia, serif"; g.textAlign = "left";
+      g.fillText(vlNow.runs === 1 ? "one week" : vlNow.runs + " weeks", 20, 26);
+      g.strokeStyle = "#4a3a24"; g.lineWidth = 2.5;
+      var tx = 20, ty = 32;
+      for (var rr = 0; rr < Math.min(vlNow.runs, 20); rr++) {
+        var grp = Math.floor(rr / 5), inG = rr % 5, gx = tx + grp * 26;
+        g.beginPath();
+        if (inG === 4) { g.moveTo(gx - 3, ty + 13); g.lineTo(gx + 17, ty - 1); }
+        else { g.moveTo(gx + inG * 5, ty); g.lineTo(gx + inG * 5, ty + 13); }
+        g.stroke();
+      }
+    }
+  });
+  var boardFrameM = mat(0x4a3a24, 0.85);
+  var board = new THREE.Mesh(new THREE.BoxGeometry(0.60, 0.46, 0.020),
+    [boardFrameM, boardFrameM, boardFrameM, boardFrameM,
+     new THREE.MeshStandardMaterial({ map: boardT, roughness: 0.92 }), boardFrameM]);
+  // ⚠️ the board STANDS ON the crate, it doesn't lean against it from the floor.
+  // The first pass rested it on the carpet behind, and the crate then hid its bottom
+  // 63% — which is exactly where the pins and their labels live. Bottom edge now sits
+  // just proud of the crate lid, so the whole board reads.
+  board.position.set(-0.02, 0.57, -0.17); board.rotation.x = -0.22;
+  board.castShadow = board.receiveShadow = true; vlG.add(board);
+  vlG.position.set(-1.35, 0, 0.25); vlG.rotation.y = 0.34; scene.add(vlG);
+  var vlHint = vlNow.played
+    ? "VICTORY LAP — " + vlNow.runs + " week" + (vlNow.runs === 1 ? "" : "s") + " tried, " +
+      vlNow.known + "/4 of the town learned · click to go back"
+    : "VICTORY LAP — an open town you keep not leaving · click to try the week";
+  vlG.traverse(function (o) { if (o.isMesh) clickable(o, "VICTORY LAP", go(VICTORY_LAP_URL), vlHint); });
 
   /* ---- TIDEBOUND: a toy island diorama on the floor (generated) --------------- */
   prop("assets/props/island.glb", 0.62, -1.9, 0, 2.45, 0.5, function (wrap) {
@@ -2384,6 +2822,13 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
     { x: -2.57, z: 1.52, act: "sit", seat: 4, y: 0.1, yaw: 0 }, // nestled in the beanbag, legs out the front toward the room
     { x: 2.78, z: 1.05, act: "bed", seat: 1 },       // the bedside → climb up and lie down (may enter the bed's circle)
     { x: -3.07, z: 1.62, act: "fidget", over: 7 },  // crouched over the duffel — allowed inside its circle            // crouched over the duffel bag, counting it
+    // ⚠️ new stations go ABOVE the window, never below it — KID_WINDOW is
+    // KID_STATIONS[length - 1], so appending past it silently steals the window beat.
+    // ⚠️ a station must sit at least (obstacle r + KID_R) from its own centre even
+    // WITH `over` — that flag only silences the audit, it doesn't relax the walker's
+    // hard clamp, so a closer spot leaves him shuffling at the edge forever.
+    { x: 1.55, z: 2.45, act: "idle", over: 8 },     // stood at the cabinet, playing a round
+    { x: -1.14, z: 0.84, act: "fidget", over: 9 },  // crouched at the crate, reading the board
     { x: 2.35, z: -1.9, act: "window" }             // between the chest and the TV, watching the world go by
   ];
   var KID_WINDOW = KID_STATIONS[KID_STATIONS.length - 1]; // the traffic outside can pull him over
@@ -2399,7 +2844,9 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
     { x: -2.62, z: 1.2, r: 0.42 },  // the beanbag
     { x: TV_X, z: TV_Z, r: 0.55 },  // the TV stand
     { x: -2.5, z: -0.32, r: 0.34 }, // the desk chair
-    { x: -3.5, z: 1.75, r: 0.34 }   // the duffel bag + safe (index 7)
+    { x: -3.5, z: 1.75, r: 0.34 },  // the duffel bag + safe (index 7)
+    { x: 2.15, z: 1.95, r: 0.36 },  // the arcade cabinet (index 8)
+    { x: -1.35, z: 0.25, r: 0.34 }  // the VICTORY LAP crate + board (index 9)
   ];
   // One avoidance step toward (tx,tz): steer around obstacles, then hard-clamp out
   // of any we'd still penetrate. Returns remaining distance to the target.
@@ -2574,7 +3021,7 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
       var done = p ? p.done : 0, cap = (p && p.total) || 0;
       if (p && p.started) started++;
       if (cap && done >= cap) complete = true;
-      total += done;
+      if (!GAME_SAVES[title].attempts) total += done; // fighters/weeks aren't endings
       perGame.push({ title: title, done: done, total: cap, started: !!(p && p.started), noun: p ? p.noun : "endings" });
     }
     var tt = ttCampaign();
@@ -2591,6 +3038,8 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
       anyComplete: complete,
       totalEndings: total + tt.done + tt.secrets,
       toysMissions: tt.done + tt.secrets,
+      riftWins: brProfile().wins,
+      lapWeeks: vlMeta().runs,
       hoodRuns: hr ? (hr.lifetime && hr.lifetime.runs) || (hr.bestDist > 0 ? 1 : 0) : 0,
       hoodBest: hr ? Math.round(hr.bestDist || 0) : 0,
       tonyVisits: tony,
@@ -2631,6 +3080,8 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
     kr += nbRow("Age of Toys", "🔑 came with the room");
     kr += nbRow("Hood Run", "🔑 came with the room");
     kr += nbRow("Brainrot", "🔑 came with the room");
+    kr += nbRow("Bloodrift", "🔑 came with the room");
+    kr += nbRow("Victory Lap", "🔑 came with the room");
     nbPages.push({ title: "the key ring", html: kr });
     var rows = [
       ["Choose Wisely", readSave("chooseWisely.meta.v2", function (m) { return countOf(m.endingsFound); }), 56],
@@ -2672,6 +3123,22 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
     html += nbRow("Tidebound", "on Tony's shelf");
     var hr = readSave("hr-save", function (m) { return m; });
     html += nbRow("Hood Run", hr && hr.bestDist > 0 ? Math.round(hr.bestDist) + " m best" : "no run yet");
+    // these two count fights and weeks rather than endings — same as Age of Toys,
+    // they get a line that reads the way the game actually keeps score
+    var br = brProfile(), brOpenNb = brRun();
+    var brText;
+    if (!br.played && !brOpenNb) brText = "not started";
+    else {
+      brText = br.wins + " / " + br.matches + " won";
+      if (br.best) brText += " · floor " + br.best + " best";
+      if (br.clears) brText += " · " + br.clears + " tower" + (br.clears === 1 ? "" : "s") + " cleared";
+      if (brOpenNb) brText += " · a climb left on " + brOpenNb.floor;
+    }
+    html += nbRow("Bloodrift", brText);
+    var vl = vlMeta();
+    html += nbRow("Victory Lap", vl.played
+      ? vl.runs + " week" + (vl.runs === 1 ? "" : "s") + " · " + vl.known + " / 4 of the town learned"
+      : "still in town");
     nbPages.push({ title: "what i finished", html: html });
     if (tt.started || stories) { // the war, act by act
       var p = readSave("tt-campaign", function (m) { return m; }) || {};
@@ -3226,6 +3693,12 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
     shadowR: 0.62, shadowRZ: 0.42, attachObjs: [crtLight, gCrt] });
   registerMovable({ key: "nstand", label: "the nightstand", root: nstand, r: 0.3, rot: true, attachObjs: [gLava] });
   registerMovable({ key: "hoodbag", label: "the duffel bag", root: hoodG, r: 0.34, rot: true, obs: 7, stations: [8] });
+  // shadow radii are pre-divided by the cabinet's 0.85 scale — the contact shadow is
+  // parented to the group, so it shrinks with it
+  registerMovable({ key: "arcade", label: "the arcade cabinet", root: arcade, r: 0.36, rot: true, obs: 8, stations: [9],
+    shadowR: 0.46, shadowRZ: 0.50, attachObjs: [arcLight] });
+  registerMovable({ key: "vlcrate", label: "the milk crate", root: vlG, r: 0.30, rot: true, obs: 9, stations: [10],
+    shadowR: 0.30, shadowRZ: 0.34 });
 
   /* ---- WHO LIVES HERE: the pet system (2026-07-29) -------------------------------
    * One pet at a time, picked in the drawer (🧸 stuff tab), persisted in "room-pet"
@@ -3497,6 +3970,17 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
       },
       // was the shelf top (y 2.392) — a 1.7cm ingot up there is invisible from below
       home: { x: -2.55, y: 0, z: 1.35 }, build: COLL.buildGoldBar },
+    { key: "riftshard", title: "the rift shard", from: "BLOODRIFT", icon: "🩸",
+      earn: "win a match in BLOODRIFT", where: "on the carpet by the arcade cabinet",
+      have: function () { return brProfile().wins > 0; },
+      // anchored to the cabinet and left on the FLOOR: it's the one treasure that
+      // gives off its own light, so the carpet beside the machine shows it off
+      // better than any shelf could.
+      anchor: "arcade", home: { x: -0.42, y: 0, z: 0.16 }, build: COLL.buildRiftShard },
+    { key: "trophy", title: "the tarnished trophy", from: "VICTORY LAP", icon: "🏆",
+      earn: "get through a week in VICTORY LAP", where: "on the crate, on the folded jacket",
+      have: function () { return vlMeta().runs > 0; },
+      anchor: "vlcrate", home: { x: 0.02, y: 0.425, z: 0.05 }, build: COLL.buildTrophy },
     { key: "palm", title: "the pocket island", from: "TIDEBOUND", icon: "🌴",
       earn: "visit TIDEBOUND — the toy island", where: "on the floor by the shoebox",
       have: function () { try { return !!localStorage.getItem("room-visited-palm"); } catch (e) { return false; } },
@@ -4707,6 +5191,10 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
       get: function () { return movableByKey.island ? [movableByKey.island.root] : []; } },
     { key: "hoodbag", sec: "toys", label: "the duffel bag (HOOD RUN) + poster", obs: 7,
       get: function () { return [hoodG, posterHood]; } },
+    { key: "arcade", sec: "toys", label: "the arcade cabinet (BLOODRIFT)", obs: 8,
+      halos: function () { return []; }, get: function () { return [arcade, arcLight]; } },
+    { key: "vlcrate", sec: "toys", label: "the milk crate (VICTORY LAP)", obs: 9,
+      get: function () { return [vlG]; } },
     { key: "brain", sec: "desk", label: "the brain (BRAINROT) + poster", halos: function () { return [gBrain]; },
       get: function () { return [brainG, posterBrainrot]; } },
     { key: "pc", sec: "desk", label: "the beige PC",

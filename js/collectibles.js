@@ -218,6 +218,63 @@ export function buildGoldBar() { // one ingot off the top of the pile
   stamp.rotation.x = -Math.PI / 2; stamp.position.y = 0.0172; g.add(stamp);
   return g;
 }
+export function buildRiftShard() { // BLOODRIFT — a splinter of the Rift, still lit
+  var g = new THREE.Group();
+  // the shards GLOW: this is the only emissive treasure in the room, which is the
+  // point — bloomThreshold is 1.0 (linear), so emissiveIntensity has to clear it or
+  // the post pass ignores it entirely and the shard reads as dull red plastic.
+  var shardM = new THREE.MeshStandardMaterial({
+    color: 0x8c1526, roughness: 0.22, metalness: 0.1,
+    emissive: 0xd11a33, emissiveIntensity: 1.35,
+  });
+  var slab = new THREE.Mesh(new THREE.CylinderGeometry(0.036, 0.042, 0.012, 6), mat(0x1d1a20, 0.75));
+  slab.position.y = 0.006; g.add(slab);
+  // main shard: a stretched octahedron leaning off true, so it reads as broken
+  // rather than placed — a 4-sided cone would have looked like a party hat
+  var main = new THREE.Mesh(new THREE.OctahedronGeometry(0.031, 0), shardM);
+  main.scale.set(0.52, 2.05, 0.52); main.position.y = 0.052; main.rotation.set(0.14, 0.5, -0.13);
+  g.add(main);
+  // splinters sit WIDE and clear of the main shard — tucked in close they were
+  // hidden behind it from every angle and the treasure read as a single flame
+  [[-0.030, 0.026, 0.016, 0.34, -0.6], [0.031, 0.022, -0.017, -0.3, 0.8]].forEach(function (s) {
+    var sp = new THREE.Mesh(new THREE.OctahedronGeometry(0.014, 0), shardM);
+    sp.scale.set(0.5, 1.7, 0.5);
+    sp.position.set(s[0], s[1], s[2]); sp.rotation.set(s[3], 0, s[4]);
+    g.add(sp);
+  });
+  return g;
+}
+export function buildTrophy() { // VICTORY LAP — first place, a long time ago now
+  var g = new THREE.Group();
+  // deliberately DULL: metalness 0.45 / roughness 0.62 reads as tarnished brass.
+  // At the goldM settings (0.7 / 0.35) it looked freshly polished, which is the
+  // opposite of the whole game.
+  var brass = new THREE.MeshStandardMaterial({ color: 0xa8873f, roughness: 0.62, metalness: 0.45 });
+  var base = new THREE.Mesh(new THREE.CylinderGeometry(0.028, 0.032, 0.016, 4), mat(0x2b211a, 0.7));
+  base.rotation.y = Math.PI / 4; base.position.y = 0.008; g.add(base);
+  var plate = new THREE.Mesh(new THREE.PlaneGeometry(0.038, 0.011), new THREE.MeshBasicMaterial({
+    map: canvasTex(128, 36, function (gc, w, h) {
+      gc.fillStyle = "#b39a52"; gc.fillRect(0, 0, w, h);
+      gc.fillStyle = "#3a2f1c"; gc.font = "bold 15px Georgia, serif";
+      gc.textAlign = "center"; gc.textBaseline = "middle";
+      gc.fillText("1st  ·  STILL HERE", w / 2, h / 2 + 1);
+    }),
+  }));
+  plate.position.set(0, 0.008, 0.0325); g.add(plate);
+  var stem = new THREE.Mesh(new THREE.CylinderGeometry(0.005, 0.008, 0.022, 10), brass);
+  stem.position.y = 0.027; g.add(stem);
+  var cup = new THREE.Mesh(new THREE.CylinderGeometry(0.021, 0.010, 0.03, 14), brass);
+  cup.position.y = 0.053; g.add(cup);
+  var lip = new THREE.Mesh(new THREE.TorusGeometry(0.021, 0.0028, 6, 16), brass);
+  lip.rotation.x = -Math.PI / 2; lip.position.y = 0.068; g.add(lip);
+  [-1, 1].forEach(function (s) {
+    var hn = new THREE.Mesh(new THREE.TorusGeometry(0.011, 0.0028, 6, 12, Math.PI * 1.1), brass);
+    hn.position.set(s * 0.026, 0.056, 0);
+    hn.rotation.set(Math.PI / 2, 0, s > 0 ? -0.55 : Math.PI + 0.55);
+    g.add(hn);
+  });
+  return g;
+}
 export function buildPalm() { // the island that isn't on any chart, pocket edition
   var g = new THREE.Group();
   var sea = new THREE.Mesh(new THREE.CylinderGeometry(0.062, 0.066, 0.008, 20),
