@@ -102,7 +102,24 @@ export function buildHallway(ctx) {
   var west = box(0.1, 3.4, Z_S - Z_N, hwallM); west.position.set(-6.8, 1.7, (Z_S + Z_N) / 2); add(west);
   var capN = box(2.6, 3.4, 0.1, hwallM); capN.position.set(XC, 1.7, Z_N - 0.05); add(capN);
   var capS = box(2.6, 3.4, 0.1, hwallM); capS.position.set(XC, 1.7, Z_S + 0.05); add(capS);
-  var ceil = box(2.7, 0.1, Z_S - Z_N + 0.3, mat(0x2a2f3d, 0.98)); ceil.position.set(XC, CEIL + 0.05, (Z_S + Z_N) / 2); add(ceil);
+  // The ceiling is TWO pieces, not one, because the stairs go through it — same
+  // trick as the floor being three pieces around the basement hole. The opening is
+  // x -6.9..-5.75, z -3.6..-1.45, so you can look up the flight and see the landing.
+  var ceilM = mat(0x2a2f3d, 0.98);
+  var STW = { x0: -6.9, x1: -5.75, z0: -3.6, z1: -1.45 }; // the stairwell void
+  var CZ_S = Z_S + 0.15;                                  // the old ceiling's south edge
+  var ceilA = box(2.7, 0.1, CZ_S - STW.z1, ceilM);        // everything south of the void
+  ceilA.position.set(XC, CEIL + 0.05, (STW.z1 + CZ_S) / 2); add(ceilA);
+  var ceilB = box(-4.2 - STW.x1, 0.1, STW.z1 - STW.z0, ceilM); // the strip beside it
+  ceilB.position.set((STW.x1 - 4.2) / 2, CEIL + 0.05, (STW.z0 + STW.z1) / 2); add(ceilB);
+  // the stairwell's own lid + the two faces that close it, so the void is a shaft
+  // and not a hole into nothing
+  var stwLid = box(STW.x1 - STW.x0, 0.1, STW.z1 - STW.z0, ceilM);
+  stwLid.position.set((STW.x0 + STW.x1) / 2, 3.45, (STW.z0 + STW.z1) / 2); add(stwLid);
+  var stwE = box(0.1, 0.45, STW.z1 - STW.z0, hwallM);
+  stwE.position.set(STW.x1, 3.175, (STW.z0 + STW.z1) / 2); add(stwE);
+  var stwS = box(STW.x1 - STW.x0, 0.45, 0.1, hwallM);
+  stwS.position.set((STW.x0 + STW.x1) / 2, 3.175, STW.z1); add(stwS);
   [[W_IN + 0.001, (Z_S + Z_N) / 2, Z_S - Z_N, Math.PI / 2],   // baseboards
    [E_IN - 0.001, (Z_S + Z_N) / 2, Z_S - Z_N, -Math.PI / 2],
    [XC, Z_N + 0.001, 2.4, 0]].forEach(function (b) {
@@ -222,8 +239,20 @@ export function buildHallway(ctx) {
     step.position.set(-6.28, 0.09 + st * 0.185, -0.9 - st * 0.3); step.castShadow = step.receiveShadow = true; add(step);
     if (st === 2) tag(step, "the stairs up", null, "upstairs — her room, their room, the attic. 2027.");
   }
-  var upDark = new THREE.Mesh(new THREE.PlaneGeometry(1.0, 2.2), mat(0x0a0b10, 1));
-  upDark.position.set(-6.28, 2.35, -3.32); add(upDark); // the landing turns into black
+  // The flight lands on a real landing and meets a real door — taped like every
+  // other room in this house, because upstairs isn't yours yet either. (It used to
+  // end in a flat black plane, which read as an unfinished wall rather than a way
+  // up.) Top step surface is y 1.475, so everything up here is measured off that.
+  var LAND_Y = 1.475;
+  var landing = box(1.0, 0.1, 0.62, stairM);
+  landing.position.set(-6.28, LAND_Y - 0.05, -3.14); landing.receiveShadow = true; add(landing);
+  var upDoor = slabDoor(-6.28, -3.38, -Math.PI / 2, 0.92, 0x4a3a2a, "the stairs up",
+    "upstairs — her room, their room, the attic. 2027.", 0xffd9a0, 0.13);
+  upDoor.position.y = LAND_Y;
+  // ⚠️ squashed to 0.88 ON PURPOSE: at full height the jamb tops out at y 3.60 and
+  // the stairwell lid is at 3.40. Measured, not guessed — 1.475 + 2.12*0.88 = 3.34.
+  upDoor.scale.set(1, 0.88, 0.95);
+  tapeX(upDoor, 0.92);
   var rail = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.05, 2.35), mat(0x3a2c1c, 0.7));
   rail.position.set(-5.84, 1.5, -1.95); rail.rotation.x = 0.55; add(rail);
   [[1.0, -0.95], [1.35, -1.9], [1.7, -2.85]].forEach(function (p, i) {

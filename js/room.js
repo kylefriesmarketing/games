@@ -407,7 +407,13 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
     place(wallPropState[key] || def);
     return cfg;
   }
-  var back = box(10.6, 3.4, 0.1, wallM); back.position.set(0, 1.7, -2.6); scene.add(back);
+  // ⚠️ 8.7 WIDE, NOT 10.6. The room is 8.6 across (WALL_X 4.3 either side) and the
+  // side walls' outer faces are at ±4.35, so 8.7 is exactly enough to close the two
+  // corners. The old 10.6 ran to x ±5.3 — a metre of overhang past each side wall.
+  // On the right that was harmless; on the LEFT it speared straight through the
+  // hallway (whose east wall is at -4.35), so a slab of bedroom wall stood across
+  // the corridor at z -2.6 between you and the front door and the stairs.
+  var back = box(8.7, 3.4, 0.1, wallM); back.position.set(0, 1.7, -2.6); scene.add(back);
   // The left wall has a REAL doorway cut in it now (the hallway is on the other
   // side): a long piece north of the door, a short piece south of it, and a
   // lintel over the opening (z 1.64..2.56 — exactly where the door slab hangs).
@@ -415,9 +421,9 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
   var leftS = box(0.1, 3.4, 0.94, wallMSide); leftS.position.set(-WALL_X, 1.7, 3.03); scene.add(leftS);
   var leftL = box(0.1, 1.35, 0.92, wallMSide); leftL.position.set(-WALL_X, 2.725, 2.1); scene.add(leftL);
   var right = box(0.1, 3.4, 7, wallMSide); right.position.set(WALL_X, 1.7, 0); scene.add(right);
-  var stripe = new THREE.Mesh(new THREE.PlaneGeometry(10.6, 0.28), mat(0x8a4d5e, 0.95)); // 90s wallpaper border
+  var stripe = new THREE.Mesh(new THREE.PlaneGeometry(8.7, 0.28), mat(0x8a4d5e, 0.95)); // 90s wallpaper border
   stripe.position.set(0, 2.6, -2.54); scene.add(stripe);
-  var skirt = new THREE.Mesh(new THREE.PlaneGeometry(10.6, 0.14), mat(0x2a2019, 0.85));
+  var skirt = new THREE.Mesh(new THREE.PlaneGeometry(8.7, 0.14), mat(0x2a2019, 0.85));
   skirt.position.set(0, 0.07, -2.54); scene.add(skirt);
 
   /* ---- window: the street below, behind live rain streaks ------------------ */
