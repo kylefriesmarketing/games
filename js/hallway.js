@@ -361,7 +361,14 @@ export function buildHallway(ctx) {
    * light coming through, a mat that says WELCOME to people arriving (so it's
    * upside down to you), an umbrella stand, hooks wearing this season's coat.
    * This is also where the once-a-night knock has been coming from all along. */
-  var front = new THREE.Group(); front.position.set(XC, 0, Z_N + 0.01); add(front);
+  // ⚠️ NOT on XC. The hall's centre line is -5.55, but the staircase runs down the
+  // west side and occupies x -6.74..-5.82, so a door centred on the hall put 22cm of
+  // itself through the bottom of the flight and hung the coat hooks INSIDE the
+  // stairs. The clear span at the north wall is -5.82..-4.35; FRONT_X centres the
+  // doorway in THAT, which is also the runner's line, so door and runner share an
+  // axis. Anything added to this group has to live within about ±0.62 of it.
+  var FRONT_X = -5.10;
+  var front = new THREE.Group(); front.position.set(FRONT_X, 0, Z_N + 0.01); add(front);
   var fDoor = box(0.98, 2.08, 0.06, mat(0x5a3a24, 0.65)); fDoor.position.set(0, 1.04, 0.03); front.add(fDoor);
   [[-0.56, 0], [0.56, 0]].forEach(function (j) {
     var jm = box(0.1, 2.2, 0.09, mat(0x241b12, 0.8)); jm.position.set(j[0], 1.1, 0.045); front.add(jm);
@@ -395,16 +402,23 @@ export function buildHallway(ctx) {
   });
   var wmat = new THREE.Mesh(new THREE.PlaneGeometry(0.72, 0.4), new THREE.MeshStandardMaterial({ map: matT, roughness: 0.98 }));
   wmat.rotation.x = -Math.PI / 2; wmat.position.set(0, 0.0075, 0.42); front.add(wmat);
+  // the stand tucks against the east wall and sits forward of the hall table's z
   var stand = new THREE.Mesh(new THREE.CylinderGeometry(0.09, 0.075, 0.5, 12), mat(0x39536e, 0.6));
-  stand.position.set(0.82, 0.25, 0.28); front.add(stand);
+  stand.position.set(0.62, 0.25, 0.14); front.add(stand);
   [[-0.12, 0.5, 0x8a4a3a], [0.1, 0.42, 0x3a5a7a]].forEach(function (u) {
     var um = new THREE.Mesh(new THREE.CylinderGeometry(0.016, 0.026, 0.62, 8), mat(u[2], 0.8));
-    um.position.set(0.82 + u[0] * 0.3, u[1] + 0.28, 0.28); um.rotation.z = u[0]; front.add(um);
+    um.position.set(0.62 + u[0] * 0.3, u[1] + 0.28, 0.14); um.rotation.z = u[0]; front.add(um);
   });
-  var hooksBar = box(0.5, 0.05, 0.03, mat(0x3a2c1c, 0.7)); hooksBar.position.set(-0.85, 1.72, 0.06); front.add(hooksBar);
-  var hookCoat = box(0.2, 0.56, 0.1, mat(wear[0], 0.9)); hookCoat.position.set(-0.85, 1.36, 0.1); front.add(hookCoat);
-  var scarf = box(0.06, 0.34, 0.11, mat(0xb8934a, 0.95)); scarf.position.set(-0.78, 1.42, 0.115); scarf.rotation.z = 0.1;
-  if (MONTH >= 11 || MONTH <= 2) front.add(scarf);
+  // ⚠️ the hooks are on the EAST WALL, not beside the door. They used to hang at
+  // local x -0.85, which after the doorway moved put them half inside the staircase
+  // and half behind the west jamb — the coat rendered as a floating orange sliver.
+  // Above the hall table is where a coat actually goes anyway.
+  var hooks = new THREE.Group(); hooks.position.set(E_IN - 0.02, 0, -2.62);
+  hooks.rotation.y = -Math.PI / 2; add(hooks);
+  var hooksBar = box(0.3, 0.05, 0.03, mat(0x3a2c1c, 0.7)); hooksBar.position.set(0, 1.72, 0.04); hooks.add(hooksBar);
+  var hookCoat = box(0.2, 0.56, 0.1, mat(wear[0], 0.9)); hookCoat.position.set(0, 1.36, 0.08); hooks.add(hookCoat);
+  var scarf = box(0.06, 0.34, 0.11, mat(0xb8934a, 0.95)); scarf.position.set(0.07, 1.42, 0.095); scarf.rotation.z = 0.1;
+  if (MONTH >= 11 || MONTH <= 2) hooks.add(scarf);
   if (MONTH === 12) { // the wreath goes up when the room hangs its own lights
     var wreath = new THREE.Mesh(new THREE.TorusGeometry(0.17, 0.05, 10, 22), mat(0x2f5a34, 0.85));
     wreath.position.set(0, 1.62, 0.085); front.add(wreath);
@@ -418,7 +432,8 @@ export function buildHallway(ctx) {
   tag(stand, "the umbrella stand", null, "two umbrellas. it has never once rained indoors.");
 
   // the hall table by the front door, with the family telephone
-  var tbl = new THREE.Group(); tbl.position.set(-4.72, 0, -2.9); add(tbl);
+  // tight to the east wall now that the doorway moved east into the clear span
+  var tbl = new THREE.Group(); tbl.position.set(-4.62, 0, -2.9); add(tbl);
   var top = box(0.5, 0.04, 0.36, mat(0x4a3421, 0.6)); top.position.y = 0.72; top.castShadow = true; tbl.add(top);
   [[-0.21, -0.14], [0.21, -0.14], [-0.21, 0.14], [0.21, 0.14]].forEach(function (l) {
     var leg = box(0.04, 0.72, 0.04, mat(0x3a2a1a, 0.7)); leg.position.set(l[0], 0.36, l[1]); tbl.add(leg);
