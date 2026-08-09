@@ -17,6 +17,7 @@ import * as COLL from "./collectibles.js";
 import * as PROFILE from "./profile.js";
 import * as AUDIO from "./audio.js";
 import { createPost } from "./post.js";
+import { buildHallway } from "./hallway.js";
 // the sound effects are called from all over the room; keep the short names
 var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchetSfx,
     snoreSfx = AUDIO.snoreSfx, knockSfx = AUDIO.knockSfx;
@@ -407,7 +408,12 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
     return cfg;
   }
   var back = box(10.6, 3.4, 0.1, wallM); back.position.set(0, 1.7, -2.6); scene.add(back);
-  var left = box(0.1, 3.4, 7, wallMSide); left.position.set(-WALL_X, 1.7, 0); scene.add(left);
+  // The left wall has a REAL doorway cut in it now (the hallway is on the other
+  // side): a long piece north of the door, a short piece south of it, and a
+  // lintel over the opening (z 1.64..2.56 — exactly where the door slab hangs).
+  var left = box(0.1, 3.4, 5.14, wallMSide); left.position.set(-WALL_X, 1.7, -0.93); scene.add(left);
+  var leftS = box(0.1, 3.4, 0.94, wallMSide); leftS.position.set(-WALL_X, 1.7, 3.03); scene.add(leftS);
+  var leftL = box(0.1, 1.35, 0.92, wallMSide); leftL.position.set(-WALL_X, 2.725, 2.1); scene.add(leftL);
   var right = box(0.1, 3.4, 7, wallMSide); right.position.set(WALL_X, 1.7, 0); scene.add(right);
   var stripe = new THREE.Mesh(new THREE.PlaneGeometry(10.6, 0.28), mat(0x8a4d5e, 0.95)); // 90s wallpaper border
   stripe.position.set(0, 2.6, -2.54); scene.add(stripe);
@@ -1374,21 +1380,36 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
   clockG.position.set(2.35, 3.08, -2.53); scene.add(clockG);
   clickable(clockFace, "the clock", null, "the clock — it really is that time");
 
-  /* ---- the door (left wall; the rest of the house is out there) --------------- */
+  /* ---- the door (left wall; the HALLWAY is right through it now) -------------- */
+  // The slab hangs on a real hinge these days: doorPivot sits on the south jamb
+  // and the hallway module swings it as the camera walks through. Same meshes,
+  // same knock, same everything — it just finally does what doors do.
   var doorM = mat(0x4a3524, 0.75);
-  var doorSlab = box(0.05, 2.05, 0.92, doorM); doorSlab.position.set(-WALL_IN - 0.01, 1.025, 2.1); scene.add(doorSlab);
+  var doorPivot = new THREE.Group(); doorPivot.position.set(-WALL_IN - 0.01, 0, 2.56); scene.add(doorPivot);
+  var doorSlab = box(0.05, 2.05, 0.92, doorM); doorSlab.position.set(0, 1.025, -0.46); doorPivot.add(doorSlab);
   [[2.09, 0.08, 1.06, 2.1], [1.02, 2.12, 0.08, 1.62], [1.02, 2.12, 0.08, 2.58]].forEach(function (j) {
     var m = box(0.09, j[1], j[2], mat(0x2a2019, 0.8)); m.position.set(-WALL_IN + 0.02, j[0], j[3]); scene.add(m);
   });
   var knob = new THREE.Mesh(new THREE.SphereGeometry(0.028, 12, 10),
     new THREE.MeshStandardMaterial({ color: 0xb08d3f, roughness: 0.3, metalness: 0.6 }));
-  knob.position.set(-WALL_IN + 0.03, 1.0, 1.78); scene.add(knob);
+  knob.position.set(0.04, 1.0, -0.78); doorPivot.add(knob);
   var spill = new THREE.Mesh(new THREE.PlaneGeometry(0.9, 0.09),
     new THREE.MeshBasicMaterial({ color: 0xffc98a, transparent: true, opacity: 0.32, blending: THREE.AdditiveBlending, depthWrite: false }));
   spill.rotation.x = -Math.PI / 2; spill.rotation.z = Math.PI / 2;
   spill.position.set(-WALL_IN + 0.08, 0.013, 2.1); scene.add(spill);
   [doorSlab, knob].forEach(function (m) {
-    clickable(m, "the door", null, "the door — the rest of the house can wait");
+    clickable(m, "the door", function () { hall.toggleDoor(); }, "the door — the hallway is right through it");
+    m.userData.space = "both"; // clickable from either side, obviously
+  });
+  var hall = buildHallway({
+    scene: scene, camera: camera, lookAt: lookAt, clickable: clickable, glow: glow,
+    kidSay: function (s, d) { kidSay(s, d); }, doorPivot: doorPivot,
+    onEnter: function () { // leaving the bedroom tidies up after itself
+      if (decorMode) decorSet(false);
+      endTour(true);
+      document.getElementById("notebook").classList.remove("open");
+    },
+    onLeave: null
   });
   // once a night, somebody knocks softly — they know you're still up.
   // ?knock=5 makes them impatient (seconds until the knock, for tinkering).
@@ -2965,6 +2986,7 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
     if (!ev.persisted) return;
     zoomT = -1; pendingNav = null; navTarget = null;
     introT = 1; // settle instantly; no re-dolly
+    hall.forceExit(); // bfcache never catches you mid-hallway
     frameForAspect();
     camera.position.set(0, 1.72, camRestZ);
     lookAt.set(0, 1.2, -0.4);
@@ -3059,6 +3081,7 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
     nbPages = [];
     // page 1: who you are across the whole shelf
     var c = profileCtx(), res = PROFILE.evaluate(c);
+    hall.refreshPhotos(); // new memories hit the photo wall the moment they exist
     var card = "<div class='nb-rank'>" + esc(PROFILE.rankFor(c)) + "</div>";
     if (c.roomNamed) card += nbRow("this room belongs to", esc(c.roomNamed));
     card += nbRow("endings found", c.totalEndings);
@@ -3200,15 +3223,20 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
     while (o) { if (o.visible === false) return false; o = o.parent; }
     return true;
   }
+  function inSpace(m) { // each clickable belongs to a space; "both" (the door) works from either
+    var sp = m.userData.space || "bedroom";
+    return sp === "both" || sp === hall.space();
+  }
   function pickAt() {
     ray.setFromCamera(mouse, camera);
     var hits = ray.intersectObjects(pick, false);
     for (var i = 0; i < hits.length; i++) {
-      if (visibleChain(hits[i].object)) return hits[i].object; // put-away things pass clicks through
+      if (visibleChain(hits[i].object) && inSpace(hits[i].object)) return hits[i].object; // put-away things pass clicks through
     }
     return null;
   }
   window.addEventListener("pointerdown", function (e) {
+    if (hall.busy()) return; // mid-walk through the doorway: the feet are committed
     if (decorPointerDown(e)) return; // rearrange mode (and open panels) own the pointer
     setPointer(e);
     var o = pickAt();
@@ -3248,13 +3276,13 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
   }
 
   /* ---- keyboard: Tab walks the room, Enter opens, Esc puts things back -------- */
-  var kbTargets = null, kbCount = 0, kbIndex = -1, kbFocus = null, kbListDirty = false;
+  var kbTargets = null, kbCount = 0, kbIndex = -1, kbFocus = null, kbListDirty = false, kbSpace = "bedroom";
   function kbList() { // one entry per named thing; prefer the mesh that does something
-    if (kbTargets && kbCount === pick.length && !kbListDirty) return kbTargets;
+    if (kbTargets && kbCount === pick.length && !kbListDirty && kbSpace === hall.space()) return kbTargets;
     var seen = {};
-    kbTargets = []; kbCount = pick.length; kbListDirty = false;
+    kbTargets = []; kbCount = pick.length; kbListDirty = false; kbSpace = hall.space();
     pick.forEach(function (m) {
-      if (!visibleChain(m)) return; // put-away things leave the Tab order too
+      if (!visibleChain(m) || !inSpace(m)) return; // put-away (and other-room) things leave the Tab order too
       var n = m.userData.name;
       if (seen[n] === undefined) { seen[n] = kbTargets.length; kbTargets.push(m); }
       else if (!kbTargets[seen[n]].userData.action && m.userData.action) kbTargets[seen[n]] = m;
@@ -3276,6 +3304,7 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
       var sto = document.getElementById("store-ov");
       if (sto && sto.classList.contains("open")) { closeStore(); return; }
       if (decorMode) { decorSet(false); return; }
+      if (hall.space() === "hall" && !hall.busy()) { hall.leave(); return; } // Esc walks you home
       document.getElementById("notebook").classList.remove("open");
       document.body.classList.remove("listing");
       return;
@@ -5530,6 +5559,10 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
     '<div class="wel-row"><span class="wel-ic">💰</span><div><b>the getaway corner</b> — HOOD RUN, the arcade runner. ' +
     'the duffel bag by the door. grab the take and go; it only ends when you do.</div>' +
     '<button type="button" data-wel="bag">show me</button></div>' +
+    '<div class="wel-row"><span class="wel-ic">🚪</span><div><b>the door</b> — it opens now. ' +
+    "the hallway is the first piece of the rest of the house: a photo wall that remembers what you've done, " +
+    'and every future room already behind its own taped-off door.</div>' +
+    '<button type="button" data-wel="hall">show me</button></div>' +
     '<div class="wel-row"><span class="wel-ic">🖥️</span><div><b>the desk &amp; the island</b> — doorways to a ' +
     "friend's games: the brain on the desk is BRAINROT, the toy island is TIDEBOUND.</div>" +
     '<button type="button" data-wel="desk">show me</button></div>' +
@@ -5552,6 +5585,7 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
     if (key === "shelf") { pingAt(-0.2, 1.75, -2.3); pingAt(0.8, 1.15, -2.3); }
     else if (key === "chest") pingAt(1.45, 0.62, -1.85);
     else if (key === "bag") { var h = mk.hoodbag; pingAt(h ? h.root.position.x : -3.5, 0.4, h ? h.root.position.z : 1.75); }
+    else if (key === "hall") pingAt(-4.05, 1.0, 2.1); // the door — the hallway is through there
     else if (key === "desk") {
       var d = mk.desk; pingAt(d ? d.root.position.x + 0.4 : -1.95, 1.05, d ? d.root.position.z : -0.8);
       var isl = mk.island; if (isl && isl.root.visible) pingAt(isl.root.position.x, 0.5, isl.root.position.z);
@@ -5630,6 +5664,8 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
       lookAt.lerpVectors(zoomLookFrom, zoomLookTo, kz);
       camera.lookAt(lookAt);
       if (zoomT >= 1 && pendingNav) { var navF = pendingNav; pendingNav = null; navF(); }
+    } else if (hall.camTick(t, dt, mx, my)) {
+      // the hallway owns the camera — walking the door, or standing in the hall
     } else {
       if (introT >= 0 && introT < 1) { // the dolly in from the doorway
         introT = Math.min(1, introT + dt / INTRO);
@@ -5756,6 +5792,7 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
     // five more minutes: while the bed has you, the whole room breathes lower
     nap += (((t < napUntil) ? 1 : 0) - nap) * Math.min(1, dt * 1.8);
     var dim = 1 - 0.8 * nap;
+    hall.glowTick(t, dt, dim); // the hallway breathes on the same dimmer
     amb.intensity = phase.ambI * AMB_FLAT * (1 - 0.65 * nap);
     bounce.intensity = phase.ambI * BOUNCE_K * (1 - 0.65 * nap); // the bounce sleeps too
     lampLight.intensity = (lampOn ? 1.5 : 0.12) * dim;
@@ -6116,6 +6153,7 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
     var seen = {}, told = {};
     pick.forEach(function (m) {
       var n = m.userData.name; if (!n) return;
+      if ((m.userData.space || "bedroom") !== "bedroom") return; // the hallway has its own walls
       seen[n] = 1;
       var p = m; while (p) { if (!p.visible) return; p = p.parent; }
       var b = bb(m); if (!b) return;
@@ -6173,6 +6211,7 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
   }
 
   window.__room = { audit: audit, // one call to prove the room is still geometrically sane
+    hall: hall, // the hallway: space()/enter()/leave()/camTick — the rest of the house starts here
     scene: scene, camera: camera, renderer: renderer, pick: pick, ray: ray, THREE: THREE, // debug hook (THREE: modules hide the global)
     kid: kid, kidState: kidState, kidStep: kidStep, kidGoto: kidGoto, kidObstacles: KID_OBSTACLES, kidStations: KID_STATIONS,
     kidActions: function () { return kidActions; }, setKidAction: setKidAction, kidMixer: function () { return kidMixer; },

@@ -151,6 +151,28 @@ screen, light, season, tour, profile, audio, cat, posters, extras).
   vertical parallax crop). `PHASES.lift` is now ~1.0 — the old 1.85 was
   compensation for the removed photo.
 - **Profile/notebook** — cross-game progress + awards + key ring, `room-profile`.
+- **THE HALLWAY (`js/hallway.js`)** — the first room of the house plan. The bedroom
+  door is on a real hinge (`doorPivot` in room.js) and opens into a corridor built
+  beyond the left wall — which now has an actual doorway cut in it (three pieces:
+  `left`/`leftS`/`leftL`; the opening is z 1.64..2.56). Inside: the achievements
+  PHOTO WALL (reads `PROFILE.profileState()` — earned awards hang as polaroids,
+  unearned as dusty frames; `hall.refreshPhotos()` runs after every `evaluate()`),
+  the seasonal hall closet (opens), stairs up (taped, "2027"), a real stairwell
+  hole down to the basement (chained, cold glow), taped LIVING ROOM + KITCHEN
+  doors with light spilling under them (the TV flicker is deliberate), the FRONT
+  DOOR at the north end (fan-light, mail slot, WELCOME mat, December wreath), the
+  rotary phone, and two bulbs with a working pull chain.
+  **The space model:** every clickable carries `userData.space` ("bedroom" default,
+  "hall", or "both" for the door). `pickAt`, `kbList` and the audit filter by
+  `hall.space()` — that's how two rooms share one scene, one pick array, one
+  camera. `hall.camTick()` owns the camera during the door walk and while
+  standing in the hall (room.js's camera block is untouched otherwise);
+  `hall.glowTick(t,dt,dim)` runs on the room's dimmer. Esc (or clicking the open
+  doorway — invisible hitbox "your room") walks you home. State keys:
+  `room-hall-seen`. ⚠️ Headless/pane testing: rAF throttling means the walk never
+  advances on its own — drive `__room.hall.camTick(t, dt, 0, 0)` in a loop, same
+  trick as everything else. ⚠️ Any new room module must join `sw.js` SHELL + bump
+  CACHE (hallway = v8), per Iron Rule #1.
 
 ## 5. Testing & verification recipes (hard-won)
 
@@ -218,8 +240,12 @@ treasures, pings, news whisper).
 - Chameleon was fully removed from the hub for copyright (computer shows a
   screensaver; a different game takes that slot someday). The public mirror repo
   `kylefriesmarketing/chameleon` still exists — Kyle's call.
-- Kid voice lines (seed_audio ~0.8cr/line), a second room (den/arcade through a
-  door), poster art for future games, real key sales when Steam plan activates.
+- Kid voice lines (seed_audio ~0.8cr/line), poster art for future games, real key
+  sales when Steam plan activates.
+- ~~A second room through a door~~ — SHIPPED as the hallway (v8). Next: the rooms
+  behind its taped doors, per `ROADMAP.md` + `CATALOG.md` at the workspace root
+  (living room + basement are the 2026 openers; kid can't walk the hall yet; the
+  duffel moves to the front door when the front yard opens).
 - Refactor pass 3 candidates: kid state machine, drawer UI, storefront, tour
   (room.js is ~4,600 lines again).
 
