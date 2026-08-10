@@ -1253,6 +1253,11 @@ export function buildHallway(ctx) {
     // wash straight through the house and light the bedroom. The streetlight
     // reaches it too (distance 16, and the bedroom is 13 away). Toggling the group
     // is the cheap fix that also kills the geometry cost.
+    // ⚠️ and the WHOLE HALL is hidden from the bedroom, not just the yard. The
+    // bedroom door is shut when you're in there, so none of it is visible — but it
+    // was still costing 258 draw calls a frame. Kept up during transitions, when
+    // the door is open and you really are looking down it.
+    g.visible = space !== "bedroom" || mode !== "idle";
     yardG.visible = space !== "bedroom";
     if (mode === "out" || mode === "in") {           // through the front door, both ways
       tt = Math.min(1, tt + dt / 2.5);
@@ -1451,6 +1456,17 @@ export function buildHallway(ctx) {
       if ((passDir > 0 && passX > 46) || (passDir < 0 && passX < -46)) passX = 999;
     }
   }
+
+  /* ---- performance ------------------------------------------------------------
+   * ⚠️ NOTHING IN THIS MODULE CASTS OR RECEIVES A SHADOW, and it never did — the
+   * hall's bulbs, the porch light, the streetlight and yardSun all have castShadow
+   * off. But util.js's box() turns castShadow ON for every box it makes, so all 523
+   * meshes out here were being fed to the BEDROOM lamp's shadow map: a point light,
+   * so a cube map, so six faces, so six passes over geometry sealed behind a wall
+   * the lamp cannot see past. Measured from the bedroom camera: shadows accounted
+   * for 486 of 886 draw calls and 1.04M of 1.63M triangles.
+   * If you ever give a hall light castShadow, this loop is why nothing happens. */
+  g.traverse(function (o) { if (o.isMesh) { o.castShadow = false; o.receiveShadow = false; } });
 
   return {
     group: g,
