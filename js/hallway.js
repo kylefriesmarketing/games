@@ -123,7 +123,13 @@ export function buildHallway(ctx) {
   });
   hwallT.wrapS = hwallT.wrapT = THREE.RepeatWrapping; hwallT.repeat.set(4, 1.6);
   var hwallM = new THREE.MeshStandardMaterial({ map: hwallT, roughness: 0.95 });
-  var west = box(0.1, 3.4, Z_S - Z_N, hwallM); west.position.set(W_IN - 0.05, 1.7, (Z_S + Z_N) / 2); add(west);
+  // the WEST wall is cut for the kitchen doorway — third hole in this house, same
+  // lesson each time: a door you can walk through needs an opening, not a slab
+  var KDO = { z0: -0.90, z1: 0.20, y1: 2.16 };
+  [[Z_N, KDO.z0, 0, 3.4], [KDO.z1, Z_S, 0, 3.4], [KDO.z0, KDO.z1, KDO.y1, 3.4]].forEach(function (p) {
+    var seg = box(0.1, p[3] - p[2], p[1] - p[0], hwallM);
+    seg.position.set(W_IN - 0.05, (p[2] + p[3]) / 2, (p[0] + p[1]) / 2); add(seg);
+  });
   // the hall's OWN east wall, south of where the bedroom stops
   var eastS = box(0.1, 3.4, Z_S + 0.1 - BED_END, hwallM);
   eastS.position.set(E_IN + 0.05, 1.7, (BED_END + Z_S + 0.1) / 2); add(eastS);
@@ -227,9 +233,37 @@ export function buildHallway(ctx) {
 
   // THE KITCHEN — across from the photo wall. Cold light, steady: that's the
   // fridge, humming to itself until 2027.
-  var kitDoor = slabDoor(W_IN + 0.03,-0.35, 0, 0.92, 0x54582e, "the kitchen door",
-    "the kitchen — opening 2027. the fridge hums like it knows something", 0xbfe8d8, 0.16);
-  tapeX(kitDoor, 0.92); plaque(kitDoor, "KITCHEN", "2027");
+  // …and it's OPEN now — the tape came off the day the room behind it got built.
+  // The slab hangs on a real hinge (south jamb, swings INTO the kitchen), exactly
+  // like the bedroom and front doors. The jambs and plaque stay on the wall.
+  var kDoorPivot = new THREE.Group(); kDoorPivot.position.set(W_IN + 0.03, 0, -0.81); add(kDoorPivot);
+  var kSlab = box(0.05, 2.05, 0.92, mat(0x54582e, 0.72)); kSlab.position.set(0, 1.025, 0.46); kDoorPivot.add(kSlab);
+  var kKnob = new THREE.Mesh(new THREE.SphereGeometry(0.026, 12, 10),
+    new THREE.MeshStandardMaterial({ color: 0xb08d3f, roughness: 0.35, metalness: 0.6 }));
+  kKnob.position.set(0.05, 1.0, 0.80); kDoorPivot.add(kKnob);
+  [[2.09, 0.08, 1.06, -0.35], [1.02, 2.12, 0.08, -0.87], [1.02, 2.12, 0.08, 0.17]].forEach(function (j) {
+    var jm = box(0.08, j[1], j[2], mat(0x241b12, 0.8));
+    jm.position.set(W_IN + 0.045, j[0], j[3]); add(jm);
+  });
+  var kSpill = new THREE.Mesh(new THREE.PlaneGeometry(0.92, 0.08),
+    new THREE.MeshBasicMaterial({ color: 0xbfe8d8, transparent: true, opacity: 0.16, blending: THREE.AdditiveBlending, depthWrite: false }));
+  kSpill.rotation.x = -Math.PI / 2; kSpill.rotation.z = Math.PI / 2;
+  kSpill.position.set(W_IN + 0.12, 0.012, -0.35); add(kSpill);
+  var kitDoor = kDoorPivot; kitDoor.userData.spill = kSpill; kitDoor.userData.spillOp = 0.16;
+  (function () { // the sign belongs on the WALL, not the swinging slab
+    var pg = new THREE.Group(); pg.position.set(W_IN + 0.03, 0, -0.35); add(pg);
+    plaque(pg, "KITCHEN", "come in");
+  })();
+  [kSlab, kKnob].forEach(function (m) {
+    tag(m, "the kitchen door", function () { enterKitchen(); },
+      "the kitchen — the fridge hums. click to go in");
+  });
+  // the way back: an invisible hitbox in the opening, kitchen side
+  var kBackHit = new THREE.Mesh(new THREE.BoxGeometry(0.2, 2.0, 1.0),
+    new THREE.MeshBasicMaterial({ transparent: true, opacity: 0, depthWrite: false }));
+  kBackHit.position.set(W_IN - 0.15, 1.03, -0.35); add(kBackHit);
+  clickable(kBackHit, "the hallway", function () { leaveKitchen(); }, "back to the hall");
+  kBackHit.userData.space = "kitchen";
 
   // THE CLOSET — the one door down here that DOES open. Seasonal storage, one
   // spare hallway gag, and a shoebox that is pointedly empty.
@@ -503,6 +537,299 @@ export function buildHallway(ctx) {
   var hset = box(0.22, 0.045, 0.05, mat(0x1d1f26, 0.5)); hset.position.set(0, 0.15, -0.045); phoneG.add(hset);
   [-0.085, 0.085].forEach(function (hx) { var cup = box(0.05, 0.05, 0.055, mat(0x1d1f26, 0.5)); cup.position.set(hx, 0.165, -0.045); phoneG.add(cup); });
   [phBase, hset, dial].forEach(function (m) { tag(m, "the telephone", null, "the telephone — it's for you. (it's never for you.)"); });
+
+  /* ---- THE KITCHEN (a FOURTH space) -------------------------------------------
+   * Through the door on the west wall that has been taped shut since the hallway
+   * opened. It is 1997 in here: speckled lino, oak-look cabinet doors, a laminate
+   * counter with a rolled edge, and a fridge that hums like it knows something —
+   * which is what its door plaque promised, so the fridge had better hum.
+   *
+   * Footprint x -13.00..-7.55, z -3.55..2.05. The driveway used to run through
+   * exactly this; it moved west to make room. */
+  var KX0 = -13.00, KX1 = -7.55, KZ0 = -3.55, KZ1 = 2.05, KCEIL = 2.62;
+  var KCX = (KX0 + KX1) / 2, KCZ = (KZ0 + KZ1) / 2;
+  var kitG = new THREE.Group(); add(kitG);
+  function kadd(m) { kitG.add(m); return m; }
+  function ktag(m, name, action, hint) {
+    clickable(m, name, action, hint); m.userData.space = "kitchen"; return m;
+  }
+
+  // lino: speckled, waxed, and worn to a path where everyone walks
+  var linoT = canvasTex(256, 256, function (c, w, h) {
+    c.fillStyle = "#cfc6ae"; c.fillRect(0, 0, w, h);
+    for (var i = 0; i < 5000; i++) {
+      var v = ["#b9ae92", "#ded6c0", "#a89d80", "#c8bfa6"][(Math.random() * 4) | 0];
+      c.fillStyle = v; c.fillRect(Math.random() * w, Math.random() * h, 2, 2);
+    }
+    c.strokeStyle = "rgba(140,130,106,0.5)"; c.lineWidth = 2;   // the tile grid
+    [0, 128].forEach(function (g5) {
+      c.beginPath(); c.moveTo(0, g5); c.lineTo(w, g5); c.stroke();
+      c.beginPath(); c.moveTo(g5, 0); c.lineTo(g5, h); c.stroke();
+    });
+  });
+  var kFloor = new THREE.Mesh(new THREE.PlaneGeometry(KX1 - KX0, KZ1 - KZ0),
+    ground(linoT, 6, 6, 0xffffff, 0.55, 0.6));
+  kFloor.rotation.x = -Math.PI / 2; kFloor.position.set(KCX, 0.005, KCZ); kadd(kFloor);
+  ktag(kFloor, "the kitchen floor", null, "lino. there is a worn track from the fridge to the kettle.");
+
+  var kWallT = canvasTex(128, 128, function (c, w, h) {
+    c.fillStyle = "#e4dcc6"; c.fillRect(0, 0, w, h);
+    for (var i = 0; i < 260; i++) {                       // faint sponge-paint mottle
+      c.fillStyle = "rgba(198,186,156," + (0.1 + Math.random() * 0.16).toFixed(2) + ")";
+      c.beginPath(); c.arc(Math.random() * w, Math.random() * h, 2 + Math.random() * 5, 0, 7); c.fill();
+    }
+  });
+  var kWallM = ground(kWallT, 5, 2, 0xffffff, 0.96, 0.5);
+  // shell: three solid walls, the fourth is the hall wall with the doorway in it
+  [[KX0 - 0.05, KCZ, 0.1, KZ1 - KZ0], [KCX, KZ0 - 0.05, KX1 - KX0, 0.1], [KCX, KZ1 + 0.05, KX1 - KX0, 0.1]]
+    .forEach(function (p) {
+      var wl = box(p[2], 3.0, p[3], kWallM); wl.position.set(p[0], 1.5, p[1]); kadd(wl);
+    });
+  var kCeil = box(KX1 - KX0 + 0.2, 0.1, KZ1 - KZ0 + 0.2, mat(0xf0ead8, 0.98));
+  kCeil.position.set(KCX, KCEIL + 0.05, KCZ); kadd(kCeil);
+  [[KX0 + 0.001, KCZ, KZ1 - KZ0, Math.PI / 2], [KCX, KZ0 + 0.001, KX1 - KX0, 0],
+   [KCX, KZ1 - 0.001, KX1 - KX0, 0]].forEach(function (b) {
+    var sk = new THREE.Mesh(new THREE.PlaneGeometry(b[2], 0.1), mat(0xe8e2d0, 0.85));
+    sk.rotation.y = b[3]; sk.position.set(b[0], 0.05, b[1]); kadd(sk);
+  });
+
+  // --- the run of units: laminate top, rolled edge, oak-look doors, kick board
+  var lamT = canvasTex(128, 128, function (c, w, h) {
+    c.fillStyle = "#b9a88a"; c.fillRect(0, 0, w, h);
+    for (var i = 0; i < 900; i++) {
+      c.fillStyle = ["rgba(90,76,54,0.5)", "rgba(210,198,172,0.5)", "rgba(140,124,96,0.5)"][(Math.random() * 3) | 0];
+      c.fillRect(Math.random() * w, Math.random() * h, 3, 2);
+    }
+  });
+  var lamM = ground(lamT, 4, 1, 0xffffff, 0.35, 0.4);
+  var oakT = canvasTex(96, 128, function (c, w, h) {
+    c.fillStyle = "#9a6f42"; c.fillRect(0, 0, w, h);
+    c.strokeStyle = "rgba(110,74,40,0.55)"; c.lineWidth = 2;
+    for (var g6 = 0; g6 < 9; g6++) {
+      c.beginPath(); c.moveTo(4 + g6 * 11, 0);
+      c.bezierCurveTo(10 + g6 * 11, h * 0.35, 0 + g6 * 11, h * 0.7, 6 + g6 * 11, h);
+      c.stroke();
+    }
+    c.strokeStyle = "rgba(70,46,24,0.6)"; c.lineWidth = 4;      // the shaker frame
+    c.strokeRect(7, 7, w - 14, h - 14);
+  });
+  var oakM = ground(oakT, 1, 1, 0xffffff, 0.62, 0.6);
+  var CT_Y = 0.90, CT_D = 0.62;
+  function counterRun(x0, x1, z, along) {      // along: "x" or "z"
+    var len = along === "x" ? (x1 - x0) : (x1 - x0);
+    var cx = along === "x" ? (x0 + x1) / 2 : z, cz = along === "x" ? z : (x0 + x1) / 2;
+    var w1 = along === "x" ? len : CT_D, d1 = along === "x" ? CT_D : len;
+    var carc = box(w1, 0.06, d1, lamM); carc.position.set(cx, CT_Y, cz); kadd(carc);
+    var body = box(w1 - 0.02, CT_Y - 0.14, d1 - 0.04, oakM);
+    body.position.set(cx, (CT_Y - 0.14) / 2 + 0.12, cz); kadd(body);
+    var kick = box(w1 - 0.1, 0.12, d1 - 0.16, mat(0x4a3524, 0.8));
+    kick.position.set(cx, 0.06, cz); kadd(kick);
+    var n = Math.max(1, Math.round(len / 0.62));
+    for (var i = 0; i < n; i++) {                                    // handles
+      var t2 = (i + 0.5) / n;
+      var hx = along === "x" ? x0 + t2 * len : cx + (CT_D / 2 + 0.02) * (z > KCX ? -1 : 1);
+      var hz = along === "x" ? cz + (CT_D / 2 + 0.02) * (z > KCZ ? -1 : 1) : x0 + t2 * len;
+      var hd = box(along === "x" ? 0.16 : 0.03, 0.03, along === "x" ? 0.03 : 0.16, mat(0x8f959b, 0.4));
+      hd.position.set(hx, CT_Y - 0.24, hz); kadd(hd);
+    }
+    ktag(carc, "the counter", null, "wiped down. it is always wiped down.");
+    return carc;
+  }
+  counterRun(KX0 + 0.05, KX1 - 1.9, KZ0 + CT_D / 2 + 0.05, "x");     // along the far wall
+  counterRun(KZ0 + 0.05, KZ1 - 2.6, KX0 + CT_D / 2 + 0.05, "z");     // and down the west wall
+
+  // wall cupboards over the far run
+  var upper = box(KX1 - 1.9 - KX0 - 0.1, 0.72, 0.34, oakM);
+  upper.position.set((KX0 + KX1 - 1.9) / 2, 1.92, KZ0 + 0.22); kadd(upper);
+  var upTrim = box(KX1 - 1.9 - KX0 - 0.06, 0.06, 0.38, mat(0x7d5a34, 0.7));
+  upTrim.position.set((KX0 + KX1 - 1.9) / 2, 2.31, KZ0 + 0.23); kadd(upTrim);
+  ktag(upper, "the cupboards", null, "the good glasses are on the top shelf, which is the point of a top shelf.");
+  // under-cupboard strip light — the thing that makes a kitchen feel like a kitchen
+  var strip = new THREE.Mesh(new THREE.BoxGeometry(KX1 - 1.9 - KX0 - 0.5, 0.03, 0.08),
+    new THREE.MeshStandardMaterial({ color: 0xfff6e0, emissive: 0xffe8b8, emissiveIntensity: 1.3, roughness: 0.4 }));
+  strip.position.set((KX0 + KX1 - 1.9) / 2, 1.55, KZ0 + 0.3); kadd(strip);
+  var kUnder = new THREE.PointLight(0xffdda6, 1.1, 4.2, 1.9);
+  kUnder.position.set((KX0 + KX1 - 1.9) / 2, 1.42, KZ0 + 0.62); kadd(kUnder);
+  var kStripOn = 1;   // the recipe box can turn the strip light off
+
+  // --- the window over the sink, looking out at the side of the yard
+  var kWinT = canvasTex(128, 96, function (c, w, h) {
+    var sk2 = c.createLinearGradient(0, 0, 0, h);
+    sk2.addColorStop(0, "#22314e"); sk2.addColorStop(1, "#4a5c6e");
+    c.fillStyle = sk2; c.fillRect(0, 0, w, h);
+    c.fillStyle = "#16210f"; c.fillRect(0, h * 0.62, w, h * 0.38);      // the side lawn
+    c.fillStyle = "#1a1410";                                            // the fence
+    for (var b2 = 0; b2 < 14; b2++) c.fillRect(b2 * 9 + 1, h * 0.44, 8, h * 0.2);
+  });
+  kWinT.colorSpace = THREE.SRGBColorSpace;
+  var kWin = new THREE.Mesh(new THREE.PlaneGeometry(1.15, 0.85),
+    new THREE.MeshBasicMaterial({ map: kWinT }));
+  kWin.position.set(KX0 + 0.045, 1.55, KCZ - 0.6); kWin.rotation.y = Math.PI / 2; kadd(kWin);
+  [[0, 0.47, 1.3, 0.06], [0, -0.47, 1.3, 0.06], [-0.66, 0, 0.06, 1.0], [0.66, 0, 0.06, 1.0]]
+    .forEach(function (f) {
+      var fr = box(0.07, f[3], f[2], mat(0xe8e2d0, 0.8));
+      fr.position.set(KX0 + 0.06, 1.55 + f[1], KCZ - 0.6 + f[0]); kadd(fr);
+    });
+  ktag(kWin, "the kitchen window", null, "over the sink, so somebody could watch the side yard while they scrubbed.");
+  var sinkBowl = box(0.5, 0.02, 0.42, mat(0xc8ccd0, 0.25));
+  sinkBowl.position.set(KX0 + 0.36, CT_Y - 0.14, KCZ - 0.6); kadd(sinkBowl);
+  [[0.25, 0.02], [-0.25, 0.02]].forEach(function (e2) {
+    var lip = box(0.03, 0.16, 0.42, mat(0xc8ccd0, 0.25));
+    lip.position.set(KX0 + 0.36 + e2[0] * 0.0, CT_Y - 0.07, KCZ - 0.6 + e2[0]); kadd(lip);
+  });
+  var tap = new THREE.Mesh(new THREE.CylinderGeometry(0.018, 0.018, 0.3, 8), mat(0xb9bfc4, 0.3));
+  tap.position.set(KX0 + 0.18, CT_Y + 0.15, KCZ - 0.6); kadd(tap);
+  var spout = new THREE.Mesh(new THREE.CylinderGeometry(0.015, 0.015, 0.26, 8), mat(0xb9bfc4, 0.3));
+  spout.rotation.z = Math.PI / 2; spout.position.set(KX0 + 0.31, CT_Y + 0.28, KCZ - 0.6); kadd(spout);
+  ktag(tap, "the tap", null, "it drips. everyone has stopped hearing it.");
+
+  // --- the cooker + hood
+  var cookX = KX1 - 2.55;
+  var cooker = box(0.62, CT_Y - 0.02, CT_D - 0.04, mat(0xe0e2de, 0.4));
+  cooker.position.set(cookX, (CT_Y - 0.02) / 2, KZ0 + CT_D / 2 + 0.05); kadd(cooker);
+  var hob = box(0.56, 0.03, 0.5, mat(0x24262a, 0.35));
+  hob.position.set(cookX, CT_Y, KZ0 + CT_D / 2 + 0.05); kadd(hob);
+  [[-0.13, -0.11], [0.13, -0.11], [-0.13, 0.12], [0.13, 0.12]].forEach(function (rg) {
+    var ring = new THREE.Mesh(new THREE.TorusGeometry(0.075, 0.012, 6, 16), mat(0x15171a, 0.5));
+    ring.rotation.x = -Math.PI / 2; ring.position.set(cookX + rg[0], CT_Y + 0.025, KZ0 + CT_D / 2 + 0.05 + rg[1]); kadd(ring);
+  });
+  var ovenDoor = box(0.54, 0.42, 0.04, mat(0x2a2d31, 0.35));
+  ovenDoor.position.set(cookX, 0.46, KZ0 + CT_D + 0.03); kadd(ovenDoor);
+  var ovenGlass = box(0.4, 0.24, 0.02, mat(0x14161a, 0.2));
+  ovenGlass.position.set(cookX, 0.5, KZ0 + CT_D + 0.055); kadd(ovenGlass);
+  var hood = box(0.72, 0.26, 0.5, mat(0xd8dad6, 0.45));
+  hood.position.set(cookX, 1.72, KZ0 + 0.3); kadd(hood);
+  var hoodLip = box(0.78, 0.06, 0.56, mat(0xc4c6c2, 0.45));
+  hoodLip.position.set(cookX, 1.58, KZ0 + 0.32); kadd(hoodLip);
+  ktag(cooker, "the cooker", null, "four rings, one of which has always been the good one.");
+
+  // --- THE FRIDGE, and it hums, because the hallway door promised it would
+  var frX = KX1 - 0.95;
+  var fridge = box(0.78, 1.72, 0.72, mat(0xe8e6dc, 0.42));
+  fridge.position.set(frX, 0.86, KZ1 - 0.5); kadd(fridge);
+  var frSplit = box(0.8, 0.02, 0.74, mat(0xbfbdb2, 0.5));
+  frSplit.position.set(frX, 1.22, KZ1 - 0.5); kadd(frSplit);
+  [[0.62, 0.5], [1.5, 0.28]].forEach(function (hh) {
+    var hnd = box(0.04, hh[1], 0.04, mat(0xbfbdb2, 0.35));
+    hnd.position.set(frX - 0.33, hh[0], KZ1 - 0.87); kadd(hnd);
+  });
+  // the door: magnets, a shopping list, and the kid's drawings of the games
+  var frDoorT = canvasTex(192, 256, function (c, w, h) {
+    c.fillStyle = "#e8e6dc"; c.fillRect(0, 0, w, h);
+    function magnet(x, y, col) { c.fillStyle = col; c.beginPath(); c.arc(x, y, 5, 0, 7); c.fill(); }
+    c.save(); c.translate(w * 0.30, h * 0.30); c.rotate(-0.07);        // a crayon drawing
+    c.fillStyle = "#f4efdd"; c.fillRect(-40, -34, 80, 68);
+    c.strokeStyle = "#3a6a3a"; c.lineWidth = 3;
+    c.beginPath(); c.moveTo(-26, 22); c.lineTo(-26, -6); c.lineTo(-6, -22); c.lineTo(14, -6); c.lineTo(14, 22); c.stroke();
+    c.fillStyle = "#c8a23a"; c.fillRect(-14, 2, 12, 20);
+    c.strokeStyle = "#c04a3a"; c.beginPath(); c.arc(24, -20, 8, 0, 7); c.stroke();
+    c.fillStyle = "#5a5040"; c.font = "italic 11px Georgia, serif"; c.textAlign = "center";
+    c.fillText("our house", 0, 30);
+    c.restore();
+    magnet(w * 0.30 - 40, h * 0.30 - 34, "#c94b3a"); magnet(w * 0.30 + 40, h * 0.30 + 32, "#3a6ac9");
+    c.save(); c.translate(w * 0.66, h * 0.62); c.rotate(0.05);          // the list
+    c.fillStyle = "#fdfaf0"; c.fillRect(-30, -40, 60, 80);
+    c.fillStyle = "#4a4436"; c.font = "11px Georgia, serif"; c.textAlign = "left";
+    ["milk", "bread", "the good", "  cereal", "batteries"].forEach(function (l, i) { c.fillText(l, -22, -22 + i * 15); });
+    c.restore();
+    magnet(w * 0.66, h * 0.62 - 40, "#e0b03a");
+    c.fillStyle = "#3a3a3a"; c.font = "bold 9px sans-serif"; c.textAlign = "center";
+    c.fillText("A B C D E F G", w * 0.5, h * 0.90);                     // alphabet magnets
+  });
+  var frDoor = new THREE.Mesh(new THREE.PlaneGeometry(0.76, 1.68),
+    new THREE.MeshStandardMaterial({ map: frDoorT, roughness: 0.44 }));
+  frDoor.position.set(frX, 0.86, KZ1 - 0.865); frDoor.rotation.y = Math.PI; kadd(frDoor);
+  ktag(frDoor, "the fridge", null, "it hums like it knows something. it has always hummed like that.");
+  var frGlow = new THREE.PointLight(0xbfe8d8, 0.28, 2.4, 2);
+  frGlow.position.set(frX, 1.0, KZ1 - 1.0); kadd(frGlow);
+
+  // --- the table, where the actual living gets done
+  var tblT = box(1.15, 0.05, 0.78, lamM); tblT.position.set(KCX + 0.55, 0.74, KCZ + 1.05); kadd(tblT);
+  [[-0.5, -0.32], [0.5, -0.32], [-0.5, 0.32], [0.5, 0.32]].forEach(function (l) {
+    var lg = box(0.05, 0.72, 0.05, mat(0x8a6a44, 0.7));
+    lg.position.set(KCX + 0.55 + l[0], 0.36, KCZ + 1.05 + l[1]); kadd(lg);
+  });
+  ktag(tblT, "the kitchen table", null, "homework, cereal, and every difficult conversation this house has had.");
+  [[-0.72, 0, 1.55], [0.72, 0, -1.55]].forEach(function (ch) {
+    var seat = box(0.4, 0.05, 0.4, mat(0xc4a86a, 0.75));
+    seat.position.set(KCX + 0.55 + ch[0], 0.45, KCZ + 1.05 + ch[1]); kadd(seat);
+    var back = box(0.06, 0.46, 0.4, mat(0xc4a86a, 0.75));
+    back.position.set(KCX + 0.55 + ch[0] + (ch[0] < 0 ? -0.17 : 0.17), 0.68, KCZ + 1.05 + ch[1]); kadd(back);
+    [[-0.16, -0.16], [0.16, -0.16], [-0.16, 0.16], [0.16, 0.16]].forEach(function (cl) {
+      var cle = box(0.04, 0.45, 0.04, mat(0xb09858, 0.75));
+      cle.position.set(KCX + 0.55 + ch[0] + cl[0], 0.225, KCZ + 1.05 + ch[1] + cl[1]); kadd(cle);
+    });
+  });
+  // ⚠️ an OPEN bowl, not a sphere-cap. The dome version rendered as a 30cm orange
+  // ham sitting on the table, with the fruit sealed invisibly inside it.
+  var bowl2 = new THREE.Mesh(new THREE.CylinderGeometry(0.14, 0.09, 0.07, 16, 1, true), mat(0xb5793a, 0.6));
+  bowl2.material.side = THREE.DoubleSide;
+  bowl2.position.set(KCX + 0.55, 0.80, KCZ + 1.05); kadd(bowl2);
+  var bowlBase = new THREE.Mesh(new THREE.CircleGeometry(0.09, 16), mat(0x9a6530, 0.6));
+  bowlBase.rotation.x = -Math.PI / 2; bowlBase.position.set(KCX + 0.55, 0.768, KCZ + 1.05); kadd(bowlBase);
+  var kFruit = [];
+  [[0, 0.03, 0xd8a83a], [0.06, 0.04, 0xc04a3a], [-0.05, 0.03, 0x8aa83a]].forEach(function (fr2) {
+    var fruit = new THREE.Mesh(new THREE.SphereGeometry(0.045, 8, 6), mat(fr2[2], 0.7));
+    fruit.position.set(KCX + 0.55 + fr2[0], 0.84 + fr2[1], KCZ + 1.05 + fr2[0] * 0.6); kadd(fruit);
+    kFruit.push(fruit);
+  });
+
+  // --- the small stuff, which is what actually sells a room
+  var kettle = new THREE.Mesh(new THREE.CylinderGeometry(0.075, 0.09, 0.2, 14), mat(0xd8d5cc, 0.4));
+  kettle.position.set(KX1 - 3.5, CT_Y + 0.1, KZ0 + 0.4); kadd(kettle);
+  ktag(kettle, "the kettle", null, "the kettle. it is basically always just boiled.");
+  var toaster = box(0.26, 0.17, 0.16, mat(0xc8ccd0, 0.3));
+  toaster.position.set(KX1 - 4.1, CT_Y + 0.09, KZ0 + 0.38); kadd(toaster);
+  var mugTree = new THREE.Mesh(new THREE.CylinderGeometry(0.015, 0.06, 0.28, 8), mat(0x8a6a44, 0.7));
+  mugTree.position.set(KX1 - 3.05, CT_Y + 0.14, KZ0 + 0.36); kadd(mugTree);
+  var kMugs = [];
+  [[0.07, 0.2, 0xc94b3a], [-0.07, 0.16, 0x3a6ac9], [0.05, 0.12, 0xe0b03a]].forEach(function (mg) {
+    var mug = new THREE.Mesh(new THREE.CylinderGeometry(0.038, 0.033, 0.075, 10), mat(mg[2], 0.5));
+    mug.position.set(KX1 - 3.05 + mg[0], CT_Y + mg[1], KZ0 + 0.36 + mg[0] * 0.5); kadd(mug);
+    kMugs.push(mug.material);
+  });
+  var kClock = new THREE.Mesh(new THREE.CircleGeometry(0.15, 22), new THREE.MeshBasicMaterial({
+    map: canvasTex(64, 64, function (c, w, h) {
+      c.fillStyle = "#f4efdd"; c.beginPath(); c.arc(32, 32, 32, 0, 7); c.fill();
+      c.strokeStyle = "#3a3020"; c.lineWidth = 3;
+      c.beginPath(); c.moveTo(32, 32); c.lineTo(32, 13); c.stroke();
+      c.beginPath(); c.moveTo(32, 32); c.lineTo(46, 38); c.stroke();
+      c.fillStyle = "#3a3020";
+      for (var t3 = 0; t3 < 12; t3++) {
+        var a2 = t3 / 12 * 6.283;
+        c.fillRect(32 + Math.sin(a2) * 27 - 1, 32 - Math.cos(a2) * 27 - 1, 2, 2);
+      }
+    }),
+  }));
+  kClock.position.set(KCX - 1.1, 2.05, KZ1 - 0.055); kClock.rotation.y = Math.PI; kadd(kClock);
+  ktag(kClock, "the kitchen clock", null, "eleven minutes fast, on purpose, for reasons nobody remembers.");
+  // the calendar, with one day circled
+  var calT = canvasTex(96, 128, function (c, w, h) {
+    c.fillStyle = "#f6f1e2"; c.fillRect(0, 0, w, h);
+    c.fillStyle = "#8a4a3a"; c.fillRect(0, 0, w, 26);
+    c.fillStyle = "#f6f1e2"; c.font = "bold 13px Georgia, serif"; c.textAlign = "center";
+    c.fillText("AUGUST", w / 2, 18);
+    c.fillStyle = "#4a4436"; c.font = "8px Georgia, serif";
+    for (var r2 = 0; r2 < 5; r2++) for (var c2 = 0; c2 < 7; c2++)
+      c.fillText(String(r2 * 7 + c2 + 1), 8 + c2 * 13, 44 + r2 * 17);
+    c.strokeStyle = "#c0392b"; c.lineWidth = 2;
+    c.beginPath(); c.ellipse(8 + 3 * 13, 44 + 2 * 17 - 3, 9, 8, 0, 0, 7); c.stroke();
+  });
+  var cal = new THREE.Mesh(new THREE.PlaneGeometry(0.3, 0.4),
+    new THREE.MeshStandardMaterial({ map: calT, roughness: 0.9 }));
+  cal.position.set(KCX + 0.6, 1.7, KZ1 - 0.055); cal.rotation.y = Math.PI; kadd(cal);
+  ktag(cal, "the calendar", null, "one day is circled in red and nobody will say which one it is.");
+  // ceiling light
+  var kLampShade = new THREE.Mesh(new THREE.CylinderGeometry(0.26, 0.34, 0.2, 16, 1, true),
+    new THREE.MeshStandardMaterial({ color: 0xf0e6cc, roughness: 0.7, side: THREE.DoubleSide }));
+  kLampShade.position.set(KCX, KCEIL - 0.28, KCZ); kadd(kLampShade);
+  var kBulb = new THREE.Mesh(new THREE.SphereGeometry(0.05, 12, 10),
+    new THREE.MeshStandardMaterial({ color: 0xfff4dc, emissive: 0xffdca6, emissiveIntensity: 1.6, roughness: 0.4 }));
+  kBulb.position.set(KCX, KCEIL - 0.32, KCZ); kadd(kBulb);
+  var kLight = new THREE.PointLight(0xffe0b4, 2.4, 8.5, 1.6);
+  kLight.position.set(KCX, KCEIL - 0.4, KCZ); kadd(kLight);
+  var kFill = new THREE.PointLight(0xffeccc, 0.45, 9, 2);
+  kFill.position.set(KCX, 1.5, KCZ); kadd(kFill);
 
   /* ---- OUT THE FRONT: the porch, the yard, the street (a THIRD space) ---------
    * You can actually step outside now. The porch is a real place you stand on —
@@ -831,7 +1158,11 @@ export function buildHallway(ctx) {
   bikeG.children.forEach(function (m) { ytag(m, "the bike", null, "dropped, not parked. it has always been dropped, not parked."); });
 
   // --- the driveway, running down the side to the garage the hall keeps taped shut
-  var drive = box(3.2, 0.06, 23.2, driveM); drive.position.set(-11.2, GROUND + 0.02, -7.3); yadd(drive);
+  // ⚠️ the drive runs at x -15.2, well out from the house, because THE KITCHEN is
+  // between them (x -13.0..-7.55). At its old -11.2 it drove straight through the
+  // kitchen floor. It reaches the garage by an apron that turns east at the back.
+  var drive = box(3.2, 0.06, 25.6, driveM); drive.position.set(-15.2, GROUND + 0.02, -6.0); yadd(drive);
+  var apron = box(3.4, 0.06, 2.6, driveM); apron.position.set(-13.6, GROUND + 0.02, 5.6); yadd(apron);
   ytag(drive, "the driveway", null, "the driveway. it goes down the side to the garage.");
   var garM = new THREE.MeshStandardMaterial({ map: sideT, roughness: 0.95 });
   var garage = box(4.7, 3.0, 4.4, garM); garage.position.set(-9.9, 1.5 + GROUND, 6.4); yadd(garage);
@@ -847,7 +1178,7 @@ export function buildHallway(ctx) {
   garDoor.position.set(-10.4, 1.15 + GROUND, 4.18); yadd(garDoor);
   ytag(garDoor, "the garage", null, "the garage, from the outside. still shut. 2027.");
   // the car, parked where it always is
-  var carG = new THREE.Group(); carG.position.set(-11.2, GROUND, -8.6); yadd(carG);
+  var carG = new THREE.Group(); carG.position.set(-15.2, GROUND, -8.6); yadd(carG);
   var carBody = box(1.9, 0.62, 4.3, mat(0x6b2f36, 0.5)); carBody.position.y = 0.62; carG.add(carBody);
   var carCab = box(1.72, 0.56, 2.1, mat(0x5e2a30, 0.5)); carCab.position.set(0, 1.18, -0.1); carG.add(carCab);
   var carGlass = new THREE.MeshStandardMaterial({ color: 0x1d2630, roughness: 0.15 });
@@ -1204,12 +1535,13 @@ export function buildHallway(ctx) {
   var blindRail = box(SD_W + 0.16, 0.07, 0.09, mat(0xd8d2c4, 0.9));
   blindRail.position.set(XC, SD_H + 0.02, SD_Z - 0.11); badd(blindRail);
   var slatM = new THREE.MeshStandardMaterial({ color: 0xb3ab98, roughness: 0.95, side: THREE.DoubleSide });
+  var blindSlats = [];   // the laundry basket can draw or open them
   for (var bl = 0; bl < 11; bl++) {
     var bx = XC - SD_W / 2 + 0.09 + bl * 0.105;                 // packed over the west half only
     var slat = new THREE.Mesh(new THREE.PlaneGeometry(0.10, SD_H - 0.12), slatM);
     slat.position.set(bx, SD_H / 2 - 0.04, SD_Z - 0.11);
     slat.rotation.y = 0.62 + (bl % 2) * 0.05;                    // turned, not flat — you see their edges
-    badd(slat);
+    badd(slat); blindSlats.push(slat);
   }
   var blindWand = new THREE.Mesh(new THREE.CylinderGeometry(0.008, 0.008, 0.7, 6), mat(0xcfc8b6, 0.8));
   blindWand.position.set(XC - SD_W / 2 + 0.06, SD_H - 0.42, SD_Z - 0.13); badd(blindWand);
@@ -1222,6 +1554,7 @@ export function buildHallway(ctx) {
   porchGlass.position.set(XC + 1.35, 2.24, Z_S + 0.16); badd(porchGlass);
   var porchLight = new THREE.PointLight(0xffd2a0, 1.5, 7, 1.8);
   porchLight.position.set(XC + 1.0, 2.2, Z_S + 0.5); badd(porchLight);
+  var backPorchOn = 1;   // the laundry basket can switch it off
   var moths = [];
   for (var mo = 0; mo < 3; mo++) {
     var moth = new THREE.Mesh(new THREE.PlaneGeometry(0.05, 0.035),
@@ -1371,6 +1704,188 @@ export function buildHallway(ctx) {
   }
   [pull, bead].forEach(function (m) { tag(m, "the pull chain", pullChain, "the pull chain — clack."); });
 
+  /* ---- STASHES: a "my stuff" box for every room of the house ------------------
+   * The bedroom has the shoebox; Kyle's call is that every area deserves its own —
+   * moving boxes in the hall, a laundry basket at the back, a toolbox on the
+   * porch, a recipe box in the kitchen — each holding customizations that BELONG
+   * to that room. One generic system: makeStash(key, title, opts) persists each
+   * option's index in localStorage "room-stash-<key>" and applies it at build, so
+   * a choice survives reloads exactly like the bedroom's paint does. */
+  var stashPanel = null, stashOpenKey = null;
+  function closeStash() { if (stashPanel) stashPanel.style.display = "none"; stashOpenKey = null; }
+  function renderStash(st) {
+    var html = "<div style='font-weight:700;letter-spacing:.02em;margin-bottom:8px'>" + st.title + "</div>";
+    st.opts.forEach(function (o, i) {
+      html += "<div style='display:flex;justify-content:space-between;gap:12px;align-items:center;margin:5px 0'>" +
+        "<span style='opacity:.82'>" + o.label + "</span>" +
+        "<button type='button' data-si='" + i + "' style='font:12px Georgia,serif;color:#f2e2c4;" +
+        "background:rgba(242,226,196,.10);border:1px solid rgba(242,226,196,.30);border-radius:999px;" +
+        "padding:3px 11px;cursor:pointer'>" + o.vals[o.i].label + "</button></div>";
+    });
+    html += "<div style='text-align:right;margin-top:8px'><button type='button' data-si='x' " +
+      "style='font:12px Georgia,serif;color:#f2e2c4;background:none;border:none;cursor:pointer;opacity:.6'>close</button></div>";
+    stashPanel.innerHTML = html;
+  }
+  function openStash(st) {
+    if (stashOpenKey === st.key) { closeStash(); return; }
+    if (!stashPanel) {
+      stashPanel = document.createElement("div");
+      stashPanel.id = "stash-panel";
+      stashPanel.style.cssText = "position:fixed;left:22px;bottom:26px;z-index:14;display:none;" +
+        "min-width:220px;padding:12px 14px;border-radius:14px;" +
+        "font:13px/1.5 Georgia,serif;color:#f2e2c4;background:rgba(28,22,16,.80);" +
+        "border:1px solid rgba(242,226,196,.28);backdrop-filter:blur(6px);" +
+        "-webkit-backdrop-filter:blur(6px);box-shadow:0 4px 18px rgba(0,0,0,.42)";
+      document.body.appendChild(stashPanel);
+      // the room's pointerdown listener would fire a pick straight through the panel
+      stashPanel.addEventListener("pointerdown", function (e) { e.stopPropagation(); });
+      stashPanel.addEventListener("click", function (e) {
+        var b = e.target.closest ? e.target.closest("button") : null;
+        if (!b) return;
+        var si = b.getAttribute("data-si");
+        if (si === "x") { closeStash(); return; }
+        var st2 = stashByKey[stashOpenKey], o = st2.opts[+si];
+        o.i = (o.i + 1) % o.vals.length;
+        o.vals[o.i].apply();
+        st2.save();
+        AUDIO.clickSfx && AUDIO.clickSfx(1400);
+        renderStash(st2);
+      });
+    }
+    stashOpenKey = st.key;
+    renderStash(st);
+    stashPanel.style.display = "block";
+  }
+  var stashByKey = {};
+  function makeStash(key, title, opts) {
+    var saved = {};
+    try { saved = JSON.parse(localStorage.getItem("room-stash-" + key) || "{}"); } catch (e) { }
+    opts.forEach(function (o) {
+      o.i = (saved[o.k] | 0) % o.vals.length;
+      o.vals[o.i].apply();                    // a saved choice is live from frame one
+    });
+    var st = { key: key, title: title, opts: opts, save: function () {
+      var s = {};
+      opts.forEach(function (o) { s[o.k] = o.i; });
+      try { localStorage.setItem("room-stash-" + key, JSON.stringify(s)); } catch (e) { }
+    } };
+    stashByKey[key] = st;
+    return st;
+  }
+
+  // --- HALL: moving boxes that never got unpacked, by the closet
+  var hBoxT = canvasTex(128, 96, function (c, w, h) {
+    c.fillStyle = "#b08d5a"; c.fillRect(0, 0, w, h);
+    c.fillStyle = "rgba(140,104,60,0.6)"; c.fillRect(0, 0, w, 8); c.fillRect(0, h - 8, w, 8);
+    c.fillStyle = "#d8cfc0"; c.fillRect(w * 0.28, h * 0.34, w * 0.44, h * 0.3);
+    c.fillStyle = "#4a3a26"; c.font = "bold 13px Georgia, serif"; c.textAlign = "center";
+    c.fillText("HALL STUFF", w * 0.5, h * 0.54);
+  });
+  var hallBoxM = new THREE.MeshStandardMaterial({ map: hBoxT, roughness: 0.92 });
+  var hallBoxes = new THREE.Group(); hallBoxes.position.set(E_IN - 0.42, 0, 4.42); add(hallBoxes);
+  var hb1 = box(0.56, 0.42, 0.46, hallBoxM); hb1.position.y = 0.21; hallBoxes.add(hb1);
+  var hb2 = box(0.46, 0.36, 0.4, hallBoxM); hb2.position.set(0.06, 0.60, -0.02); hb2.rotation.y = 0.22; hallBoxes.add(hb2);
+  var hallStash = makeStash("hall", "📦 the hall boxes", [
+    { k: "runner", label: "the runner", vals: [
+      { label: "as woven", apply: function () { runner.material.color.set(0xffffff); } },
+      { label: "sun-faded", apply: function () { runner.material.color.set(0xcfc4b4); } },
+      { label: "midnight", apply: function () { runner.material.color.set(0x8898c8); } },
+    ] },
+    { k: "bulbs", label: "the bulbs", vals: [
+      { label: "warm", apply: function () { [bulbS, bulbN, bulbB].forEach(function (b) { b.light.color.setHex(0xffd9a0); b.bulb.material.emissive.setHex(0xffd9a0); }); } },
+      { label: "daylight", apply: function () { [bulbS, bulbN, bulbB].forEach(function (b) { b.light.color.setHex(0xcfe0ff); b.bulb.material.emissive.setHex(0xcfe0ff); }); } },
+    ] },
+    { k: "closet", label: "the closet door", vals: [
+      { label: "shut", apply: function () { cloOpen = false; } },
+      { label: "ajar", apply: function () { cloOpen = true; } },
+    ] },
+  ]);
+  [hb1, hb2].forEach(function (m) {
+    tag(m, "the hall boxes", function () { openStash(hallStash); },
+      "moving boxes, never unpacked — the hall's odds and ends live here");
+  });
+
+  // --- BACK: the laundry basket, which of course holds the back of the house
+  var basketG = new THREE.Group(); basketG.position.set(-5.05, 0, 6.35); add(basketG);
+  var bskM = mat(0xc8a86a, 0.9);
+  var bskBody = new THREE.Mesh(new THREE.CylinderGeometry(0.26, 0.20, 0.30, 12, 1, true), bskM);
+  bskBody.position.y = 0.15; basketG.add(bskBody);
+  var bskBase = new THREE.Mesh(new THREE.CircleGeometry(0.20, 12), bskM);
+  bskBase.rotation.x = -Math.PI / 2; bskBase.position.y = 0.012; basketG.add(bskBase);
+  var bskRim = new THREE.Mesh(new THREE.TorusGeometry(0.26, 0.022, 8, 16), mat(0xb08d5a, 0.85));
+  bskRim.rotation.x = Math.PI / 2; bskRim.position.y = 0.30; basketG.add(bskRim);
+  var bskWash = box(0.3, 0.1, 0.26, mat(0xd8cfc0, 0.95)); bskWash.position.y = 0.32; bskWash.rotation.y = 0.4; basketG.add(bskWash);
+  var backStash = makeStash("back", "🧺 the laundry basket", [
+    { k: "blinds", label: "the blinds", vals: [
+      { label: "half drawn", apply: function () { blindSlats.forEach(function (s, i) { s.visible = true; s.rotation.y = 0.62 + (i % 2) * 0.05; }); } },
+      { label: "open", apply: function () { blindSlats.forEach(function (s) { s.visible = true; s.rotation.y = 1.44; }); } },
+      { label: "drawn", apply: function () { blindSlats.forEach(function (s, i) { s.visible = true; s.rotation.y = 0.08 + (i % 2) * 0.03; } ); } },
+    ] },
+    { k: "porch", label: "the porch light", vals: [
+      { label: "left on", apply: function () { backPorchOn = 1; } },
+      { label: "off", apply: function () { backPorchOn = 0; } },
+    ] },
+    { k: "sock", label: "the lost sock", vals: [
+      { label: "where it fell", apply: function () { sock.visible = true; } },
+      { label: "found at last", apply: function () { sock.visible = false; } },
+    ] },
+  ]);
+  basketG.children.forEach(function (m) {
+    tag(m, "the laundry basket", function () { openStash(backStash); },
+      "the laundry basket — the back of the house sorts itself out here");
+  });
+
+  // --- FRONT: the toolbox on the porch, because yards are maintained FROM porches
+  var tbxG = new THREE.Group(); tbxG.position.set(-4.05, 0.02, -5.55); tbxG.rotation.y = -0.3; yadd(tbxG);
+  var tbxBody = box(0.5, 0.2, 0.24, mat(0xb03a2e, 0.55)); tbxBody.position.y = 0.1; tbxG.add(tbxBody);
+  var tbxLid = box(0.5, 0.06, 0.24, mat(0x8f2d24, 0.55)); tbxLid.position.y = 0.23; tbxG.add(tbxLid);
+  var tbxHandle = new THREE.Mesh(new THREE.TorusGeometry(0.07, 0.014, 6, 12, Math.PI), mat(0x2a2d31, 0.5));
+  tbxHandle.position.y = 0.26; tbxG.add(tbxHandle);
+  var trowel = box(0.05, 0.02, 0.2, mat(0x8f959b, 0.4)); trowel.position.set(0.3, 0.03, 0.05); trowel.rotation.y = 0.5; tbxG.add(trowel);
+  var frontStash = makeStash("front", "🧰 the yard toolbox", [
+    { k: "flag", label: "the mailbox flag", vals: [
+      { label: "up — mail out", apply: function () { mbFlag.rotation.x = 0; } },
+      { label: "down", apply: function () { mbFlag.rotation.x = 1.35; } },
+    ] },
+    { k: "bike", label: "the bike", vals: [
+      { label: "dropped, as ever", apply: function () { bikeG.visible = true; } },
+      { label: "put away for once", apply: function () { bikeG.visible = false; } },
+    ] },
+    { k: "mist", label: "the ground mist", vals: [
+      { label: "rolling in", apply: function () { mists.forEach(function (m) { m.m.visible = true; }); } },
+      { label: "a clear night", apply: function () { mists.forEach(function (m) { m.m.visible = false; }); } },
+    ] },
+  ]);
+  [tbxBody, tbxLid, tbxHandle, trowel].forEach(function (m) {
+    ytag(m, "the toolbox", function () { openStash(frontStash); },
+      "the yard toolbox — the front of the house answers to this");
+  });
+
+  // --- KITCHEN: the recipe box, which holds the kitchen's opinions
+  var rcpG = new THREE.Group(); rcpG.position.set(KX0 + 0.72, CT_Y + 0.03, KZ0 + 0.38); rcpG.rotation.y = 0.3; add(rcpG);
+  var rcpBody = box(0.24, 0.14, 0.16, mat(0x8a6a44, 0.75)); rcpBody.position.y = 0.07; rcpG.add(rcpBody);
+  var rcpLid = box(0.24, 0.04, 0.16, mat(0x7d5a34, 0.75)); rcpLid.position.set(0, 0.155, -0.015); rcpLid.rotation.x = -0.2; rcpG.add(rcpLid);
+  var rcpCard = box(0.18, 0.1, 0.008, mat(0xf4efdd, 0.95)); rcpCard.position.set(0, 0.16, 0.02); rcpCard.rotation.x = -0.25; rcpG.add(rcpCard);
+  var kitchenStash = makeStash("kitchen", "🗃️ the recipe box", [
+    { k: "strip", label: "the strip light", vals: [
+      { label: "on", apply: function () { kStripOn = 1; } },
+      { label: "off", apply: function () { kStripOn = 0; } },
+    ] },
+    { k: "mugs", label: "the mugs", vals: [
+      { label: "primaries", apply: function () { [0xc94b3a, 0x3a6ac9, 0xe0b03a].forEach(function (c, i) { kMugs[i].color.setHex(c); }); } },
+      { label: "pastels", apply: function () { [0xe8a0b0, 0xa0c8e8, 0xd8d0a0].forEach(function (c, i) { kMugs[i].color.setHex(c); }); } },
+      { label: "all white", apply: function () { kMugs.forEach(function (m) { m.color.setHex(0xece8dc); }); } },
+    ] },
+    { k: "fruit", label: "the fruit bowl", vals: [
+      { label: "full", apply: function () { kFruit.forEach(function (f) { f.visible = true; }); } },
+      { label: "somebody ate them", apply: function () { kFruit.forEach(function (f) { f.visible = false; }); } },
+    ] },
+  ]);
+  [rcpBody, rcpLid, rcpCard].forEach(function (m) {
+    ktag(m, "the recipe box", function () { openStash(kitchenStash); },
+      "the recipe box — the kitchen keeps its opinions in here");
+  });
+
   /* ---- state & camera ---------------------------------------------------------
    * space: "bedroom" | "hall". The transition walks the camera through the real
    * doorway while the door swings; while it runs, busy() guards the pointer.
@@ -1386,6 +1901,11 @@ export function buildHallway(ctx) {
     lookS: new THREE.Vector3(-5.80, 1.20, 8.4),     // and the other way: the slider, the yard beyond it
     // stood near the FRONT edge of the deck, not up against the door — from a metre
     // off the house, "turn round" just filled the frame with the doorway
+    krest: new THREE.Vector3(-8.30, 1.60, 0.60),    // standing in the kitchen, by the fridge
+    klook: new THREE.Vector3(-11.7, 1.02, -1.30),   // looking across at the sink and the window
+    kdoor1: new THREE.Vector3(-5.95, 1.66, -0.35),  // squared up to the kitchen door, hall side
+    kdoor2: new THREE.Vector3(-7.20, 1.63, -0.35),  // in the doorway
+    kdoorL: new THREE.Vector3(-9.4, 1.25, -0.6),    // what you see through it
     porch: new THREE.Vector3(-5.70, 1.62, -5.35),   // out on the boards
     porchL: new THREE.Vector3(-5.62, 0.75, -14.5),  // down the path at the street
     porchB: new THREE.Vector3(-6.05, 1.72, -2.4),   // turned round: the house you live in
@@ -1420,6 +1940,18 @@ export function buildHallway(ctx) {
     if (ctx.onLeave) ctx.onLeave();
   }
   function toggleDoor() { if (space === "hall") leave(); else if (space === "bedroom") enter(); }
+  function enterKitchen() {
+    if (mode !== "idle" || space !== "hall") return;
+    mode = "kitchenIn"; tt = 0;
+    c0.copy(camera.position); l0.copy(lookAt);
+    AUDIO.ratchetSfx && AUDIO.ratchetSfx();
+    if (turnBtn) turnBtn.style.display = "none";
+  }
+  function leaveKitchen() {
+    if (mode !== "idle" || space !== "kitchen") return;
+    mode = "kitchenOut"; tt = 0;
+    c0.copy(camera.position); l0.copy(lookAt);
+  }
   // ⚠️ the front door's swing is driven by the SAME tt as the walk, exactly like
   // the bedroom door — so the slab is always open by the time the camera is in it
   function stepOut() {
@@ -1466,6 +1998,36 @@ export function buildHallway(ctx) {
     // the door is open and you really are looking down it.
     g.visible = space !== "bedroom" || mode !== "idle";
     yardG.visible = space !== "bedroom";
+    if (stashOpenKey && mode !== "idle") closeStash();   // walking away shuts the box
+    if (mode === "kitchenIn" || mode === "kitchenOut") {   // through the kitchen door
+      tt = Math.min(1, tt + dt / 2.1);
+      var kk = mode === "kitchenIn" ? tt : 1 - tt;
+      // -2.0 rad: the slab swings INTO the kitchen, flat against its east wall,
+      // clear of the walk line (positive would swing it into the camera's face)
+      kDoorPivot.rotation.y = -2.0 * ease(Math.min(1, Math.max(0, (kk - 0.04) / 0.42)));
+      if (mode === "kitchenIn") walk([c0, P.kdoor1, P.kdoor2, P.krest], [l0, P.kdoorL, P.klook, P.klook], tt);
+      else walk([c0, P.kdoor2, P.kdoor1], [l0, P.kdoorL, P.look], tt);
+      camera.position.copy(_v); lookAt.copy(_w); camera.lookAt(lookAt);
+      if (tt >= 1) {
+        if (mode === "kitchenIn") { space = "kitchen"; kDoorPivot.rotation.y = -2.0; }
+        else {
+          space = "hall"; facing = turnTo = "north"; kDoorPivot.rotation.y = 0;
+          AUDIO.clickSfx && AUDIO.clickSfx(500);
+        }
+        turnK = 1; mode = "idle"; syncTurnBtn();
+      }
+      return true;
+    }
+    if (space === "kitchen") {   // at rest in the kitchen: gentle parallax, no turn
+      camera.position.x += ((P.krest.x + mx * 0.4) - camera.position.x) * 0.04;
+      camera.position.y += ((P.krest.y + my * 0.2) - camera.position.y) * 0.04;
+      camera.position.z += (P.krest.z - camera.position.z) * 0.04;
+      lookAt.x += ((P.klook.x + mx * 0.7) - lookAt.x) * 0.04;
+      lookAt.y += ((P.klook.y + my * 0.5) - lookAt.y) * 0.04;
+      lookAt.z += (P.klook.z - lookAt.z) * 0.04;
+      camera.lookAt(lookAt);
+      return true;
+    }
     if (mode === "out" || mode === "in") {           // through the front door, both ways
       tt = Math.min(1, tt + dt / 2.5);
       var k2 = mode === "out" ? tt : 1 - tt;
@@ -1605,9 +2167,10 @@ export function buildHallway(ctx) {
     hallFill.intensity = 0.5 * dim * on;
     // the porch light is OUTSIDE, so the pull chain doesn't touch it — that's the
     // point of it: turn the hall off and the yard is still faintly there
-    porchLight.intensity = 1.5 * dim;
-    porchGlass.material.emissiveIntensity = 1.5 * dim;
+    porchLight.intensity = 1.5 * dim * backPorchOn;
+    porchGlass.material.emissiveIntensity = 1.5 * dim * backPorchOn;
     for (var mi = 0; mi < moths.length; mi++) {   // and the things that love it
+      moths[mi].m.visible = backPorchOn > 0;      // no lamp, no moths
       var mm = moths[mi], a = t * mm.sp + mm.ph;
       mm.m.position.set(XC + 1.35 + Math.cos(a) * mm.r,
                         2.24 + Math.sin(a * 1.7) * mm.r * 0.7,
@@ -1617,6 +2180,13 @@ export function buildHallway(ctx) {
     if (livDoor.userData.spill) // somebody's shows are on in there
       livDoor.userData.spill.material.opacity = livDoor.userData.spillOp * (0.55 + 0.45 * Math.abs(Math.sin(t * 3.1) * Math.sin(t * 1.3)));
     if (kitDoor.userData.spill) kitDoor.userData.spill.material.opacity = kitDoor.userData.spillOp * (0.9 + 0.1 * Math.sin(t * 0.4));
+    // the kitchen breathes with the house's dim, and the fridge glow flickers the
+    // tiniest bit — that's the compressor cycling, which is the hum made visible
+    kLight.intensity = 2.4 * dim;
+    kFill.intensity = 0.45 * dim;
+    kUnder.intensity = 1.1 * dim * kStripOn;
+    strip.material.emissiveIntensity = 1.3 * dim * kStripOn;
+    frGlow.intensity = (0.24 + 0.06 * Math.sin(t * 1.7)) * dim;
     bGlow.material.opacity = 0.08 + 0.05 * Math.sin(t * 0.9); // the basement, breathing
     var target = cloOpen ? -1.6 : 0;
     cloAnim += (target - cloAnim) * Math.min(1, dt * 7);
@@ -1686,12 +2256,14 @@ export function buildHallway(ctx) {
       facing = turnTo = "north"; turnK = 1;
       if (turnBtn) turnBtn.style.display = "none";
       if (ctx.doorPivot) ctx.doorPivot.rotation.y = 0;
-      fPivot.rotation.y = 0; figT = 0; figG.visible = false;
+      fPivot.rotation.y = 0; kDoorPivot.rotation.y = 0; figT = 0; figG.visible = false;
       yardG.visible = false;   // camTick would do it next frame, but bfcache may not get one
       cloOpen = false; cloAnim = 0; cloDoorP.rotation.y = 0;
     },
     turn: turn, facing: function () { return facing; },
     stepOut: stepOut, stepIn: stepIn,
+    kitchen: { enter: enterKitchen, leave: leaveKitchen },
+    stashes: stashByKey, openStash: openStash, closeStash: closeStash,
     setPhase: setPhase, phase: function () { return porchPhase; },
     knock: knockCame,
     camTick: camTick, glowTick: glowTick, refreshPhotos: refreshPhotos
