@@ -529,6 +529,7 @@ export function buildHallway(ctx) {
   });
   sideT.wrapS = sideT.wrapT = THREE.RepeatWrapping; sideT.repeat.set(4, 3);
   var sidingM = new THREE.MeshStandardMaterial({ map: sideT, roughness: 0.95 });
+  sidingM.color.setHex(0xeae6da);   // same reason as the neighbours: it multiplies
   [[W_IN - 0.1, FDO.x0], [FDO.x1, E_IN + 0.1]].forEach(function (p) {
     var sv = box(p[1] - p[0], 3.4, 0.04, sidingM);
     sv.position.set((p[0] + p[1]) / 2, 1.7, HOUSE_F - 0.03); yadd(sv);
@@ -600,17 +601,90 @@ export function buildHallway(ctx) {
     stp.position.set(FRONT_X, s[1], PZ1 - 0.16 - s[0] * 0.32); yadd(stp);
   });
 
-  /* ---- THE YARD --------------------------------------------------------------- */
+  /* ---- THE YARD ---------------------------------------------------------------
+   * ⚠️ REBUILT TO SCALE. The first pass put 5m houses 19m away across a 6m road,
+   * which is why the street read as a diorama: at that ratio everything is
+   * doll-sized. Real setbacks are ~28m porch-to-porch across a ~9m road, and a
+   * house is 10-12m wide, not 5. The numbers below are the corrected ones and the
+   * whole layout hangs off them — moving one means moving the row.
+   *
+   * Depth comes from OVERLAP, not from distance: near hedge, path, street trees,
+   * parked cars, road, far kerb, far hedges, houses, their trees. Nine layers
+   * between you and the sky, plus fog to close it off. */
+  var Z_WALK = -17.0, Z_KERB = -18.8, Z_ROADF = -27.6, Z_FKERB = -29.4, Z_NFACE = -34.0;
   var grassM = new THREE.MeshStandardMaterial({ color: 0x54754a, roughness: 1 });
-  var lawn = new THREE.Mesh(new THREE.PlaneGeometry(26, 12), grassM);
-  lawn.rotation.x = -Math.PI / 2; lawn.position.set(-5.0, GROUND, -11.2); lawn.receiveShadow = true; yadd(lawn);
+  // ⚠️ TWO strips, not one big plane. A single lawn spanning the whole depth sits at
+  // GROUND while the road sits at GROUND-0.06, so the grass rendered straight over
+  // the top of the road and the street simply wasn't there.
+  [[4.0, Z_WALK], [Z_FKERB, -52]].forEach(function (lz) {
+    var lw = new THREE.Mesh(new THREE.PlaneGeometry(80, Math.abs(lz[0] - lz[1])), grassM);
+    lw.rotation.x = -Math.PI / 2;
+    lw.position.set(-5.0, GROUND, (lz[0] + lz[1]) / 2); lw.receiveShadow = true; yadd(lw);
+  });
   var pathM = mat(0x8a867a, 0.95);
-  var path = box(1.3, 0.06, 8.6, pathM); path.position.set(FRONT_X, GROUND + 0.02, -10.6); yadd(path);
+  var path = box(1.3, 0.06, 10.6, pathM); path.position.set(FRONT_X, GROUND + 0.02, -11.7); yadd(path);
   ytag(path, "the front walk", null, "the front walk. the third slab has been cracked since forever.");
+
+  /* ---- things that grow -------------------------------------------------------
+   * Every canopy is registered in `swayers` and the wind moves them in glowTick.
+   * Three blobs per tree, offset and different sizes — one sphere reads as a
+   * lollipop and that is what a placeholder looks like. */
+  var swayers = [];
+  var barkM = mat(0x4a3a2c, 0.95);
+  function treeAt(x, z, h, spread, leafC, tilt) {
+    var g2 = new THREE.Group(); g2.position.set(x, GROUND, z); yadd(g2);
+    // ⚠️ trunk is 0.72 of the height, not 0.62. Street trees have to be LIMBED UP or
+    // the canopy sits at eye level and the row becomes a wall — the first pass put
+    // four of them across the near kerb and you couldn't see the street at all.
+    var trunk = new THREE.Mesh(new THREE.CylinderGeometry(h * 0.04, h * 0.07, h * 0.74, 7), barkM);
+    trunk.position.y = h * 0.37; trunk.rotation.z = (tilt || 0); g2.add(trunk);
+    var leafM = new THREE.MeshStandardMaterial({ color: leafC, roughness: 0.98, flatShading: true });
+    var can = new THREE.Group(); can.position.y = h * 0.74; g2.add(can);
+    [[0, 0, 0, 1], [spread * 0.42, h * 0.13, spread * 0.2, 0.72], [-spread * 0.36, h * 0.09, -spread * 0.26, 0.66]]
+      .forEach(function (b) {
+        var blob = new THREE.Mesh(new THREE.IcosahedronGeometry(spread * 0.5 * b[3], 0), leafM);
+        blob.position.set(b[0], b[1], b[2]); blob.scale.y = 0.82; blob.castShadow = true; can.add(blob);
+      });
+    swayers.push({ o: can, ph: x * 0.7 + z * 0.3, amp: 0.012 + spread * 0.004 });
+    return g2;
+  }
+  function shrubAt(x, z, r, c) {
+    var s2 = new THREE.Mesh(new THREE.IcosahedronGeometry(r, 0),
+      new THREE.MeshStandardMaterial({ color: c, roughness: 0.98, flatShading: true }));
+    s2.position.set(x, GROUND + r * 0.62, z); s2.scale.y = 0.74; yadd(s2);
+    swayers.push({ o: s2, ph: x + z, amp: 0.01 });
+    return s2;
+  }
+  function hedgeAt(x0, x1, z, h, d, c) {
+    var hm = new THREE.MeshStandardMaterial({ color: c, roughness: 0.99, flatShading: true });
+    var n = Math.max(2, Math.round((x1 - x0) / 0.85));
+    for (var i = 0; i < n; i++) {                       // lumpy, not a box
+      var bx = x0 + (i + 0.5) * ((x1 - x0) / n);
+      var lump = new THREE.Mesh(new THREE.IcosahedronGeometry(h * 0.62, 0), hm);
+      lump.position.set(bx, GROUND + h * 0.5, z + (i % 2 ? 0.05 : -0.05));
+      lump.scale.set(1.15, 0.78, d / (h * 1.24)); yadd(lump);
+    }
+  }
+  // our own planting: a hedge along the porch, shrubs at the corners, one big tree
+  hedgeAt(PX0 - 0.1, FRONT_X - 0.85, PZ1 - 0.35, 0.8, 0.7, 0x3f6136);
+  hedgeAt(FRONT_X + 0.85, PX1 + 0.1, PZ1 - 0.35, 0.8, 0.7, 0x3f6136);
+  shrubAt(PX0 - 0.9, PZ1 - 0.5, 0.55, 0x47693c);
+  shrubAt(PX1 + 0.9, PZ1 - 0.6, 0.48, 0x436439);
+  // ONE tree in our own yard, and pushed well off the sightline down the path
+  treeAt(FRONT_X + 5.8, -10.4, 6.6, 4.4, 0x3d6234, -0.04);
+  [[-1.2, -7.4, 0.34], [-2.0, -8.1, 0.28], [1.3, -7.8, 0.3]].forEach(function (f) {
+    shrubAt(FRONT_X + f[0], f[1], f[2], 0x5c7a3a);      // the flowerbed by the path
+  });
+  // ⚠️ the street trees are on the FAR verge, not ours. Across the road they frame
+  // the houses and give the middle distance something to overlap; on the near kerb
+  // they were 12m from the camera and simply blocked the whole street.
+  [[-19.5, 7.4, 5.0], [-12.5, 6.6, 4.4], [-2.5, 7.8, 5.4], [9.0, 6.8, 4.6]].forEach(function (t2, ti) {
+    treeAt(t2[0], Z_FKERB + 1.1, t2[1], t2[2], ti % 2 ? 0x3a5c31 : 0x406537, 0);
+  });
   // mailbox at the kerb
-  var mbPost = box(0.09, 1.05, 0.09, mat(0x4a3a28, 0.85)); mbPost.position.set(FRONT_X + 1.5, GROUND + 0.52, -14.6); yadd(mbPost);
-  var mbBox = box(0.22, 0.24, 0.42, mat(0x9aa2a8, 0.5)); mbBox.position.set(FRONT_X + 1.5, GROUND + 1.14, -14.6); yadd(mbBox);
-  var mbFlag = box(0.03, 0.18, 0.05, mat(0xb03a2e, 0.7)); mbFlag.position.set(FRONT_X + 1.63, GROUND + 1.3, -14.5); yadd(mbFlag);
+  var mbPost = box(0.09, 1.05, 0.09, mat(0x4a3a28, 0.85)); mbPost.position.set(FRONT_X + 1.5, GROUND + 0.52, Z_WALK + 0.6); yadd(mbPost);
+  var mbBox = box(0.22, 0.24, 0.42, mat(0x9aa2a8, 0.5)); mbBox.position.set(FRONT_X + 1.5, GROUND + 1.14, Z_WALK + 0.6); yadd(mbBox);
+  var mbFlag = box(0.03, 0.18, 0.05, mat(0xb03a2e, 0.7)); mbFlag.position.set(FRONT_X + 1.63, GROUND + 1.3, Z_WALK + 0.7); yadd(mbFlag);
   ytag(mbBox, "the mailbox", null, "the mailbox. the flag is up, which means something is going OUT.");
   // the bike somebody dropped instead of parking
   var bikeG = new THREE.Group(); bikeG.position.set(FRONT_X - 2.3, GROUND, -8.4); bikeG.rotation.y = 0.7; yadd(bikeG);
@@ -625,7 +699,7 @@ export function buildHallway(ctx) {
 
   // --- the driveway, running down the side to the garage the hall keeps taped shut
   var driveM = mat(0x3e4048, 0.95);
-  var drive = box(3.0, 0.06, 24.0, driveM); drive.position.set(-10.9, GROUND + 0.02, -3.6); yadd(drive);
+  var drive = box(3.2, 0.06, 23.2, driveM); drive.position.set(-11.2, GROUND + 0.02, -7.3); yadd(drive);
   ytag(drive, "the driveway", null, "the driveway. it goes down the side to the garage.");
   var garM = new THREE.MeshStandardMaterial({ map: sideT, roughness: 0.95 });
   var garage = box(4.7, 3.0, 4.4, garM); garage.position.set(-9.9, 1.5 + GROUND, 6.4); yadd(garage);
@@ -641,7 +715,7 @@ export function buildHallway(ctx) {
   garDoor.position.set(-10.4, 1.15 + GROUND, 4.18); yadd(garDoor);
   ytag(garDoor, "the garage", null, "the garage, from the outside. still shut. 2027.");
   // the car, parked where it always is
-  var carG = new THREE.Group(); carG.position.set(-10.7, GROUND, -5.6); yadd(carG);
+  var carG = new THREE.Group(); carG.position.set(-11.2, GROUND, -8.6); yadd(carG);
   var carBody = box(1.9, 0.62, 4.3, mat(0x6b2f36, 0.5)); carBody.position.y = 0.62; carG.add(carBody);
   var carCab = box(1.72, 0.56, 2.1, mat(0x5e2a30, 0.5)); carCab.position.set(0, 1.18, -0.1); carG.add(carCab);
   var carGlass = new THREE.MeshStandardMaterial({ color: 0x1d2630, roughness: 0.15 });
@@ -654,43 +728,104 @@ export function buildHallway(ctx) {
   });
   carG.children.forEach(function (m) { ytag(m, "the car", null, "the car. it starts most mornings."); });
 
-  // --- the street, and the neighbours who leave a light on
+  // --- the street: sidewalk, kerb, an 8.8m road (was 6.2 and read as a lane)
   var roadM = mat(0x2a2c31, 0.98);
-  var road = box(30, 0.05, 6.2, roadM); road.position.set(-5.0, GROUND - 0.06, -18.9); yadd(road);
+  var road = box(78, 0.05, Z_ROADF - Z_KERB, roadM);
+  road.position.set(-5.0, GROUND - 0.06, (Z_KERB + Z_ROADF) / 2); yadd(road);
   var walkM = mat(0x7e7a72, 0.95);
-  var swalk = box(30, 0.06, 1.5, walkM); swalk.position.set(-5.0, GROUND + 0.02, -15.2); yadd(swalk);
-  var kerb = box(30, 0.16, 0.18, mat(0x8a867e, 0.9)); kerb.position.set(-5.0, GROUND - 0.02, -15.98); yadd(kerb);
-  for (var dash = 0; dash < 9; dash++) {                // centre line
-    var dl = box(1.5, 0.02, 0.13, mat(0xb8b090, 0.9));
-    dl.position.set(-17 + dash * 3.4, GROUND - 0.03, -18.9); yadd(dl);
+  [[Z_WALK - 0.9, 1.8], [Z_FKERB + 0.9, 1.8]].forEach(function (sw) {
+    var s3 = box(78, 0.06, sw[1], walkM); s3.position.set(-5.0, GROUND + 0.02, sw[0]); yadd(s3);
+  });
+  [Z_KERB, Z_ROADF].forEach(function (kz) {
+    var kb = box(78, 0.18, 0.2, mat(0x8a867e, 0.9)); kb.position.set(-5.0, GROUND - 0.01, kz); yadd(kb);
+  });
+  for (var dash = 0; dash < 22; dash++) {                // centre line
+    var dl = box(2.0, 0.02, 0.15, mat(0xb8b090, 0.9));
+    dl.position.set(-42 + dash * 4.2, GROUND - 0.03, (Z_KERB + Z_ROADF) / 2); yadd(dl);
   }
-  var slPost = box(0.13, 4.4, 0.13, mat(0x3a3d42, 0.6)); slPost.position.set(-2.6, GROUND + 2.2, -15.6); yadd(slPost);
-  var slArm = box(1.0, 0.1, 0.1, mat(0x3a3d42, 0.6)); slArm.position.set(-3.1, GROUND + 4.36, -15.6); yadd(slArm);
-  var slHead = box(0.5, 0.14, 0.26, mat(0x2a2d31, 0.6)); slHead.position.set(-3.55, GROUND + 4.26, -15.6); yadd(slHead);
-  var slLamp = new THREE.Mesh(new THREE.BoxGeometry(0.42, 0.06, 0.2),
+  var slPost = box(0.14, 5.2, 0.14, mat(0x3a3d42, 0.6)); slPost.position.set(-2.6, GROUND + 2.6, Z_WALK - 1.4); yadd(slPost);
+  var slArm = box(1.1, 0.1, 0.1, mat(0x3a3d42, 0.6)); slArm.position.set(-3.15, GROUND + 5.16, Z_WALK - 1.4); yadd(slArm);
+  var slHead = box(0.56, 0.15, 0.28, mat(0x2a2d31, 0.6)); slHead.position.set(-3.66, GROUND + 5.04, Z_WALK - 1.4); yadd(slHead);
+  var slLamp = new THREE.Mesh(new THREE.BoxGeometry(0.46, 0.06, 0.22),
     new THREE.MeshStandardMaterial({ color: 0xfff0c8, emissive: 0xffdca0, emissiveIntensity: 1.6, roughness: 0.5 }));
-  slLamp.position.set(-3.55, GROUND + 4.17, -15.6); yadd(slLamp);
-  var streetLight = new THREE.PointLight(0xffe0b0, 1.5, 16, 1.6);
-  streetLight.position.set(-3.55, GROUND + 4.0, -15.6); yadd(streetLight);
+  slLamp.position.set(-3.66, GROUND + 4.94, Z_WALK - 1.4); yadd(slLamp);
+  var streetLight = new THREE.PointLight(0xffe0b0, 1.5, 18, 1.6);
+  streetLight.position.set(-3.66, GROUND + 4.7, Z_WALK - 1.4); yadd(streetLight);
   ytag(slPost, "the streetlight", null, "the streetlight. it buzzes, and it has always buzzed.");
-  // houses opposite — simple massing, a couple of windows still awake
-  var nbWin = [];
-  [[-13.5, 0], [-6.6, 1], [0.4, 2]].forEach(function (nb) {
-    var body = box(5.2, 3.4, 5.0, new THREE.MeshStandardMaterial({ map: sideT, roughness: 0.95 }));
-    body.position.set(nb[0], GROUND + 1.7, -24.4); yadd(body);
-    var roofN = new THREE.Mesh(new THREE.ConeGeometry(4.1, 1.5, 4), mat(0x38302a, 0.92));
-    roofN.rotation.y = Math.PI / 4; roofN.position.set(nb[0], GROUND + 4.15, -24.4); yadd(roofN);
-    [-1.3, 1.3].forEach(function (wx, wi) {
-      var lit = (nb[1] + wi) % 3 !== 1;                 // not everybody is up
+  var slMoths = [];
+  for (var sm = 0; sm < 4; sm++) {
+    var smo = new THREE.Mesh(new THREE.PlaneGeometry(0.06, 0.04),
+      new THREE.MeshBasicMaterial({ color: 0xe8dcc0, transparent: true, opacity: 0.7, side: THREE.DoubleSide }));
+    smo.position.set(-3.66, GROUND + 4.9, Z_WALK - 1.4); yadd(smo);
+    slMoths.push({ m: smo, ph: sm * 1.7, r: 0.3 + sm * 0.12, sp: 1.2 + sm * 0.4 });
+  }
+
+  /* --- the houses. FOUR of them, all different: different widths, heights, roof
+   * pitches, sidings, setbacks, and different things in their yards. The first
+   * pass was three identical boxes evenly spaced, which is the single loudest
+   * "this is placeholder geometry" signal there is. */
+  var nbWin = [], tvWin = null;
+  var NB = [
+    // ⚠️ body colours are near-WHITE tints. `sideT` is already a mid-grey siding
+    // canvas, and material.color MULTIPLIES it — tinting with another grey squares
+    // the value and every house came out a near-black silhouette in daylight.
+    { x: -24.5, w: 11.0, d: 7.0, h: 4.6, back: 0.0, body: 0xf2efe4, roof: 0x6a5a48, pitch: 2.0, gar: true,  lit: [1, 0, 1] },
+    { x: -11.5, w: 12.5, d: 7.6, h: 5.1, back: 1.4, body: 0xd8e8e2, roof: 0x54646a, pitch: 2.6, gar: false, lit: [0, 1, 0] },
+    { x: 2.0,   w: 10.0, d: 6.6, h: 4.3, back: -0.8, body: 0xf6e4cc, roof: 0x7a5442, pitch: 1.7, gar: true,  lit: [1, 1, 0] },
+    { x: 14.5,  w: 11.5, d: 7.2, h: 4.9, back: 0.9, body: 0xe6e2d6, roof: 0x5c564e, pitch: 2.3, gar: false, lit: [0, 0, 1] },
+  ];
+  NB.forEach(function (n, ni) {
+    var fz = Z_NFACE - n.back, cz = fz - n.d / 2;
+    var body = box(n.w, n.h, n.d, new THREE.MeshStandardMaterial({ map: sideT, color: n.body, roughness: 0.95 }));
+    body.position.set(n.x, GROUND + n.h / 2, cz); yadd(body);
+    var roofN = new THREE.Mesh(new THREE.ConeGeometry(n.w * 0.78, n.pitch, 4), mat(n.roof, 0.92));
+    roofN.rotation.y = Math.PI / 4; roofN.position.set(n.x, GROUND + n.h + n.pitch / 2 - 0.1, cz); yadd(roofN);
+    // three windows and a door, and not all the windows agree about bedtime
+    n.lit.forEach(function (on, wi) {
       var wm = new THREE.MeshStandardMaterial({
-        color: lit ? 0xffdca0 : 0x1a1f28,
-        emissive: lit ? 0xffca82 : 0x000000, emissiveIntensity: lit ? 1.1 : 0,
-        roughness: 0.5,
+        color: on ? 0xffdca0 : 0x161c24,
+        emissive: on ? 0xffca82 : 0x000000, emissiveIntensity: on ? 1.1 : 0, roughness: 0.5,
       });
-      var wmm = box(0.9, 0.9, 0.06, wm);
-      wmm.position.set(nb[0] + wx, GROUND + 1.9, -21.85); yadd(wmm);
-      if (lit) nbWin.push(wm);
+      var wmm = box(1.1, 1.15, 0.08, wm);
+      wmm.position.set(n.x + (wi - 1) * (n.w * 0.3), GROUND + n.h * 0.55, fz + 0.05); yadd(wmm);
+      if (on) nbWin.push(wm);
+      if (ni === 2 && wi === 0) tvWin = wm;          // somebody opposite is still watching something
     });
+    var nd = box(1.0, 2.1, 0.1, mat(0x4a3524, 0.75));
+    nd.position.set(n.x + n.w * 0.34, GROUND + 1.05, fz + 0.06); yadd(nd);
+    if (n.gar) {                                      // a garage, and a drive up to it
+      var gd = box(3.2, 2.2, 0.1, mat(0xb0b3ab, 0.7));
+      gd.position.set(n.x - n.w * 0.28, GROUND + 1.1, fz + 0.06); yadd(gd);
+      var nDrive = box(3.4, 0.05, Z_FKERB - fz, driveM);
+      nDrive.position.set(n.x - n.w * 0.28, GROUND + 0.02, (fz + Z_FKERB) / 2); yadd(nDrive);
+    }
+    // their yards: a hedge along the walk and a tree, all slightly different
+    // a hedge along their walk; the trees live on the verge, not stacked in front
+    hedgeAt(n.x - n.w * 0.5, n.x + n.w * 0.5, fz + 1.6, 0.75 + (ni % 3) * 0.1, 0.7,
+            ni % 2 ? 0x3b5b33 : 0x44653a);
+  });
+  // a car parked across the road, and one on our side — more layers to see past
+  function parkedCar(x, z, ry, c1, c2) {
+    var cg = new THREE.Group(); cg.position.set(x, GROUND, z); cg.rotation.y = ry; yadd(cg);
+    var b2 = box(1.9, 0.6, 4.2, mat(c1, 0.5)); b2.position.y = 0.6; cg.add(b2);
+    var c3 = box(1.72, 0.54, 2.0, mat(c2, 0.5)); c3.position.set(0, 1.15, -0.1); cg.add(c3);
+    [[-0.9, -1.35], [0.9, -1.35], [-0.9, 1.35], [0.9, 1.35]].forEach(function (wp) {
+      var ty = new THREE.Mesh(new THREE.CylinderGeometry(0.33, 0.33, 0.22, 12), mat(0x1a1c1e, 0.85));
+      ty.rotation.z = Math.PI / 2; ty.position.set(wp[0], 0.33, wp[1]); cg.add(ty);
+    });
+    return cg;
+  }
+  parkedCar(-17.6, Z_KERB - 1.6, Math.PI / 2, 0x2f4a5e, 0x27404f);
+  parkedCar(6.4, Z_ROADF + 1.6, -Math.PI / 2, 0x4a4438, 0x3d3830);
+
+  // --- the neighbours on OUR side, set back and half out of frame. These are the
+  // overlap that makes the yard feel like it's in a street rather than on a stage.
+  [[-22.5, -7.5, 12.0, 5.2, 0xe8e4d8], [12.5, -6.2, 11.0, 4.8, 0xdfe6e4]].forEach(function (s4) {
+    var sb = box(s4[2], s4[3], 9.0, new THREE.MeshStandardMaterial({ map: sideT, color: s4[4], roughness: 0.95 }));
+    sb.position.set(s4[0], GROUND + s4[3] / 2, s4[1] - 4.5); yadd(sb);
+    var sr = new THREE.Mesh(new THREE.ConeGeometry(s4[2] * 0.78, 2.3, 4), mat(0x36302a, 0.92));
+    sr.rotation.y = Math.PI / 4; sr.position.set(s4[0], GROUND + s4[3] + 1.05, s4[1] - 4.5); yadd(sr);
+    hedgeAt(s4[0] - 5, s4[0] + 5, s4[1] + 0.6, 0.9, 0.8, 0x3d5f34);
   });
 
   // --- the sky. One big backdrop that the phase repaints.
@@ -705,9 +840,19 @@ export function buildHallway(ctx) {
   // else in this room is authored against the wrong behaviour, so this is set HERE
   // and not in canvasTex — changing that would re-tint the entire house.
   skyTex.colorSpace = THREE.SRGBColorSpace;
-  var skyDome = new THREE.Mesh(new THREE.PlaneGeometry(64, 34),
+  // ⚠️ z -74, BEHIND everything. At -30.5 it stood in front of the houses opposite
+  // (which are at -37) and quietly deleted the entire far side of the street — the
+  // geometry was all there, the backdrop was just parked on top of it.
+  var skyDome = new THREE.Mesh(new THREE.PlaneGeometry(200, 96),
     new THREE.MeshBasicMaterial({ map: skyTex }));
-  skyDome.position.set(-5.0, GROUND + 9, -30.5); yadd(skyDome);
+  skyDome.position.set(-5.0, GROUND + 26, -74); yadd(skyDome);
+  skyDome.material.fog = false;   // the sky IS the horizon; fogging it greys it out
+  // ⚠️ Fog is set ONCE and left on, with `near` at 22, because toggling scene.fog
+  // recompiles every material in the house and you'd eat that hitch on every trip
+  // through the front door. Nothing indoors is more than ~15 units from its camera
+  // — the bedroom's far wall is 7.5, the hall's slider is 14 — so at near 22 this
+  // only ever touches the yard, which is exactly the layer that needed closing off.
+  scene.fog = new THREE.Fog(0x1a2438, 24, 88);
   var yardHemi = new THREE.HemisphereLight(0x8fa8c8, 0x2a3524, 0.5); yadd(yardHemi);
   var yardSun = new THREE.DirectionalLight(0xbcc8da, 0.5);
   yardSun.position.set(-12, 14, -20); yadd(yardSun);
@@ -719,8 +864,8 @@ export function buildHallway(ctx) {
   var PORCH_SKY = {
     day:     { top: "#4a6f9e", bot: "#a8c0d4", hemi: 0.85, sun: 0.85, sunC: 0xd8dfe8, hemiC: 0x9fb8d8, lamp: 0.15 },
     dusk:    { top: "#2e4468", bot: "#c88a5e", hemi: 0.58, sun: 0.5,  sunC: 0xe8a06a, hemiC: 0x7a7a92, lamp: 0.7 },
-    evening: { top: "#16233f", bot: "#46587c", hemi: 0.44, sun: 0.32, sunC: 0x8fa8cc, hemiC: 0x50607e, lamp: 1 },
-    night:   { top: "#0a1020", bot: "#202c44", hemi: 0.30, sun: 0.22, sunC: 0x7d94bc, hemiC: 0x36445e, lamp: 1 },
+    evening: { top: "#16233f", bot: "#46587c", hemi: 0.66, sun: 0.48, sunC: 0x8fa8cc, hemiC: 0x6a7d9e, lamp: 1 },
+    night:   { top: "#0a1020", bot: "#202c44", hemi: 0.46, sun: 0.34, sunC: 0x7d94bc, hemiC: 0x4c5e7e, lamp: 1 },
   };
   var porchPhase = "evening";
   function setPhase(name) {
@@ -745,8 +890,18 @@ export function buildHallway(ctx) {
     plampGlass.material.emissiveIntensity = 1.4 * s.lamp;
     fanOut.material.emissiveIntensity = 0.5 * s.lamp;
     nbWin.forEach(function (m) { m.emissiveIntensity = 1.1 * s.lamp; });
+    if (scene.fog) scene.fog.color.set(s.bot);   // haze is the sky, near the ground
   }
   setPhase("evening");
+
+  // --- a car goes past now and then. It is the only thing in this house that is
+  // ever in a hurry.
+  var passG = parkedCar(0, (Z_KERB + Z_ROADF) / 2 - 2.1, Math.PI / 2, 0x5a5f66, 0x4b5057);
+  var passHead = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.16, 1.5),
+    new THREE.MeshStandardMaterial({ color: 0xfff4d8, emissive: 0xffe9b0, emissiveIntensity: 1.8, roughness: 0.4 }));
+  passHead.position.set(0, 0.62, -2.0); passG.add(passHead);
+  var passLite = new THREE.PointLight(0xffe0b0, 0, 12, 1.8); passLite.position.set(0, 0.9, -3.0); passG.add(passLite);
+  var passX = 999, passDir = 1, passWait = 6 + Math.random() * 14;
 
   // --- THE SILHOUETTE. The knock has been unanswered for the whole life of this
   // house. Open the door soon after one and somebody is on the path — and by the
@@ -1257,6 +1412,44 @@ export function buildHallway(ctx) {
     // somebody on the path, briefly
     if (figT > 0) { figT -= dt; figG.visible = true; figG.position.x = FRONT_X + 0.35 + Math.sin(t * 0.7) * 0.05; }
     else if (figG.visible) figG.visible = false;
+
+    /* ---- the street, alive ---------------------------------------------------
+     * Skipped entirely from indoors — the yard group is hidden there, so none of
+     * this is visible and none of it should cost anything. */
+    if (!yardG.visible) return;
+    var gust = 0.6 + 0.4 * Math.sin(t * 0.23);            // the wind comes and goes
+    for (var si = 0; si < swayers.length; si++) {
+      var sw2 = swayers[si];
+      sw2.o.rotation.z = Math.sin(t * 0.9 + sw2.ph) * sw2.amp * gust;
+      sw2.o.rotation.x = Math.cos(t * 0.7 + sw2.ph * 1.3) * sw2.amp * 0.6 * gust;
+    }
+    for (var mi2 = 0; mi2 < slMoths.length; mi2++) {      // and the things that love the lamp
+      var sm2 = slMoths[mi2], ma = t * sm2.sp + sm2.ph;
+      sm2.m.position.set(-3.66 + Math.cos(ma) * sm2.r, GROUND + 4.9 + Math.sin(ma * 1.6) * sm2.r * 0.6,
+                         Z_WALK - 1.4 + Math.sin(ma) * sm2.r * 0.6);
+      sm2.m.rotation.z = Math.sin(ma * 10) * 0.5;
+    }
+    if (tvWin) {  // nobody opposite has ever turned that television off either
+      var fl = 0.55 + 0.45 * Math.abs(Math.sin(t * 3.7) * Math.sin(t * 1.9));
+      tvWin.emissiveIntensity = 1.1 * PORCH_SKY[porchPhase].lamp * fl;
+      tvWin.color.setRGB(0.62 + fl * 0.2, 0.7 + fl * 0.16, 1.0);
+    }
+    if (passX > 90) {                                      // waiting to send another one
+      passWait -= dt;
+      if (passWait <= 0) {
+        passDir = Math.random() < 0.5 ? 1 : -1;
+        passX = passDir > 0 ? -46 : 46;
+        passG.rotation.y = passDir > 0 ? Math.PI / 2 : -Math.PI / 2;
+        passG.position.z = (Z_KERB + Z_ROADF) / 2 + (passDir > 0 ? -2.1 : 2.1);
+        passWait = 14 + Math.random() * 26;
+      }
+      passG.visible = false; passLite.intensity = 0;
+    } else {
+      passX += dt * 13.5 * passDir;
+      passG.visible = true; passG.position.x = passX;
+      passLite.intensity = 1.5 * PORCH_SKY[porchPhase].lamp;
+      if ((passDir > 0 && passX > 46) || (passDir < 0 && passX < -46)) passX = 999;
+    }
   }
 
   return {

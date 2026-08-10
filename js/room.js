@@ -42,7 +42,12 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
 
   var scene = new THREE.Scene();
   scene.background = new THREE.Color(0x0a0c12);
-  var camera = new THREE.PerspectiveCamera(55, window.innerWidth / window.innerHeight, 0.1, 50);
+  // ⚠️ far is 120, not 50. Fifty was plenty while the world ended at the bedroom
+  // walls, but the front yard's sky backdrop sits ~73m out and was being CLIPPED —
+  // the street rendered fine and the sky above it was solid black. Nothing indoors
+  // is beyond ~15m, so this costs nothing there; a 24-bit depth buffer carries a
+  // 0.1/120 range with room to spare (the room's tightest offsets are ~1cm at 7m).
+  var camera = new THREE.PerspectiveCamera(55, window.innerWidth / window.innerHeight, 0.1, 120);
   camera.position.set(0, 1.72, 4.9);
   var lookAt = new THREE.Vector3(0, 1.2, -0.4);
   camera.lookAt(lookAt);
