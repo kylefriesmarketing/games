@@ -162,6 +162,21 @@ screen, light, season, tour, profile, audio, cat, posters, extras).
   doors with light spilling under them (the TV flicker is deliberate), the FRONT
   DOOR at the north end (fan-light, mail slot, WELCOME mat, December wreath), the
   rotary phone, and two bulbs with a working pull chain.
+  **VICTORY LAP lives out here (2026-08-06).** It used to be a milk crate on the
+  bedroom floor with the toys, which was wrong twice: it's the one M-rated game on
+  the shelf, and it's specifically about a grown man who can't get out of his home
+  town — so the crate and its DEPARTURES corkboard sit by the FRONT DOOR now, at
+  the end of the row (door, table, umbrella stand, crate). It is built in room.js
+  but parented into `hall.group`. ⚠️ Three things are load-bearing if you touch it:
+  hall coords are world coords (the group is at the origin); every mesh needs
+  `userData.space = "hall"` set **after** `clickable()`, which replaces `userData`
+  wholesale; and shadows must be stripped by hand, because hallway.js does its
+  castShadow sweep at build time and anything added later misses it.
+  It is deliberately **not** a `registerMovable` — movables are bedroom-only (decor
+  drag, bedroom obstacle ring, floor shadow blob), and registering a hall object
+  let you drag the hallway through the wall. Its old bedroom obstacle (index 9, the
+  last entry) and kid station were removed; the trophy collectible was re-anchored
+  from `vlcrate` to `desk`, since collectibles are a bedroom system end to end.
   **The space model:** every clickable carries `userData.space` ("bedroom" default,
   "hall", or "both" for the door). `pickAt`, `kbList` and the audit filter by
   `hall.space()` — that's how two rooms share one scene, one pick array, one

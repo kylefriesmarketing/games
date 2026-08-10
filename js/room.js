@@ -2735,12 +2735,38 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
   // just proud of the crate lid, so the whole board reads.
   board.position.set(-0.02, 0.57, -0.17); board.rotation.x = -0.22;
   board.castShadow = board.receiveShadow = true; vlG.add(board);
-  vlG.position.set(-1.35, 0, 0.25); vlG.rotation.y = 0.34; scene.add(vlG);
+  /* ---- …and the corner is IN THE HALL (2026-08-06) ----------------------------
+   * It sat on the bedroom floor with the toys, which was wrong twice over: it's the
+   * one M-rated game on the shelf, and it is specifically a game about a grown man
+   * who cannot get out of his home town. So it lives in the hallway now, set down
+   * at the end of the row by the FRONT DOOR — door, table, umbrella stand, crate —
+   * like something packed on the way out and never picked back up.
+   * ⚠️ THREE things are load-bearing about living in hall.group:
+   *   1. hall coords are world coords (the group sits at the origin), so these
+   *      numbers are absolute — E_IN is -4.35, the table is at z -3.15.
+   *   2. every mesh needs userData.space="hall" or pickAt() filters it out from
+   *      the hall and, worse, lets you click it through the bedroom wall.
+   *   3. shadows OFF. hallway.js strips castShadow from its whole subtree at build
+   *      time precisely so the bedroom lamp's cube shadow map never renders the
+   *      house behind the wall — anything added AFTER that sweep must strip its own,
+   *      or it silently re-adds six shadow passes over geometry nobody can see. */
+  // ⚠️ x is -4.78, not -4.70: the east wall's inner face is at -4.40 (E_IN -4.35,
+  // 0.1 thick) and the rotated crate+board reaches ~0.31 past its own origin, so
+  // -4.70 buried the board's corner 6cm inside the wallpaper. Measured off the
+  // world bounding box, not guessed.
+  vlG.position.set(-4.78, 0, -2.18); vlG.rotation.y = -0.62;
+  hall.group.add(vlG);
+  vlG.traverse(function (o) { if (o.isMesh) { o.castShadow = false; o.receiveShadow = false; } });
   var vlHint = vlNow.played
     ? "VICTORY LAP — " + vlNow.runs + " week" + (vlNow.runs === 1 ? "" : "s") + " tried, " +
       vlNow.known + "/4 of the town learned · click to go back"
     : "VICTORY LAP — an open town you keep not leaving · click to try the week";
-  vlG.traverse(function (o) { if (o.isMesh) clickable(o, "VICTORY LAP", go(VICTORY_LAP_URL), vlHint); });
+  // ⚠️ ORDER IS LOAD-BEARING: clickable() does `mesh.userData = {…}`, a whole
+  // replacement, so the space tag has to go on AFTER it or it's silently wiped and
+  // the crate becomes unclickable in the hall (and clickable through the bedroom wall).
+  vlG.traverse(function (o) {
+    if (o.isMesh) { clickable(o, "VICTORY LAP", go(VICTORY_LAP_URL), vlHint); o.userData.space = "hall"; }
+  });
 
   /* ---- TIDEBOUND: a toy island diorama on the floor (generated) --------------- */
   prop("assets/props/island.glb", 0.62, -1.9, 0, 2.45, 0.5, function (wrap) {
@@ -2862,7 +2888,7 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
     // WITH `over` — that flag only silences the audit, it doesn't relax the walker's
     // hard clamp, so a closer spot leaves him shuffling at the edge forever.
     { x: 1.55, z: 2.45, act: "idle", over: 8 },     // stood at the cabinet, playing a round
-    { x: -1.14, z: 0.84, act: "fidget", over: 9 },  // crouched at the crate, reading the board
+    // (the crate station is gone with the crate — it reads the board in the hall now)
     { x: 2.35, z: -1.9, act: "window" }             // between the chest and the TV, watching the world go by
   ];
   var KID_WINDOW = KID_STATIONS[KID_STATIONS.length - 1]; // the traffic outside can pull him over
@@ -2879,8 +2905,9 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
     { x: TV_X, z: TV_Z, r: 0.55 },  // the TV stand
     { x: -2.5, z: -0.32, r: 0.34 }, // the desk chair
     { x: -3.5, z: 1.75, r: 0.34 },  // the duffel bag + safe (index 7)
-    { x: 2.15, z: 1.95, r: 0.36 },  // the arcade cabinet (index 8)
-    { x: -1.35, z: 0.25, r: 0.34 }  // the VICTORY LAP crate + board (index 9)
+    { x: 2.15, z: 1.95, r: 0.36 }   // the arcade cabinet (index 8)
+    // (index 9 was the VICTORY LAP crate; it's in the hallway now. It was LAST in
+    //  the array, so dropping it reindexes nothing — obs:7 and obs:8 still resolve.)
   ];
   /* ---- THE KID LIVES IN THE WHOLE HOUSE NOW ------------------------------------
    * He used to be bedroom-only, which stopped making sense the moment the house
@@ -3834,8 +3861,11 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
   // parented to the group, so it shrinks with it
   registerMovable({ key: "arcade", label: "the arcade cabinet", root: arcade, r: 0.36, rot: true, obs: 8, stations: [9],
     shadowR: 0.46, shadowRZ: 0.50, attachObjs: [arcLight] });
-  registerMovable({ key: "vlcrate", label: "the milk crate", root: vlG, r: 0.30, rot: true, obs: 9, stations: [10],
-    shadowR: 0.30, shadowRZ: 0.34 });
+  // ⚠️ the VICTORY LAP crate is NOT registered as a movable any more — it moved to
+  // the hallway (see the corner-that-keeps-not-leaving block), and every movable is
+  // a BEDROOM movable: decor mode drags in bedroom coords, the drop test uses the
+  // bedroom obstacle ring, and the shadow blob is parented to the bedroom floor.
+  // Registering a hall object here let you drag the hall through the wall.
 
   /* ---- WHO LIVES HERE: the pet system (2026-07-29) -------------------------------
    * One pet at a time, picked in the drawer (🧸 stuff tab), persisted in "room-pet"
@@ -4114,10 +4144,15 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
       // gives off its own light, so the carpet beside the machine shows it off
       // better than any shelf could.
       anchor: "arcade", home: { x: -0.42, y: 0, z: 0.16 }, build: COLL.buildRiftShard },
+    // ⚠️ re-homed 2026-08-06: this used to anchor to "vlcrate", and the crate moved
+    // to the hallway. Collectibles are a BEDROOM system end to end (decor drag, the
+    // shoebox, placement persistence), so the trinket stays home even though its
+    // game doesn't — which is what a trophy is for anyway. Leaving the dead anchor
+    // would have dropped it at absolute (0.02, 0.425, 0.05): floating, mid-room.
     { key: "trophy", title: "the tarnished trophy", from: "VICTORY LAP", icon: "🏆",
-      earn: "get through a week in VICTORY LAP", where: "on the crate, on the folded jacket",
+      earn: "get through a week in VICTORY LAP", where: "on the desk — the one thing you did bring home",
       have: function () { return vlMeta().runs > 0; },
-      anchor: "vlcrate", home: { x: 0.02, y: 0.425, z: 0.05 }, build: COLL.buildTrophy },
+      anchor: "desk", home: { x: 0.18, y: 0.851, z: 0.30 }, build: COLL.buildTrophy },
     { key: "palm", title: "the pocket island", from: "TIDEBOUND", icon: "🌴",
       earn: "visit TIDEBOUND — the toy island", where: "on the floor by the shoebox",
       have: function () { try { return !!localStorage.getItem("room-visited-palm"); } catch (e) { return false; } },
@@ -5330,8 +5365,8 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
       get: function () { return [hoodG, posterHood]; } },
     { key: "arcade", sec: "toys", label: "the arcade cabinet (BLOODRIFT)", obs: 8,
       halos: function () { return []; }, get: function () { return [arcade, arcLight]; } },
-    { key: "vlcrate", sec: "toys", label: "the milk crate (VICTORY LAP)", obs: 9,
-      get: function () { return [vlG]; } },
+    // (the VICTORY LAP crate used to be here — it lives in the hallway now, and the
+    //  decor tabs only dress the bedroom)
     { key: "brain", sec: "desk", label: "the brain (BRAINROT) + poster", halos: function () { return [gBrain]; },
       get: function () { return [brainG, posterBrainrot]; } },
     { key: "pc", sec: "desk", label: "the beige PC",
