@@ -29,11 +29,16 @@ export function buildHallway(ctx) {
       clickable = ctx.clickable, glow = ctx.glow;
 
   /* ---- the shell -------------------------------------------------------------
-   * Interior: x -6.75..-4.35 (2.4m wide), z -3.45..4.5 (8m long), ceiling 2.95.
+   * Interior: x -7.45..-4.35 (3.1m wide), z -3.45..4.5 (8m long), ceiling 2.95.
+   * ⚠️ It WIDENS WESTWARD ONLY. E_IN is not a free number — it is the back face of
+   * the bedroom's left wall, so moving it would move the bedroom. Everything on the
+   * west side (wall, stairs, both taped doors, the basement hole, the stairwell
+   * void) is anchored to W_IN and moves with it; everything centred uses XC.
    * East wall IS the back of the bedroom's left wall (room.js cut the doorway).
    * Everything hangs off one group so the whole hall is one on/off switch. */
   var g = new THREE.Group(); g.name = "hallway"; scene.add(g);
-  var W_IN = -6.75, E_IN = -4.35, XC = -5.55, Z_S = 4.5, Z_N = -3.45, CEIL = 2.95;
+  var W_IN = -7.45, E_IN = -4.35, XC = -5.90, Z_S = 4.5, Z_N = -3.45, CEIL = 2.95;
+  var HW = E_IN - W_IN; // 3.1 — hall width, so the caps/ceiling/skirting follow it
 
   function add(m) { g.add(m); return m; }
   function tag(m, name, action, hint) { // hall clickables carry a space tag for the pick filter
@@ -61,7 +66,7 @@ export function buildHallway(ctx) {
   plankT.wrapS = plankT.wrapT = THREE.RepeatWrapping; plankT.repeat.set(1.2, 4);
   var plankM = new THREE.MeshStandardMaterial({ map: plankT, roughness: 0.9 });
   // the floor is three pieces because the basement stairwell is a real hole in it
-  var HOLE = { x0: -6.7, x1: -5.85, z0: 0.35, z1: 1.3 }; // the way down
+  var HOLE = { x0: -7.4, x1: -6.55, z0: 0.35, z1: 1.3 }; // the way down
   [[W_IN, E_IN, Z_N, HOLE.z0],          // north of the hole, full width
    [W_IN, E_IN, HOLE.z1, Z_S],          // south of the hole, full width
    [HOLE.x1, E_IN, HOLE.z0, HOLE.z1]]   // beside the hole, east sliver
@@ -85,7 +90,8 @@ export function buildHallway(ctx) {
   });
   var runner = new THREE.Mesh(new THREE.PlaneGeometry(1.1, 6.6),
     new THREE.MeshStandardMaterial({ map: runT, roughness: 0.97 }));
-  runner.rotation.x = -Math.PI / 2; runner.position.set(-5.15, 0.009, 0.8); runner.receiveShadow = true;
+  // on the doorway's axis, so the runner points at the front door down its length
+  runner.rotation.x = -Math.PI / 2; runner.position.set(-5.70, 0.009, 0.8); runner.receiveShadow = true;
   add(runner);
   tag(runner, "the runner", null, "the hallway runner — it has seen every midnight snack run");
 
@@ -99,19 +105,19 @@ export function buildHallway(ctx) {
   });
   hwallT.wrapS = hwallT.wrapT = THREE.RepeatWrapping; hwallT.repeat.set(4, 1.6);
   var hwallM = new THREE.MeshStandardMaterial({ map: hwallT, roughness: 0.95 });
-  var west = box(0.1, 3.4, Z_S - Z_N, hwallM); west.position.set(-6.8, 1.7, (Z_S + Z_N) / 2); add(west);
-  var capN = box(2.6, 3.4, 0.1, hwallM); capN.position.set(XC, 1.7, Z_N - 0.05); add(capN);
-  var capS = box(2.6, 3.4, 0.1, hwallM); capS.position.set(XC, 1.7, Z_S + 0.05); add(capS);
+  var west = box(0.1, 3.4, Z_S - Z_N, hwallM); west.position.set(W_IN - 0.05, 1.7, (Z_S + Z_N) / 2); add(west);
+  var capN = box(HW + 0.2, 3.4, 0.1, hwallM); capN.position.set(XC, 1.7, Z_N - 0.05); add(capN);
+  var capS = box(HW + 0.2, 3.4, 0.1, hwallM); capS.position.set(XC, 1.7, Z_S + 0.05); add(capS);
   // The ceiling is TWO pieces, not one, because the stairs go through it — same
   // trick as the floor being three pieces around the basement hole. The opening is
-  // x -6.9..-5.75, z -3.6..-1.45, so you can look up the flight and see the landing.
+  // z -3.6..-1.45 over the west side, so you can look up the flight to the landing.
   var ceilM = mat(0x2a2f3d, 0.98);
-  var STW = { x0: -6.9, x1: -5.75, z0: -3.6, z1: -1.45 }; // the stairwell void
-  var CZ_S = Z_S + 0.15;                                  // the old ceiling's south edge
-  var ceilA = box(2.7, 0.1, CZ_S - STW.z1, ceilM);        // everything south of the void
+  var STW = { x0: W_IN - 0.15, x1: W_IN + 1.10, z0: -3.6, z1: -1.45 }; // the stairwell void
+  var CZ_S = Z_S + 0.15, CX_E = XC + (HW + 0.3) / 2;      // the ceiling's south + east edges
+  var ceilA = box(HW + 0.3, 0.1, CZ_S - STW.z1, ceilM);   // everything south of the void
   ceilA.position.set(XC, CEIL + 0.05, (STW.z1 + CZ_S) / 2); add(ceilA);
-  var ceilB = box(-4.2 - STW.x1, 0.1, STW.z1 - STW.z0, ceilM); // the strip beside it
-  ceilB.position.set((STW.x1 - 4.2) / 2, CEIL + 0.05, (STW.z0 + STW.z1) / 2); add(ceilB);
+  var ceilB = box(CX_E - STW.x1, 0.1, STW.z1 - STW.z0, ceilM); // the strip beside it
+  ceilB.position.set((STW.x1 + CX_E) / 2, CEIL + 0.05, (STW.z0 + STW.z1) / 2); add(ceilB);
   // the stairwell's own lid + the two faces that close it, so the void is a shaft
   // and not a hole into nothing
   var stwLid = box(STW.x1 - STW.x0, 0.1, STW.z1 - STW.z0, ceilM);
@@ -122,7 +128,7 @@ export function buildHallway(ctx) {
   stwS.position.set((STW.x0 + STW.x1) / 2, 3.175, STW.z1); add(stwS);
   [[W_IN + 0.001, (Z_S + Z_N) / 2, Z_S - Z_N, Math.PI / 2],   // baseboards
    [E_IN - 0.001, (Z_S + Z_N) / 2, Z_S - Z_N, -Math.PI / 2],
-   [XC, Z_N + 0.001, 2.4, 0]].forEach(function (b) {
+   [XC, Z_N + 0.001, HW, 0]].forEach(function (b) {
     var sk = new THREE.Mesh(new THREE.PlaneGeometry(b[2], 0.14), mat(0x241b12, 0.85));
     if (b[3]) { sk.rotation.y = b[3]; sk.position.set(b[0], 0.075, b[1]); }
     else sk.position.set(b[0], 0.075, b[1]);
@@ -176,13 +182,13 @@ export function buildHallway(ctx) {
 
   // THE LIVING ROOM — right across the hall from the bedroom, exactly where it
   // should be. The flicker under the door is a television nobody turned off.
-  var livDoor = slabDoor(-6.72, 1.9, 0, 1.0, 0x4a3524, "the living room door",
+  var livDoor = slabDoor(W_IN + 0.03,1.9, 0, 1.0, 0x4a3524, "the living room door",
     "the living room — under renovation. someone left the TV on in there", 0x9db8ff, 0.2);
   tapeX(livDoor, 1.0); plaque(livDoor, "LIVING ROOM", "opening soon");
 
   // THE KITCHEN — across from the photo wall. Cold light, steady: that's the
   // fridge, humming to itself until 2027.
-  var kitDoor = slabDoor(-6.72, -0.35, 0, 0.92, 0x54582e, "the kitchen door",
+  var kitDoor = slabDoor(W_IN + 0.03,-0.35, 0, 0.92, 0x54582e, "the kitchen door",
     "the kitchen — opening 2027. the fridge hums like it knows something", 0xbfe8d8, 0.16);
   tapeX(kitDoor, 0.92); plaque(kitDoor, "KITCHEN", "2027");
 
@@ -234,9 +240,10 @@ export function buildHallway(ctx) {
   // UP: eight steps against the west wall, climbing north into the dark, a rope
   // of tape across the second one. The upstairs is real; it just isn't YOURS yet.
   var stairM = new THREE.MeshStandardMaterial({ map: plankT, roughness: 0.88 });
+  var STAIR_X = W_IN + 0.47, RAIL_X = STAIR_X + 0.44; // hard against the west wall
   for (var st = 0; st < 8; st++) {
     var step = new THREE.Mesh(new THREE.BoxGeometry(0.92, 0.18, 0.3), stairM);
-    step.position.set(-6.28, 0.09 + st * 0.185, -0.9 - st * 0.3); step.castShadow = step.receiveShadow = true; add(step);
+    step.position.set(STAIR_X,0.09 + st * 0.185, -0.9 - st * 0.3); step.castShadow = step.receiveShadow = true; add(step);
     if (st === 2) tag(step, "the stairs up", null, "upstairs — her room, their room, the attic. 2027.");
   }
   // The flight lands on a real landing and meets a real door — taped like every
@@ -245,8 +252,8 @@ export function buildHallway(ctx) {
   // up.) Top step surface is y 1.475, so everything up here is measured off that.
   var LAND_Y = 1.475;
   var landing = box(1.0, 0.1, 0.62, stairM);
-  landing.position.set(-6.28, LAND_Y - 0.05, -3.14); landing.receiveShadow = true; add(landing);
-  var upDoor = slabDoor(-6.28, -3.38, -Math.PI / 2, 0.92, 0x4a3a2a, "the stairs up",
+  landing.position.set(STAIR_X,LAND_Y - 0.05, -3.14); landing.receiveShadow = true; add(landing);
+  var upDoor = slabDoor(STAIR_X, -3.38, -Math.PI / 2, 0.92, 0x4a3a2a, "the stairs up",
     "upstairs — her room, their room, the attic. 2027.", 0xffd9a0, 0.13);
   upDoor.position.y = LAND_Y;
   // ⚠️ squashed to 0.88 ON PURPOSE: at full height the jamb tops out at y 3.60 and
@@ -254,13 +261,13 @@ export function buildHallway(ctx) {
   upDoor.scale.set(1, 0.88, 0.95);
   tapeX(upDoor, 0.92);
   var rail = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.05, 2.35), mat(0x3a2c1c, 0.7));
-  rail.position.set(-5.84, 1.5, -1.95); rail.rotation.x = 0.55; add(rail);
+  rail.position.set(RAIL_X, 1.5, -1.95); rail.rotation.x = 0.55; add(rail);
   [[1.0, -0.95], [1.35, -1.9], [1.7, -2.85]].forEach(function (p, i) {
     var post = new THREE.Mesh(new THREE.BoxGeometry(0.045, p[0], 0.045), mat(0x3a2c1c, 0.7));
-    post.position.set(-5.84, p[0] / 2 + i * 0.37, p[1]); add(post);
+    post.position.set(RAIL_X, p[0] / 2 + i * 0.37, p[1]); add(post);
   });
   var upTape = new THREE.Mesh(new THREE.BoxGeometry(0.9, 0.07, 0.012), new THREE.MeshStandardMaterial({ color: 0xd9c04a, roughness: 0.6 }));
-  upTape.position.set(-6.28, 0.72, -1.42); upTape.rotation.z = 0.06; add(upTape);
+  upTape.position.set(STAIR_X,0.72, -1.42); upTape.rotation.z = 0.06; add(upTape);
   tag(upTape, "the stairs up", null, "upstairs — her room, their room, the attic. 2027.");
   var upSign = canvasTex(256, 128, function (c, w, h) {
     c.fillStyle = "#e8dcc0"; c.fillRect(0, 0, w, h);
@@ -270,7 +277,7 @@ export function buildHallway(ctx) {
     c.font = "italic 22px Georgia, serif"; c.fillStyle = "#6a5a38"; c.fillText("pardon our dust — 2027", w / 2, 92);
   });
   var upSignM = new THREE.Mesh(new THREE.PlaneGeometry(0.5, 0.25), new THREE.MeshStandardMaterial({ map: upSign, roughness: 0.85 }));
-  upSignM.rotation.y = Math.PI / 2; upSignM.position.set(-6.73, 1.85, -0.72); upSignM.rotation.z = -0.02; add(upSignM);
+  upSignM.rotation.y = Math.PI / 2; upSignM.position.set(W_IN + 0.02, 1.85, -0.72); upSignM.rotation.z = -0.02; add(upSignM);
 
   // DOWN: a real hole in the floor, steps descending into a cold green glow.
   // The chain says not yet. The temperature says the basement is already awake.
@@ -361,13 +368,16 @@ export function buildHallway(ctx) {
    * light coming through, a mat that says WELCOME to people arriving (so it's
    * upside down to you), an umbrella stand, hooks wearing this season's coat.
    * This is also where the once-a-night knock has been coming from all along. */
-  // ⚠️ NOT on XC. The hall's centre line is -5.55, but the staircase runs down the
-  // west side and occupies x -6.74..-5.82, so a door centred on the hall put 22cm of
-  // itself through the bottom of the flight and hung the coat hooks INSIDE the
-  // stairs. The clear span at the north wall is -5.82..-4.35; FRONT_X centres the
-  // doorway in THAT, which is also the runner's line, so door and runner share an
-  // axis. Anything added to this group has to live within about ±0.62 of it.
-  var FRONT_X = -5.10;
+  // ⚠️ NOT on XC. The staircase runs down the west side and eats x W_IN..W_IN+0.93,
+  // so a door centred on the hall's own centre line puts itself through the bottom
+  // of the flight — which is exactly what it used to do. FRONT_X centres the doorway
+  // in the CLEAR span instead (stairs' east edge -6.52 to E_IN -4.35), and the runner
+  // shares that axis so the carpet points at the door down its whole length.
+  // Anything parented to this group has to live within about ±0.62 of it; the table
+  // and the umbrella stand are deliberately NOT parented here.
+  var FRONT_X = -5.70;
+  // the hall table lives beside the doorway now — that's what the widening bought
+  var TBL_X = -4.60, TBL_Z = -3.15;
   var front = new THREE.Group(); front.position.set(FRONT_X, 0, Z_N + 0.01); add(front);
   var fDoor = box(0.98, 2.08, 0.06, mat(0x5a3a24, 0.65)); fDoor.position.set(0, 1.04, 0.03); front.add(fDoor);
   [[-0.56, 0], [0.56, 0]].forEach(function (j) {
@@ -402,18 +412,21 @@ export function buildHallway(ctx) {
   });
   var wmat = new THREE.Mesh(new THREE.PlaneGeometry(0.72, 0.4), new THREE.MeshStandardMaterial({ map: matT, roughness: 0.98 }));
   wmat.rotation.x = -Math.PI / 2; wmat.position.set(0, 0.0075, 0.42); front.add(wmat);
-  // the stand tucks against the east wall and sits forward of the hall table's z
+  // ⚠️ the stand is NOT in the front group — it belongs to the hall table now, and
+  // parenting it to the doorway meant it moved whenever the doorway did. It stands
+  // just south of the table against the east wall: door, table, stand, in a row.
+  var STAND_X = TBL_X, STAND_Z = TBL_Z + 0.40;
   var stand = new THREE.Mesh(new THREE.CylinderGeometry(0.09, 0.075, 0.5, 12), mat(0x39536e, 0.6));
-  stand.position.set(0.62, 0.25, 0.14); front.add(stand);
+  stand.position.set(STAND_X, 0.25, STAND_Z); add(stand);
   [[-0.12, 0.5, 0x8a4a3a], [0.1, 0.42, 0x3a5a7a]].forEach(function (u) {
     var um = new THREE.Mesh(new THREE.CylinderGeometry(0.016, 0.026, 0.62, 8), mat(u[2], 0.8));
-    um.position.set(0.62 + u[0] * 0.3, u[1] + 0.28, 0.14); um.rotation.z = u[0]; front.add(um);
+    um.position.set(STAND_X + u[0] * 0.3, u[1] + 0.28, STAND_Z); um.rotation.z = u[0]; add(um);
   });
   // ⚠️ the hooks are on the EAST WALL, not beside the door. They used to hang at
   // local x -0.85, which after the doorway moved put them half inside the staircase
   // and half behind the west jamb — the coat rendered as a floating orange sliver.
   // Above the hall table is where a coat actually goes anyway.
-  var hooks = new THREE.Group(); hooks.position.set(E_IN - 0.02, 0, -2.62);
+  var hooks = new THREE.Group(); hooks.position.set(E_IN - 0.02, 0, -3.05);
   hooks.rotation.y = -Math.PI / 2; add(hooks);
   var hooksBar = box(0.3, 0.05, 0.03, mat(0x3a2c1c, 0.7)); hooksBar.position.set(0, 1.72, 0.04); hooks.add(hooksBar);
   var hookCoat = box(0.2, 0.56, 0.1, mat(wear[0], 0.9)); hookCoat.position.set(0, 1.36, 0.08); hooks.add(hookCoat);
@@ -432,8 +445,7 @@ export function buildHallway(ctx) {
   tag(stand, "the umbrella stand", null, "two umbrellas. it has never once rained indoors.");
 
   // the hall table by the front door, with the family telephone
-  // tight to the east wall now that the doorway moved east into the clear span
-  var tbl = new THREE.Group(); tbl.position.set(-4.62, 0, -2.9); add(tbl);
+  var tbl = new THREE.Group(); tbl.position.set(TBL_X, 0, TBL_Z); add(tbl);
   var top = box(0.5, 0.04, 0.36, mat(0x4a3421, 0.6)); top.position.y = 0.72; top.castShadow = true; tbl.add(top);
   [[-0.21, -0.14], [0.21, -0.14], [-0.21, 0.14], [0.21, 0.14]].forEach(function (l) {
     var leg = box(0.04, 0.72, 0.04, mat(0x3a2a1a, 0.7)); leg.position.set(l[0], 0.36, l[1]); tbl.add(leg);
@@ -497,12 +509,12 @@ export function buildHallway(ctx) {
   var space = "bedroom", mode = "idle", tt = 0, seen = { hall: false };
   try { seen.hall = !!localStorage.getItem("room-hall-seen"); } catch (e) { }
   var P = { // camera choreography, in order of appearance
-    rest: new THREE.Vector3(-5.55, 1.7, 3.72),      // standing at the south end
-    look: new THREE.Vector3(-5.38, 1.26, -1.4),     // gazing up the corridor, a hair toward the photo wall
+    rest: new THREE.Vector3(-5.90, 1.7, 3.72),      // standing at the south end
+    look: new THREE.Vector3(-5.72, 1.26, -1.4),     // gazing up the corridor, a hair toward the photo wall
     door1: new THREE.Vector3(-3.15, 1.66, 2.1),     // stepping to the door (bedroom side)
     doorL: new THREE.Vector3(-4.6, 1.5, 2.1),       // looking through it
     door2: new THREE.Vector3(-4.85, 1.66, 2.1),     // in the doorway itself
-    hallL: new THREE.Vector3(-5.6, 1.4, 0.6)        // first glance up the hall
+    hallL: new THREE.Vector3(-5.95, 1.4, 0.6)       // first glance up the hall
   };
   var c0 = new THREE.Vector3(), l0 = new THREE.Vector3(); // where the walk started
   function enter() {
