@@ -1909,6 +1909,8 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
     redrawWindow(); // the painted view follows the hour
     // the lens takes the hour too: colder and dimmer as the night gets later
     if (post.available && post.setGrade) post.setGrade(p.grade[0], p.grade[1], p.grade[2], p.grade[3]);
+    // …and so does the front yard, which looks at the same street this window does
+    if (hall && hall.setPhase) hall.setPhase(winPhaseName());
     AUDIO.setRain(curViewRain() ? p.rainG : 0);
   }
   function applyPhase() {
@@ -5991,6 +5993,7 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
     // once a night, a knock at the door
     if (knockAt > 0 && t > knockAt) {
       knockAt = -1; knockAnim = t; knockSfx();
+      hall.knock(); // and now somebody is briefly on the front path, out there
       try { localStorage.setItem("room-knock", new Date().toDateString()); } catch (e) { /* private mode */ }
       pick.forEach(function (m) { if (m.userData.name === "the door") m.userData.hint = "the door — someone said goodnight"; });
     }

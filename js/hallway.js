@@ -47,6 +47,8 @@ export function buildHallway(ctx) {
   // the sliding door's opening, needed up here because capS is built in PIECES
   // around it — a glass door in front of a solid wall shows you a solid wall
   var SD_W = 2.24, SD_H = 2.08;
+  // and the front doorway's centre, for the same reason — capN is cut around it
+  var FRONT_X = -5.70;
 
   function add(m) { g.add(m); return m; }
   function tag(m, name, action, hint) { // hall clickables carry a space tag for the pick filter
@@ -121,7 +123,15 @@ export function buildHallway(ctx) {
   // the hall's OWN east wall, south of where the bedroom stops
   var eastS = box(0.1, 3.4, Z_S + 0.1 - BED_END, hwallM);
   eastS.position.set(E_IN + 0.05, 1.7, (BED_END + Z_S + 0.1) / 2); add(eastS);
-  var capN = box(HW + 0.2, 3.4, 0.1, hwallM); capN.position.set(XC, 1.7, Z_N - 0.05); add(capN);
+  // the NORTH cap is cut too, now that the front door opens onto a real porch.
+  // (Same lesson as capS: a door you can walk through needs a hole, not a slab.)
+  var FDO = { x0: FRONT_X - 0.63, x1: FRONT_X + 0.63, y1: 2.30 };
+  [[W_IN - 0.1, FDO.x0, 0, 3.4],
+   [FDO.x1, E_IN + 0.1, 0, 3.4],
+   [W_IN - 0.1, E_IN + 0.1, FDO.y1, 3.4]].forEach(function (p) {
+    var seg = box(p[1] - p[0], p[3] - p[2], 0.1, hwallM);
+    seg.position.set((p[0] + p[1]) / 2, (p[2] + p[3]) / 2, Z_N - 0.05); add(seg);
+  });
   // ⚠️ the SOUTH cap has a hole in it. Built as one slab (like capN) the sliding
   // door renders against solid wallpaper and the yard, the deck and the porch light
   // are all sealed behind it — which is exactly what the first pass did.
@@ -400,11 +410,15 @@ export function buildHallway(ctx) {
   // shares that axis so the carpet points at the door down its whole length.
   // Anything parented to this group has to live within about ±0.62 of it; the table
   // and the umbrella stand are deliberately NOT parented here.
-  var FRONT_X = -5.70;
   // the hall table lives beside the doorway now — that's what the widening bought
   var TBL_X = -4.60, TBL_Z = -3.15;
   var front = new THREE.Group(); front.position.set(FRONT_X, 0, Z_N + 0.01); add(front);
-  var fDoor = box(0.98, 2.08, 0.06, mat(0x5a3a24, 0.65)); fDoor.position.set(0, 1.04, 0.03); front.add(fDoor);
+  // the slab hangs on a real hinge now — the porch is on the other side of it.
+  // Pivot on the WEST jamb so it swings inward across the west half of the opening,
+  // away from the hall table; rotating -1.95 rad lays it along the hall wall and
+  // leaves the walk line clear.
+  var fPivot = new THREE.Group(); fPivot.position.set(-0.49, 0, 0.03); front.add(fPivot);
+  var fDoor = box(0.98, 2.08, 0.06, mat(0x5a3a24, 0.65)); fDoor.position.set(0.49, 1.04, 0); fPivot.add(fDoor);
   [[-0.56, 0], [0.56, 0]].forEach(function (j) {
     var jm = box(0.1, 2.2, 0.09, mat(0x241b12, 0.8)); jm.position.set(j[0], 1.1, 0.045); front.add(jm);
   });
@@ -425,7 +439,7 @@ export function buildHallway(ctx) {
   arch.position.set(0, 2.3, 0.055); front.add(arch);
   var fkT = new THREE.Mesh(new THREE.SphereGeometry(0.03, 12, 10),
     new THREE.MeshStandardMaterial({ color: 0xc8a44a, roughness: 0.3, metalness: 0.65 }));
-  fkT.position.set(0.36, 1.02, 0.09); front.add(fkT);
+  fkT.position.set(0.85, 1.02, 0.06); fPivot.add(fkT); // rides the slab, obviously
   var slot = box(0.26, 0.035, 0.02, new THREE.MeshStandardMaterial({ color: 0xc8a44a, roughness: 0.35, metalness: 0.6 }));
   slot.position.set(0, 0.78, 0.07); front.add(slot);
   var matT = canvasTex(256, 128, function (c, w, h) {
@@ -463,7 +477,8 @@ export function buildHallway(ctx) {
     var bow = box(0.1, 0.07, 0.03, mat(0xa32b33, 0.7)); bow.position.set(0, 1.79, 0.09); front.add(bow);
   }
   [fDoor, fkT].forEach(function (m) {
-    tag(m, "the front door", null, "the front door — the whole outside is on the other side. grand opening soon.");
+    tag(m, "the front door", function () { stepOut(); },
+      "the front door — click to step out onto the porch");
   });
   tag(slot, "the mail slot", null, "the mail slot — the daily letter will land here someday");
   tag(wmat, "the welcome mat", null, "it says WELCOME to people coming in. you live here.");
@@ -484,6 +499,273 @@ export function buildHallway(ctx) {
   var hset = box(0.22, 0.045, 0.05, mat(0x1d1f26, 0.5)); hset.position.set(0, 0.15, -0.045); phoneG.add(hset);
   [-0.085, 0.085].forEach(function (hx) { var cup = box(0.05, 0.05, 0.055, mat(0x1d1f26, 0.5)); cup.position.set(hx, 0.165, -0.045); phoneG.add(cup); });
   [phBase, hset, dial].forEach(function (m) { tag(m, "the telephone", null, "the telephone — it's for you. (it's never for you.)"); });
+
+  /* ---- OUT THE FRONT: the porch, the yard, the street (a THIRD space) ---------
+   * You can actually step outside now. The porch is a real place you stand on —
+   * same contract as the hall, so the house keeps its rule that you only get
+   * anywhere by walking there.
+   *
+   * ⚠️ Everything out here is lit by PHASE, not by the hall's bulbs. setPhase()
+   * is called from room.js's applyPhaseObj, so the sky, the sun and the street
+   * agree with the bedroom window — which looks at THIS street. Get them out of
+   * step and the house stops being one place.
+   */
+  var GROUND = -0.45;                       // the yard sits below the floor slab
+  var HOUSE_F = Z_N - 0.05;                 // the front face of the house
+  var yardG = new THREE.Group(); add(yardG);
+  function yadd(m) { yardG.add(m); return m; }
+  function ytag(m, name, action, hint) {    // porch clickables live in their own space
+    clickable(m, name, action, hint); m.userData.space = "porch"; return m;
+  }
+
+  // --- the house from outside: siding, and a fan-light over the door
+  var sideT = canvasTex(128, 128, function (c, w, h) {
+    c.fillStyle = "#8d8f84"; c.fillRect(0, 0, w, h);
+    for (var i = 0; i < 8; i++) {           // lap siding, one board at a time
+      c.fillStyle = i % 2 ? "#93958a" : "#87897e";
+      c.fillRect(0, i * 16, w, 15);
+      c.fillStyle = "rgba(0,0,0,0.22)"; c.fillRect(0, i * 16 + 14, w, 2);
+    }
+  });
+  sideT.wrapS = sideT.wrapT = THREE.RepeatWrapping; sideT.repeat.set(4, 3);
+  var sidingM = new THREE.MeshStandardMaterial({ map: sideT, roughness: 0.95 });
+  [[W_IN - 0.1, FDO.x0], [FDO.x1, E_IN + 0.1]].forEach(function (p) {
+    var sv = box(p[1] - p[0], 3.4, 0.04, sidingM);
+    sv.position.set((p[0] + p[1]) / 2, 1.7, HOUSE_F - 0.03); yadd(sv);
+  });
+  var sideHdr = box(HW + 0.2, 3.4 - FDO.y1, 0.04, sidingM);
+  sideHdr.position.set(XC, (FDO.y1 + 3.4) / 2, HOUSE_F - 0.03); yadd(sideHdr);
+  var trimM = mat(0xe8e2d4, 0.85);
+  [[-0.63, 0], [0.63, 0]].forEach(function (t) {   // door casing, from outside
+    var cs = box(0.12, 2.36, 0.06, trimM); cs.position.set(FRONT_X + t[0], 1.18, HOUSE_F - 0.06); yadd(cs);
+  });
+  var csHead = box(1.38, 0.12, 0.06, trimM); csHead.position.set(FRONT_X, 2.36, HOUSE_F - 0.06); yadd(csHead);
+  var fanOut = new THREE.Mesh(new THREE.CircleGeometry(0.44, 20, 0, Math.PI),
+    new THREE.MeshStandardMaterial({ color: 0xffdca8, emissive: 0xffc98a, emissiveIntensity: 0.5, roughness: 0.6 }));
+  fanOut.position.set(FRONT_X, 2.44, HOUSE_F - 0.07); fanOut.rotation.y = Math.PI; yadd(fanOut);
+
+  // --- the porch: deck, posts, a roof over it, a light, somewhere to sit
+  var deckT = canvasTex(128, 128, function (c, w, h) {
+    c.fillStyle = "#6b7168"; c.fillRect(0, 0, w, h);
+    for (var b = 0; b < 6; b++) {
+      c.fillStyle = ["#717767", "#686e60", "#757b6b", "#6c7264"][b % 4];
+      c.fillRect(0, b * 21 + 1, w, 19);
+      c.strokeStyle = "rgba(20,22,16,0.5)"; c.lineWidth = 2;
+      c.strokeRect(-2, b * 21, w + 4, 20);
+    }
+  });
+  deckT.wrapS = deckT.wrapT = THREE.RepeatWrapping; deckT.repeat.set(3, 2);
+  var pdeckM = new THREE.MeshStandardMaterial({ map: deckT, roughness: 0.95 });
+  var PX0 = -8.45, PX1 = -3.25, PZ0 = HOUSE_F, PZ1 = HOUSE_F - 2.35;
+  var pdeck = box(PX1 - PX0, 0.14, PZ0 - PZ1, pdeckM);
+  pdeck.position.set((PX0 + PX1) / 2, -0.07, (PZ0 + PZ1) / 2); pdeck.receiveShadow = true; yadd(pdeck);
+  ytag(pdeck, "the porch", null, "the porch. the boards know exactly which one creaks.");
+  var pskirt = box(PX1 - PX0, 0.32, 0.06, mat(0x4a4a40, 0.9));
+  pskirt.position.set((PX0 + PX1) / 2, -0.30, PZ1); yadd(pskirt);
+  var postM = mat(0xe4dece, 0.85);
+  [PX0 + 0.22, PX1 - 0.22].forEach(function (px) {
+    var pst = box(0.14, 2.85, 0.14, postM); pst.position.set(px, 1.42, PZ1 + 0.2); pst.castShadow = true; yadd(pst);
+  });
+  var proof = box(PX1 - PX0 + 0.5, 0.14, PZ0 - PZ1 + 0.55, mat(0x4a3a2e, 0.9));
+  proof.position.set((PX0 + PX1) / 2, 2.92, (PZ0 + PZ1) / 2 - 0.1); yadd(proof);
+  var pfascia = box(PX1 - PX0 + 0.5, 0.2, 0.07, postM);
+  pfascia.position.set((PX0 + PX1) / 2, 2.82, PZ1 - 0.27); yadd(pfascia);
+  var prail = box(PX1 - PX0, 0.07, 0.07, postM);
+  prail.position.set((PX0 + PX1) / 2, 0.86, PZ1 + 0.05); yadd(prail);
+  for (var bal = 0; bal < 17; bal++) {                 // balusters, skipping the steps
+    var bxp = PX0 + 0.25 + bal * ((PX1 - PX0 - 0.5) / 16);
+    if (bxp > FRONT_X - 0.75 && bxp < FRONT_X + 0.75) continue;
+    var bl2 = box(0.05, 0.78, 0.05, postM); bl2.position.set(bxp, 0.45, PZ1 + 0.05); yadd(bl2);
+  }
+  // porch light by the door, and it is the one that answers the knock
+  var plampBody = box(0.14, 0.24, 0.12, mat(0x2a2119, 0.7));
+  plampBody.position.set(FRONT_X + 0.95, 2.06, HOUSE_F - 0.12); yadd(plampBody);
+  var plampGlass = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.17, 0.09),
+    new THREE.MeshStandardMaterial({ color: 0xfff0cc, emissive: 0xffd9a0, emissiveIntensity: 1.4, roughness: 0.5 }));
+  plampGlass.position.set(FRONT_X + 0.95, 2.05, HOUSE_F - 0.12); yadd(plampGlass);
+  var porchLite = new THREE.PointLight(0xffd2a0, 1.9, 8, 1.7);
+  porchLite.position.set(FRONT_X + 0.8, 2.0, HOUSE_F - 0.5); yadd(porchLite);
+  ytag(plampGlass, "the porch light", null, "the porch light. left on for whoever isn't home yet.");
+  // a chair nobody has sat in since the summer
+  var chSeat = box(0.5, 0.06, 0.46, mat(0x6a7a5e, 0.9)); chSeat.position.set(PX0 + 0.85, 0.42, PZ1 + 0.62); yadd(chSeat);
+  var chBack = box(0.5, 0.5, 0.06, mat(0x6a7a5e, 0.9)); chBack.position.set(PX0 + 0.85, 0.68, PZ1 + 0.4); yadd(chBack);
+  [[-0.21, -0.19], [0.21, -0.19], [-0.21, 0.19], [0.21, 0.19]].forEach(function (l) {
+    var lg = box(0.05, 0.4, 0.05, mat(0x5a6a50, 0.9));
+    lg.position.set(PX0 + 0.85 + l[0], 0.2, PZ1 + 0.62 + l[1]); yadd(lg);
+  });
+  ytag(chSeat, "the porch chair", null, "one chair. there used to be two.");
+  // steps down to the path
+  [[0, -0.06], [1, -0.19], [2, -0.32]].forEach(function (s) {
+    var stp = box(1.5, 0.13, 0.32, pdeckM);
+    stp.position.set(FRONT_X, s[1], PZ1 - 0.16 - s[0] * 0.32); yadd(stp);
+  });
+
+  /* ---- THE YARD --------------------------------------------------------------- */
+  var grassM = new THREE.MeshStandardMaterial({ color: 0x54754a, roughness: 1 });
+  var lawn = new THREE.Mesh(new THREE.PlaneGeometry(26, 12), grassM);
+  lawn.rotation.x = -Math.PI / 2; lawn.position.set(-5.0, GROUND, -11.2); lawn.receiveShadow = true; yadd(lawn);
+  var pathM = mat(0x8a867a, 0.95);
+  var path = box(1.3, 0.06, 8.6, pathM); path.position.set(FRONT_X, GROUND + 0.02, -10.6); yadd(path);
+  ytag(path, "the front walk", null, "the front walk. the third slab has been cracked since forever.");
+  // mailbox at the kerb
+  var mbPost = box(0.09, 1.05, 0.09, mat(0x4a3a28, 0.85)); mbPost.position.set(FRONT_X + 1.5, GROUND + 0.52, -14.6); yadd(mbPost);
+  var mbBox = box(0.22, 0.24, 0.42, mat(0x9aa2a8, 0.5)); mbBox.position.set(FRONT_X + 1.5, GROUND + 1.14, -14.6); yadd(mbBox);
+  var mbFlag = box(0.03, 0.18, 0.05, mat(0xb03a2e, 0.7)); mbFlag.position.set(FRONT_X + 1.63, GROUND + 1.3, -14.5); yadd(mbFlag);
+  ytag(mbBox, "the mailbox", null, "the mailbox. the flag is up, which means something is going OUT.");
+  // the bike somebody dropped instead of parking
+  var bikeG = new THREE.Group(); bikeG.position.set(FRONT_X - 2.3, GROUND, -8.4); bikeG.rotation.y = 0.7; yadd(bikeG);
+  [-0.42, 0.42].forEach(function (wz) {
+    var wh = new THREE.Mesh(new THREE.TorusGeometry(0.26, 0.035, 8, 18), mat(0x24262a, 0.7));
+    wh.position.set(0, 0.1, wz); wh.rotation.x = 1.35; bikeG.add(wh);
+  });
+  var bkFrame = box(0.06, 0.06, 0.8, mat(0xc23a2e, 0.5)); bkFrame.position.set(0, 0.2, 0); bkFrame.rotation.x = 0.16; bikeG.add(bkFrame);
+  var bkSeat = box(0.1, 0.05, 0.2, mat(0x1d1f22, 0.7)); bkSeat.position.set(0, 0.3, -0.24); bikeG.add(bkSeat);
+  var bkBar = box(0.42, 0.05, 0.05, mat(0x24262a, 0.6)); bkBar.position.set(0, 0.34, 0.3); bikeG.add(bkBar);
+  bikeG.children.forEach(function (m) { ytag(m, "the bike", null, "dropped, not parked. it has always been dropped, not parked."); });
+
+  // --- the driveway, running down the side to the garage the hall keeps taped shut
+  var driveM = mat(0x3e4048, 0.95);
+  var drive = box(3.0, 0.06, 24.0, driveM); drive.position.set(-10.9, GROUND + 0.02, -3.6); yadd(drive);
+  ytag(drive, "the driveway", null, "the driveway. it goes down the side to the garage.");
+  var garM = new THREE.MeshStandardMaterial({ map: sideT, roughness: 0.95 });
+  var garage = box(4.7, 3.0, 4.4, garM); garage.position.set(-9.9, 1.5 + GROUND, 6.4); yadd(garage);
+  var garRoof = box(5.1, 0.16, 4.8, mat(0x3a2f26, 0.9)); garRoof.position.set(-9.9, 3.08 + GROUND, 6.4); yadd(garRoof);
+  var garDoorT = canvasTex(128, 96, function (c, w, h) {
+    c.fillStyle = "#b9bcb4"; c.fillRect(0, 0, w, h);
+    for (var p = 0; p < 4; p++) {                       // four panels, like every garage door
+      c.strokeStyle = "rgba(40,44,40,0.55)"; c.lineWidth = 3;
+      c.strokeRect(6, p * 24 + 4, w - 12, 18);
+    }
+  });
+  var garDoor = box(3.4, 2.3, 0.1, new THREE.MeshStandardMaterial({ map: garDoorT, roughness: 0.7 }));
+  garDoor.position.set(-10.4, 1.15 + GROUND, 4.18); yadd(garDoor);
+  ytag(garDoor, "the garage", null, "the garage, from the outside. still shut. 2027.");
+  // the car, parked where it always is
+  var carG = new THREE.Group(); carG.position.set(-10.7, GROUND, -5.6); yadd(carG);
+  var carBody = box(1.9, 0.62, 4.3, mat(0x6b2f36, 0.5)); carBody.position.y = 0.62; carG.add(carBody);
+  var carCab = box(1.72, 0.56, 2.1, mat(0x5e2a30, 0.5)); carCab.position.set(0, 1.18, -0.1); carG.add(carCab);
+  var carGlass = new THREE.MeshStandardMaterial({ color: 0x1d2630, roughness: 0.15 });
+  [[0, -1.16, 1.66, 0.5], [0, 0.96, 1.66, 0.5]].forEach(function (gp) {
+    var gw = box(gp[2], gp[3], 0.05, carGlass); gw.position.set(gp[0], 1.2, gp[1]); carG.add(gw);
+  });
+  [[-0.9, -1.4], [0.9, -1.4], [-0.9, 1.4], [0.9, 1.4]].forEach(function (wp) {
+    var tyre = new THREE.Mesh(new THREE.CylinderGeometry(0.34, 0.34, 0.24, 14), mat(0x1a1c1e, 0.85));
+    tyre.rotation.z = Math.PI / 2; tyre.position.set(wp[0], 0.34, wp[1]); carG.add(tyre);
+  });
+  carG.children.forEach(function (m) { ytag(m, "the car", null, "the car. it starts most mornings."); });
+
+  // --- the street, and the neighbours who leave a light on
+  var roadM = mat(0x2a2c31, 0.98);
+  var road = box(30, 0.05, 6.2, roadM); road.position.set(-5.0, GROUND - 0.06, -18.9); yadd(road);
+  var walkM = mat(0x7e7a72, 0.95);
+  var swalk = box(30, 0.06, 1.5, walkM); swalk.position.set(-5.0, GROUND + 0.02, -15.2); yadd(swalk);
+  var kerb = box(30, 0.16, 0.18, mat(0x8a867e, 0.9)); kerb.position.set(-5.0, GROUND - 0.02, -15.98); yadd(kerb);
+  for (var dash = 0; dash < 9; dash++) {                // centre line
+    var dl = box(1.5, 0.02, 0.13, mat(0xb8b090, 0.9));
+    dl.position.set(-17 + dash * 3.4, GROUND - 0.03, -18.9); yadd(dl);
+  }
+  var slPost = box(0.13, 4.4, 0.13, mat(0x3a3d42, 0.6)); slPost.position.set(-2.6, GROUND + 2.2, -15.6); yadd(slPost);
+  var slArm = box(1.0, 0.1, 0.1, mat(0x3a3d42, 0.6)); slArm.position.set(-3.1, GROUND + 4.36, -15.6); yadd(slArm);
+  var slHead = box(0.5, 0.14, 0.26, mat(0x2a2d31, 0.6)); slHead.position.set(-3.55, GROUND + 4.26, -15.6); yadd(slHead);
+  var slLamp = new THREE.Mesh(new THREE.BoxGeometry(0.42, 0.06, 0.2),
+    new THREE.MeshStandardMaterial({ color: 0xfff0c8, emissive: 0xffdca0, emissiveIntensity: 1.6, roughness: 0.5 }));
+  slLamp.position.set(-3.55, GROUND + 4.17, -15.6); yadd(slLamp);
+  var streetLight = new THREE.PointLight(0xffe0b0, 1.5, 16, 1.6);
+  streetLight.position.set(-3.55, GROUND + 4.0, -15.6); yadd(streetLight);
+  ytag(slPost, "the streetlight", null, "the streetlight. it buzzes, and it has always buzzed.");
+  // houses opposite — simple massing, a couple of windows still awake
+  var nbWin = [];
+  [[-13.5, 0], [-6.6, 1], [0.4, 2]].forEach(function (nb) {
+    var body = box(5.2, 3.4, 5.0, new THREE.MeshStandardMaterial({ map: sideT, roughness: 0.95 }));
+    body.position.set(nb[0], GROUND + 1.7, -24.4); yadd(body);
+    var roofN = new THREE.Mesh(new THREE.ConeGeometry(4.1, 1.5, 4), mat(0x38302a, 0.92));
+    roofN.rotation.y = Math.PI / 4; roofN.position.set(nb[0], GROUND + 4.15, -24.4); yadd(roofN);
+    [-1.3, 1.3].forEach(function (wx, wi) {
+      var lit = (nb[1] + wi) % 3 !== 1;                 // not everybody is up
+      var wm = new THREE.MeshStandardMaterial({
+        color: lit ? 0xffdca0 : 0x1a1f28,
+        emissive: lit ? 0xffca82 : 0x000000, emissiveIntensity: lit ? 1.1 : 0,
+        roughness: 0.5,
+      });
+      var wmm = box(0.9, 0.9, 0.06, wm);
+      wmm.position.set(nb[0] + wx, GROUND + 1.9, -21.85); yadd(wmm);
+      if (lit) nbWin.push(wm);
+    });
+  });
+
+  // --- the sky. One big backdrop that the phase repaints.
+  var skyC = document.createElement("canvas"); skyC.width = 8; skyC.height = 128;
+  var skyCtx = skyC.getContext("2d");
+  var skyTex = new THREE.CanvasTexture(skyC);
+  // ⚠️ THE REAL FIX, after two rounds of just painting it darker: util.js's canvasTex
+  // never sets a colour space, so a canvas is decoded as LINEAR data. A #141b2b night
+  // sky (0.078) is then treated as 0.078 of LIGHT, multiplied by exposure 2.42 and
+  // tone-mapped — arriving on screen at roughly rgb(115), a grey afternoon. Declaring
+  // sRGB decodes it to 0.0075 first and it lands where it was painted. Everything
+  // else in this room is authored against the wrong behaviour, so this is set HERE
+  // and not in canvasTex — changing that would re-tint the entire house.
+  skyTex.colorSpace = THREE.SRGBColorSpace;
+  var skyDome = new THREE.Mesh(new THREE.PlaneGeometry(64, 34),
+    new THREE.MeshBasicMaterial({ map: skyTex }));
+  skyDome.position.set(-5.0, GROUND + 9, -30.5); yadd(skyDome);
+  var yardHemi = new THREE.HemisphereLight(0x8fa8c8, 0x2a3524, 0.5); yadd(yardHemi);
+  var yardSun = new THREE.DirectionalLight(0xbcc8da, 0.5);
+  yardSun.position.set(-12, 14, -20); yadd(yardSun);
+
+  // ⚠️ the yard's hours are the ROOM's hours. The bedroom window looks at this
+  // same street; if these two ever drift the house stops being one place.
+  // these are honest colours now that skyTex declares sRGB — what you paint is what
+  // you get, so they can be read against the bedroom window's palette directly
+  var PORCH_SKY = {
+    day:     { top: "#4a6f9e", bot: "#a8c0d4", hemi: 0.85, sun: 0.85, sunC: 0xd8dfe8, hemiC: 0x9fb8d8, lamp: 0.15 },
+    dusk:    { top: "#2e4468", bot: "#c88a5e", hemi: 0.58, sun: 0.5,  sunC: 0xe8a06a, hemiC: 0x7a7a92, lamp: 0.7 },
+    evening: { top: "#16233f", bot: "#46587c", hemi: 0.44, sun: 0.32, sunC: 0x8fa8cc, hemiC: 0x50607e, lamp: 1 },
+    night:   { top: "#0a1020", bot: "#202c44", hemi: 0.30, sun: 0.22, sunC: 0x7d94bc, hemiC: 0x36445e, lamp: 1 },
+  };
+  var porchPhase = "evening";
+  function setPhase(name) {
+    if (!PORCH_SKY[name]) name = "evening";
+    porchPhase = name;
+    var s = PORCH_SKY[name];
+    var gr = skyCtx.createLinearGradient(0, 0, 0, 128);
+    gr.addColorStop(0, s.top); gr.addColorStop(1, s.bot);
+    skyCtx.fillStyle = gr; skyCtx.fillRect(0, 0, 8, 128);
+    if (name === "night" || name === "evening") {          // stars, but only when there are stars
+      for (var st2 = 0; st2 < 26; st2++) {
+        skyCtx.fillStyle = "rgba(255,255,255," + (0.2 + Math.random() * 0.5).toFixed(2) + ")";
+        skyCtx.fillRect(Math.random() * 8, Math.random() * 70, 1, 1);
+      }
+    }
+    skyTex.needsUpdate = true;
+    yardHemi.intensity = s.hemi; yardHemi.color.setHex(s.hemiC);
+    yardSun.intensity = s.sun; yardSun.color.setHex(s.sunC);
+    streetLight.intensity = 1.5 * s.lamp;
+    slLamp.material.emissiveIntensity = 1.6 * s.lamp;
+    porchLite.intensity = 1.9 * s.lamp;
+    plampGlass.material.emissiveIntensity = 1.4 * s.lamp;
+    fanOut.material.emissiveIntensity = 0.5 * s.lamp;
+    nbWin.forEach(function (m) { m.emissiveIntensity = 1.1 * s.lamp; });
+  }
+  setPhase("evening");
+
+  // --- THE SILHOUETTE. The knock has been unanswered for the whole life of this
+  // house. Open the door soon after one and somebody is on the path — and by the
+  // time the door is actually open, they are not.
+  var figG = new THREE.Group(); figG.position.set(FRONT_X + 0.35, GROUND, -8.6); figG.visible = false; yadd(figG);
+  var figM = new THREE.MeshStandardMaterial({ color: 0x05060a, roughness: 1 });
+  var figBody = box(0.46, 1.0, 0.28, figM); figBody.position.y = 0.92; figG.add(figBody);
+  var figHead = new THREE.Mesh(new THREE.SphereGeometry(0.15, 12, 10), figM);
+  figHead.position.y = 1.57; figG.add(figHead);
+  [-0.3, 0.3].forEach(function (lx) {
+    var lg2 = box(0.15, 0.44, 0.18, figM); lg2.position.set(lx * 0.55, 0.22, 0); figG.add(lg2);
+  });
+  var figT = 0;              // >0 while they're standing there
+  function knockCame() { figT = 7.0; }   // room.js's nightly knock arms it
+  // the way back in, from the porch side
+  var inHit = new THREE.Mesh(new THREE.BoxGeometry(1.1, 2.1, 0.3),
+    new THREE.MeshBasicMaterial({ transparent: true, opacity: 0, depthWrite: false }));
+  inHit.position.set(FRONT_X, 1.05, HOUSE_F + 0.06); yadd(inHit);
+  ytag(inHit, "the front door", function () { stepIn(); }, "back inside — the hall light is still on");
 
   /* ---- THE BACK OF THE HOUSE (south end) --------------------------------------
    * Turn around and the hall keeps going. A sliding glass door to the yard with
@@ -740,6 +1022,13 @@ export function buildHallway(ctx) {
     rest: new THREE.Vector3(-5.90, 1.7, 3.72),      // standing at the south end
     look: new THREE.Vector3(-5.72, 1.26, -1.4),     // gazing up the corridor, a hair toward the photo wall
     lookS: new THREE.Vector3(-5.80, 1.20, 8.4),     // and the other way: the slider, the yard beyond it
+    // stood near the FRONT edge of the deck, not up against the door — from a metre
+    // off the house, "turn round" just filled the frame with the doorway
+    porch: new THREE.Vector3(-5.70, 1.62, -5.35),   // out on the boards
+    porchL: new THREE.Vector3(-5.62, 0.75, -14.5),  // down the path at the street
+    porchB: new THREE.Vector3(-6.05, 1.72, -2.4),   // turned round: the house you live in
+    fdoor1: new THREE.Vector3(-5.72, 1.68, -1.9),   // coming up the hall to the door
+    fdoor2: new THREE.Vector3(-5.70, 1.66, -3.85),  // in the doorway itself
     door1: new THREE.Vector3(-3.15, 1.66, 2.1),     // stepping to the door (bedroom side)
     doorL: new THREE.Vector3(-4.6, 1.5, 2.1),       // looking through it
     door2: new THREE.Vector3(-4.85, 1.66, 2.1),     // in the doorway itself
@@ -768,7 +1057,32 @@ export function buildHallway(ctx) {
     if (turnBtn) turnBtn.style.display = "none";
     if (ctx.onLeave) ctx.onLeave();
   }
-  function toggleDoor() { if (space === "hall") leave(); else enter(); }
+  function toggleDoor() { if (space === "hall") leave(); else if (space === "bedroom") enter(); }
+  // ⚠️ the front door's swing is driven by the SAME tt as the walk, exactly like
+  // the bedroom door — so the slab is always open by the time the camera is in it
+  function stepOut() {
+    if (mode !== "idle" || space !== "hall") return;
+    mode = "out"; tt = 0;
+    c0.copy(camera.position); l0.copy(lookAt);
+    AUDIO.ratchetSfx && AUDIO.ratchetSfx();
+    if (turnBtn) turnBtn.style.display = "none";
+  }
+  function stepIn() {
+    if (mode !== "idle" || space !== "porch") return;
+    mode = "in"; tt = 0;
+    c0.copy(camera.position); l0.copy(lookAt);
+    if (turnBtn) turnBtn.style.display = "none";
+  }
+  // which end of wherever you're standing you're looking at
+  function restPos() { return space === "porch" ? P.porch : P.rest; }
+  function aimFor(f) {
+    if (space === "porch") return f === "house" ? P.porchB : P.porchL;
+    return f === "south" ? P.lookS : P.look;
+  }
+  function flipOf(f) {
+    if (space === "porch") return f === "street" ? "house" : "street";
+    return f === "north" ? "south" : "north";
+  }
   function ease(x) { return x * x * (3 - 2 * x); }
   var _v = new THREE.Vector3(), _w = new THREE.Vector3();
   function walk(pts, lks, t) { // piecewise keyframe path, eased per leg
@@ -778,6 +1092,33 @@ export function buildHallway(ctx) {
   }
   var BED_LOOK = new THREE.Vector3(0, 1.2, -0.4); // the bedroom's home gaze (room.js only ever steers its x)
   function camTick(t, dt, mx, my) {
+    // ⚠️ THE YARD IS HIDDEN FROM THE BEDROOM, and not just to save draw calls.
+    // yardHemi and yardSun are a HemisphereLight and a DirectionalLight — neither
+    // has any distance falloff and neither is stopped by a wall — so left on they
+    // wash straight through the house and light the bedroom. The streetlight
+    // reaches it too (distance 16, and the bedroom is 13 away). Toggling the group
+    // is the cheap fix that also kills the geometry cost.
+    yardG.visible = space !== "bedroom";
+    if (mode === "out" || mode === "in") {           // through the front door, both ways
+      tt = Math.min(1, tt + dt / 2.5);
+      var k2 = mode === "out" ? tt : 1 - tt;
+      fPivot.rotation.y = -1.95 * ease(Math.min(1, Math.max(0, (k2 - 0.04) / 0.42)));
+      // whoever knocked is gone before the door is properly open — that's the whole
+      // point of them, so it's cleared on the way out, not on arrival
+      if (mode === "out" && tt > 0.3) figT = 0;
+      if (mode === "out") walk([c0, P.fdoor1, P.fdoor2, P.porch], [l0, P.porchB, P.porchL, P.porchL], tt);
+      else walk([c0, P.fdoor2, P.fdoor1, P.rest], [l0, P.porchB, P.look, P.look], tt);
+      camera.position.copy(_v); lookAt.copy(_w); camera.lookAt(lookAt);
+      if (tt >= 1) {
+        if (mode === "out") { space = "porch"; facing = turnTo = "street"; fPivot.rotation.y = -1.95; }
+        else {
+          space = "hall"; facing = turnTo = "north"; fPivot.rotation.y = 0;
+          AUDIO.clickSfx && AUDIO.clickSfx(500);
+        }
+        turnK = 1; mode = "idle"; syncTurnBtn();
+      }
+      return true;
+    }
     if (mode === "entering" || mode === "leaving") {
       tt = Math.min(1, tt + dt / 2.3);
       var doorK = mode === "entering" ? tt : 1 - tt; // the door swings with the walk
@@ -802,7 +1143,7 @@ export function buildHallway(ctx) {
       }
       return true;
     }
-    if (space === "hall") { // at rest in the hall: same parallax drift as the bedroom
+    if (space === "hall" || space === "porch") { // at rest: same parallax drift as the bedroom
       // ⚠️ the swing is driven by a SEPARATE eased term, not by lerping lookAt
       // straight from one end to the other. A direct lerp passes the target
       // through the camera's own position on the way past, and the view whips
@@ -812,7 +1153,8 @@ export function buildHallway(ctx) {
         turnK = Math.min(1, turnK + dt / 1.15);
         if (turnK >= 1) { mode = "idle"; facing = turnTo; syncTurnBtn(); }
       }
-      var bx = P.rest.x + mx * 0.5, by = P.rest.y + my * 0.22, bz = P.rest.z;
+      var rp = restPos();
+      var bx = rp.x + mx * 0.5, by = rp.y + my * 0.22, bz = rp.z;
       camera.position.x += (bx - camera.position.x) * 0.04;
       camera.position.y += (by - camera.position.y) * 0.04;
       camera.position.z += (bz - camera.position.z) * 0.04;
@@ -829,23 +1171,23 @@ export function buildHallway(ctx) {
   // them along an arc that keeps the gaze point out in the room
   var _g = new THREE.Vector3();
   function gaze() {
-    var from = facing === "south" ? P.lookS : P.look;
+    var from = aimFor(facing);
     if (mode !== "turning") return from;
-    var to = turnTo === "south" ? P.lookS : P.look;
-    var f = ease(turnK);
+    var to = aimFor(turnTo), rp = restPos(), f = ease(turnK);
     // interpolate the ANGLE about the camera, not the point, so it sweeps the wall
-    var a0 = Math.atan2(from.x - P.rest.x, from.z - P.rest.z);
-    var a1 = Math.atan2(to.x - P.rest.x, to.z - P.rest.z);
+    var a0 = Math.atan2(from.x - rp.x, from.z - rp.z);
+    var a1 = Math.atan2(to.x - rp.x, to.z - rp.z);
     var d = a1 - a0;
     while (d > Math.PI) d -= Math.PI * 2;
     while (d < -Math.PI) d += Math.PI * 2;
     var a = a0 + d * f, r = 5.2;
-    _g.set(P.rest.x + Math.sin(a) * r, from.y + (to.y - from.y) * f, P.rest.z + Math.cos(a) * r);
+    _g.set(rp.x + Math.sin(a) * r, from.y + (to.y - from.y) * f, rp.z + Math.cos(a) * r);
     return _g;
   }
   function turn(to) {
-    if (space !== "hall" || mode === "entering" || mode === "leaving") return;
-    to = to || (facing === "north" ? "south" : "north");
+    if ((space !== "hall" && space !== "porch") || mode === "entering" || mode === "leaving" ||
+        mode === "out" || mode === "in") return;
+    to = to || flipOf(facing);
     if (to === facing && mode !== "turning") { syncTurnBtn(); return; }
     turnTo = to; turnK = 0; mode = "turning";
     AUDIO.clickSfx && AUDIO.clickSfx(760);
@@ -872,13 +1214,13 @@ export function buildHallway(ctx) {
       turnBtn.addEventListener("pointerdown", function (e) { e.stopPropagation(); });
       document.body.appendChild(turnBtn);
     }
-    var show = space === "hall" || mode === "entering";
+    var show = space === "hall" || space === "porch" || mode === "entering";
     turnBtn.style.display = show ? "block" : "none";
-    var next = (mode === "turning" ? turnTo : facing) === "north" ? "south" : "north";
-    turnBtn.textContent = next === "south" ? "⟲  turn around — the back of the house"
-                                           : "⟲  turn around — the front door";
-    turnBtn.setAttribute("aria-label", "Turn around to face the " +
-      (next === "south" ? "back of the house" : "front door"));
+    var next = flipOf(mode === "turning" ? turnTo : facing);
+    var LBL = { south: "the back of the house", north: "the front door",
+                house: "the house", street: "the street" };
+    turnBtn.textContent = "⟲  turn around — " + (LBL[next] || "the other way");
+    turnBtn.setAttribute("aria-label", "Turn around to face " + (LBL[next] || "the other way"));
   }
 
   /* ---- per-frame life ---------------------------------------------------------
@@ -912,12 +1254,15 @@ export function buildHallway(ctx) {
     var target = cloOpen ? -1.6 : 0;
     cloAnim += (target - cloAnim) * Math.min(1, dt * 7);
     cloDoorP.rotation.y = cloAnim;
+    // somebody on the path, briefly
+    if (figT > 0) { figT -= dt; figG.visible = true; figG.position.x = FRONT_X + 0.35 + Math.sin(t * 0.7) * 0.05; }
+    else if (figG.visible) figG.visible = false;
   }
 
   return {
     group: g,
     space: function () { return space; },
-    active: function () { return space === "hall" || mode !== "idle"; },
+    active: function () { return space !== "bedroom" || mode !== "idle"; },
     busy: function () { return mode !== "idle"; },
     enter: enter, leave: leave, toggleDoor: toggleDoor,
     forceExit: function () { // bfcache restore etc: no walking, just be back home
@@ -925,9 +1270,14 @@ export function buildHallway(ctx) {
       facing = turnTo = "north"; turnK = 1;
       if (turnBtn) turnBtn.style.display = "none";
       if (ctx.doorPivot) ctx.doorPivot.rotation.y = 0;
+      fPivot.rotation.y = 0; figT = 0; figG.visible = false;
+      yardG.visible = false;   // camTick would do it next frame, but bfcache may not get one
       cloOpen = false; cloAnim = 0; cloDoorP.rotation.y = 0;
     },
     turn: turn, facing: function () { return facing; },
+    stepOut: stepOut, stepIn: stepIn,
+    setPhase: setPhase, phase: function () { return porchPhase; },
+    knock: knockCame,
     camTick: camTick, glowTick: glowTick, refreshPhotos: refreshPhotos
   };
 }
