@@ -2882,6 +2882,62 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
     { x: 2.15, z: 1.95, r: 0.36 },  // the arcade cabinet (index 8)
     { x: -1.35, z: 0.25, r: 0.34 }  // the VICTORY LAP crate + board (index 9)
   ];
+  /* ---- THE KID LIVES IN THE WHOLE HOUSE NOW ------------------------------------
+   * He used to be bedroom-only, which stopped making sense the moment the house
+   * grew a hall, a back and a porch. Each space gets its own stations and its own
+   * obstacles, and `kidSpace` says which set is live.
+   *
+   * ⚠️ KID_OBSTACLES stays the BEDROOM array and keeps its indices — registerMovable
+   * takes `obs: N` into it and applyOut collapses entries by index. Adding the other
+   * rooms to it would silently repoint every one of those. New spaces get their own
+   * arrays and kidObs() picks between them.
+   *
+   * ⚠️ kidState.ignoreObs is an index into the ACTIVE array, so it is cleared on
+   * every space change — an index that meant "the beanbag" in the bedroom means
+   * something else entirely in the hall. */
+  var kidSpace = "bedroom";
+  var KID_HALL_OBSTACLES = [
+    { x: -6.98, z: -1.6, r: 1.15 },  // the staircase
+    { x: -7.00, z: 0.82, r: 0.72 },  // the hole down to the basement
+    { x: -4.60, z: -3.15, r: 0.42 }, // the hall table
+    { x: -4.70, z: 5.45, r: 0.62 },  // the laundry
+    { x: -4.62, z: 7.75, r: 0.5 },   // the boots
+    { x: -7.10, z: 7.50, r: 0.78 },  // the chest freezer
+  ];
+  var KID_PORCH_OBSTACLES = [
+    { x: -7.60, z: -5.23, r: 0.42 }, // the one chair
+  ];
+  function kidObs() {
+    return kidSpace === "hall" ? KID_HALL_OBSTACLES
+         : kidSpace === "porch" ? KID_PORCH_OBSTACLES : KID_OBSTACLES;
+  }
+  var KID_HALL_STATIONS = [
+    { x: -5.55, z: 2.50, act: "idle" },    // by the closet
+    { x: -5.95, z: 0.30, act: "fidget" },  // mid-hall, under the bulb
+    { x: -5.10, z: -2.30, act: "idle" },   // at the photo wall
+    { x: -6.10, z: 4.60, act: "fidget" },  // down the back
+    { x: -5.40, z: 7.60, act: "idle" },    // looking out the slider
+    { x: -5.90, z: -0.90, act: "idle" },   // the middle of his own house
+  ];
+  var KID_PORCH_STATIONS = [                // deck only — the yard is 45cm lower
+    { x: -7.35, z: -4.60, act: "idle" },
+    { x: -4.25, z: -4.55, act: "fidget" },
+    { x: -6.10, z: -5.30, act: "idle" },
+  ];
+  function kidStations() {
+    return kidSpace === "hall" ? KID_HALL_STATIONS
+         : kidSpace === "porch" ? KID_PORCH_STATIONS : KID_STATIONS;
+  }
+  // where he appears when he follows you: the doorway you both just came through,
+  // so it reads as him walking in rather than as a teleport
+  var KID_ENTRY = {
+    bedroom: { x: -3.85, z: 2.10 },
+    hall:    { x: -4.95, z: 2.10 },
+    porch:   { x: -5.70, z: -3.95 },
+  };
+  var KID_HUBS = { bedroom: { x: 0.3, z: 1.35 }, hall: { x: -5.9, z: 1.2 }, porch: { x: -5.9, z: -4.8 } };
+  var kidFollowT = -1, kidFollowTo = null;
+
   // One avoidance step toward (tx,tz): steer around obstacles, then hard-clamp out
   // of any we'd still penetrate. Returns remaining distance to the target.
   function kidStep(dt, speed) {
@@ -2889,9 +2945,10 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
     var kdist = Math.sqrt(kdx * kdx + kdz * kdz);
     if (kdist < 0.001) return 0;
     var dx = kdx / kdist, dz = kdz / kdist; // desired heading
-    for (var oi = 0; oi < KID_OBSTACLES.length; oi++) {
+    var OBS = kidObs();
+    for (var oi = 0; oi < OBS.length; oi++) {
       if (oi === kidState.ignoreObs) continue; // he's allowed to sit on this one
-      var o = KID_OBSTACLES[oi];
+      var o = OBS[oi];
       var ox = o.x - kid.position.x, oz = o.z - kid.position.z;
       var od = Math.sqrt(ox * ox + oz * oz), infl = o.r + KID_R + 0.45;
       if (od > 0.001 && od < infl) {
@@ -2907,9 +2964,9 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
     var dl = Math.sqrt(dx * dx + dz * dz) || 1; dx /= dl; dz /= dl;
     var step = Math.min(speed * dt, kdist);
     var nx = kid.position.x + dx * step, nz = kid.position.z + dz * step;
-    for (var ci = 0; ci < KID_OBSTACLES.length; ci++) { // never end a frame inside one
+    for (var ci = 0; ci < OBS.length; ci++) { // never end a frame inside one
       if (ci === kidState.ignoreObs) continue;
-      var oc = KID_OBSTACLES[ci], cx = nx - oc.x, cz = nz - oc.z;
+      var oc = OBS[ci], cx = nx - oc.x, cz = nz - oc.z;
       var cd = Math.sqrt(cx * cx + cz * cz), minD = oc.r + KID_R;
       if (cd < minD && cd > 0.001) { nx = oc.x + cx / cd * minD; nz = oc.z + cz / cd * minD; }
     }
@@ -2924,11 +2981,12 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
   // bed, so the right-side corridor is a dead end greedy avoidance can wedge in.)
   function kidPathBlocked(ax, az, bx, bz) {
     var dx = bx - ax, dz = bz - az, len = Math.sqrt(dx * dx + dz * dz) || 1, n = Math.ceil(len / 0.15);
+    var OBS2 = kidObs();
     for (var s = 1; s < n; s++) {
       var t = s / n, px = ax + dx * t, pz = az + dz * t;
-      for (var o = 0; o < KID_OBSTACLES.length; o++) {
+      for (var o = 0; o < OBS2.length; o++) {
         if (o === kidState.ignoreObs) continue;
-        var O = KID_OBSTACLES[o];
+        var O = OBS2[o];
         if (Math.sqrt((px - O.x) * (px - O.x) + (pz - O.z) * (pz - O.z)) < O.r + KID_R - 0.02) return true;
       }
     }
@@ -2936,9 +2994,10 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
   }
   // Head for (x,z); if the direct line is blocked, stage through the open hub first.
   function kidGoto(x, z) {
-    var nearHub = Math.abs(kid.position.x - KID_HUB.x) < 0.25 && Math.abs(kid.position.z - KID_HUB.z) < 0.25;
+    var HUB = KID_HUBS[kidSpace] || KID_HUB;
+    var nearHub = Math.abs(kid.position.x - HUB.x) < 0.25 && Math.abs(kid.position.z - HUB.z) < 0.25;
     if (!nearHub && kidPathBlocked(kid.position.x, kid.position.z, x, z)) {
-      kidState.tx = KID_HUB.x; kidState.tz = KID_HUB.z; kidState.fx = x; kidState.fz = z; kidState.via = true;
+      kidState.tx = HUB.x; kidState.tz = HUB.z; kidState.fx = x; kidState.fz = z; kidState.via = true;
     } else {
       kidState.tx = x; kidState.tz = z; kidState.via = false;
     }
@@ -2947,15 +3006,51 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
   function kidPickStation() {
     // when the boombox is going, he can't help himself — dance on the rug.
     // and when something's crossing the window, it sometimes catches his eye.
-    var s = (AUDIO.isOn() && kidActions.dance && Math.random() < 0.45)
+    // the dance and the window are bedroom beats — out in the house he just wanders
+    var pool = kidStations();
+    var s = kidSpace !== "bedroom"
+      ? pool[(Math.random() * pool.length) | 0]
+      : (AUDIO.isOn() && kidActions.dance && Math.random() < 0.45)
       ? KID_DANCE
       : (typeof winEv === "object" && winEv && winEv.ev && Math.random() < 0.35)
       ? KID_WINDOW
-      : KID_STATIONS[(Math.random() * KID_STATIONS.length) | 0];
+      : pool[(Math.random() * pool.length) | 0];
     kidState.station = s;
     kidState.ignoreObs = (s.seat == null) ? -1 : s.seat; // may sit on the beanbag
     var jx = s.seat == null ? (Math.random() - 0.5) * 0.2 : 0;
     kidGoto(s.x + jx, s.z + (s.seat == null ? (Math.random() - 0.5) * 0.2 : 0));
+  }
+  /* He follows you through the house. He arrives a beat after you do, AT THE
+   * DOORWAY you both came through, and walks in from there — so it reads as him
+   * following rather than as a blink.
+   * ⚠️ Deliberately NOT a walk across the threshold: each space has its own
+   * obstacle set, and a path crossing between them would have to satisfy both at
+   * once. Doorway + delay buys the same read for none of that.
+   * ⚠️ Lives out here as its own function rather than inline in tick() because
+   * tick is rAF-driven and rAF is suspended in a hidden pane — this is the only
+   * way the follow can be tested headlessly. __room.kidFollow drives it. */
+  function kidFollowTick(dt) {
+    var now = hall.space();
+    if (now !== kidSpace && kidFollowTo !== now && !hall.busy()) {
+      kidFollowTo = now;
+      kidFollowT = 1.1 + Math.random() * 1.3;
+    }
+    if (kidFollowT <= 0) return;
+    kidFollowT -= dt;
+    if (kidFollowT > 0 || !kidFollowTo) return;
+    var ent = KID_ENTRY[kidFollowTo] || KID_ENTRY.bedroom;
+    kidSpace = kidFollowTo; kidFollowTo = null;
+    kidState.ignoreObs = -1;          // ⚠️ indices mean different things per space
+    kidState.mode = "roam"; kidState.via = false; kidState.targetY = 0;
+    kid.position.set(ent.x, 0, ent.z);
+    if (kidShadow) kidShadow.position.set(ent.x, 0.02, ent.z);
+    kidPickStation();
+    if (kidSpace !== "bedroom" && Math.random() < 0.5) {
+      try {
+        kidSay(kidSpace === "porch" ? "outside! we never come outside."
+                                    : "i know this bit. this is the hallway.", 4);
+      } catch (e) { }
+    }
   }
   var pendingNav = null, navTarget = null;
   var zoomT = -1, zoomFrom = new THREE.Vector3(), zoomTo = new THREE.Vector3(),
@@ -5699,6 +5794,7 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
       while (kdr > Math.PI) kdr -= Math.PI * 2; while (kdr < -Math.PI) kdr += Math.PI * 2;
       kid.rotation.y += kdr * Math.min(1, dt * (rate || 6));
     }
+    kidFollowTick(dt);
     // he waves hello when you first step into the room (once the clip is ready)
     if (kidGreet && kidActions.wave && !pendingNav && zoomT < 0 &&
         kidState.mode !== "onBed" && kidState.mode !== "toBed" && kidState.mode !== "bedSlide") {
@@ -6228,6 +6324,9 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
     hall: hall, // the hallway: space()/enter()/leave()/camTick — the rest of the house starts here
     scene: scene, camera: camera, renderer: renderer, pick: pick, ray: ray, THREE: THREE, // debug hook (THREE: modules hide the global)
     kid: kid, kidState: kidState, kidStep: kidStep, kidGoto: kidGoto, kidObstacles: KID_OBSTACLES, kidStations: KID_STATIONS,
+    // he lives in the whole house now: which room he's in, and the per-frame follow
+    kidSpace: function () { return kidSpace; }, kidFollow: kidFollowTick,
+    kidObs: kidObs, kidRoomStations: kidStations,
     kidActions: function () { return kidActions; }, setKidAction: setKidAction, kidMixer: function () { return kidMixer; },
     kidSay: kidSay, kidGreetLine: kidGreetLine, kidFetchLine: kidFetchLine, gameProgress: gameProgress,
     screen: { draw: drawScreensaver, cycle: cycleScreen, kind: function () { return ssKind; },
