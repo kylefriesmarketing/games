@@ -75,6 +75,10 @@ export function buildHallway(ctx) {
   });
   plankT.wrapS = plankT.wrapT = THREE.RepeatWrapping; plankT.repeat.set(1.2, 4);
   var plankM = new THREE.MeshStandardMaterial({ map: plankT, roughness: 0.9 });
+  (function () {   // the hall floor gets the same relief the bedroom's floors got
+    var pb = bumpFrom(plankT, 1.7);
+    if (pb) { pb.repeat.copy(plankT.repeat); plankM.bumpMap = pb; plankM.bumpScale = 0.9; }
+  })();
   // the floor is three pieces because the basement stairwell is a real hole in it
   var HOLE = { x0: -7.4, x1: -6.55, z0: 0.35, z1: 1.3 }; // the way down
   [[W_IN, E_IN, Z_N, HOLE.z0],          // north of the hole, full width
@@ -555,8 +559,7 @@ export function buildHallway(ctx) {
       c.strokeRect(-2, b * 21, w + 4, 20);
     }
   });
-  deckT.wrapS = deckT.wrapT = THREE.RepeatWrapping; deckT.repeat.set(3, 2);
-  var pdeckM = new THREE.MeshStandardMaterial({ map: deckT, roughness: 0.95 });
+  var pdeckM = ground(deckT, 3, 2, 0xffffff, 0.95, 1.0);   // boards you can feel now
   var PX0 = -8.45, PX1 = -3.25, PZ0 = HOUSE_F, PZ1 = HOUSE_F - 2.35;
   var pdeck = box(PX1 - PX0, 0.14, PZ0 - PZ1, pdeckM);
   pdeck.position.set((PX0 + PX1) / 2, -0.07, (PZ0 + PZ1) / 2); pdeck.receiveShadow = true; yadd(pdeck);
@@ -612,7 +615,122 @@ export function buildHallway(ctx) {
    * parked cars, road, far kerb, far hedges, houses, their trees. Nine layers
    * between you and the sky, plus fog to close it off. */
   var Z_WALK = -17.0, Z_KERB = -18.8, Z_ROADF = -27.6, Z_FKERB = -29.4, Z_NFACE = -34.0;
-  var grassM = new THREE.MeshStandardMaterial({ color: 0x54754a, roughness: 1 });
+  /* ---- OUTDOOR MATERIALS ------------------------------------------------------
+   * The interior got a relief pass and the outside never did: every surface out
+   * here was one flat colour, which is why the yard read as coloured cardboard no
+   * matter how much got planted on it. Same technique as room.js — paint the
+   * surface on canvas, then derive a bump map FROM that canvas so the light has
+   * something to catch.
+   * ⚠️ bumpScale wants to be much larger than intuition suggests: these textures
+   * stretch over tens of metres, so the derived slopes are very low frequency.
+   * The room needed 0.9–2.4 on surfaces tiling every 2m; the road tiles every 8m. */
+  function bumpFrom(tex, contrast) {
+    var img = tex.image;
+    if (!img || !img.width) return null;
+    var W = Math.min(img.width, 256), H = Math.min(img.height, 256);
+    var c = document.createElement("canvas"); c.width = W; c.height = H;
+    var g2 = c.getContext("2d");
+    g2.drawImage(img, 0, 0, W, H);
+    var d; try { d = g2.getImageData(0, 0, W, H); } catch (e) { return null; }
+    var p = d.data, k = contrast || 1.7;
+    for (var i = 0; i < p.length; i += 4) {
+      var lum = p[i] * 0.299 + p[i + 1] * 0.587 + p[i + 2] * 0.114;
+      var v = 128 + (lum - 128) * k;
+      p[i] = p[i + 1] = p[i + 2] = v < 0 ? 0 : v > 255 ? 255 : v;
+      p[i + 3] = 255;
+    }
+    g2.putImageData(d, 0, 0);
+    var bt = new THREE.CanvasTexture(c);
+    bt.wrapS = bt.wrapT = THREE.RepeatWrapping;
+    return bt;
+  }
+  function ground(tex, repX, repY, colour, rough, bumpScale) {
+    tex.wrapS = tex.wrapT = THREE.RepeatWrapping; tex.repeat.set(repX, repY);
+    tex.colorSpace = THREE.SRGBColorSpace;          // honest colours, same as the sky
+    var m = new THREE.MeshStandardMaterial({ map: tex, color: colour || 0xffffff, roughness: rough == null ? 0.97 : rough });
+    var b = bumpFrom(tex, 1.8);
+    if (b) { b.repeat.copy(tex.repeat); m.bumpMap = b; m.bumpScale = bumpScale == null ? 1.2 : bumpScale; }
+    return m;
+  }
+  var grassT = canvasTex(256, 256, function (c, w, h) {
+    c.fillStyle = "#3f5c35"; c.fillRect(0, 0, w, h);
+    for (var i = 0; i < 1400; i++) {                       // blades, leaning
+      var x = Math.random() * w, y = Math.random() * h, L = 3 + Math.random() * 5;
+      var sh = ["#48693c", "#37502e", "#517446", "#2f4628"][(Math.random() * 4) | 0];
+      c.strokeStyle = sh; c.lineWidth = 1 + Math.random();
+      c.beginPath(); c.moveTo(x, y); c.lineTo(x + (Math.random() - 0.5) * 3, y - L); c.stroke();
+    }
+    for (var p2 = 0; p2 < 12; p2++) {                       // worn and lush patches
+      var px = Math.random() * w, py = Math.random() * h, pr = 14 + Math.random() * 30;
+      var gr = c.createRadialGradient(px, py, 2, px, py, pr);
+      var dry = Math.random() < 0.5;
+      gr.addColorStop(0, dry ? "rgba(110,104,58,0.30)" : "rgba(72,110,58,0.28)");
+      gr.addColorStop(1, "rgba(0,0,0,0)");
+      c.fillStyle = gr; c.beginPath(); c.arc(px, py, pr, 0, 7); c.fill();
+    }
+    for (var m2 = 0; m2 < 5; m2++) {                        // mower stripes
+      c.fillStyle = m2 % 2 ? "rgba(255,255,255,0.035)" : "rgba(0,0,0,0.045)";
+      c.fillRect(0, m2 * (h / 5), w, h / 5);
+    }
+  });
+  var concT = canvasTex(256, 256, function (c, w, h) {
+    c.fillStyle = "#8d8a80"; c.fillRect(0, 0, w, h);
+    for (var i = 0; i < 2600; i++) {                        // aggregate speckle
+      c.fillStyle = "rgba(" + (120 + Math.random() * 70 | 0) + "," + (118 + Math.random() * 66 | 0) + "," + (110 + Math.random() * 60 | 0) + ",0.5)";
+      c.fillRect(Math.random() * w, Math.random() * h, 2, 2);
+    }
+    c.strokeStyle = "rgba(48,46,42,0.75)"; c.lineWidth = 3;  // the slab joints
+    [0, 128].forEach(function (jy) { c.beginPath(); c.moveTo(0, jy); c.lineTo(w, jy); c.stroke(); });
+    c.strokeStyle = "rgba(52,50,46,0.5)"; c.lineWidth = 2;   // and one crack, always
+    c.beginPath(); c.moveTo(40, 130); c.lineTo(72, 168); c.lineTo(58, 214); c.stroke();
+  });
+  var asphT = canvasTex(256, 256, function (c, w, h) {
+    c.fillStyle = "#33353b"; c.fillRect(0, 0, w, h);
+    for (var i = 0; i < 4200; i++) {
+      var v = 40 + Math.random() * 46 | 0;
+      c.fillStyle = "rgba(" + v + "," + (v + 2) + "," + (v + 6) + ",0.55)";
+      c.fillRect(Math.random() * w, Math.random() * h, 2, 2);
+    }
+    for (var s = 0; s < 3; s++) {                            // patched repairs
+      c.fillStyle = "rgba(20,21,25,0.35)";
+      c.fillRect(Math.random() * w, Math.random() * h, 30 + Math.random() * 60, 18 + Math.random() * 30);
+    }
+  });
+  var grassM = ground(grassT, 26, 14, 0x9fb894, 1, 1.6);
+
+  /* Contact shade. Nothing outdoors casts a real shadow — yardSun deliberately
+   * doesn't, because a shadow-casting directional over this much geometry is not
+   * worth 6 more passes — so every tree, car and post was sitting ON the world
+   * rather than in it. One shared soft-disc texture, one decal per object, exactly
+   * the trick the bedroom already uses under its furniture.
+   * ⚠️ polygonOffset, NOT a raised y. The ground pieces sit at several different
+   * heights (lawn -0.45, path -0.43, road -0.51) and a fixed offset that clears one
+   * of them z-fights or vanishes under another. Offsetting depth only means the
+   * decal hugs whatever is actually beneath it. */
+  var shadeTex = canvasTex(64, 64, function (c, w, h) {
+    var g3 = c.createRadialGradient(w / 2, h / 2, 1, w / 2, h / 2, w / 2);
+    g3.addColorStop(0, "rgba(0,0,0,0.85)");
+    g3.addColorStop(0.55, "rgba(0,0,0,0.42)");
+    g3.addColorStop(1, "rgba(0,0,0,0)");
+    c.fillStyle = g3; c.fillRect(0, 0, w, h);
+  });
+  var shadeGeo = new THREE.PlaneGeometry(1, 1);
+  function groundShade(x, z, rx, rz, op, y) {
+    var m = new THREE.Mesh(shadeGeo, new THREE.MeshBasicMaterial({
+      map: shadeTex, transparent: true, opacity: op == null ? 0.5 : op,
+      depthWrite: false, polygonOffset: true, polygonOffsetFactor: -6, polygonOffsetUnits: -6,
+    }));
+    m.rotation.x = -Math.PI / 2; m.scale.set(rx * 2, rz * 2, 1);
+    m.position.set(x, y == null ? GROUND + 0.015 : y, z);
+    m.renderOrder = 2;
+    yadd(m); return m;
+  }
+  // ⚠️ tinted DOWN, not up. concT is already a mid-grey; brightening it made the
+  // walk read as poured white against the lawn and pulled the eye off everything.
+  var pathM = ground(concT, 2, 12, 0x9c988e, 0.95, 1.1);      // slabs down the walk
+  var walkM = ground(concT, 26, 1.2, 0x948f86, 0.95, 1.0);    // the sidewalk runs the block
+  var roadM = ground(asphT, 20, 3, 0xb8bcc4, 0.98, 0.9);
+  var driveM = ground(asphT, 3, 14, 0xa8acb4, 0.95, 0.9);
   // ⚠️ TWO strips, not one big plane. A single lawn spanning the whole depth sits at
   // GROUND while the road sits at GROUND-0.06, so the grass rendered straight over
   // the top of the road and the street simply wasn't there.
@@ -621,7 +739,6 @@ export function buildHallway(ctx) {
     lw.rotation.x = -Math.PI / 2;
     lw.position.set(-5.0, GROUND, (lz[0] + lz[1]) / 2); lw.receiveShadow = true; yadd(lw);
   });
-  var pathM = mat(0x8a867a, 0.95);
   var path = box(1.3, 0.06, 10.6, pathM); path.position.set(FRONT_X, GROUND + 0.02, -11.7); yadd(path);
   ytag(path, "the front walk", null, "the front walk. the third slab has been cracked since forever.");
 
@@ -640,12 +757,26 @@ export function buildHallway(ctx) {
     trunk.position.y = h * 0.37; trunk.rotation.z = (tilt || 0); g2.add(trunk);
     var leafM = new THREE.MeshStandardMaterial({ color: leafC, roughness: 0.98, flatShading: true });
     var can = new THREE.Group(); can.position.y = h * 0.74; g2.add(can);
-    [[0, 0, 0, 1], [spread * 0.42, h * 0.13, spread * 0.2, 0.72], [-spread * 0.36, h * 0.09, -spread * 0.26, 0.66]]
+    // SIX blobs, not three, at two subdivision levels and two shades: three lumps
+    // read as a clover, and the tree in our own front yard is close enough to tell
+    var leafM2 = new THREE.MeshStandardMaterial({ color: leafC, roughness: 0.98, flatShading: true });
+    leafM2.color.offsetHSL(0, 0, 0.06);
+    [[0, 0, 0, 1.0, 1, 0], [spread * 0.42, h * 0.11, spread * 0.20, 0.74, 0, 1],
+     [-spread * 0.38, h * 0.07, -spread * 0.26, 0.68, 0, 0], [spread * 0.16, h * 0.20, -spread * 0.30, 0.56, 1, 1],
+     [-spread * 0.22, h * 0.17, spread * 0.32, 0.60, 0, 1], [spread * 0.05, h * -0.06, spread * 0.05, 0.80, 1, 0]]
       .forEach(function (b) {
-        var blob = new THREE.Mesh(new THREE.IcosahedronGeometry(spread * 0.5 * b[3], 0), leafM);
-        blob.position.set(b[0], b[1], b[2]); blob.scale.y = 0.82; blob.castShadow = true; can.add(blob);
+        var blob = new THREE.Mesh(new THREE.IcosahedronGeometry(spread * 0.5 * b[3], b[4]), b[5] ? leafM2 : leafM);
+        blob.position.set(b[0], b[1], b[2]);
+        blob.scale.set(1, 0.82, 1); blob.rotation.set(b[0], b[2], 0);
+        can.add(blob);
       });
+    [[0.55, 0.5, 0.4], [-0.5, 0.62, -0.35]].forEach(function (br) {   // a couple of low limbs
+      var limb = new THREE.Mesh(new THREE.CylinderGeometry(h * 0.016, h * 0.028, h * 0.3, 5), barkM);
+      limb.position.set(br[0] * spread * 0.3, h * br[1], br[2] * spread * 0.3);
+      limb.rotation.set(br[2] * 0.9, 0, -br[0] * 0.9); g2.add(limb);
+    });
     swayers.push({ o: can, ph: x * 0.7 + z * 0.3, amp: 0.012 + spread * 0.004 });
+    groundShade(x, z, spread * 0.62, spread * 0.62, 0.5);   // dapple under the canopy
     return g2;
   }
   function shrubAt(x, z, r, c) {
@@ -653,6 +784,7 @@ export function buildHallway(ctx) {
       new THREE.MeshStandardMaterial({ color: c, roughness: 0.98, flatShading: true }));
     s2.position.set(x, GROUND + r * 0.62, z); s2.scale.y = 0.74; yadd(s2);
     swayers.push({ o: s2, ph: x + z, amp: 0.01 });
+    groundShade(x, z, r * 1.15, r * 1.15, 0.42);
     return s2;
   }
   function hedgeAt(x0, x1, z, h, d, c) {
@@ -664,6 +796,7 @@ export function buildHallway(ctx) {
       lump.position.set(bx, GROUND + h * 0.5, z + (i % 2 ? 0.05 : -0.05));
       lump.scale.set(1.15, 0.78, d / (h * 1.24)); yadd(lump);
     }
+    groundShade((x0 + x1) / 2, z, (x1 - x0) * 0.5 + 0.2, d * 0.85, 0.45);
   }
   // our own planting: a hedge along the porch, shrubs at the corners, one big tree
   hedgeAt(PX0 - 0.1, FRONT_X - 0.85, PZ1 - 0.35, 0.8, 0.7, 0x3f6136);
@@ -698,7 +831,6 @@ export function buildHallway(ctx) {
   bikeG.children.forEach(function (m) { ytag(m, "the bike", null, "dropped, not parked. it has always been dropped, not parked."); });
 
   // --- the driveway, running down the side to the garage the hall keeps taped shut
-  var driveM = mat(0x3e4048, 0.95);
   var drive = box(3.2, 0.06, 23.2, driveM); drive.position.set(-11.2, GROUND + 0.02, -7.3); yadd(drive);
   ytag(drive, "the driveway", null, "the driveway. it goes down the side to the garage.");
   var garM = new THREE.MeshStandardMaterial({ map: sideT, roughness: 0.95 });
@@ -727,12 +859,14 @@ export function buildHallway(ctx) {
     tyre.rotation.z = Math.PI / 2; tyre.position.set(wp[0], 0.34, wp[1]); carG.add(tyre);
   });
   carG.children.forEach(function (m) { ytag(m, "the car", null, "the car. it starts most mornings."); });
+  (function () { var s5 = groundShade(0, 0, 1.15, 2.5, 0.55, 0.02); yardG.remove(s5); carG.add(s5); })();
+  groundShade(FRONT_X + 1.5, Z_WALK + 0.6, 0.3, 0.3, 0.45);      // the mailbox post
+  groundShade(FRONT_X - 2.3, -8.4, 0.55, 0.55, 0.4);             // the dropped bike
+  groundShade(-2.6, Z_WALK - 1.4, 0.28, 0.28, 0.5);              // the streetlight
 
   // --- the street: sidewalk, kerb, an 8.8m road (was 6.2 and read as a lane)
-  var roadM = mat(0x2a2c31, 0.98);
   var road = box(78, 0.05, Z_ROADF - Z_KERB, roadM);
   road.position.set(-5.0, GROUND - 0.06, (Z_KERB + Z_ROADF) / 2); yadd(road);
-  var walkM = mat(0x7e7a72, 0.95);
   [[Z_WALK - 0.9, 1.8], [Z_FKERB + 0.9, 1.8]].forEach(function (sw) {
     var s3 = box(78, 0.06, sw[1], walkM); s3.position.set(-5.0, GROUND + 0.02, sw[0]); yadd(s3);
   });
@@ -813,6 +947,8 @@ export function buildHallway(ctx) {
       var ty = new THREE.Mesh(new THREE.CylinderGeometry(0.33, 0.33, 0.22, 12), mat(0x1a1c1e, 0.85));
       ty.rotation.z = Math.PI / 2; ty.position.set(wp[0], 0.33, wp[1]); cg.add(ty);
     });
+    var sh2 = groundShade(0, 0, 1.15, 2.5, 0.55, 0.02);   // parented, so it rides the car
+    yardG.remove(sh2); cg.add(sh2);
     return cg;
   }
   parkedCar(-17.6, Z_KERB - 1.6, Math.PI / 2, 0x2f4a5e, 0x27404f);
@@ -829,7 +965,9 @@ export function buildHallway(ctx) {
   });
 
   // --- the sky. One big backdrop that the phase repaints.
-  var skyC = document.createElement("canvas"); skyC.width = 8; skyC.height = 128;
+  // 256 wide, not 8 — a 8px strip can only ever be a vertical gradient, and the sky
+  // needed cloud banding and a moon painted into it
+  var skyC = document.createElement("canvas"); skyC.width = 256; skyC.height = 128;
   var skyCtx = skyC.getContext("2d");
   var skyTex = new THREE.CanvasTexture(skyC);
   // ⚠️ THE REAL FIX, after two rounds of just painting it darker: util.js's canvasTex
@@ -843,9 +981,13 @@ export function buildHallway(ctx) {
   // ⚠️ z -74, BEHIND everything. At -30.5 it stood in front of the houses opposite
   // (which are at -37) and quietly deleted the entire far side of the street — the
   // geometry was all there, the backdrop was just parked on top of it.
-  var skyDome = new THREE.Mesh(new THREE.PlaneGeometry(200, 96),
+  // ⚠️ 46 tall and centred LOW, not 96 tall and centred high. At 69m a 96m plane
+  // spans ±35° of elevation while the camera only sees ~31° — so two thirds of the
+  // texture, including the moon, was painted above the top of the frame. Sizing the
+  // plane to the band you can actually see means texture v maps to sky you'll meet.
+  var skyDome = new THREE.Mesh(new THREE.PlaneGeometry(200, 46),
     new THREE.MeshBasicMaterial({ map: skyTex }));
-  skyDome.position.set(-5.0, GROUND + 26, -74); yadd(skyDome);
+  skyDome.position.set(-5.0, GROUND + 12, -74); yadd(skyDome);
   skyDome.material.fog = false;   // the sky IS the horizon; fogging it greys it out
   // ⚠️ Fog is set ONCE and left on, with `near` at 22, because toggling scene.fog
   // recompiles every material in the house and you'd eat that hitch on every trip
@@ -867,19 +1009,81 @@ export function buildHallway(ctx) {
     evening: { top: "#16233f", bot: "#46587c", hemi: 0.66, sun: 0.48, sunC: 0x8fa8cc, hemiC: 0x6a7d9e, lamp: 1 },
     night:   { top: "#0a1020", bot: "#202c44", hemi: 0.46, sun: 0.34, sunC: 0x7d94bc, hemiC: 0x4c5e7e, lamp: 1 },
   };
+  /* Visible cones of light. Additive, depthWrite off, and open-ended so you can
+   * stand inside one — this is the same trick the bedroom uses for the streetlight
+   * shaft through the window, which is why the two read as the same weather.
+   * ⚠️ renderOrder + depthWrite:false, or the cone z-fights the ground it lands on
+   * and flickers as the camera drifts. */
+  var beams = [];
+  function beam(x, y, z, topR, botR, h, op) {
+    var m = new THREE.Mesh(new THREE.CylinderGeometry(topR, botR, h, 18, 1, true),
+      new THREE.MeshBasicMaterial({
+        color: 0xffdca0, transparent: true, opacity: op, side: THREE.DoubleSide,
+        blending: THREE.AdditiveBlending, depthWrite: false,
+      }));
+    m.position.set(x, y, z); m.renderOrder = 3; yadd(m);
+    beams.push({ m: m, op: op });
+    return m;
+  }
+  // ⚠️ 0.04, not 0.085. Additive over a 5m cone accumulates hard — at the value that
+  // looked right in the code it rendered as a solid wedge of custard, not as light.
+  beam(-3.66, GROUND + 2.5, Z_WALK - 1.4, 0.22, 2.6, 4.9, 0.040);      // the streetlight
+  beam(FRONT_X + 0.95, GROUND + 1.35, HOUSE_F - 0.30, 0.14, 1.15, 3.2, 0.038); // the porch lamp
+  // and a breath of mist sitting on the lawn, which is what makes the beams read
+  var mistT = canvasTex(128, 128, function (c, w, h) {
+    var g4 = c.createRadialGradient(w / 2, h / 2, 2, w / 2, h / 2, w / 2);
+    g4.addColorStop(0, "rgba(206,220,240,0.30)"); g4.addColorStop(1, "rgba(206,220,240,0)");
+    c.fillStyle = g4; c.fillRect(0, 0, w, h);
+  });
+  var mists = [];
+  // wide and very faint — at 0.3-0.5 these read as puddles lying on the lawn
+  [[-9, -12.5, 20, 0.13], [1.5, -14.5, 22, 0.11], [-15, -9, 17, 0.10], [5, -10, 18, 0.09]]
+    .forEach(function (mp) {
+      var mm = new THREE.Mesh(new THREE.PlaneGeometry(mp[2], mp[2] * 0.42),
+        new THREE.MeshBasicMaterial({ map: mistT, transparent: true, opacity: mp[3],
+          depthWrite: false, blending: THREE.AdditiveBlending }));
+      mm.rotation.x = -Math.PI / 2; mm.position.set(mp[0], GROUND + 0.25, mp[1]);
+      mm.renderOrder = 2; yadd(mm); mists.push({ m: mm, op: mp[3], ph: mp[0] });
+    });
   var porchPhase = "evening";
   function setPhase(name) {
     if (!PORCH_SKY[name]) name = "evening";
     porchPhase = name;
     var s = PORCH_SKY[name];
-    var gr = skyCtx.createLinearGradient(0, 0, 0, 128);
+    var W = 256, Hh = 128;
+    var gr = skyCtx.createLinearGradient(0, 0, 0, Hh);
     gr.addColorStop(0, s.top); gr.addColorStop(1, s.bot);
-    skyCtx.fillStyle = gr; skyCtx.fillRect(0, 0, 8, 128);
-    if (name === "night" || name === "evening") {          // stars, but only when there are stars
-      for (var st2 = 0; st2 < 26; st2++) {
-        skyCtx.fillStyle = "rgba(255,255,255," + (0.2 + Math.random() * 0.5).toFixed(2) + ")";
-        skyCtx.fillRect(Math.random() * 8, Math.random() * 70, 1, 1);
+    skyCtx.fillStyle = gr; skyCtx.fillRect(0, 0, W, Hh);
+    var night = name === "night" || name === "evening";
+    if (night) {                                            // stars, but only when there are stars
+      for (var st2 = 0; st2 < 220; st2++) {
+        var sy = Math.random() * 86;
+        skyCtx.fillStyle = "rgba(255,255,255," + (0.15 + Math.random() * 0.55 * (1 - sy / 110)).toFixed(2) + ")";
+        skyCtx.fillRect(Math.random() * W, sy, 1, 1);
       }
+      // the moon. Same moon the bedroom window paints, so the two views agree.
+      // ⚠️ drawn as an ELLIPSE, not a circle. A 256x128 texture on a 200x46 plane
+      // stretches everything 2.2x horizontally, so a round moon renders as a rugby
+      // ball. Squashing it in texture space is what makes it round on screen.
+      var mx = W * 0.42, my = 30, AR = 2.17;
+      var halo = skyCtx.createRadialGradient(mx, my, 2, mx, my, 30);
+      halo.addColorStop(0, "rgba(226,234,255,0.40)"); halo.addColorStop(1, "rgba(226,234,255,0)");
+      skyCtx.save(); skyCtx.translate(mx, my); skyCtx.scale(1 / AR, 1); skyCtx.translate(-mx, -my);
+      skyCtx.fillStyle = halo; skyCtx.beginPath(); skyCtx.arc(mx, my, 30 * AR, 0, 7); skyCtx.fill();
+      skyCtx.restore();
+      skyCtx.fillStyle = "#e8edff";
+      skyCtx.beginPath(); skyCtx.ellipse(mx, my, 8.5 / AR, 8.5, 0, 0, 7); skyCtx.fill();
+      skyCtx.fillStyle = "rgba(196,208,236,0.55)";          // a couple of seas
+      skyCtx.beginPath(); skyCtx.ellipse(mx - 1.2, my - 1.8, 2.4 / AR, 2.4, 0, 0, 7); skyCtx.fill();
+      skyCtx.beginPath(); skyCtx.ellipse(mx + 1.1, my + 2.6, 1.7 / AR, 1.7, 0, 0, 7); skyCtx.fill();
+    }
+    // cloud banding — long, thin, and lit from underneath at dusk
+    var cl = night ? "rgba(196,208,232,0.13)" : name === "dusk" ? "rgba(255,206,164,0.30)" : "rgba(255,255,255,0.34)";
+    for (var cb = 0; cb < 9; cb++) {
+      var cy = 12 + cb * 9 + (cb % 3) * 3, cw = 60 + (cb * 37 % 120), cx = (cb * 71) % W;
+      skyCtx.fillStyle = cl;
+      skyCtx.beginPath(); skyCtx.ellipse(cx, cy, cw, 2.2 + (cb % 3), 0, 0, 7); skyCtx.fill();
+      skyCtx.beginPath(); skyCtx.ellipse((cx + 150) % W, cy + 4, cw * 0.6, 1.6, 0, 0, 7); skyCtx.fill();
     }
     skyTex.needsUpdate = true;
     yardHemi.intensity = s.hemi; yardHemi.color.setHex(s.hemiC);
@@ -891,6 +1095,9 @@ export function buildHallway(ctx) {
     fanOut.material.emissiveIntensity = 0.5 * s.lamp;
     nbWin.forEach(function (m) { m.emissiveIntensity = 1.1 * s.lamp; });
     if (scene.fog) scene.fog.color.set(s.bot);   // haze is the sky, near the ground
+    // the beams and the mist only exist when there's a lamp to make them
+    beams.forEach(function (b) { b.m.material.opacity = b.op * s.lamp; b.m.visible = s.lamp > 0.2; });
+    mists.forEach(function (m) { m.m.material.opacity = m.op * (0.35 + 0.65 * s.lamp); });
   }
   setPhase("evening");
 
