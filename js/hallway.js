@@ -130,9 +130,20 @@ export function buildHallway(ctx) {
     var seg = box(0.1, p[3] - p[2], p[1] - p[0], hwallM);
     seg.position.set(W_IN - 0.05, (p[2] + p[3]) / 2, (p[0] + p[1]) / 2); add(seg);
   });
-  // the hall's OWN east wall, south of where the bedroom stops
-  var eastS = box(0.1, 3.4, Z_S + 0.1 - BED_END, hwallM);
-  eastS.position.set(E_IN + 0.05, 1.7, (BED_END + Z_S + 0.1) / 2); add(eastS);
+  // the hall's OWN east wall, south of where the bedroom stops — CUT for the closet.
+  // ⚠️⚠️ FOURTH TIME THIS FILE HAS LEARNED IT: a door you can open needs a HOLE, not
+  // a slab behind it. The closet door sits in the hall at x -4.40 and its shelf, rod
+  // and coats sit at x -4.04 — with 10cm of solid wall in between. Opening it revealed
+  // WALLPAPER, and had done since the day it was built. A ray fired east through the
+  // closet reads: door @-4.40, WALL @-4.35, shelf @-4.04.
+  var CLO_Z = 7.70, CDO = { z0: CLO_Z - 0.46, z1: CLO_Z + 0.46, y1: 2.16 };
+  [[BED_END, CDO.z0, 0, 3.4],           // north of the closet
+   [CDO.z1, Z_S + 0.1, 0, 3.4],         // south of it
+   [CDO.z0, CDO.z1, CDO.y1, 3.4]]       // the header over it, opening-width only
+    .forEach(function (p) {
+      var seg = box(0.1, p[3] - p[2], p[1] - p[0], hwallM);
+      seg.position.set(E_IN + 0.05, (p[2] + p[3]) / 2, (p[0] + p[1]) / 2); add(seg);
+    });
   // the NORTH cap is cut too, now that the front door opens onto a real porch.
   // (Same lesson as capS: a door you can walk through needs a hole, not a slab.)
   var FDO = { x0: FRONT_X - 0.63, x1: FRONT_X + 0.63, y1: 2.30 };
@@ -301,7 +312,15 @@ export function buildHallway(ctx) {
 
   // THE CLOSET — the one door down here that DOES open. Seasonal storage, one
   // spare hallway gag, and a shoebox that is pointedly empty.
-  var cloG = new THREE.Group(); cloG.position.set(E_IN - 0.03, 0, 3.35); add(cloG);
+  // ⚠️⚠️ z 7.70, NOT 3.35. At 3.35 it stood 37cm BEHIND the hall camera (which rests
+  // at z 3.72) and 1.5m to the side, so it projected behind the near plane from
+  // every resting view in the house — a fully built closet with seasonal coats that
+  // literally nobody could ever see, including me, until a projection test went
+  // looking for it. Kyle: "put it at the back."
+  // The east wall is free from z 6.2 (past the laundry) to the slider, it is dead
+  // centre-left of the south-facing view, and a coat closet by the back door with
+  // the boots kicked off underneath it is where one actually belongs.
+  var cloG = new THREE.Group(); cloG.position.set(E_IN - 0.03, 0, CLO_Z); add(cloG);
   [[2.09, 0.08, 0.96, 0], [1.02, 2.12, 0.08, -0.43], [1.02, 2.12, 0.08, 0.43]]
     .forEach(function (j) { var jm = box(0.08, j[1], j[2], mat(0x241b12, 0.8)); jm.position.set(-0.015, j[0], j[3]); cloG.add(jm); });
   var cloBackT = canvasTex(256, 512, function (c, w, h) { // painted depths: shelf, dark, one lost mitten
@@ -2104,8 +2123,13 @@ export function buildHallway(ctx) {
   var sock = box(0.12, 0.03, 0.07, mat(0xe8e2d2, 0.95));
   sock.position.set(-0.62, 0.015, 0.62); sock.rotation.y = 0.7; launG.add(sock);
   // bifold doors, folded open against the wall
+  // ⚠️ 0.15 deep, not 0.34. The comment always said "folded against the wall" but the
+  // leaves stood a third of a metre PERPENDICULAR into a 3.1m hall, and they shadowed
+  // the entire east wall behind them: the closet at z 7.70 measured 25/25 in frame and
+  // 0/25 reachable, blocked by these two panels every time. Folded properly they clear
+  // the sightline and the back of the hall stops feeling like a corridor of cupboards.
   [-0.78, 0.78].forEach(function (bz) {
-    var bf = box(0.06, 2.05, 0.34, mat(0x8a7a5c, 0.8)); bf.position.set(-0.1, 1.025, bz); launG.add(bf);
+    var bf = box(0.06, 2.05, 0.15, mat(0x8a7a5c, 0.8)); bf.position.set(-0.1, 1.025, bz); launG.add(bf);
     var bf2 = box(0.3, 2.05, 0.06, mat(0x7d6f52, 0.8)); bf2.position.set(-0.28, 1.025, bz + (bz < 0 ? 0.17 : -0.17)); launG.add(bf2);
   });
   launG.children.forEach(function (m) {
@@ -2465,12 +2489,6 @@ export function buildHallway(ctx) {
       { label: "warm", apply: function () { [bulbS, bulbN, bulbB].forEach(function (b) { b.light.color.setHex(0xffd9a0); b.bulb.material.emissive.setHex(0xffd9a0); }); } },
       { label: "daylight", apply: function () { [bulbS, bulbN, bulbB].forEach(function (b) { b.light.color.setHex(0xcfe0ff); b.bulb.material.emissive.setHex(0xcfe0ff); }); } },
     ] },
-    // ⚠️ NO CLOSET OPTION HERE. The closet is real and fully built — see it at
-    // cloG — but it stands at z 3.35, and the hall's camera stands at z 3.72, so
-    // it is BESIDE the eye in both facings and projects behind the near plane from
-    // every resting view in the house. Offering to open a door nobody can see just
-    // makes the panel look broken (Kyle: "says there is a closet door but i dont
-    // see one"). The door still opens if you click it; it simply isn't advertised.
   ]);
   [hb1, hb2].forEach(function (m) {
     tag(m, "the hall boxes", function () { openStash(hallStash); },
@@ -2501,6 +2519,11 @@ export function buildHallway(ctx) {
     { k: "porch", label: "the porch light", vals: [
       { label: "left on", apply: function () { backPorchOn = 1; } },
       { label: "off", apply: function () { backPorchOn = 0; } },
+    ] },
+    // the closet moved to the back, so the laundry basket is the box that owns it
+    { k: "closet", label: "the closet door", vals: [
+      { label: "shut", apply: function () { cloOpen = false; } },
+      { label: "ajar", apply: function () { cloOpen = true; } },
     ] },
     { k: "sock", label: "the lost sock", vals: [
       { label: "where it fell", apply: function () { sock.visible = true; } },
