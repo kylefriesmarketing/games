@@ -11,7 +11,7 @@
  *                          contents, and they effectively never change — so serve them
  *                          instantly and only hit the network on a miss.
  */
-var CACHE = "the-room-v8"; // v8: js/hallway.js joins the shell — the door opens
+var CACHE = "the-room-v9"; // v9: code fetches revalidate — deploys land on the next reload
 var SHELL = ["./", "./index.html", "./manifest.webmanifest", "./icon.svg",
   // room.js imports these at parse time — miss one and the offline room won't boot
   "./js/room.js", "./js/util.js", "./js/stickers.js", "./js/collectibles.js",
@@ -60,7 +60,13 @@ self.addEventListener("fetch", function (e) {
   }
 
   e.respondWith(                                 // network first, fall back to cache
-    fetch(req).then(function (res) {
+    // ⚠️ cache:"no-cache" forces REVALIDATION. GitHub Pages serves everything with
+    // max-age=600, and the browser's HTTP cache sits IN FRONT of this fetch — so
+    // "network first" was quietly reading a 10-minute-old local copy and every
+    // deploy looked broken for ten minutes ("it's not live yet"). no-cache sends a
+    // conditional request instead: a changed file arrives at once, an unchanged one
+    // costs a cheap 304.
+    fetch(req, { cache: "no-cache" }).then(function (res) {
       if (res.ok) { var copy = res.clone(); caches.open(CACHE).then(function (c) { c.put(req, copy); }); }
       return res;
     }).catch(function () {
