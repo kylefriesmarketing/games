@@ -495,7 +495,12 @@ export function buildHallway(ctx) {
   // hall through. 1.00 x 2.16 leaves a 1cm reveal each side and 3cm at the head,
   // which is what a real door does. Derived from the frame constants below so the
   // two can never drift apart again.
-  var FD_W = 1.00, FD_H = 2.16;
+  // ⚠️ FD_H is 2.185, not 2.16. The lintel's underside is at 2.19, so 2.16 left a 3cm
+  // SLOT across the whole top of the door that you could see the porch through — a
+  // "realistic reveal" is millimetres, not three centimetres, and I reasoned my way
+  // into the wrong number. 5mm now, and a stop bead behind it (below) so even that
+  // looks at wood.
+  var FD_W = 1.00, FD_H = 2.185;
   var fPivot = new THREE.Group(); fPivot.position.set(-FD_W / 2, 0, 0.03); front.add(fPivot);
   var fDoor = box(FD_W, FD_H, 0.06, mat(0x5a3a24, 0.65)); fDoor.position.set(FD_W / 2, FD_H / 2, 0); fPivot.add(fDoor);
   // ⚠️⚠️ THE JAMBS LINE THE OPENING, they do not merely trim it — and this, not the
@@ -511,6 +516,13 @@ export function buildHallway(ctx) {
     var jm = box(0.15, 2.2, 0.21, mat(0x241b12, 0.8)); jm.position.set(j[0], 1.1, -0.015); front.add(jm);
   });
   var lint = box(1.30, 0.13, 0.21, mat(0x241b12, 0.8)); lint.position.set(0, 2.255, -0.015); front.add(lint);
+  // the head STOP: the bead a real door closes against. It sits behind the slab
+  // (front-local z -0.03..-0.01; the slab occupies 0.00..0.06) and overlaps the head
+  // gap from behind, so the remaining 5mm shows timber instead of the front garden.
+  // ⚠️ it clears the swing: at the hinge end the slab is only 0.03 from the pivot
+  // axis and the bead is 0.05, so the door never sweeps through it.
+  var fStop = box(FD_W + 0.02, 0.05, 0.02, mat(0x241b12, 0.8));
+  fStop.position.set(0, FD_H - 0.015, -0.02); front.add(fStop);
   var archT = canvasTex(256, 128, function (c, w, h) { // night through the fan-light
     var grd = c.createLinearGradient(0, 0, 0, h);
     grd.addColorStop(0, "#101a30"); grd.addColorStop(1, "#28344e");
