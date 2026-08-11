@@ -819,6 +819,65 @@ export function buildHallway(ctx) {
     new THREE.MeshStandardMaterial({ map: calT, roughness: 0.9 }));
   cal.position.set(KCX + 0.6, 1.7, KZ1 - 0.055); cal.rotation.y = Math.PI; kadd(cal);
   ktag(cal, "the calendar", null, "one day is circled in red and nobody will say which one it is.");
+
+  /* ---- SHORT STAFFED: the apron on its hook by the window --------------------- */
+  var apT = canvasTex(96, 144, function (c, w, h) {
+    c.clearRect(0, 0, w, h);
+    c.fillStyle = "#c94b3a";                                   // diner red
+    c.beginPath();                                              // bib + skirt
+    c.moveTo(w * 0.32, 6); c.lineTo(w * 0.68, 6);
+    c.lineTo(w * 0.68, h * 0.34); c.lineTo(w * 0.88, h * 0.42); c.lineTo(w * 0.88, h - 6);
+    c.lineTo(w * 0.12, h - 6); c.lineTo(w * 0.12, h * 0.42); c.lineTo(w * 0.32, h * 0.34);
+    c.closePath(); c.fill();
+    c.strokeStyle = "#f2e2c4"; c.lineWidth = 3;                 // neck strap + ties
+    c.beginPath(); c.moveTo(w * 0.32, 8); c.quadraticCurveTo(w * 0.5, -8, w * 0.68, 8); c.stroke();
+    c.fillStyle = "#a83a2c"; c.fillRect(w * 0.24, h * 0.52, w * 0.52, h * 0.22); // the pocket
+    c.strokeStyle = "#f2e2c4"; c.lineWidth = 2; c.strokeRect(w * 0.24, h * 0.52, w * 0.52, h * 0.22);
+    c.fillStyle = "#f2e2c4"; c.font = "bold 10px Georgia, serif"; c.textAlign = "center";
+    c.fillText("WING BARN", w * 0.5, h * 0.44);
+    c.fillStyle = "rgba(90,60,30,0.4)";                         // one grease mark, earned
+    c.beginPath(); c.ellipse(w * 0.62, h * 0.82, 8, 5, 0.4, 0, 7); c.fill();
+  });
+  var apron = new THREE.Mesh(new THREE.PlaneGeometry(0.42, 0.62),
+    new THREE.MeshStandardMaterial({ map: apT, transparent: true, roughness: 0.95, side: THREE.DoubleSide }));
+  apron.position.set(KX0 + 0.07, 1.42, 0.55); apron.rotation.y = Math.PI / 2; apron.rotation.z = 0.04; kadd(apron);
+  var apHook = new THREE.Mesh(new THREE.CylinderGeometry(0.012, 0.012, 0.09, 8), mat(0x8f959b, 0.4));
+  apHook.rotation.z = Math.PI / 2; apHook.position.set(KX0 + 0.05, 1.74, 0.55); kadd(apHook);
+  var ssName = (function () { try { return localStorage.getItem("ss-name") || null; } catch (e) { return null; } })();
+  var ssHint = ssName
+    ? "SHORT STAFFED — " + ssName + "'s apron, still on the hook · click to take a shift"
+    : "SHORT STAFFED — somebody's shift starts eventually · click to clock in";
+  function ssGo() { window.location.href = "https://kylefriesmarketing.github.io/short-staffed/"; }
+  [apron, apHook].forEach(function (m) { ktag(m, "SHORT STAFFED", ssGo, ssHint); });
+
+  /* ---- HOME BREW: the batch on the counter, east of the cooker ---------------- */
+  var brewG = new THREE.Group(); brewG.position.set(KX1 - 2.05, CT_Y + 0.03, KZ0 + 0.36); brewG.rotation.y = -0.2; kadd(brewG);
+  var amberM = new THREE.MeshStandardMaterial({ color: 0x8a4d1a, roughness: 0.15, transparent: true, opacity: 0.85 });
+  [[-0.07, 0], [0.02, -0.04], [0.09, 0.03], [0.0, 0.06]].forEach(function (bp, i) {
+    var bot = new THREE.Mesh(new THREE.CylinderGeometry(0.026, 0.03, 0.15, 10), amberM);
+    bot.position.set(bp[0], 0.075, bp[1]); brewG.add(bot);
+    var neck = new THREE.Mesh(new THREE.CylinderGeometry(0.011, 0.02, 0.06, 8), amberM);
+    neck.position.set(bp[0], 0.18, bp[1]); brewG.add(neck);
+    var cap = new THREE.Mesh(new THREE.CylinderGeometry(0.012, 0.012, 0.012, 8), mat(0xc9a23a, 0.35));
+    cap.position.set(bp[0], 0.215, bp[1]); brewG.add(cap);
+    if (i === 0) {   // one label, hand-stuck slightly crooked
+      var lbl = new THREE.Mesh(new THREE.PlaneGeometry(0.05, 0.055), new THREE.MeshStandardMaterial({
+        map: canvasTex(48, 48, function (c, w, h) {
+          c.fillStyle = "#f2e8d0"; c.fillRect(0, 0, w, h);
+          c.strokeStyle = "#6a4a2a"; c.lineWidth = 3; c.strokeRect(2, 2, w - 4, h - 4);
+          c.fillStyle = "#6a4a2a"; c.font = "bold 9px Georgia, serif"; c.textAlign = "center";
+          c.fillText("HOME", w / 2, 20); c.fillText("BREW", w / 2, 32);
+        }), roughness: 0.9,
+      }));
+      lbl.position.set(bp[0], 0.09, bp[1] + 0.031); lbl.rotation.z = -0.06; brewG.add(lbl);
+    }
+  });
+  var brewHas = (function () { try { return !!localStorage.getItem("mybrew-save-v1"); } catch (e) { return false; } })();
+  var brewHint = brewHas
+    ? "HOME BREW — the brewery's still running · click to check the tanks"
+    : "HOME BREW — the first batch brews itself · click to open the brewery";
+  function brewGo() { window.location.href = "https://kylefriesmarketing.github.io/home-brew/"; }
+  brewG.traverse(function (o) { if (o.isMesh) ktag(o, "HOME BREW", brewGo, brewHint); });
   // ceiling light
   var kLampShade = new THREE.Mesh(new THREE.CylinderGeometry(0.26, 0.34, 0.2, 16, 1, true),
     new THREE.MeshStandardMaterial({ color: 0xf0e6cc, roughness: 0.7, side: THREE.DoubleSide }));
@@ -1216,7 +1275,70 @@ export function buildHallway(ctx) {
   slLamp.position.set(-3.66, GROUND + 4.94, Z_WALK - 1.4); yadd(slLamp);
   var streetLight = new THREE.PointLight(0xffe0b0, 1.5, 18, 1.6);
   streetLight.position.set(-3.66, GROUND + 4.7, Z_WALK - 1.4); yadd(streetLight);
-  ytag(slPost, "the streetlight", null, "the streetlight. it buzzes, and it has always buzzed.");
+  /* ⚠️ THE STREETLIGHT IS VICTORY LAP (Kyle's call, and the right one): the game
+   * about a man who never leaves his home town, hung on the lamp that has buzzed
+   * over this street forever. The crate in the hall stays as scenery; the DOORWAY
+   * is out here now, under the light where you'd actually stand at 2am. */
+  var vlSave = (function () {
+    try {
+      var m = JSON.parse(localStorage.getItem("vl-meta-v1") || "null");
+      if (!m || !(m.runs > 0)) return null;
+      var k = m.knows || {}, known = 0;
+      ["window", "blind", "drop", "dog"].forEach(function (n) { if (k[n]) known++; });
+      return { runs: m.runs, known: known };
+    } catch (e) { return null; }
+  })();
+  var vlLampHint = vlSave
+    ? "VICTORY LAP — " + vlSave.runs + " week" + (vlSave.runs === 1 ? "" : "s") + " tried, " +
+      vlSave.known + "/4 of the town learned · one more"
+    : "VICTORY LAP — an open town you keep not leaving · click to try the week";
+  function vlGo() { window.location.href = "https://kylefriesmarketing.github.io/victory-lap/"; }
+  [slPost, slHead, slLamp].forEach(function (m) { ytag(m, "VICTORY LAP", vlGo, vlLampHint); });
+  // a flyer taped to the pole, the way game doorways get marked out here
+  var vlFlyT = canvasTex(96, 128, function (c, w, h) {
+    c.fillStyle = "#f2e8d0"; c.fillRect(0, 0, w, h);
+    c.strokeStyle = "#8a4a3a"; c.lineWidth = 4; c.strokeRect(4, 4, w - 8, h - 8);
+    c.fillStyle = "#8a4a3a"; c.font = "bold 15px Georgia, serif"; c.textAlign = "center";
+    c.fillText("VICTORY", w / 2, 34); c.fillText("LAP", w / 2, 52);
+    c.fillStyle = "#4a4436"; c.font = "italic 10px Georgia, serif";
+    c.fillText("the 6 a.m. bus", w / 2, 82);
+    c.fillText("leaves without you", w / 2, 96);
+    c.fillStyle = "#b8b0a0"; c.fillRect(w * 0.3, 0, w * 0.4, 7); // the tape
+  });
+  var vlFly = new THREE.Mesh(new THREE.PlaneGeometry(0.30, 0.40),
+    new THREE.MeshStandardMaterial({ map: vlFlyT, roughness: 0.9 }));
+  vlFly.position.set(-2.52, GROUND + 1.75, Z_WALK - 1.31); vlFly.rotation.y = Math.PI * 0.06;
+  yadd(vlFly);
+  ytag(vlFly, "VICTORY LAP", vlGo, vlLampHint);
+
+  /* ---- FRESH CUT: the mower, abandoned mid-stripe on its own front lawn ------- */
+  var mowG = new THREE.Group(); mowG.position.set(-7.15, GROUND + 0.02, -9.8); mowG.rotation.y = -0.5; yadd(mowG);
+  var mowDeck = box(0.44, 0.16, 0.62, mat(0xb03a2e, 0.5)); mowDeck.position.y = 0.14; mowG.add(mowDeck);
+  var mowTop = box(0.3, 0.1, 0.4, mat(0x8f2d24, 0.5)); mowTop.position.set(0, 0.26, -0.02); mowG.add(mowTop);
+  [[-0.19, -0.24], [0.19, -0.24], [-0.19, 0.24], [0.19, 0.24]].forEach(function (wp) {
+    var wh2 = new THREE.Mesh(new THREE.CylinderGeometry(0.075, 0.075, 0.05, 10), mat(0x1d1f22, 0.8));
+    wh2.rotation.z = Math.PI / 2; wh2.position.set(wp[0], 0.075, wp[1]); mowG.add(wh2);
+  });
+  [[-0.14], [0.14]].forEach(function (hx) {   // the handle, leant back the way it's left
+    var rail = box(0.035, 0.035, 0.85, mat(0x2a2d31, 0.5));
+    rail.position.set(hx[0], 0.52, 0.62); rail.rotation.x = -0.85; mowG.add(rail);
+  });
+  var mowBar = box(0.34, 0.04, 0.04, mat(0x2a2d31, 0.5)); mowBar.position.set(0, 0.82, 0.95); mowG.add(mowBar);
+  var mowBag = box(0.3, 0.26, 0.2, mat(0x3f5c35, 0.9)); mowBag.position.set(0, 0.34, 0.34); mowG.add(mowBag);
+  groundShade(-7.15, -9.8, 0.55, 0.6, 0.45);
+  // one fresh stripe behind it — the job it walked away from
+  // ⚠️ MeshStandard, not MeshBasic — an unlit stripe ignores the night and reads as
+  // a glowing lime runway at 2am. Lit, it darkens with the lawn and stays a stripe.
+  var stripe2 = new THREE.Mesh(new THREE.PlaneGeometry(0.62, 4.2),
+    new THREE.MeshStandardMaterial({ color: 0xa8c49a, transparent: true, opacity: 0.30, roughness: 1, depthWrite: false }));
+  stripe2.rotation.x = -Math.PI / 2; stripe2.rotation.z = -0.5;
+  stripe2.position.set(-8.05, GROUND + 0.012, -11.4); stripe2.renderOrder = 2; yadd(stripe2);
+  var fcBagged = (function () { try { return parseInt(localStorage.getItem("fc-bagged") || "0", 10) || 0; } catch (e) { return 0; } })();
+  var fcHint = fcBagged > 0
+    ? "FRESH CUT — " + fcBagged + " bag" + (fcBagged === 1 ? "" : "s") + " on the kerb · the grass grew back"
+    : "FRESH CUT — the lawn won't mow itself · click to start the mower";
+  function fcGo() { window.location.href = "https://kylefriesmarketing.github.io/fresh-cut/"; }
+  mowG.traverse(function (o) { if (o.isMesh) ytag(o, "FRESH CUT", fcGo, fcHint); });
   var slMoths = [];
   for (var sm = 0; sm < 4; sm++) {
     var smo = new THREE.Mesh(new THREE.PlaneGeometry(0.06, 0.04),
@@ -1921,6 +2043,7 @@ export function buildHallway(ctx) {
     kdoor1: new THREE.Vector3(-5.95, 1.66, -0.35),  // squared up to the kitchen door, hall side
     kdoor2: new THREE.Vector3(-7.20, 1.63, -0.35),  // in the doorway
     kdoorL: new THREE.Vector3(-9.4, 1.25, -0.6),    // what you see through it
+    klookB: new THREE.Vector3(-6.1, 1.28, -0.85),   // turned round: the doorway, the hall beyond
     porch: new THREE.Vector3(-5.70, 1.62, -5.35),   // out on the boards
     porchL: new THREE.Vector3(-5.62, 0.75, -14.5),  // down the path at the street
     porchB: new THREE.Vector3(-6.05, 1.72, -2.4),   // turned round: the house you live in
@@ -1963,7 +2086,8 @@ export function buildHallway(ctx) {
     if (turnBtn) turnBtn.style.display = "none";
   }
   function leaveKitchen() {
-    if (mode !== "idle" || space !== "kitchen") return;
+    if (mode !== "idle" && mode !== "turning") return;
+    if (space !== "kitchen") return;
     mode = "kitchenOut"; tt = 0;
     c0.copy(camera.position); l0.copy(lookAt);
   }
@@ -1983,13 +2107,15 @@ export function buildHallway(ctx) {
     if (turnBtn) turnBtn.style.display = "none";
   }
   // which end of wherever you're standing you're looking at
-  function restPos() { return space === "porch" ? P.porch : P.rest; }
+  function restPos() { return space === "porch" ? P.porch : space === "kitchen" ? P.krest : P.rest; }
   function aimFor(f) {
     if (space === "porch") return f === "house" ? P.porchB : P.porchL;
+    if (space === "kitchen") return f === "door" ? P.klookB : P.klook;
     return f === "south" ? P.lookS : P.look;
   }
   function flipOf(f) {
     if (space === "porch") return f === "street" ? "house" : "street";
+    if (space === "kitchen") return f === "door" ? "room" : "door";
     return f === "north" ? "south" : "north";
   }
   function ease(x) { return x * x * (3 - 2 * x); }
@@ -2024,23 +2150,13 @@ export function buildHallway(ctx) {
       else walk([c0, P.kdoor2, P.kdoor1], [l0, P.kdoorL, P.look], tt);
       camera.position.copy(_v); lookAt.copy(_w); camera.lookAt(lookAt);
       if (tt >= 1) {
-        if (mode === "kitchenIn") { space = "kitchen"; kDoorPivot.rotation.y = -2.0; }
+        if (mode === "kitchenIn") { space = "kitchen"; facing = turnTo = "room"; kDoorPivot.rotation.y = -2.0; }
         else {
           space = "hall"; facing = turnTo = "north"; kDoorPivot.rotation.y = 0;
           AUDIO.clickSfx && AUDIO.clickSfx(500);
         }
         turnK = 1; mode = "idle"; syncTurnBtn();
       }
-      return true;
-    }
-    if (space === "kitchen") {   // at rest in the kitchen: gentle parallax, no turn
-      camera.position.x += ((P.krest.x + mx * 0.4) - camera.position.x) * 0.04;
-      camera.position.y += ((P.krest.y + my * 0.2) - camera.position.y) * 0.04;
-      camera.position.z += (P.krest.z - camera.position.z) * 0.04;
-      lookAt.x += ((P.klook.x + mx * 0.7) - lookAt.x) * 0.04;
-      lookAt.y += ((P.klook.y + my * 0.5) - lookAt.y) * 0.04;
-      lookAt.z += (P.klook.z - lookAt.z) * 0.04;
-      camera.lookAt(lookAt);
       return true;
     }
     if (mode === "out" || mode === "in") {           // through the front door, both ways
@@ -2087,7 +2203,7 @@ export function buildHallway(ctx) {
       }
       return true;
     }
-    if (space === "hall" || space === "porch") { // at rest: same parallax drift as the bedroom
+    if (space === "hall" || space === "porch" || space === "kitchen") { // at rest: same parallax drift as the bedroom
       // ⚠️ the swing is driven by a SEPARATE eased term, not by lerping lookAt
       // straight from one end to the other. A direct lerp passes the target
       // through the camera's own position on the way past, and the view whips
@@ -2129,8 +2245,8 @@ export function buildHallway(ctx) {
     return _g;
   }
   function turn(to) {
-    if ((space !== "hall" && space !== "porch") || mode === "entering" || mode === "leaving" ||
-        mode === "out" || mode === "in") return;
+    if (space === "bedroom" || mode === "entering" || mode === "leaving" ||
+        mode === "out" || mode === "in" || mode === "kitchenIn" || mode === "kitchenOut") return;
     to = to || flipOf(facing);
     if (to === facing && mode !== "turning") { syncTurnBtn(); return; }
     turnTo = to; turnK = 0; mode = "turning";
@@ -2158,11 +2274,12 @@ export function buildHallway(ctx) {
       turnBtn.addEventListener("pointerdown", function (e) { e.stopPropagation(); });
       document.body.appendChild(turnBtn);
     }
-    var show = space === "hall" || space === "porch" || mode === "entering";
+    var show = space === "hall" || space === "porch" || space === "kitchen" || mode === "entering";
     turnBtn.style.display = show ? "block" : "none";
     var next = flipOf(mode === "turning" ? turnTo : facing);
     var LBL = { south: "the back of the house", north: "the front door",
-                house: "the house", street: "the street" };
+                house: "the house", street: "the street",
+                door: "the way out", room: "the kitchen" };
     turnBtn.textContent = "⟲  turn around — " + (LBL[next] || "the other way");
     turnBtn.setAttribute("aria-label", "Turn around to face " + (LBL[next] || "the other way"));
   }
