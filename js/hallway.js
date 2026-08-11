@@ -226,14 +226,21 @@ export function buildHallway(ctx) {
     [d, kb].forEach(function (m) { tag(m, name, null, hint); });
     return grp;
   }
-  function tapeX(doorGrp, w) { // PARDON OUR DUST, in physical form
+  function tapeX(doorGrp, w, h) { // PARDON OUR DUST, in physical form
     var tm = new THREE.MeshStandardMaterial({ color: 0xd9c04a, roughness: 0.6 });
-    // ⚠️ the two strips sit at DIFFERENT depths (0.049 / 0.062). Both at 0.055 they
-    // occupied the same slab of space and intersected right where the X crosses —
-    // two identical yellow boxes fighting over the same pixels. One tape crosses in
-    // front of the other, the way tape actually goes on.
-    [[0.9, 0.049], [-0.9, 0.062]].forEach(function (r) {
-      var t = new THREE.Mesh(new THREE.BoxGeometry(0.012, 0.075, Math.sqrt(w * w + 2.9)), tm);
+    // ⚠️⚠️ THE STRIP IS CUT TO THE DOOR, not to a magic number. It used to be
+    // sqrt(w*w + 2.9) long at a fixed 0.9rad, and a strip of length L tilted by a
+    // about X spans L*cos(a) ACROSS the door — which came to 1.20m on a 0.92m door.
+    // 14cm of tape hung off each side into the wall and the air. Solving it properly:
+    // pick the span you want (w-0.06 across, h tall), then a = atan2(h, w) and
+    // L = hypot(w, h) put the ends exactly on the corners.
+    var sw = w - 0.06, sh = (h || 1.52);
+    var ang = Math.atan2(sh, sw), len = Math.sqrt(sw * sw + sh * sh);
+    // the two strips sit at DIFFERENT depths (0.049 / 0.062): both at 0.055 they
+    // occupied the same slab of space and fought right where the X crosses. One
+    // tape crosses in front of the other, the way tape actually goes on.
+    [[ang, 0.049], [-ang, 0.062]].forEach(function (r) {
+      var t = new THREE.Mesh(new THREE.BoxGeometry(0.012, 0.075, len), tm);
       t.position.set(r[1], 1.02, 0); t.rotation.x = r[0]; doorGrp.add(t);
     });
   }
@@ -491,10 +498,19 @@ export function buildHallway(ctx) {
   var FD_W = 1.00, FD_H = 2.16;
   var fPivot = new THREE.Group(); fPivot.position.set(-FD_W / 2, 0, 0.03); front.add(fPivot);
   var fDoor = box(FD_W, FD_H, 0.06, mat(0x5a3a24, 0.65)); fDoor.position.set(FD_W / 2, FD_H / 2, 0); fPivot.add(fDoor);
-  [[-0.56, 0], [0.56, 0]].forEach(function (j) {
-    var jm = box(0.1, 2.2, 0.09, mat(0x241b12, 0.8)); jm.position.set(j[0], 1.1, 0.045); front.add(jm);
+  // ⚠️⚠️ THE JAMBS LINE THE OPENING, they do not merely trim it — and this, not the
+  // slab's size, is why you could see daylight round the door. The rough opening is
+  // 1.26 wide through 10cm of WALL; the slab is 1.00 and hangs 4cm inside the hall;
+  // and these boards were 0.09 deep sitting entirely in FRONT of the wall. So the
+  // full thickness of the opening either side of the door was simply EMPTY, and at
+  // any angle you looked straight through it to the porch. Sizing the door alone
+  // could never have fixed that. 0.15 wide x 0.21 deep buries each board 2cm into the
+  // wall and carries it past the slab into the hall: opening fully lined, edge to
+  // edge (-6.35..-6.20 jamb, -6.20..-5.20 door, -5.20..-5.05 jamb).
+  [[-0.575, 0], [0.575, 0]].forEach(function (j) {
+    var jm = box(0.15, 2.2, 0.21, mat(0x241b12, 0.8)); jm.position.set(j[0], 1.1, -0.015); front.add(jm);
   });
-  var lint = box(1.24, 0.1, 0.09, mat(0x241b12, 0.8)); lint.position.set(0, 2.24, 0.045); front.add(lint);
+  var lint = box(1.30, 0.13, 0.21, mat(0x241b12, 0.8)); lint.position.set(0, 2.255, -0.015); front.add(lint);
   var archT = canvasTex(256, 128, function (c, w, h) { // night through the fan-light
     var grd = c.createLinearGradient(0, 0, 0, h);
     grd.addColorStop(0, "#101a30"); grd.addColorStop(1, "#28344e");
@@ -607,8 +623,10 @@ export function buildHallway(ctx) {
       c.beginPath(); c.moveTo(g5, 0); c.lineTo(g5, h); c.stroke();
     });
   });
+  // ⚠️ repeat 11, not 6: the canvas draws a 2x2 tile grid, so at 6 the "tiles" were
+  // 45cm across and read as a chequerboard floor rather than lino.
   var kFloor = new THREE.Mesh(new THREE.PlaneGeometry(KX1 - KX0, KZ1 - KZ0),
-    ground(linoT, 6, 6, 0xffffff, 0.55, 0.6));
+    ground(linoT, 11, 11, 0xffffff, 0.55, 0.6));
   kFloor.rotation.x = -Math.PI / 2; kFloor.position.set(KCX, 0.005, KCZ); kadd(kFloor);
   ktag(kFloor, "the kitchen floor", null, "lino. there is a worn track from the fridge to the kettle.");
 
@@ -826,16 +844,22 @@ export function buildHallway(ctx) {
     lg.position.set(KCX + 0.55 + l[0], 0.36, KCZ + 1.05 + l[1]); kadd(lg);
   });
   ktag(tblT, "the kitchen table", null, "homework, cereal, and every difficult conversation this house has had.");
-  [[-0.72, 0, 1.55], [0.72, 0, -1.55]].forEach(function (ch) {
-    var seat = box(0.4, 0.05, 0.4, mat(0xc4a86a, 0.75));
-    seat.position.set(KCX + 0.55 + ch[0], 0.45, KCZ + 1.05 + ch[1]); kadd(seat);
-    var back = box(0.06, 0.46, 0.4, mat(0xc4a86a, 0.75));
-    back.position.set(KCX + 0.55 + ch[0] + (ch[0] < 0 ? -0.17 : 0.17), 0.68, KCZ + 1.05 + ch[1]); kadd(back);
+  // ⚠️ chairs are GROUPS so they can be turned. Built inline they could only ever sit
+  // square to the table, which is the one thing chairs in a lived-in kitchen never do.
+  // (The old inline version also carried a third number per chair that nothing read.)
+  function kChair(dx, dz, ry) {
+    var c = new THREE.Group(); c.position.set(KCX + 0.55 + dx, 0, KCZ + 1.05 + dz); c.rotation.y = ry; kadd(c);
+    var seat = box(0.4, 0.05, 0.4, mat(0xc4a86a, 0.75)); seat.position.y = 0.45; c.add(seat);
+    var back = box(0.06, 0.46, 0.4, mat(0xc4a86a, 0.75)); back.position.set(-0.17, 0.68, 0); c.add(back);
     [[-0.16, -0.16], [0.16, -0.16], [-0.16, 0.16], [0.16, 0.16]].forEach(function (cl) {
       var cle = box(0.04, 0.45, 0.04, mat(0xb09858, 0.75));
-      cle.position.set(KCX + 0.55 + ch[0] + cl[0], 0.225, KCZ + 1.05 + ch[1] + cl[1]); kadd(cle);
+      cle.position.set(cl[0], 0.225, cl[1]); c.add(cle);
     });
-  });
+    ktag(seat, "a kitchen chair", null, "somebody got up in a hurry and never pushed it back in.");
+    return c;
+  }
+  kChair(-0.72, 0, 0);                       // tucked in
+  kChair(0.80, 0.26, Math.PI + 0.42);        // pulled out and turned, mid-conversation
   // ⚠️ an OPEN bowl, not a sphere-cap. The dome version rendered as a 30cm orange
   // ham sitting on the table, with the fruit sealed invisibly inside it.
   var bowl2 = new THREE.Mesh(new THREE.CylinderGeometry(0.14, 0.09, 0.07, 16, 1, true), mat(0xb5793a, 0.6));
@@ -851,17 +875,22 @@ export function buildHallway(ctx) {
   });
 
   // --- the small stuff, which is what actually sells a room
+  // ⚠️ these all sit on CT_TOP, not CT_Y. CT_Y is the counter slab's CENTRE, so
+  // everything placed against it was buried 3cm into the worktop — the kettle, the
+  // toaster and the mug tree were all standing in the laminate.
   var kettle = new THREE.Mesh(new THREE.CylinderGeometry(0.075, 0.09, 0.2, 14), mat(0xd8d5cc, 0.4));
-  kettle.position.set(KX1 - 3.5, CT_Y + 0.1, KZ0 + 0.4); kadd(kettle);
+  kettle.position.set(KX1 - 3.5, CT_TOP + 0.1, KZ0 + 0.4); kadd(kettle);
+  var kSpout = new THREE.Mesh(new THREE.CylinderGeometry(0.018, 0.026, 0.1, 8), mat(0xd8d5cc, 0.4));
+  kSpout.rotation.z = -0.7; kSpout.position.set(KX1 - 3.41, CT_TOP + 0.18, KZ0 + 0.4); kadd(kSpout);
   ktag(kettle, "the kettle", null, "the kettle. it is basically always just boiled.");
   var toaster = box(0.26, 0.17, 0.16, mat(0xc8ccd0, 0.3));
-  toaster.position.set(KX1 - 4.1, CT_Y + 0.09, KZ0 + 0.38); kadd(toaster);
+  toaster.position.set(KX1 - 4.1, CT_TOP + 0.085, KZ0 + 0.38); kadd(toaster);
   var mugTree = new THREE.Mesh(new THREE.CylinderGeometry(0.015, 0.06, 0.28, 8), mat(0x8a6a44, 0.7));
-  mugTree.position.set(KX1 - 3.05, CT_Y + 0.14, KZ0 + 0.36); kadd(mugTree);
+  mugTree.position.set(KX1 - 3.05, CT_TOP + 0.14, KZ0 + 0.36); kadd(mugTree);
   var kMugs = [];
   [[0.07, 0.2, 0xc94b3a], [-0.07, 0.16, 0x3a6ac9], [0.05, 0.12, 0xe0b03a]].forEach(function (mg) {
     var mug = new THREE.Mesh(new THREE.CylinderGeometry(0.038, 0.033, 0.075, 10), mat(mg[2], 0.5));
-    mug.position.set(KX1 - 3.05 + mg[0], CT_Y + mg[1], KZ0 + 0.36 + mg[0] * 0.5); kadd(mug);
+    mug.position.set(KX1 - 3.05 + mg[0], CT_TOP + mg[1], KZ0 + 0.36 + mg[0] * 0.5); kadd(mug);
     kMugs.push(mug.material);
   });
   var kClock = new THREE.Mesh(new THREE.CircleGeometry(0.15, 22), new THREE.MeshBasicMaterial({
@@ -965,6 +994,187 @@ export function buildHallway(ctx) {
   kLight.position.set(KCX, KCEIL - 0.4, KCZ); kadd(kLight);
   var kFill = new THREE.PointLight(0xffeccc, 0.45, 9, 2);
   kFill.position.set(KCX, 1.5, KCZ); kadd(kFill);
+
+  /* ---- the kitchen, lived in ---------------------------------------------------
+   * The room was furnished but nothing in it had ever been USED. Two of its own
+   * labels were promises it didn't keep: the floor says "there is a worn track from
+   * the fridge to the kettle" and the tap says "it drips". Both are true now. */
+
+  // --- tiled backsplash. The single biggest visual gap: a bare painted wall between
+  // the worktop and the wall units, where every real kitchen has tile.
+  var tileT = canvasTex(128, 128, function (c, w, h) {
+    c.fillStyle = "#cdc6b6"; c.fillRect(0, 0, w, h);                 // grout
+    for (var ty = 0; ty < 4; ty++) for (var tx = 0; tx < 4; tx++) {
+      c.fillStyle = ["#f2eddd", "#ebe5d2", "#f5f1e4", "#e7e0cd"][(tx * 3 + ty * 5) % 4];
+      c.fillRect(tx * 32 + 2, ty * 32 + 2, 28, 28);
+      c.fillStyle = "rgba(255,255,255,0.30)";                        // glaze highlight
+      c.fillRect(tx * 32 + 4, ty * 32 + 4, 24, 5);
+    }
+    c.fillStyle = "#7f9fb2";                                         // two painted tiles
+    c.fillRect(34, 34, 28, 28); c.fillRect(66, 2, 28, 28);
+  });
+  var splashN = new THREE.Mesh(new THREE.PlaneGeometry(KX1 - 1.9 - KX0, 1.50 - CT_TOP),
+    ground(tileT, 6, 1, 0xffffff, 0.35, 0.9));
+  splashN.position.set((KX0 + KX1 - 1.9) / 2, (CT_TOP + 1.50) / 2, KZ0 + 0.014); kadd(splashN);
+  var splashW = new THREE.Mesh(new THREE.PlaneGeometry(2.36, 0.19),
+    ground(tileT, 4, 0.14, 0xffffff, 0.35, 0.9));
+  splashW.rotation.y = Math.PI / 2;
+  splashW.position.set(KX0 + 0.014, CT_TOP + 0.095, -1.73); kadd(splashW);
+  ktag(splashN, "the tiles", null, "two of them are hand-painted blue. nobody remembers buying them.");
+
+  // --- soft contact + wear decals. Same rule as outdoors: polygonOffset, never a
+  // raised y, because the floor and the worktop are at different heights.
+  function kDecal(tex, x, y, z, rx, rz, op, ry) {
+    var m = new THREE.Mesh(new THREE.PlaneGeometry(rx * 2, rz * 2),
+      new THREE.MeshBasicMaterial({ map: tex, transparent: true, opacity: op, depthWrite: false,
+        polygonOffset: true, polygonOffsetFactor: -6, polygonOffsetUnits: -6 }));
+    m.rotation.x = -Math.PI / 2; if (ry) m.rotation.z = ry;
+    m.position.set(x, y, z); m.renderOrder = 2; kadd(m); return m;
+  }
+  function radialTex(rgb, peak) {
+    return canvasTex(64, 64, function (c, w, h) {
+      var g = c.createRadialGradient(32, 32, 1, 32, 32, 32);
+      g.addColorStop(0, "rgba(" + rgb + "," + peak + ")"); g.addColorStop(1, "rgba(" + rgb + ",0)");
+      c.fillStyle = g; c.fillRect(0, 0, w, h);
+    });
+  }
+  // ⚠️ the wear texture peaks at 0.62 alpha, not 0.30. The material opacity MULTIPLIES
+  // the map's alpha, so 0.30 x 0.32 gave an effective 0.10 — the track was in the
+  // scene, visible, correctly placed, and completely impossible to see. Two numbers
+  // that each look reasonable alone can multiply into nothing; check the product.
+  var kShadeT = radialTex("0,0,0", 0.62), kWearT = radialTex("104,94,74", 0.62);
+  [[KX1 - 0.95, KZ1 - 0.5, 0.52, 0.48, 0.55],   // the fridge
+   [cookX, KZ0 + 0.36, 0.42, 0.40, 0.50],       // the cooker
+   [KCX + 0.55, KCZ + 1.05, 0.70, 0.52, 0.34],  // the table
+   [KX0 + 0.45, KZ1 - 0.55, 0.24, 0.24, 0.45]   // the bin, below
+  ].forEach(function (s) { kDecal(kShadeT, s[0], 0.012, s[1], s[2], s[3], s[4]); });
+
+  // ⚠️ the worn track is a STRING OF DECALS at real world positions, not a stripe
+  // painted into the lino texture — the lino tiles 11x, so anything drawn into it
+  // would repeat eleven times across the floor. Discs also dodge the question of
+  // which way a rotated plane's UVs run, which is a coin flip worth not tossing.
+  (function () {
+    var WAY = [[-8.62, 0.92], [-9.30, 0.34], [-9.95, -0.42], [-10.52, -1.30],
+               [-10.95, -2.20], [-11.10, -2.72], [-11.95, -2.10], [-12.35, -1.45]];
+    for (var i = 0; i < WAY.length - 1; i++) {
+      var a = WAY[i], b = WAY[i + 1];
+      for (var t = 0; t < 1; t += 0.34) {
+        var jx = (Math.random() - 0.5) * 0.13, jz = (Math.random() - 0.5) * 0.13;
+        kDecal(kWearT, a[0] + (b[0] - a[0]) * t + jx, 0.010, a[1] + (b[1] - a[1]) * t + jz,
+          0.34 + Math.random() * 0.12, 0.30 + Math.random() * 0.12, 0.52 + Math.random() * 0.16);
+      }
+    }
+    kDecal(kWearT, -12.40, 0.010, -1.35, 0.38, 0.34, 0.62);   // standing at the sink
+    kDecal(kWearT, -8.62, 0.010, 1.02, 0.36, 0.32, 0.58);     // and at the fridge door
+  })();
+
+  // --- the dish rack, still draining
+  var rackG = new THREE.Group(); rackG.position.set(SK_X + 0.02, CT_TOP, SK_Z + 0.62); kadd(rackG);
+  var rackBase = box(0.30, 0.015, 0.24, mat(0x9aa0a6, 0.45)); rackBase.position.y = 0.012; rackG.add(rackBase);
+  for (var rw = 0; rw < 5; rw++) {                              // the wire dividers
+    var wire = box(0.28, 0.012, 0.012, mat(0xb4bac0, 0.35));
+    wire.position.set(0, 0.06, -0.09 + rw * 0.045); rackG.add(wire);
+  }
+  [[-0.05, 0.10, 0xf0ece0], [0.01, 0.11, 0xe8e2d2], [0.07, 0.095, 0xf2eee2]].forEach(function (pl) {
+    var plate = new THREE.Mesh(new THREE.CylinderGeometry(pl[1], pl[1], 0.012, 18), mat(pl[2], 0.5));
+    plate.rotation.x = Math.PI / 2; plate.rotation.z = 0.06;
+    plate.position.set(0, 0.075, pl[0]); rackG.add(plate);
+  });
+  ktag(rackBase, "the dish rack", null, "washed last night. nobody has put them away.");
+
+  // --- a tea towel over the oven bar, because that is where tea towels live
+  var towelT = canvasTex(48, 64, function (c, w, h) {
+    c.fillStyle = "#dfe6dc"; c.fillRect(0, 0, w, h);
+    c.strokeStyle = "#8fa8bc"; c.lineWidth = 3;
+    for (var s = 0; s < 4; s++) { c.beginPath(); c.moveTo(0, 10 + s * 15); c.lineTo(w, 10 + s * 15); c.stroke(); }
+    c.strokeStyle = "#c07a6a"; c.beginPath(); c.moveTo(0, 46); c.lineTo(w, 46); c.stroke();
+  });
+  var towel = new THREE.Mesh(new THREE.PlaneGeometry(0.19, 0.30),
+    new THREE.MeshStandardMaterial({ map: towelT, roughness: 0.95, side: THREE.DoubleSide }));
+  towel.position.set(cookX - 0.11, 0.57, COOK_FRONT + 0.062); towel.rotation.z = 0.05; kadd(towel);
+  ktag(towel, "the tea towel", null, "damp. it is always slightly damp.");
+
+  // --- the bin, and the plant on the windowsill
+  var binG = new THREE.Group(); binG.position.set(KX0 + 0.45, 0, KZ1 - 0.55); kadd(binG);
+  var binBody = new THREE.Mesh(new THREE.CylinderGeometry(0.17, 0.14, 0.52, 14, 1, true), mat(0x9fa4a8, 0.6));
+  binBody.material.side = THREE.DoubleSide; binBody.position.y = 0.26; binG.add(binBody);
+  var binLid = new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.18, 0.035, 14), mat(0x8b9094, 0.5));
+  binLid.position.set(0.02, 0.545, -0.01); binLid.rotation.z = 0.09; binG.add(binLid);
+  ktag(binLid, "the bin", null, "the pedal stopped working years ago. you use your hand like everyone else.");
+  var sill = box(0.13, 0.03, 1.22, mat(0xece6d4, 0.85));
+  sill.position.set(KX0 + 0.085, 1.11, KCZ - 0.6); kadd(sill);
+  var potG = new THREE.Group(); potG.position.set(KX0 + 0.10, 1.125, KCZ - 1.02); kadd(potG);
+  var pot = new THREE.Mesh(new THREE.CylinderGeometry(0.055, 0.042, 0.09, 12), mat(0xb5673f, 0.7));
+  pot.position.y = 0.045; potG.add(pot);
+  var soil = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 0.012, 12), mat(0x3a2c20, 0.95));
+  soil.position.y = 0.09; potG.add(soil);
+  for (var lf = 0; lf < 7; lf++) {                               // a spider plant, thriving
+    var a2 = lf * 0.9, ln = 0.11 + (lf % 3) * 0.045;
+    var leaf = new THREE.Mesh(new THREE.ConeGeometry(0.016, ln, 5), mat(lf % 2 ? 0x5d8a4a : 0x6f9c54, 0.85));
+    leaf.position.set(Math.cos(a2) * 0.035, 0.10 + ln * 0.42, Math.sin(a2) * 0.035);
+    leaf.rotation.set(Math.sin(a2) * 0.7, 0, -Math.cos(a2) * 0.7); potG.add(leaf);
+  }
+  ktag(pot, "the spider plant", null, "the one green thing in this house that nobody has managed to kill.");
+
+  // --- the everyday clutter that says somebody shops here
+  var cerealT = canvasTex(64, 96, function (c, w, h) {
+    c.fillStyle = "#d8a13a"; c.fillRect(0, 0, w, h);
+    c.fillStyle = "#a8452e"; c.fillRect(0, h * 0.30, w, h * 0.22);
+    c.fillStyle = "#fff4dc"; c.font = "bold 11px Georgia, serif"; c.textAlign = "center";
+    c.fillText("BRAN", w / 2, h * 0.44);
+    c.fillStyle = "rgba(255,255,255,0.55)"; c.beginPath(); c.arc(w / 2, h * 0.68, 13, 0, 7); c.fill();
+  });
+  var cereal = box(0.17, 0.29, 0.075, new THREE.MeshStandardMaterial({ map: cerealT, roughness: 0.9 }));
+  cereal.position.set(KX1 - 4.62, CT_TOP + 0.145, KZ0 + 0.34); cereal.rotation.y = 0.13; kadd(cereal);
+  ktag(cereal, "the cereal", null, "the boring kind. the good kind is hidden.");
+  [[KX1 - 5.02, 0.055, 0x7d8a5e], [KX1 - 5.17, 0.047, 0xa85a3e]].forEach(function (tn) {
+    var tin = new THREE.Mesh(new THREE.CylinderGeometry(tn[1], tn[1], 0.10, 12), mat(tn[2], 0.5));
+    tin.position.set(tn[0], CT_TOP + 0.05, KZ0 + 0.30); kadd(tin);
+  });
+
+  // --- ANIMATED: the kettle steams and the tap drips (both view-only, ticked below)
+  var puffT = radialTex("235,238,242", 0.5);
+  var kSteam = [];
+  for (var sp = 0; sp < 7; sp++) {
+    var puff = new THREE.Mesh(new THREE.PlaneGeometry(0.10, 0.10),
+      new THREE.MeshBasicMaterial({ map: puffT, transparent: true, opacity: 0, depthWrite: false }));
+    puff.renderOrder = 6; kadd(puff);
+    kSteam.push({ m: puff, t: sp / 7 });
+  }
+  var dripDrop = new THREE.Mesh(new THREE.SphereGeometry(0.011, 8, 6), mat(0xcfe4ee, 0.15));
+  dripDrop.scale.set(1, 1.5, 1); kadd(dripDrop);
+  var dripRing = new THREE.Mesh(new THREE.RingGeometry(0.012, 0.03, 16),
+    new THREE.MeshBasicMaterial({ color: 0xbcd8e6, transparent: true, opacity: 0, depthWrite: false }));
+  dripRing.rotation.x = -Math.PI / 2; dripRing.position.set(SK_X, CT_TOP + 0.002, SK_Z);
+  dripRing.renderOrder = 4; kadd(dripRing);
+  var DRIP_TOP = CT_TOP + 0.26, DRIP_BOT = CT_TOP + 0.01, dripT = 0;
+  function kitchenLife(dt, lampOn) {
+    for (var i = 0; i < kSteam.length; i++) {          // steam off the kettle spout
+      var s = kSteam[i];
+      s.t += dt * 0.30;
+      if (s.t > 1) s.t -= 1;
+      var f = s.t;
+      s.m.position.set(KX1 - 3.38 + Math.sin(f * 5.2 + i) * 0.045 * f,
+                       CT_TOP + 0.24 + f * 0.42,
+                       KZ0 + 0.40 + Math.cos(f * 4.1 + i) * 0.035 * f);
+      s.m.scale.setScalar(0.5 + f * 1.7);
+      s.m.material.opacity = 0.30 * Math.sin(f * Math.PI) * lampOn;
+      s.m.quaternion.copy(camera.quaternion);          // billboard, so it never reads flat
+    }
+    dripT += dt;                                        // the tap, roughly every 2.4s
+    var cyc = dripT % 2.4;
+    if (cyc < 0.55) {
+      var g = cyc / 0.55;
+      dripDrop.visible = true;
+      dripDrop.position.set(KX0 + 0.29, DRIP_TOP - (DRIP_TOP - DRIP_BOT) * g * g, SK_Z);
+      dripRing.material.opacity = 0;
+    } else {
+      dripDrop.visible = false;
+      var r2 = Math.min(1, (cyc - 0.55) / 0.7);         // the ripple it leaves
+      dripRing.scale.setScalar(0.5 + r2 * 1.8);
+      dripRing.material.opacity = 0.42 * (1 - r2) * lampOn;
+    }
+  }
 
   /* ---- OUT THE FRONT: the porch, the yard, the street (a THIRD space) ---------
    * You can actually step outside now. The porch is a real place you stand on —
@@ -2434,6 +2644,7 @@ export function buildHallway(ctx) {
     kUnder.intensity = 1.1 * dim * kStripOn;
     strip.material.emissiveIntensity = 1.3 * dim * kStripOn;
     frGlow.intensity = (0.24 + 0.06 * Math.sin(t * 1.7)) * dim;
+    kitchenLife(dt, dim);   // steam off the kettle, and the tap that drips
     bGlow.material.opacity = 0.08 + 0.05 * Math.sin(t * 0.9); // the basement, breathing
     var target = cloOpen ? -1.6 : 0;
     cloAnim += (target - cloAnim) * Math.min(1, dt * 7);
