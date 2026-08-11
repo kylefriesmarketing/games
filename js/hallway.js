@@ -1782,7 +1782,15 @@ export function buildHallway(ctx) {
     c.fillText("HALL STUFF", w * 0.5, h * 0.54);
   });
   var hallBoxM = new THREE.MeshStandardMaterial({ map: hBoxT, roughness: 0.92 });
-  var hallBoxes = new THREE.Group(); hallBoxes.position.set(E_IN - 0.42, 0, 4.42); add(hallBoxes);
+  // ⚠️ UNDER THE STAIRS, not down the south end. At (E_IN-0.42, 4.42) they sat
+  // 0.7m from the camera's own position, behind both composed views — Kyle never
+  // saw them. Under the tall end of the flight they're in the north view where the
+  // eye already goes, and under-the-stairs is where moving boxes live anyway.
+  // …and poking OUT from under the stair edge, x -6.35 not -6.92: dead under the
+  // flight passed the NDC visibility check and then screenshotted as nothing at
+  // all, because the treads stand between the camera and the void. Frustum maths
+  // doesn't know about occlusion; screenshots do.
+  var hallBoxes = new THREE.Group(); hallBoxes.position.set(-6.35, 0, -2.55); hallBoxes.rotation.y = 0.34; add(hallBoxes);
   var hb1 = box(0.56, 0.42, 0.46, hallBoxM); hb1.position.y = 0.21; hallBoxes.add(hb1);
   var hb2 = box(0.46, 0.36, 0.4, hallBoxM); hb2.position.set(0.06, 0.60, -0.02); hb2.rotation.y = 0.22; hallBoxes.add(hb2);
   var hallStash = makeStash("hall", "📦 the hall boxes", [
@@ -1836,7 +1844,14 @@ export function buildHallway(ctx) {
   });
 
   // --- FRONT: the toolbox on the porch, because yards are maintained FROM porches
-  var tbxG = new THREE.Group(); tbxG.position.set(-4.05, 0.02, -5.55); tbxG.rotation.y = -0.3; yadd(tbxG);
+  // ⚠️ on the LAWN beside the path, not on the deck. Two failed spots first: at
+  // (-4.05,-5.55) it was beside the resting eye, and even at the deck's front edge
+  // it sat below the 55° cone (the street view looks steeply DOWN the yard —
+  // anything within a metre of the camera is out of frame). NDC-swept five spots;
+  // (-4.75,-9.0) lands x[0.17..0.39] y[-0.92..-0.63] — bottom-right, fully visible,
+  // and a yard toolbox left out on the grass mid-job is the more honest object.
+  var tbxG = new THREE.Group(); tbxG.position.set(-4.75, GROUND + 0.02, -9.0); tbxG.rotation.y = 0.55; yadd(tbxG);
+  groundShade(-4.75, -9.0, 0.42, 0.3, 0.42);
   var tbxBody = box(0.5, 0.2, 0.24, mat(0xb03a2e, 0.55)); tbxBody.position.y = 0.1; tbxG.add(tbxBody);
   var tbxLid = box(0.5, 0.06, 0.24, mat(0x8f2d24, 0.55)); tbxLid.position.y = 0.23; tbxG.add(tbxLid);
   var tbxHandle = new THREE.Mesh(new THREE.TorusGeometry(0.07, 0.014, 6, 12, Math.PI), mat(0x2a2d31, 0.5));
