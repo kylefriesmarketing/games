@@ -2754,9 +2754,14 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
   // 0.1 thick) and the rotated crate+board reaches ~0.31 past its own origin, so
   // -4.70 buried the board's corner 6cm inside the wallpaper. Measured off the
   // world bounding box, not guessed.
+  // ⚠️ THE CRATE IS GONE FROM THE HALL (Kyle, 2026-08-11): VICTORY LAP lives at the
+  // STREETLAMP in the front yard now (hallway.js owns that doorway), and Kyle asked
+  // for the crate removed rather than kept as scenery. vlG is built but never added
+  // to the scene and never registered as clickable — the build code stays because
+  // the corkboard's knows-pins logic documents how vl-meta works, and a future spot
+  // for the crate (the garage?) only has to add() it and re-tag.
   vlG.position.set(-4.78, 0, -2.18); vlG.rotation.y = -0.62;
-  hall.group.add(vlG);
-  vlG.traverse(function (o) { if (o.isMesh) { o.castShadow = false; o.receiveShadow = false; } });
+  vlG.visible = false;
   var vlHint = vlNow.played
     ? "VICTORY LAP — " + vlNow.runs + " week" + (vlNow.runs === 1 ? "" : "s") + " tried, " +
       vlNow.known + "/4 of the town learned · click to go back"
@@ -2764,9 +2769,8 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
   // ⚠️ ORDER IS LOAD-BEARING: clickable() does `mesh.userData = {…}`, a whole
   // replacement, so the space tag has to go on AFTER it or it's silently wiped and
   // the crate becomes unclickable in the hall (and clickable through the bedroom wall).
-  vlG.traverse(function (o) {
-    if (o.isMesh) { clickable(o, "VICTORY LAP", go(VICTORY_LAP_URL), vlHint); o.userData.space = "hall"; }
-  });
+  // (no clickable registration either — dead pick entries would still land in the
+  //  keyboard Tab order, since kbList checks visibility flags, not scene membership)
 
   /* ---- TIDEBOUND: a toy island diorama on the floor (generated) --------------- */
   prop("assets/props/island.glb", 0.62, -1.9, 0, 2.45, 0.5, function (wrap) {
@@ -2934,9 +2938,16 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
   var KID_PORCH_OBSTACLES = [
     { x: -7.60, z: -5.23, r: 0.42 }, // the one chair
   ];
+  var KID_KITCHEN_OBSTACLES = [
+    { x: -10.3, z: -3.2, r: 0.85 },  // the counter run along the far wall
+    { x: -12.7, z: -0.8, r: 0.75 },  // the counter down the west wall
+    { x: -9.72, z: 0.30, r: 0.80 },  // the table and chairs
+    { x: -8.50, z: 1.55, r: 0.60 },  // the fridge
+  ];
   function kidObs() {
     return kidSpace === "hall" ? KID_HALL_OBSTACLES
-         : kidSpace === "porch" ? KID_PORCH_OBSTACLES : KID_OBSTACLES;
+         : kidSpace === "porch" ? KID_PORCH_OBSTACLES
+         : kidSpace === "kitchen" ? KID_KITCHEN_OBSTACLES : KID_OBSTACLES;
   }
   var KID_HALL_STATIONS = [
     { x: -5.55, z: 2.50, act: "idle" },    // by the closet
@@ -2951,9 +2962,15 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
     { x: -4.25, z: -4.55, act: "fidget" },
     { x: -6.10, z: -5.30, act: "idle" },
   ];
+  var KID_KITCHEN_STATIONS = [
+    { x: -9.0, z: -1.8, act: "idle" },     // mid-floor, near the cooker
+    { x: -11.5, z: 0.9, act: "fidget" },   // by the sink end
+    { x: -8.6, z: -0.6, act: "idle" },     // hovering near the fridge, obviously
+  ];
   function kidStations() {
     return kidSpace === "hall" ? KID_HALL_STATIONS
-         : kidSpace === "porch" ? KID_PORCH_STATIONS : KID_STATIONS;
+         : kidSpace === "porch" ? KID_PORCH_STATIONS
+         : kidSpace === "kitchen" ? KID_KITCHEN_STATIONS : KID_STATIONS;
   }
   // where he appears when he follows you: the doorway you both just came through,
   // so it reads as him walking in rather than as a teleport
@@ -2961,8 +2978,10 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
     bedroom: { x: -3.85, z: 2.10 },
     hall:    { x: -4.95, z: 2.10 },
     porch:   { x: -5.70, z: -3.95 },
+    kitchen: { x: -7.95, z: -0.35 },  // just inside the kitchen doorway
   };
-  var KID_HUBS = { bedroom: { x: 0.3, z: 1.35 }, hall: { x: -5.9, z: 1.2 }, porch: { x: -5.9, z: -4.8 } };
+  var KID_HUBS = { bedroom: { x: 0.3, z: 1.35 }, hall: { x: -5.9, z: 1.2 }, porch: { x: -5.9, z: -4.8 },
+    kitchen: { x: -10.4, z: -1.2 } };
   var kidFollowT = -1, kidFollowTo = null;
 
   // One avoidance step toward (tx,tz): steer around obstacles, then hard-clamp out
@@ -3075,7 +3094,8 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
     if (kidSpace !== "bedroom" && Math.random() < 0.5) {
       try {
         kidSay(kidSpace === "porch" ? "outside! we never come outside."
-                                    : "i know this bit. this is the hallway.", 4);
+             : kidSpace === "kitchen" ? "the kitchen! this is where the cereal lives."
+                                      : "i know this bit. this is the hallway.", 4);
       } catch (e) { }
     }
   }

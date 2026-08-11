@@ -1313,8 +1313,11 @@ export function buildHallway(ctx) {
 
   /* ---- FRESH CUT: the mower, abandoned mid-stripe on its own front lawn ------- */
   var mowG = new THREE.Group(); mowG.position.set(-7.15, GROUND + 0.02, -9.8); mowG.rotation.y = -0.5; yadd(mowG);
-  var mowDeck = box(0.44, 0.16, 0.62, mat(0xb03a2e, 0.5)); mowDeck.position.y = 0.14; mowG.add(mowDeck);
-  var mowTop = box(0.3, 0.1, 0.4, mat(0x8f2d24, 0.5)); mowTop.position.set(0, 0.26, -0.02); mowG.add(mowTop);
+  // ⚠️ RED, all of it, and brighter than looks right in the hex — the night
+  // lighting eats saturated reds, and the old green grass bag read as the mower's
+  // body so the whole machine looked green from the porch.
+  var mowDeck = box(0.44, 0.16, 0.62, mat(0xd94b38, 0.45)); mowDeck.position.y = 0.14; mowG.add(mowDeck);
+  var mowTop = box(0.3, 0.1, 0.4, mat(0xc03a2c, 0.45)); mowTop.position.set(0, 0.26, -0.02); mowG.add(mowTop);
   [[-0.19, -0.24], [0.19, -0.24], [-0.19, 0.24], [0.19, 0.24]].forEach(function (wp) {
     var wh2 = new THREE.Mesh(new THREE.CylinderGeometry(0.075, 0.075, 0.05, 10), mat(0x1d1f22, 0.8));
     wh2.rotation.z = Math.PI / 2; wh2.position.set(wp[0], 0.075, wp[1]); mowG.add(wh2);
@@ -1324,15 +1327,10 @@ export function buildHallway(ctx) {
     rail.position.set(hx[0], 0.52, 0.62); rail.rotation.x = -0.85; mowG.add(rail);
   });
   var mowBar = box(0.34, 0.04, 0.04, mat(0x2a2d31, 0.5)); mowBar.position.set(0, 0.82, 0.95); mowG.add(mowBar);
-  var mowBag = box(0.3, 0.26, 0.2, mat(0x3f5c35, 0.9)); mowBag.position.set(0, 0.34, 0.34); mowG.add(mowBag);
+  var mowBag = box(0.3, 0.26, 0.2, mat(0xa8382c, 0.85)); mowBag.position.set(0, 0.34, 0.34); mowG.add(mowBag);
   groundShade(-7.15, -9.8, 0.55, 0.6, 0.45);
-  // one fresh stripe behind it — the job it walked away from
-  // ⚠️ MeshStandard, not MeshBasic — an unlit stripe ignores the night and reads as
-  // a glowing lime runway at 2am. Lit, it darkens with the lawn and stays a stripe.
-  var stripe2 = new THREE.Mesh(new THREE.PlaneGeometry(0.62, 4.2),
-    new THREE.MeshStandardMaterial({ color: 0xa8c49a, transparent: true, opacity: 0.30, roughness: 1, depthWrite: false }));
-  stripe2.rotation.x = -Math.PI / 2; stripe2.rotation.z = -0.5;
-  stripe2.position.set(-8.05, GROUND + 0.012, -11.4); stripe2.renderOrder = 2; yadd(stripe2);
+  // (a mown stripe behind it was tried twice — glowing unlit, then muddy lit —
+  // and cut. Kyle's right: the mower sells the job on its own.)
   var fcBagged = (function () { try { return parseInt(localStorage.getItem("fc-bagged") || "0", 10) || 0; } catch (e) { return 0; } })();
   var fcHint = fcBagged > 0
     ? "FRESH CUT — " + fcBagged + " bag" + (fcBagged === 1 ? "" : "s") + " on the kerb · the grass grew back"
