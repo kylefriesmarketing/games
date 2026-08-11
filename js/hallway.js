@@ -382,7 +382,7 @@ export function buildHallway(ctx) {
   tag(tamBody, "the Tamagotchi", null, "it died in 1998 and nobody has had the heart to press reset.");
 
   // the shelf, and what got shoved onto it
-  cloShelf.position.set(0.19, 1.95, 0); cloG.add(cloShelf);
+  cloShelf.position.set(0.19, 1.93, 0); cloG.add(cloShelf);   // 1.93: at 1.95 its underside sat on a wall face
   var gameT = canvasTex(96, 64, function (c, w, h) {   // a board-game lid, generic and loud
     c.fillStyle = "#c8322e"; c.fillRect(0, 0, w, h);
     c.fillStyle = "#f2d24a"; c.fillRect(6, 8, w - 12, 20);
@@ -418,7 +418,7 @@ export function buildHallway(ctx) {
     }
     tag(boot, "the rollerblades", null, "somebody was very good at these for one summer.");
   });
-  var soak = new THREE.Group(); soak.position.set(0.26, 0.0, -0.33); soak.rotation.set(0, 0.5, -0.24); cloG.add(soak);
+  var soak = new THREE.Group(); soak.position.set(0.24, 0.0, -0.27); soak.rotation.set(0, 0.5, -0.24); cloG.add(soak);
   var skBody = box(0.075, 0.46, 0.10, mat(0x2fb8a8, 0.55)); skBody.position.y = 0.25; soak.add(skBody);
   var skTank = new THREE.Mesh(new THREE.CylinderGeometry(0.055, 0.055, 0.16, 12), mat(0xf2d24a, 0.5));
   skTank.position.set(0, 0.50, -0.01); soak.add(skTank);
@@ -437,33 +437,41 @@ export function buildHallway(ctx) {
   // height inside the box lights the whole depth; the bulb mesh stays up top.
   var cloLight = new THREE.PointLight(0xffd9a0, 0, 2.6, 1.5);
   cloLight.position.set(0.14, 1.35, -0.05); cloG.add(cloLight);
-  // ⚠️ hinged on the NORTH jamb, and it opens the other way now. Hung on the south
-  // jamb the leaf swung between the hall camera and the closet — you opened it and it
-  // hid the thing it was revealing. Swapping the hinge costs nothing and means the
-  // open door folds back toward the slider, leaving the interior facing the eye.
-  var cloDoorP = new THREE.Group(); cloDoorP.position.set(0, 0, -0.44); cloG.add(cloDoorP);
+  // ⚠️⚠️ HINGE SOUTH **AND** ROTATION POSITIVE. Both halves matter and I got each of
+  // them wrong once. The hall is at -x, so an opening door must sweep to -x; with the
+  // pivot at +0.44 and the leaf at -0.42 that needs θ = +1.6, because R_y sends
+  // (0,0,-0.42) to x' = -0.42·sinθ. The original (south hinge, θ = -1.6) and my first
+  // "fix" (north hinge, θ = +1.6) BOTH sent it to +x — into the closet and out through
+  // the back of the wall. It looked correct in renders purely because a door buried in
+  // a wall is a door you can't see. Measured after: open slab lands x -5.22..-4.38,
+  // out in the hall, at z 8.15 — south of the opening, so it never stands between the
+  // hall camera and the thing it just revealed.
+  var cloDoorP = new THREE.Group(); cloDoorP.position.set(0, 0, 0.44); cloG.add(cloDoorP);
   // ⚠️ LOUVERED, not a flat slab. A hollow-core closet door with angled slats is the
   // most period-correct object in this house — every hall closet built between about
   // 1975 and 2000 has one — and it is the cheapest possible read: 14 tilted bars in
   // two banks tell you "closet" before you've registered anything else in the frame.
   // The stiles and rails stay solid so the door still blocks the opening.
-  var cloDoor = box(0.045, 2.05, 0.84, mat(0x4a3524, 0.72)); cloDoor.position.set(0, 1.025, 0.42); cloDoorP.add(cloDoor);
+  // ⚠️ the slab sits at local x -0.03, not 0: flush with the jambs its face landed on
+  // the same plane as theirs (-4.355 vs -4.357) and the two fought over 0.10m². Set
+  // back into the reveal it clears them by 3cm, which is also where a door belongs.
+  var cloDoor = box(0.045, 2.05, 0.84, mat(0x4a3524, 0.72)); cloDoor.position.set(-0.03, 1.025, -0.42); cloDoorP.add(cloDoor);
   var slatM2 = mat(0x3d2b1c, 0.8);
   [[0.30, 0.62], [1.16, 0.62]].forEach(function (bank) {     // two banks, gap for the rail
     for (var s2 = 0; s2 < 7; s2++) {
       var sl = box(0.055, 0.055, 0.70, slatM2);
-      sl.position.set(-0.012, bank[0] + s2 * (bank[1] / 7), 0.42);
+      sl.position.set(-0.012, bank[0] + s2 * (bank[1] / 7), -0.42);
       sl.rotation.z = -0.42;                                  // tipped down, as they are
       cloDoorP.add(sl);
     }
   });
   [0.25, 0.92, 1.78].forEach(function (ry2) {                 // the rails between banks
     var rl2 = box(0.05, 0.07, 0.84, mat(0x45301f, 0.75));
-    rl2.position.set(-0.004, ry2, 0.42); cloDoorP.add(rl2);
+    rl2.position.set(-0.004, ry2, -0.42); cloDoorP.add(rl2);
   });
   var cloKnob = new THREE.Mesh(new THREE.SphereGeometry(0.024, 10, 8),
     new THREE.MeshStandardMaterial({ color: 0xb08d3f, roughness: 0.35, metalness: 0.6 }));
-  cloKnob.position.set(-0.04, 1.0, 0.76); cloDoorP.add(cloKnob);
+  cloKnob.position.set(-0.04, 1.0, -0.76); cloDoorP.add(cloKnob);
   var cloOpen = false, cloAnim = 0;
   function closetToggle() { cloOpen = !cloOpen; AUDIO.ratchetSfx && AUDIO.ratchetSfx(); }
   [cloDoor, cloKnob].forEach(function (m) {
@@ -2233,25 +2241,35 @@ export function buildHallway(ctx) {
   var wash = box(0.3, 0.1, 0.22, mat(0xd8cfc0, 0.95)); wash.position.set(0.02, 1.15, -0.3); launG.add(wash);
   var sock = box(0.12, 0.03, 0.07, mat(0xe8e2d2, 0.95));
   sock.position.set(-0.62, 0.015, 0.62); sock.rotation.y = 0.7; launG.add(sock);
-  // bifold doors, folded open against the wall
-  // ⚠️⚠️ A BI-FOLD HAS TWO LEAVES AND ONLY THE SECOND ONE MATTERS HERE. `bf` lies flat
-  // along the wall and blocks nothing; `bf2` is the leaf that stands PERPENDICULAR out
-  // into the hall, and at 0.30 deep the pair of them shadowed the entire east wall
-  // behind: the closet measured 25/25 in frame and 0/25 reachable, every ray stopped
-  // by bf2. Narrowed to 0.15 and pulled in, the sightline past them is clear.
-  // (I edited `bf` first on the assumption it was the culprit, re-measured, and it had
-  //  changed nothing — the two leaves look alike in code and only one is in the way.)
-  [-0.78, 0.78].forEach(function (bz) {
-    var bf = box(0.06, 2.05, 0.34, mat(0x8a7a5c, 0.8)); bf.position.set(-0.1, 1.025, bz); launG.add(bf);
-    var bf2 = box(0.15, 2.05, 0.06, mat(0x7d6f52, 0.8)); bf2.position.set(-0.195, 1.025, bz + (bz < 0 ? 0.17 : -0.17)); launG.add(bf2);
+  /* ⚠️⚠️ THE BI-FOLD LEAVES ARE GONE, and removing them is the fix that three attempts
+   * at MOVING them could not buy. Two 2.05m panels standing out from the wall shadowed
+   * the entire back-east wall at this camera's 21° grazing angle — everything south of
+   * them measured 0/6 reachable no matter where it was put. I narrowed the wrong leaf
+   * twice and the right leaf once, and the last attempt still blocked by TWO
+   * MILLIMETRES. When three fixes in a row buy nothing, the object is the problem.
+   * A laundry nook standing open is completely ordinary, it finally shows off the
+   * washer and dryer that were always modelled in there, and it gives the back of the
+   * hall the thing it was actually short of: somewhere to see INTO. The casing below
+   * still frames the opening, so it reads as a nook and not a hole in the wall. */
+  [-0.80, 0.80].forEach(function (bz) {          // the nook's casing, flat to the wall
+    var cs2 = box(0.05, 2.08, 0.07, mat(0x6a5a42, 0.85));
+    cs2.position.set(-0.02, 1.04, bz); launG.add(cs2);
   });
+  var launHead = box(0.05, 0.07, 1.67, mat(0x6a5a42, 0.85));
+  launHead.position.set(-0.02, 2.045, 0); launG.add(launHead);
   launG.children.forEach(function (m) {
     if (m.isMesh) tag(m, "the laundry", null, "the laundry. one sock has been down here since 1997.");
   });
   tag(sock, "the lost sock", null, "the sock. its twin is upstairs, which is not open yet.");
 
   // --- THE MUD ROOM: boots, leashes, a bowl, and the prints that prove a dog
-  var mudG = new THREE.Group(); mudG.position.set(E_IN - 0.26, 0, 7.75); add(mudG);
+  // ⚠️ z 6.60, NOT 7.75. The closet moved to 7.70 and landed straight on top of this:
+  // the hook rail ran through the bottom of the closet door, the leash hung off that
+  // rail in mid-air over the opening, and the boots stood inside the doorway. Nothing
+  // was wrong with the mud room — it was here first. 6.60 is the gap between the
+  // laundry (ends 6.10) and the closet opening (starts 7.24), so the back wall reads
+  // laundry, mud room, closet in a row, which is the order a real back hall has them.
+  var mudG = new THREE.Group(); mudG.position.set(E_IN - 0.26, 0, 6.60); add(mudG);
   [[-0.30, 0x3a4a5e, 0.20], [-0.16, 0x3a4a5e, 0.20], [0.10, 0x5e3a2e, 0.16], [0.24, 0x5e3a2e, 0.16]]
     .forEach(function (bt) {
       var boot = box(0.16, bt[2], 0.12, mat(bt[1], 0.9));
@@ -2336,7 +2354,7 @@ export function buildHallway(ctx) {
    [-6.35, -2.55, 0.42, 0.36, 0.46],          // the moving boxes under the stairs
    [STAND_X, STAND_Z, 0.16, 0.16, 0.44],      // the umbrella stand
    [W_IN + 0.36, 7.5, 0.40, 0.62, 0.44],      // the chest freezer
-   [E_IN - 0.75, 7.0, 0.30, 0.30, 0.30]       // the boots by the back door
+   [E_IN - 0.62, 6.60, 0.34, 0.46, 0.34]      // the mud room's boots, in their new spot
   ].forEach(function (s) { hDecal(add, kShadeT, s[0], 0.010, s[1], s[2], s[3], s[4]); });
 
   // ⚠️ WEAR GOES WHERE FEET GO, and in a hall that is not the middle of the floor —
@@ -2370,14 +2388,13 @@ export function buildHallway(ctx) {
   });
   tag(keyDish, "the key dish", null, "every set of keys in this house ends up here eventually.");
 
-  // a pair of boots kicked off by the back door, and the watering can
-  var bootM = mat(0x2f3a44, 0.9);
-  [[-0.10, 0.25], [0.10, -0.18]].forEach(function (bt) {
-    var bg2 = new THREE.Group(); bg2.position.set(E_IN - 0.75 + bt[0], 0, 7.0); bg2.rotation.y = bt[1]; add(bg2);
-    var shaft = box(0.10, 0.24, 0.13, bootM); shaft.position.y = 0.12; bg2.add(shaft);
-    var toe = box(0.10, 0.08, 0.10, bootM); toe.position.set(0, 0.04, 0.10); bg2.add(toe);
-  });
-  var canG = new THREE.Group(); canG.position.set(XC + 1.15, 0, 8.15); canG.rotation.y = -0.5; add(canG);
+  // ⚠️ MY "boots kicked off by the back door" USED TO BE HERE AND ARE GONE. The mud
+  // room already had two pairs 40cm away — I added a third without checking, and two
+  // boot piles that close together just read as clutter. The mud room's were here
+  // first and are better placed; measure what a room already has before furnishing it.
+  // ⚠️ moved clear of the closet door's swing: open, the leaf sweeps x -5.22..-4.38 at
+  // z ~8.15, which is exactly where this used to stand
+  var canG = new THREE.Group(); canG.position.set(XC + 0.75, 0, 8.50); canG.rotation.y = -0.5; add(canG);
   var canB = new THREE.Mesh(new THREE.CylinderGeometry(0.10, 0.11, 0.20, 12), mat(0x3f6b52, 0.6));
   canB.position.y = 0.10; canG.add(canB);
   var canS = new THREE.Mesh(new THREE.CylinderGeometry(0.022, 0.032, 0.26, 8), mat(0x3f6b52, 0.6));
