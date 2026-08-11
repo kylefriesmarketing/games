@@ -136,9 +136,16 @@ export function buildHallway(ctx) {
   // the NORTH cap is cut too, now that the front door opens onto a real porch.
   // (Same lesson as capS: a door you can walk through needs a hole, not a slab.)
   var FDO = { x0: FRONT_X - 0.63, x1: FRONT_X + 0.63, y1: 2.30 };
+  // ⚠️⚠️ THE HEADER SPANS THE OPENING ONLY (FDO.x0..FDO.x1), NOT THE WHOLE WALL.
+  // Full-width, it lay exactly on top of the two side segments from y 2.30 to 3.40:
+  // same thickness, same z, 1.34m² and 0.90m² of perfectly coincident wall in a band
+  // right where the wall meets the ceiling. That is the "crown moulding flashing
+  // white" — there is no moulding, it's two copies of the same wall fighting.
+  // (capS had it too, and so did the siding. The kitchen doorway I cut later happens
+  //  to be correct, which is what made the difference visible.)
   [[W_IN - 0.1, FDO.x0, 0, 3.4],
    [FDO.x1, E_IN + 0.1, 0, 3.4],
-   [W_IN - 0.1, E_IN + 0.1, FDO.y1, 3.4]].forEach(function (p) {
+   [FDO.x0, FDO.x1, FDO.y1, 3.4]].forEach(function (p) {
     var seg = box(p[1] - p[0], p[3] - p[2], 0.1, hwallM);
     seg.position.set((p[0] + p[1]) / 2, (p[2] + p[3]) / 2, Z_N - 0.05); add(seg);
   });
@@ -148,7 +155,8 @@ export function buildHallway(ctx) {
   var SDO = { x0: XC - (SD_W / 2 + 0.09), x1: XC + (SD_W / 2 + 0.09), y1: SD_H + 0.13 };
   [[W_IN - 0.1, SDO.x0, 0, 3.4],            // west of the opening
    [SDO.x1, E_IN + 0.1, 0, 3.4],            // east of it
-   [W_IN - 0.1, E_IN + 0.1, SDO.y1, 3.4]]   // the header above it
+   [SDO.x0, SDO.x1, SDO.y1, 3.4]]           // ⚠️ the header spans the OPENING only —
+    // full width it sat on top of both side segments (0.52m² each) at identical z
     .forEach(function (p) {
       var seg = box(p[1] - p[0], p[3] - p[2], 0.1, hwallM);
       seg.position.set((p[0] + p[1]) / 2, (p[2] + p[3]) / 2, Z_S + 0.05); add(seg);
@@ -167,10 +175,16 @@ export function buildHallway(ctx) {
   // and not a hole into nothing
   var stwLid = box(STW.x1 - STW.x0, 0.1, STW.z1 - STW.z0, ceilM);
   stwLid.position.set((STW.x0 + STW.x1) / 2, 3.45, (STW.z0 + STW.z1) / 2); add(stwLid);
+  // ⚠️ these sit ENTIRELY ON THE VOID SIDE of the ceiling's cut edge (x1-0.05, z1-0.05),
+  // not centred on it. Centred, each one straddled the edge: half the shaft wall lay
+  // inside the ceiling slab sharing its BOTTOM face at y 2.95 — 0.108m² and 0.062m² of
+  // coplanar face right around the stairwell opening, which is the rim Kyle saw
+  // flashing. Butted against the cut edge instead, nothing is coplanar and the reveal
+  // of the opening reads properly.
   var stwE = box(0.1, 0.45, STW.z1 - STW.z0, hwallM);
-  stwE.position.set(STW.x1, 3.175, (STW.z0 + STW.z1) / 2); add(stwE);
+  stwE.position.set(STW.x1 - 0.05, 3.175, (STW.z0 + STW.z1) / 2); add(stwE);
   var stwS = box(STW.x1 - STW.x0, 0.45, 0.1, hwallM);
-  stwS.position.set((STW.x0 + STW.x1) / 2, 3.175, STW.z1); add(stwS);
+  stwS.position.set((STW.x0 + STW.x1) / 2, 3.175, STW.z1 - 0.05); add(stwS);
   // ⚠️⚠️ BASEBOARDS ARE BOXES THAT STAND PROUD, NOT PLANES AT +0.001. A 1mm offset
   // is FAR below what the depth buffer can resolve with near 0.1 / far 120 — the
   // board and the wall behind it swap depth-test winners as the camera drifts, and
@@ -214,9 +228,13 @@ export function buildHallway(ctx) {
   }
   function tapeX(doorGrp, w) { // PARDON OUR DUST, in physical form
     var tm = new THREE.MeshStandardMaterial({ color: 0xd9c04a, roughness: 0.6 });
-    [0.9, -0.9].forEach(function (r) {
+    // ⚠️ the two strips sit at DIFFERENT depths (0.049 / 0.062). Both at 0.055 they
+    // occupied the same slab of space and intersected right where the X crosses —
+    // two identical yellow boxes fighting over the same pixels. One tape crosses in
+    // front of the other, the way tape actually goes on.
+    [[0.9, 0.049], [-0.9, 0.062]].forEach(function (r) {
       var t = new THREE.Mesh(new THREE.BoxGeometry(0.012, 0.075, Math.sqrt(w * w + 2.9)), tm);
-      t.position.set(0.055, 1.02, 0); t.rotation.x = r; doorGrp.add(t);
+      t.position.set(r[1], 1.02, 0); t.rotation.x = r[0]; doorGrp.add(t);
     });
   }
   function plaque(doorGrp, title, sub) {
@@ -600,7 +618,14 @@ export function buildHallway(ctx) {
     .forEach(function (p) {
       var wl = box(p[2], 3.0, p[3], kWallM); wl.position.set(p[0], 1.5, p[1]); kadd(wl);
     });
-  var kCeil = box(KX1 - KX0 + 0.2, 0.1, KZ1 - KZ0 + 0.2, mat(0xf0ead8, 0.98));
+  // ⚠️⚠️ +0.1, NOT +0.2. The kitchen walls are 0.1 thick, so a 0.1 overshoot per side
+  // landed this slab's end faces EXACTLY on their outer faces — and on the east side
+  // that outer face is x -7.45, which is the HALLWAY's wall surface. So the kitchen
+  // ceiling's white edge was fighting the hall wall in a band just under the hall
+  // ceiling: "the crown moldings flashing white" is this slab, seen from the hall,
+  // through the wall it was supposed to stop inside. Overshooting to the wall CENTRE
+  // buries it in solid wall with no face shared by anything.
+  var kCeil = box(KX1 - KX0 + 0.1, 0.1, KZ1 - KZ0 + 0.1, mat(0xf0ead8, 0.98));
   kCeil.position.set(KCX, KCEIL + 0.05, KCZ); kadd(kCeil);
   // ⚠️ same skirting rule as the hall: BOXES standing proud, not planes at +0.001.
   // I copied the hall's bug into the kitchen the day I built it.
@@ -964,17 +989,23 @@ export function buildHallway(ctx) {
   sideT.wrapS = sideT.wrapT = THREE.RepeatWrapping; sideT.repeat.set(4, 3);
   var sidingM = new THREE.MeshStandardMaterial({ map: sideT, roughness: 0.95 });
   sidingM.color.setHex(0xeae6da);   // same reason as the neighbours: it multiplies
+  // ⚠️ the siding STANDS PROUD of the wall (−0.055, not −0.03). At −0.03 its outer
+  // face landed on exactly the same plane as the wall's own outer face — over 10m²
+  // of coplanar facade across the three segments, the largest z-fight in the house.
+  // Real lap siding is nailed ON the sheathing, so standing it proud is both the fix
+  // and the truth.
   [[W_IN - 0.1, FDO.x0], [FDO.x1, E_IN + 0.1]].forEach(function (p) {
     var sv = box(p[1] - p[0], 3.4, 0.04, sidingM);
-    sv.position.set((p[0] + p[1]) / 2, 1.7, HOUSE_F - 0.03); yadd(sv);
+    sv.position.set((p[0] + p[1]) / 2, 1.7, HOUSE_F - 0.055); yadd(sv);
   });
-  var sideHdr = box(HW + 0.2, 3.4 - FDO.y1, 0.04, sidingM);
-  sideHdr.position.set(XC, (FDO.y1 + 3.4) / 2, HOUSE_F - 0.03); yadd(sideHdr);
+  // ⚠️ opening width only, same reason as the wall header it clads
+  var sideHdr = box(FDO.x1 - FDO.x0, 3.4 - FDO.y1, 0.04, sidingM);
+  sideHdr.position.set(FRONT_X, (FDO.y1 + 3.4) / 2, HOUSE_F - 0.055); yadd(sideHdr);
   var trimM = mat(0xe8e2d4, 0.85);
-  [[-0.63, 0], [0.63, 0]].forEach(function (t) {   // door casing, from outside
-    var cs = box(0.12, 2.36, 0.06, trimM); cs.position.set(FRONT_X + t[0], 1.18, HOUSE_F - 0.06); yadd(cs);
+  [[-0.63, 0], [0.63, 0]].forEach(function (t) {   // door casing, proud of the siding
+    var cs = box(0.12, 2.36, 0.06, trimM); cs.position.set(FRONT_X + t[0], 1.18, HOUSE_F - 0.09); yadd(cs);
   });
-  var csHead = box(1.38, 0.12, 0.06, trimM); csHead.position.set(FRONT_X, 2.36, HOUSE_F - 0.06); yadd(csHead);
+  var csHead = box(1.38, 0.12, 0.06, trimM); csHead.position.set(FRONT_X, 2.36, HOUSE_F - 0.09); yadd(csHead);
   var fanOut = new THREE.Mesh(new THREE.CircleGeometry(0.44, 20, 0, Math.PI),
     new THREE.MeshStandardMaterial({ color: 0xffdca8, emissive: 0xffc98a, emissiveIntensity: 0.5, roughness: 0.6 }));
   fanOut.position.set(FRONT_X, 2.44, HOUSE_F - 0.07); fanOut.rotation.y = Math.PI; yadd(fanOut);
@@ -1284,7 +1315,10 @@ export function buildHallway(ctx) {
   // between them (x -13.0..-7.55). At its old -11.2 it drove straight through the
   // kitchen floor. It reaches the garage by an apron that turns east at the back.
   var drive = box(3.2, 0.06, 25.6, driveM); drive.position.set(-15.2, GROUND + 0.02, -6.0); yadd(drive);
-  var apron = box(3.4, 0.06, 2.6, driveM); apron.position.set(-13.6, GROUND + 0.02, 5.6); yadd(apron);
+  // ⚠️ the apron BEGINS where the drive ends (x -13.6) instead of straddling it. As a
+  // 3.4m slab centred on the drive's edge it overlapped the drive by 1.7m at the same
+  // height: 4.25m² of identical top AND bottom face, the biggest fight in the yard.
+  var apron = box(1.7, 0.06, 2.6, driveM); apron.position.set(-12.75, GROUND + 0.02, 5.6); yadd(apron);
   ytag(drive, "the driveway", null, "the driveway. it goes down the side to the garage.");
   var garM = new THREE.MeshStandardMaterial({ map: sideT, roughness: 0.95 });
   var garage = box(4.7, 3.0, 4.4, garM); garage.position.set(-9.9, 1.5 + GROUND, 6.4); yadd(garage);
