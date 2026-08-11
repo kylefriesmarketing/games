@@ -2123,14 +2123,16 @@ export function buildHallway(ctx) {
   var sock = box(0.12, 0.03, 0.07, mat(0xe8e2d2, 0.95));
   sock.position.set(-0.62, 0.015, 0.62); sock.rotation.y = 0.7; launG.add(sock);
   // bifold doors, folded open against the wall
-  // ⚠️ 0.15 deep, not 0.34. The comment always said "folded against the wall" but the
-  // leaves stood a third of a metre PERPENDICULAR into a 3.1m hall, and they shadowed
-  // the entire east wall behind them: the closet at z 7.70 measured 25/25 in frame and
-  // 0/25 reachable, blocked by these two panels every time. Folded properly they clear
-  // the sightline and the back of the hall stops feeling like a corridor of cupboards.
+  // ⚠️⚠️ A BI-FOLD HAS TWO LEAVES AND ONLY THE SECOND ONE MATTERS HERE. `bf` lies flat
+  // along the wall and blocks nothing; `bf2` is the leaf that stands PERPENDICULAR out
+  // into the hall, and at 0.30 deep the pair of them shadowed the entire east wall
+  // behind: the closet measured 25/25 in frame and 0/25 reachable, every ray stopped
+  // by bf2. Narrowed to 0.15 and pulled in, the sightline past them is clear.
+  // (I edited `bf` first on the assumption it was the culprit, re-measured, and it had
+  //  changed nothing — the two leaves look alike in code and only one is in the way.)
   [-0.78, 0.78].forEach(function (bz) {
-    var bf = box(0.06, 2.05, 0.15, mat(0x8a7a5c, 0.8)); bf.position.set(-0.1, 1.025, bz); launG.add(bf);
-    var bf2 = box(0.3, 2.05, 0.06, mat(0x7d6f52, 0.8)); bf2.position.set(-0.28, 1.025, bz + (bz < 0 ? 0.17 : -0.17)); launG.add(bf2);
+    var bf = box(0.06, 2.05, 0.34, mat(0x8a7a5c, 0.8)); bf.position.set(-0.1, 1.025, bz); launG.add(bf);
+    var bf2 = box(0.15, 2.05, 0.06, mat(0x7d6f52, 0.8)); bf2.position.set(-0.195, 1.025, bz + (bz < 0 ? 0.17 : -0.17)); launG.add(bf2);
   });
   launG.children.forEach(function (m) {
     if (m.isMesh) tag(m, "the laundry", null, "the laundry. one sock has been down here since 1997.");
