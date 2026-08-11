@@ -2575,7 +2575,8 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
   });
   var marqBox = box(AW, 0.18, 0.20, cabDark); marqBox.position.set(0, 1.45, 0.14); arcade.add(marqBox);
   var marquee = new THREE.Mesh(new THREE.PlaneGeometry(0.54, 0.145), marqM);
-  marquee.position.set(0, 1.45, 0.243); arcade.add(marquee);
+  marquee.position.set(0, 1.45, 0.254); arcade.add(marquee);  // ⚠️ 0.254 not 0.243: at 3mm
+  // (2.5mm after the cabinet's 0.85 scale) the marquee art fought its own backing box
   var crown = box(AW + 0.04, 0.05, AD - 0.04, cabTrim); crown.position.y = 1.565; arcade.add(crown);
   // side art: the rift crack down both flanks
   var sideT = canvasTex(128, 256, function (g, w, h) {
@@ -2588,10 +2589,14 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
     for (var y2 = h; y2 >= 0; y2 -= 22) g.lineTo(w * (0.5 + (((y2 / 22) % 2) ? 0.30 : -0.30)), y2);
     g.closePath(); g.fill();
   });
+  // ⚠️ polygonOffset, not +0.002. The side art is flat ON the cabinet, and 2mm — 1.7mm
+  // after the group's 0.85 scale — is below what the depth buffer resolves at this
+  // far plane, so both sides strobed. Same bug and same fix as the hall skirting.
   [-1, 1].forEach(function (s) {
     var sm = new THREE.Mesh(new THREE.PlaneGeometry(AD - 0.02, 0.76),
-      new THREE.MeshStandardMaterial({ map: sideT, roughness: 0.8 }));
-    sm.position.set(s * (AW / 2 + 0.002), 0.49, 0); sm.rotation.y = s * Math.PI / 2; arcade.add(sm);
+      new THREE.MeshStandardMaterial({ map: sideT, roughness: 0.8,
+        polygonOffset: true, polygonOffsetFactor: -6, polygonOffsetUnits: -6 }));
+    sm.position.set(s * (AW / 2 + 0.004), 0.49, 0); sm.rotation.y = s * Math.PI / 2; arcade.add(sm);
   });
   var arcLight = new THREE.PointLight(brTint, brOpen ? 0.85 : 0.55, 3.2, 2);
   // ⚠️ (2.32, 1.92) and not the 0.4m further forward it started at: the audit caught

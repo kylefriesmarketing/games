@@ -171,16 +171,25 @@ export function buildHallway(ctx) {
   stwE.position.set(STW.x1, 3.175, (STW.z0 + STW.z1) / 2); add(stwE);
   var stwS = box(STW.x1 - STW.x0, 0.45, 0.1, hwallM);
   stwS.position.set((STW.x0 + STW.x1) / 2, 3.175, STW.z1); add(stwS);
-  [[W_IN + 0.001, (Z_S + Z_N) / 2, Z_S - Z_N, Math.PI / 2],   // baseboards
-   [E_IN - 0.001, (Z_S + Z_N) / 2, Z_S - Z_N, -Math.PI / 2],
-   [XC, Z_N + 0.001, HW, 0]].forEach(function (b) {
-    var sk = new THREE.Mesh(new THREE.PlaneGeometry(b[2], 0.14), mat(0x241b12, 0.85));
-    if (b[3]) { sk.rotation.y = b[3]; sk.position.set(b[0], 0.075, b[1]); }
-    else sk.position.set(b[0], 0.075, b[1]);
-    add(sk);
+  // ⚠️⚠️ BASEBOARDS ARE BOXES THAT STAND PROUD, NOT PLANES AT +0.001. A 1mm offset
+  // is FAR below what the depth buffer can resolve with near 0.1 / far 120 — the
+  // board and the wall behind it swap depth-test winners as the camera drifts, and
+  // the whole skirting strobes. (Kyle: "the running boards flashing".) Real skirting
+  // projects ~15mm from the wall, so modelling it correctly IS the fix: the board
+  // now occupies its own 2cm of space and nothing is coplanar with anything.
+  [[W_IN + 0.01, (Z_S + Z_N) / 2, 0.02, Z_S - Z_N],
+   [E_IN - 0.01, (Z_S + Z_N) / 2, 0.02, Z_S - Z_N],
+   [XC, Z_N + 0.01, HW, 0.02]].forEach(function (b) {
+    var sk = box(b[2], 0.14, b[3], mat(0x241b12, 0.85));
+    sk.position.set(b[0], 0.07, b[1]); add(sk);
   });
-  var hstripe = new THREE.Mesh(new THREE.PlaneGeometry(Z_S - Z_N, 0.22), mat(0x6e3c4b, 0.95));
-  hstripe.rotation.y = Math.PI / 2; hstripe.position.set(W_IN + 0.002, 2.45, (Z_S + Z_N) / 2); add(hstripe); // the border tries to follow you out of the bedroom
+  // ⚠️ the border stripe is FLAT on the wall, so it can't stand proud like a board —
+  // it uses polygonOffset instead, the same rule the contact shadows follow: bias
+  // the depth test, never the position. At +0.002 it strobed like the skirting did.
+  var hstripe = new THREE.Mesh(new THREE.PlaneGeometry(Z_S - Z_N, 0.22),
+    new THREE.MeshStandardMaterial({ color: 0x6e3c4b, roughness: 0.95,
+      polygonOffset: true, polygonOffsetFactor: -6, polygonOffsetUnits: -6 }));
+  hstripe.rotation.y = Math.PI / 2; hstripe.position.set(W_IN + 0.004, 2.45, (Z_S + Z_N) / 2); add(hstripe); // the border tries to follow you out of the bedroom
 
   /* ---- doors that aren't ready yet -------------------------------------------
    * Each is a painted slab + knob + crossed renovation tape + a plaque + light
@@ -478,8 +487,14 @@ export function buildHallway(ctx) {
   var fkT = new THREE.Mesh(new THREE.SphereGeometry(0.03, 12, 10),
     new THREE.MeshStandardMaterial({ color: 0xc8a44a, roughness: 0.3, metalness: 0.65 }));
   fkT.position.set(0.85, 1.02, 0.06); fPivot.add(fkT); // rides the slab, obviously
+  // ⚠️ THE SLOT RIDES fPivot, NOT front. It was parented to the DOORWAY, so opening
+  // the door left a brass letterbox hanging in mid-air in the empty opening — which
+  // is exactly what Kyle saw after stepping out and turning round. The knob two
+  // lines up was already right ("rides the slab, obviously"); the slot was missed.
+  // Local coords are fPivot's now: front-local (0,0.78,0.07) minus fPivot's own
+  // (-0.49,0,0.03) offset = (0.49,0.78,0.04), and 0.045 clears the slab face at 0.03.
   var slot = box(0.26, 0.035, 0.02, new THREE.MeshStandardMaterial({ color: 0xc8a44a, roughness: 0.35, metalness: 0.6 }));
-  slot.position.set(0, 0.78, 0.07); front.add(slot);
+  slot.position.set(0.49, 0.78, 0.045); fPivot.add(slot);
   var matT = canvasTex(256, 128, function (c, w, h) {
     c.fillStyle = "#4a5238"; c.fillRect(0, 0, w, h);
     c.strokeStyle = "#33392a"; c.lineWidth = 6; c.strokeRect(8, 8, w - 16, h - 16);
@@ -587,10 +602,12 @@ export function buildHallway(ctx) {
     });
   var kCeil = box(KX1 - KX0 + 0.2, 0.1, KZ1 - KZ0 + 0.2, mat(0xf0ead8, 0.98));
   kCeil.position.set(KCX, KCEIL + 0.05, KCZ); kadd(kCeil);
-  [[KX0 + 0.001, KCZ, KZ1 - KZ0, Math.PI / 2], [KCX, KZ0 + 0.001, KX1 - KX0, 0],
-   [KCX, KZ1 - 0.001, KX1 - KX0, 0]].forEach(function (b) {
-    var sk = new THREE.Mesh(new THREE.PlaneGeometry(b[2], 0.1), mat(0xe8e2d0, 0.85));
-    sk.rotation.y = b[3]; sk.position.set(b[0], 0.05, b[1]); kadd(sk);
+  // ⚠️ same skirting rule as the hall: BOXES standing proud, not planes at +0.001.
+  // I copied the hall's bug into the kitchen the day I built it.
+  [[KX0 + 0.01, KCZ, 0.02, KZ1 - KZ0], [KCX, KZ0 + 0.01, KX1 - KX0, 0.02],
+   [KCX, KZ1 - 0.01, KX1 - KX0, 0.02]].forEach(function (b) {
+    var sk = box(b[2], 0.1, b[3], mat(0xe8e2d0, 0.85));
+    sk.position.set(b[0], 0.05, b[1]); kadd(sk);
   });
 
   // --- the run of units: laminate top, rolled edge, oak-look doors, kick board
@@ -635,21 +652,33 @@ export function buildHallway(ctx) {
     ktag(carc, "the counter", null, "wiped down. it is always wiped down.");
     return carc;
   }
-  counterRun(KX0 + 0.05, KX1 - 1.9, KZ0 + CT_D / 2 + 0.05, "x");     // along the far wall
-  counterRun(KZ0 + 0.05, KZ1 - 2.6, KX0 + CT_D / 2 + 0.05, "z");     // and down the west wall
+  // ⚠️⚠️ THE FAR RUN IS TWO PIECES WITH A GAP FOR THE COOKER. As one unbroken run it
+  // swallowed the cooker whole: 0.62 x 0.58m of EXACTLY coplanar top face at y 0.88,
+  // which is the stove Kyle saw flashing. In plan it looked completely fine — the
+  // bug is only visible if you sweep every pair of boxes for near-equal face heights.
+  var cookX = KX1 - 2.55, COOK_W = 0.62, CT_TOP = CT_Y + 0.03;
+  counterRun(KX0 + 0.05, cookX - COOK_W / 2 - 0.01, KZ0 + CT_D / 2 + 0.05, "x");
+  counterRun(cookX + COOK_W / 2 + 0.01, KX1 - 1.9, KZ0 + CT_D / 2 + 0.05, "x");
+  // ⚠️ and the west run STARTS past the far run's depth, not at the wall. An L of two
+  // full-length runs double-fills the corner — another 0.62 x 0.62m coplanar pair at
+  // y 0.93, plus the kick boards fighting at y 0.12 underneath it.
+  counterRun(KZ0 + CT_D + 0.02, KZ1 - 2.6, KX0 + CT_D / 2 + 0.05, "z");
 
-  // wall cupboards over the far run
-  var upper = box(KX1 - 1.9 - KX0 - 0.1, 0.72, 0.34, oakM);
-  upper.position.set((KX0 + KX1 - 1.9) / 2, 1.92, KZ0 + 0.22); kadd(upper);
-  var upTrim = box(KX1 - 1.9 - KX0 - 0.06, 0.06, 0.38, mat(0x7d5a34, 0.7));
-  upTrim.position.set((KX0 + KX1 - 1.9) / 2, 2.31, KZ0 + 0.23); kadd(upTrim);
+  // wall cupboards over the far run — and they STOP at the hood. A cupboard run that
+  // carries on over the cooker buries the extractor inside itself, which is both
+  // wrong and how real kitchens are actually laid out: hood, then open wall.
+  var UP0 = KX0 + 0.05, UP1 = cookX - 0.42, UPC = (UP0 + UP1) / 2;
+  var upper = box(UP1 - UP0, 0.72, 0.34, oakM);
+  upper.position.set(UPC, 1.92, KZ0 + 0.22); kadd(upper);
+  var upTrim = box(UP1 - UP0 + 0.04, 0.06, 0.38, mat(0x7d5a34, 0.7));
+  upTrim.position.set(UPC, 2.31, KZ0 + 0.23); kadd(upTrim);
   ktag(upper, "the cupboards", null, "the good glasses are on the top shelf, which is the point of a top shelf.");
   // under-cupboard strip light — the thing that makes a kitchen feel like a kitchen
-  var strip = new THREE.Mesh(new THREE.BoxGeometry(KX1 - 1.9 - KX0 - 0.5, 0.03, 0.08),
+  var strip = new THREE.Mesh(new THREE.BoxGeometry(UP1 - UP0 - 0.24, 0.03, 0.08),
     new THREE.MeshStandardMaterial({ color: 0xfff6e0, emissive: 0xffe8b8, emissiveIntensity: 1.3, roughness: 0.4 }));
-  strip.position.set((KX0 + KX1 - 1.9) / 2, 1.55, KZ0 + 0.3); kadd(strip);
+  strip.position.set(UPC, 1.55, KZ0 + 0.3); kadd(strip);
   var kUnder = new THREE.PointLight(0xffdda6, 1.1, 4.2, 1.9);
-  kUnder.position.set((KX0 + KX1 - 1.9) / 2, 1.42, KZ0 + 0.62); kadd(kUnder);
+  kUnder.position.set(UPC, 1.42, KZ0 + 0.62); kadd(kUnder);
   var kStripOn = 1;   // the recipe box can turn the strip light off
 
   // --- the window over the sink, looking out at the side of the yard
@@ -671,32 +700,47 @@ export function buildHallway(ctx) {
       fr.position.set(KX0 + 0.06, 1.55 + f[1], KCZ - 0.6 + f[0]); kadd(fr);
     });
   ktag(kWin, "the kitchen window", null, "over the sink, so somebody could watch the side yard while they scrubbed.");
-  var sinkBowl = box(0.5, 0.02, 0.42, mat(0xc8ccd0, 0.25));
-  sinkBowl.position.set(KX0 + 0.36, CT_Y - 0.14, KCZ - 0.6); kadd(sinkBowl);
-  [[0.25, 0.02], [-0.25, 0.02]].forEach(function (e2) {
-    var lip = box(0.03, 0.16, 0.42, mat(0xc8ccd0, 0.25));
-    lip.position.set(KX0 + 0.36 + e2[0] * 0.0, CT_Y - 0.07, KCZ - 0.6 + e2[0]); kadd(lip);
-  });
+  // ⚠️ THE OLD SINK WAS INSIDE THE CABINET. Its basin sat at y 0.76 — below the 0.87
+  // underside of the counter slab — so it was invisible from every camera in the
+  // house, and its two "lip" pieces multiplied their x offset by 0.0, which put both
+  // in the same place. Dead geometry that nobody could see was wrong. It reads from
+  // above now: a dark basin ON the counter surface via polygonOffset (bias the depth
+  // test, never the position — the contact-shadow rule) inside a steel rim.
+  var SK_X = KX0 + 0.36, SK_Z = KCZ - 0.6;
+  var basin = new THREE.Mesh(new THREE.PlaneGeometry(0.42, 0.34),
+    new THREE.MeshStandardMaterial({ color: 0x64696d, roughness: 0.3, metalness: 0.5,
+      polygonOffset: true, polygonOffsetFactor: -6, polygonOffsetUnits: -6 }));
+  basin.rotation.x = -Math.PI / 2; basin.position.set(SK_X, CT_TOP, SK_Z); kadd(basin);
+  [[0, -0.19, 0.50, 0.04], [0, 0.19, 0.50, 0.04], [-0.23, 0, 0.04, 0.42], [0.23, 0, 0.04, 0.42]]
+    .forEach(function (rb) {
+      var bar = box(rb[2], 0.02, rb[3], mat(0xc0c6ca, 0.28));
+      bar.position.set(SK_X + rb[0], CT_TOP + 0.008, SK_Z + rb[1]); kadd(bar);
+    });
   var tap = new THREE.Mesh(new THREE.CylinderGeometry(0.018, 0.018, 0.3, 8), mat(0xb9bfc4, 0.3));
-  tap.position.set(KX0 + 0.18, CT_Y + 0.15, KCZ - 0.6); kadd(tap);
+  tap.position.set(KX0 + 0.16, CT_TOP + 0.15, SK_Z); kadd(tap);
   var spout = new THREE.Mesh(new THREE.CylinderGeometry(0.015, 0.015, 0.26, 8), mat(0xb9bfc4, 0.3));
-  spout.rotation.z = Math.PI / 2; spout.position.set(KX0 + 0.31, CT_Y + 0.28, KCZ - 0.6); kadd(spout);
+  spout.rotation.z = Math.PI / 2; spout.position.set(KX0 + 0.29, CT_TOP + 0.28, SK_Z); kadd(spout);
   ktag(tap, "the tap", null, "it drips. everyone has stopped hearing it.");
 
-  // --- the cooker + hood
-  var cookX = KX1 - 2.55;
-  var cooker = box(0.62, CT_Y - 0.02, CT_D - 0.04, mat(0xe0e2de, 0.4));
-  cooker.position.set(cookX, (CT_Y - 0.02) / 2, KZ0 + CT_D / 2 + 0.05); kadd(cooker);
-  var hob = box(0.56, 0.03, 0.5, mat(0x24262a, 0.35));
-  hob.position.set(cookX, CT_Y, KZ0 + CT_D / 2 + 0.05); kadd(hob);
+  // --- the cooker + hood. Its top is FLUSH with the counter surface (CT_TOP) and it
+  // fills the gap left in the run, so no two faces share a plane anywhere.
+  var COOK_Z = KZ0 + CT_D / 2 + 0.05, COOK_FRONT = COOK_Z + (CT_D - 0.04) / 2;
+  var cooker = box(COOK_W, CT_TOP, CT_D - 0.04, mat(0xe0e2de, 0.4));
+  cooker.position.set(cookX, CT_TOP / 2, COOK_Z); kadd(cooker);
+  var hob = box(COOK_W - 0.06, 0.03, 0.5, mat(0x24262a, 0.35));
+  hob.position.set(cookX, CT_TOP + 0.015, COOK_Z); kadd(hob);
   [[-0.13, -0.11], [0.13, -0.11], [-0.13, 0.12], [0.13, 0.12]].forEach(function (rg) {
     var ring = new THREE.Mesh(new THREE.TorusGeometry(0.075, 0.012, 6, 16), mat(0x15171a, 0.5));
-    ring.rotation.x = -Math.PI / 2; ring.position.set(cookX + rg[0], CT_Y + 0.025, KZ0 + CT_D / 2 + 0.05 + rg[1]); kadd(ring);
+    ring.rotation.x = -Math.PI / 2; ring.position.set(cookX + rg[0], CT_TOP + 0.042, COOK_Z + rg[1]); kadd(ring);
   });
-  var ovenDoor = box(0.54, 0.42, 0.04, mat(0x2a2d31, 0.35));
-  ovenDoor.position.set(cookX, 0.46, KZ0 + CT_D + 0.03); kadd(ovenDoor);
-  var ovenGlass = box(0.4, 0.24, 0.02, mat(0x14161a, 0.2));
-  ovenGlass.position.set(cookX, 0.5, KZ0 + CT_D + 0.055); kadd(ovenGlass);
+  // ⚠️ door and glass each stand PROUD of what's behind them (+0.02, +0.025). The old
+  // door was centred exactly on the cooker's own front face — a third coplanar pair.
+  var ovenDoor = box(COOK_W - 0.08, 0.42, 0.03, mat(0x2a2d31, 0.35));
+  ovenDoor.position.set(cookX, 0.46, COOK_FRONT + 0.02); kadd(ovenDoor);
+  var ovenGlass = box(0.4, 0.24, 0.012, mat(0x14161a, 0.2));
+  ovenGlass.position.set(cookX, 0.5, COOK_FRONT + 0.045); kadd(ovenGlass);
+  var ovenBar = new THREE.Mesh(new THREE.CylinderGeometry(0.014, 0.014, COOK_W - 0.12, 8), mat(0xb9bfc4, 0.3));
+  ovenBar.rotation.z = Math.PI / 2; ovenBar.position.set(cookX, 0.71, COOK_FRONT + 0.05); kadd(ovenBar);
   var hood = box(0.72, 0.26, 0.5, mat(0xd8dad6, 0.45));
   hood.position.set(cookX, 1.72, KZ0 + 0.3); kadd(hood);
   var hoodLip = box(0.78, 0.06, 0.56, mat(0xc4c6c2, 0.45));
@@ -967,12 +1011,31 @@ export function buildHallway(ctx) {
     if (bxp > FRONT_X - 0.75 && bxp < FRONT_X + 0.75) continue;
     var bl2 = box(0.05, 0.78, 0.05, postM); bl2.position.set(bxp, 0.45, PZ1 + 0.05); yadd(bl2);
   }
-  // porch light by the door, and it is the one that answers the knock
-  var plampBody = box(0.14, 0.24, 0.12, mat(0x2a2119, 0.7));
-  plampBody.position.set(FRONT_X + 0.95, 2.06, HOUSE_F - 0.12); yadd(plampBody);
-  var plampGlass = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.17, 0.09),
-    new THREE.MeshStandardMaterial({ color: 0xfff0cc, emissive: 0xffd9a0, emissiveIntensity: 1.4, roughness: 0.5 }));
-  plampGlass.position.set(FRONT_X + 0.95, 2.05, HOUSE_F - 0.12); yadd(plampGlass);
+  // porch light by the door, and it is the one that answers the knock.
+  // ⚠️ it was a dark box with a bright box inside it, and its OWN point light stands
+  // 15cm away — so the housing blew out to a flat pale slab and read, from the porch,
+  // as an untextured cube glued to the siding. (Caught by raycasting a shot rather
+  // than by reading the code; a "correct" lamp can still photograph as a mistake.)
+  // A carriage lantern reads as a lantern at any exposure: backplate, arm, four-sided
+  // glass, a pyramid cap, and corner bars to break the silhouette.
+  var PL_X = FRONT_X + 0.95, PL_Y = 2.06, PL_Z = HOUSE_F - 0.12;
+  var plampM = mat(0x1d1710, 0.55);
+  var plBack = box(0.15, 0.20, 0.025, plampM); plBack.position.set(PL_X, PL_Y + 0.05, PL_Z + 0.105); yadd(plBack);
+  var plArm = box(0.035, 0.035, 0.10, plampM); plArm.position.set(PL_X, PL_Y + 0.12, PL_Z + 0.05); yadd(plArm);
+  // ⚠️ STRAIGHT sides, not tapered: a 4-gon cylinder rotated 45° puts its corners at
+  // r/√2 on the axes, so the corner bars only line up if the radius doesn't change.
+  var PLR = 0.07, PLC = PLR / Math.SQRT2;
+  var plampGlass = new THREE.Mesh(new THREE.CylinderGeometry(PLR, PLR, 0.16, 4),
+    new THREE.MeshStandardMaterial({ color: 0xfff0cc, emissive: 0xffd9a0, emissiveIntensity: 1.4, roughness: 0.45 }));
+  plampGlass.rotation.y = Math.PI / 4; plampGlass.position.set(PL_X, PL_Y, PL_Z); yadd(plampGlass);
+  var plCap = new THREE.Mesh(new THREE.CylinderGeometry(0.014, 0.088, 0.05, 4), plampM);
+  plCap.rotation.y = Math.PI / 4; plCap.position.set(PL_X, PL_Y + 0.105, PL_Z); yadd(plCap);
+  var plBase = new THREE.Mesh(new THREE.CylinderGeometry(0.088, 0.055, 0.03, 4), plampM);
+  plBase.rotation.y = Math.PI / 4; plBase.position.set(PL_X, PL_Y - 0.095, PL_Z); yadd(plBase);
+  [[-1, -1], [1, -1], [-1, 1], [1, 1]].forEach(function (c) {
+    var bar = box(0.012, 0.16, 0.012, plampM);
+    bar.position.set(PL_X + c[0] * PLC, PL_Y, PL_Z + c[1] * PLC); yadd(bar);
+  });
   var porchLite = new THREE.PointLight(0xffd2a0, 1.9, 8, 1.7);
   porchLite.position.set(FRONT_X + 0.8, 2.0, HOUSE_F - 0.5); yadd(porchLite);
   ytag(plampGlass, "the porch light", null, "the porch light. left on for whoever isn't home yet.");
