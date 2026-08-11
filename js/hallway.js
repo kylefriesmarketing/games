@@ -323,44 +323,155 @@ export function buildHallway(ctx) {
   var cloG = new THREE.Group(); cloG.position.set(E_IN - 0.03, 0, CLO_Z); add(cloG);
   [[2.09, 0.08, 0.96, 0], [1.02, 2.12, 0.08, -0.43], [1.02, 2.12, 0.08, 0.43]]
     .forEach(function (j) { var jm = box(0.08, j[1], j[2], mat(0x241b12, 0.8)); jm.position.set(-0.015, j[0], j[3]); cloG.add(jm); });
-  var cloBackT = canvasTex(256, 512, function (c, w, h) { // painted depths: shelf, dark, one lost mitten
-    c.fillStyle = "#171410"; c.fillRect(0, 0, w, h);
-    c.fillStyle = "#241d15"; c.fillRect(0, 60, w, 26); // the shelf line
-    c.fillStyle = "#3a3226";
-    for (var b = 0; b < 3; b++) c.fillRect(24 + b * 78, 18, 60, 40); // boxes of who-knows
-    c.fillStyle = "#7d2f2f"; c.fillRect(w - 58, h - 90, 30, 40); // the mitten that lost its twin
+  // ⚠️ THE INTERIOR IS A REAL BOX NOW, not a painted plane. It used to be one 0.82x2.0
+  // canvas with a shelf, some boxes and a mitten drawn on it — which was the right call
+  // while the closet was sealed behind a wall and never opened. Now that the wall is
+  // cut and the door actually swings, a flat cheats badly: the eye gets parallax from
+  // the jambs and none from the "depth" behind them.
+  var cloIn = mat(0x2b241b, 0.96);                     // the dark you paint a closet
+  var CD = 0.36;                                        // interior depth
+  [[0.03, 2.05, 0.90, 0.355, 1.025, 0],                 // back
+   [CD, 2.05, 0.03, 0.18, 1.025, -0.435],               // north side
+   [CD, 2.05, 0.03, 0.18, 1.025, 0.435],                // south side
+   [CD, 0.02, 0.90, 0.18, 0.01, 0],                     // floor
+   [CD, 0.03, 0.90, 0.18, 2.045, 0]                     // lid
+  ].forEach(function (s) {
+    var m = box(s[0], s[1], s[2], cloIn); m.position.set(s[3], s[4], s[5]); cloG.add(m);
   });
-  var cloBack = new THREE.Mesh(new THREE.PlaneGeometry(0.82, 2.0),
-    new THREE.MeshStandardMaterial({ map: cloBackT, roughness: 0.95 }));
-  cloBack.rotation.y = -Math.PI / 2; cloBack.position.set(0.34, 1.06, 0); cloG.add(cloBack);
-  var rod = new THREE.Mesh(new THREE.CylinderGeometry(0.014, 0.014, 0.8, 8),
-    new THREE.MeshStandardMaterial({ color: 0x8a8a8a, metalness: 0.6, roughness: 0.4 }));
-  rod.rotation.x = Math.PI / 2; rod.position.set(0.22, 1.78, 0); cloG.add(rod);
+  var cloShelf = box(0.33, 0.03, 0.86, mat(0x8a7a5c, 0.9));
+  var rod = new THREE.Mesh(new THREE.CylinderGeometry(0.014, 0.014, 0.86, 8),
+    new THREE.MeshStandardMaterial({ color: 0x9aa0a6, metalness: 0.6, roughness: 0.35 }));
+  rod.rotation.x = Math.PI / 2; rod.position.set(0.20, 1.74, 0); cloG.add(rod);
+
+  /* ---- 1997, in a cupboard -----------------------------------------------------
+   * Everything in here had to exist in the nineties and nowhere after it. That is
+   * the whole brief: a closet is where a house keeps the year it stopped updating. */
   var MONTH = new Date().getMonth() + 1;
-  var wear = MONTH >= 12 || MONTH <= 2 ? [0x6e2f2f, 0x2f4a6e, 0x4a6e2f] : // winter coats
-             MONTH <= 5 ? [0xd9c04a, 0x4a8ad9, 0x8a8a8a] :                 // raincoats
-             MONTH <= 8 ? [0xd97b4a, 0x4ad9b8, 0xd94a8a] :                 // summer nothing-much
-                          [0x8a5a2f, 0x5a2f8a, 0x2f8a5a];                  // fall jackets
+  // ⚠️ the middle hanger is ALWAYS the windbreaker — colour-blocked in three bands,
+  // which is the single most legible "this is the nineties" shape there is. The other
+  // two still follow the season, so the closet keeps changing without losing the gag.
+  var wear = MONTH >= 12 || MONTH <= 2 ? [0x6e2f2f, null, 0x2f4a6e] :
+             MONTH <= 5 ? [0xd9c04a, null, 0x4a8ad9] :
+             MONTH <= 8 ? [0xd97b4a, null, 0x4ad9b8] :
+                          [0x8a5a2f, null, 0x2f8a5a];
+  var WIND = [0x1fa6c8, 0xf2f0e6, 0xe8478a];            // teal / white / hot pink, 1993
   wear.forEach(function (colr, i) {
-    var hang = new THREE.Group(); hang.position.set(0.22, 1.78, -0.22 + i * 0.22); cloG.add(hang);
+    var hang = new THREE.Group(); hang.position.set(0.20, 1.74, -0.24 + i * 0.24); cloG.add(hang);
     var wire = new THREE.Mesh(new THREE.CylinderGeometry(0.006, 0.006, 0.12, 6), rod.material);
     wire.position.y = -0.05; hang.add(wire);
-    var coat = box(0.09, 0.62, 0.19, mat(colr, 0.9)); coat.position.y = -0.42; hang.add(coat);
-    var arm = box(0.09, 0.4, 0.055, mat(colr, 0.9)); arm.position.set(0, -0.3, 0.115); arm.rotation.x = 0.16; hang.add(arm);
+    if (colr === null) {                                 // the windbreaker
+      WIND.forEach(function (bandC, b) {
+        var band = box(0.085, 0.21, 0.20, mat(bandC, 0.72));
+        band.position.y = -0.22 - b * 0.21; hang.add(band);
+      });
+      var sleeve = box(0.085, 0.42, 0.06, mat(WIND[0], 0.72));
+      sleeve.position.set(0, -0.34, 0.12); sleeve.rotation.x = 0.18; hang.add(sleeve);
+    } else {
+      var coat = box(0.09, 0.62, 0.19, mat(colr, 0.9)); coat.position.y = -0.42; hang.add(coat);
+      var arm = box(0.09, 0.4, 0.055, mat(colr, 0.9)); arm.position.set(0, -0.3, 0.115); arm.rotation.x = 0.16; hang.add(arm);
+    }
   });
-  var shoebox2 = box(0.3, 0.11, 0.18, mat(0x9a8a6a, 0.9)); shoebox2.position.set(0.28, 0.055, 0.24); shoebox2.rotation.y = 0.4; cloG.add(shoebox2);
-  var cloDoorP = new THREE.Group(); cloDoorP.position.set(0, 0, 0.44); cloG.add(cloDoorP); // hinged on the south jamb
-  var cloDoor = box(0.045, 2.05, 0.84, mat(0x4a3524, 0.72)); cloDoor.position.set(0, 1.025, -0.42); cloDoorP.add(cloDoor);
+  // a Tamagotchi on its keychain, hooked over the end of the rod and long dead
+  var tam = new THREE.Group(); tam.position.set(0.20, 1.66, 0.36); cloG.add(tam);
+  var tamChain = new THREE.Mesh(new THREE.CylinderGeometry(0.004, 0.004, 0.09, 5), rod.material);
+  tamChain.position.y = 0.045; tam.add(tamChain);
+  var tamBody = new THREE.Mesh(new THREE.SphereGeometry(0.036, 12, 10), mat(0x8ad94a, 0.5));
+  tamBody.scale.set(1, 1.12, 0.55); tam.add(tamBody);
+  var tamScr = new THREE.Mesh(new THREE.CircleGeometry(0.018, 12), mat(0x2a3326, 0.4));
+  tamScr.position.set(0, 0.004, 0.021); tam.add(tamScr);
+  tag(tamBody, "the Tamagotchi", null, "it died in 1998 and nobody has had the heart to press reset.");
+
+  // the shelf, and what got shoved onto it
+  cloShelf.position.set(0.19, 1.95, 0); cloG.add(cloShelf);
+  var gameT = canvasTex(96, 64, function (c, w, h) {   // a board-game lid, generic and loud
+    c.fillStyle = "#c8322e"; c.fillRect(0, 0, w, h);
+    c.fillStyle = "#f2d24a"; c.fillRect(6, 8, w - 12, 20);
+    c.fillStyle = "#1f5fa8"; c.beginPath(); c.arc(w * 0.28, h * 0.72, 11, 0, 7); c.fill();
+    c.fillStyle = "#3aa85a"; c.fillRect(w * 0.52, h * 0.58, 26, 18);
+  });
+  [[0.02, 0.055, 0.06], [-0.01, 0.115, -0.14]].forEach(function (bx, i) {
+    var g2 = box(0.30, 0.055, 0.30, new THREE.MeshStandardMaterial({ map: gameT, roughness: 0.9 }));
+    g2.position.set(0.19 + bx[0], 1.965 + bx[1] - 0.055, bx[2]); g2.rotation.y = i ? 0.12 : -0.08;
+    cloG.add(g2);
+  });
+  var vhsT = canvasTex(48, 96, function (c, w, h) {     // spines, hand-labelled
+    c.fillStyle = "#17181a"; c.fillRect(0, 0, w, h);
+    c.fillStyle = "#e6e2d4"; c.fillRect(4, 12, w - 8, 30);
+    c.strokeStyle = "#43506a"; c.lineWidth = 2;
+    c.beginPath(); c.moveTo(8, 22); c.lineTo(w - 10, 22); c.moveTo(8, 32); c.lineTo(w - 14, 32); c.stroke();
+  });
+  for (var vt = 0; vt < 4; vt++) {
+    var vhs = box(0.11, 0.028, 0.19, new THREE.MeshStandardMaterial({ map: vhsT, roughness: 0.85 }));
+    vhs.position.set(0.28, 1.982 + vt * 0.029, 0.30); vhs.rotation.y = (vt % 2) * 0.07;
+    cloG.add(vhs);
+  }
+  tag(cloShelf, "the shelf", null, "board games with pieces missing, and tapes nobody can play any more.");
+
+  // the floor of it: rollerblades kicked in, a Super Soaker stood in the corner
+  [[0.10, -0.26, 0.5], [0.19, -0.06, -0.9]].forEach(function (rb) {
+    var bl = new THREE.Group(); bl.position.set(0.10 + rb[0] * 0.3, 0.03, rb[1]); bl.rotation.y = rb[2]; cloG.add(bl);
+    var boot = box(0.10, 0.13, 0.24, mat(0xe8e4da, 0.6)); boot.position.y = 0.10; bl.add(boot);
+    var cuff = box(0.105, 0.06, 0.13, mat(0x2f3f8a, 0.6)); cuff.position.set(0, 0.185, -0.04); bl.add(cuff);
+    for (var wl = 0; wl < 4; wl++) {
+      var wh = new THREE.Mesh(new THREE.CylinderGeometry(0.026, 0.026, 0.02, 10), mat(0xd8d24a, 0.5));
+      wh.rotation.z = Math.PI / 2; wh.position.set(0, 0.026, -0.085 + wl * 0.057); bl.add(wh);
+    }
+    tag(boot, "the rollerblades", null, "somebody was very good at these for one summer.");
+  });
+  var soak = new THREE.Group(); soak.position.set(0.26, 0.0, -0.33); soak.rotation.set(0, 0.5, -0.24); cloG.add(soak);
+  var skBody = box(0.075, 0.46, 0.10, mat(0x2fb8a8, 0.55)); skBody.position.y = 0.25; soak.add(skBody);
+  var skTank = new THREE.Mesh(new THREE.CylinderGeometry(0.055, 0.055, 0.16, 12), mat(0xf2d24a, 0.5));
+  skTank.position.set(0, 0.50, -0.01); soak.add(skTank);
+  var skNoz = new THREE.Mesh(new THREE.CylinderGeometry(0.014, 0.02, 0.13, 8), mat(0xe8478a, 0.5));
+  skNoz.rotation.x = Math.PI / 2; skNoz.position.set(0, 0.44, 0.10); soak.add(skNoz);
+  var skGrip = box(0.06, 0.13, 0.05, mat(0xe8478a, 0.6)); skGrip.position.set(0, 0.10, 0.05); soak.add(skGrip);
+  tag(skBody, "the Super Soaker", null, "the 50. still the best one. still has a bit of water in it.");
+  var shoebox2 = box(0.3, 0.11, 0.18, mat(0x9a8a6a, 0.9)); shoebox2.position.set(0.26, 0.075, 0.30); shoebox2.rotation.y = 0.4; cloG.add(shoebox2);
+  // the closet's own bulb — a pull-cord fixture that only reads when the door is open
+  var cloBulb = new THREE.Mesh(new THREE.SphereGeometry(0.032, 10, 8),
+    new THREE.MeshStandardMaterial({ color: 0xfff2d8, emissive: 0xffd9a0, emissiveIntensity: 0, roughness: 0.4 }));
+  cloBulb.position.set(0.16, 1.99, -0.30); cloG.add(cloBulb);
+  // ⚠️ range 2.6 and it sits LOW (y 1.35), not up at the bulb. A 1.9-range lamp tucked
+  // under the lid lit the shelf and left the floor of the closet black — which is
+  // exactly where the rollerblades and the Super Soaker are. Dropping it to chest
+  // height inside the box lights the whole depth; the bulb mesh stays up top.
+  var cloLight = new THREE.PointLight(0xffd9a0, 0, 2.6, 1.5);
+  cloLight.position.set(0.14, 1.35, -0.05); cloG.add(cloLight);
+  // ⚠️ hinged on the NORTH jamb, and it opens the other way now. Hung on the south
+  // jamb the leaf swung between the hall camera and the closet — you opened it and it
+  // hid the thing it was revealing. Swapping the hinge costs nothing and means the
+  // open door folds back toward the slider, leaving the interior facing the eye.
+  var cloDoorP = new THREE.Group(); cloDoorP.position.set(0, 0, -0.44); cloG.add(cloDoorP);
+  // ⚠️ LOUVERED, not a flat slab. A hollow-core closet door with angled slats is the
+  // most period-correct object in this house — every hall closet built between about
+  // 1975 and 2000 has one — and it is the cheapest possible read: 14 tilted bars in
+  // two banks tell you "closet" before you've registered anything else in the frame.
+  // The stiles and rails stay solid so the door still blocks the opening.
+  var cloDoor = box(0.045, 2.05, 0.84, mat(0x4a3524, 0.72)); cloDoor.position.set(0, 1.025, 0.42); cloDoorP.add(cloDoor);
+  var slatM2 = mat(0x3d2b1c, 0.8);
+  [[0.30, 0.62], [1.16, 0.62]].forEach(function (bank) {     // two banks, gap for the rail
+    for (var s2 = 0; s2 < 7; s2++) {
+      var sl = box(0.055, 0.055, 0.70, slatM2);
+      sl.position.set(-0.012, bank[0] + s2 * (bank[1] / 7), 0.42);
+      sl.rotation.z = -0.42;                                  // tipped down, as they are
+      cloDoorP.add(sl);
+    }
+  });
+  [0.25, 0.92, 1.78].forEach(function (ry2) {                 // the rails between banks
+    var rl2 = box(0.05, 0.07, 0.84, mat(0x45301f, 0.75));
+    rl2.position.set(-0.004, ry2, 0.42); cloDoorP.add(rl2);
+  });
   var cloKnob = new THREE.Mesh(new THREE.SphereGeometry(0.024, 10, 8),
     new THREE.MeshStandardMaterial({ color: 0xb08d3f, roughness: 0.35, metalness: 0.6 }));
-  cloKnob.position.set(-0.04, 1.0, -0.76); cloDoorP.add(cloKnob);
+  cloKnob.position.set(-0.04, 1.0, 0.76); cloDoorP.add(cloKnob);
   var cloOpen = false, cloAnim = 0;
   function closetToggle() { cloOpen = !cloOpen; AUDIO.ratchetSfx && AUDIO.ratchetSfx(); }
   [cloDoor, cloKnob].forEach(function (m) {
     tag(m, "the closet", closetToggle, "the hall closet");
   });
   tag(shoebox2, "another shoebox", null, "another shoebox — empty. for now.");
-  tag(cloBack, "the closet shelf", null, "boxes of who-knows and one mitten that lost its twin");
+  // (the old "closet shelf" tag pointed at cloBack, the painted back plane that the
+  //  real interior replaced — the shelf carries its own tag now, up where it's built)
 
   /* ---- the stairs ------------------------------------------------------------ */
   // UP: eight steps against the west wall, climbing north into the dark, a rope
@@ -2904,9 +3015,14 @@ export function buildHallway(ctx) {
     kitchenLife(dt, dim);   // steam off the kettle, and the tap that drips
     hallLife(dt, t, dim * on);   // dust, visible only where it drifts through a bulb
     bGlow.material.opacity = 0.08 + 0.05 * Math.sin(t * 0.9); // the basement, breathing
-    var target = cloOpen ? -1.6 : 0;
+    var target = cloOpen ? 1.6 : 0;   // +, to match the hinge moving to the north jamb
     cloAnim += (target - cloAnim) * Math.min(1, dt * 7);
     cloDoorP.rotation.y = cloAnim;
+    // the closet's bulb comes up with the door, so the 1997 inside it is only lit
+    // while you're actually looking at it — and never leaks into the hall when shut
+    var cf = Math.min(1, Math.abs(cloAnim) / 1.2);
+    cloLight.intensity = 2.8 * cf * dim;
+    cloBulb.material.emissiveIntensity = 1.7 * cf * dim;
     // somebody on the path, briefly
     if (figT > 0) { figT -= dt; figG.visible = true; figG.position.x = FRONT_X + 0.35 + Math.sin(t * 0.7) * 0.05; }
     else if (figG.visible) figG.visible = false;
