@@ -330,6 +330,20 @@ if ("serviceWorker" in navigator && location.protocol !== "file:") {
   window.addEventListener("load", function () {
     navigator.serviceWorker.register("sw.js").catch(function () { /* offline support is a bonus, never a blocker */ });
   });
+  // ⚠️⚠️ THE TWO-RELOAD PROBLEM, and why "it's not live yet" kept being true.
+  // A page is served by the worker that was ALREADY installed. So reload #1 fetches
+  // the new sw.js, installs it, skipWaiting + clients.claim hand it the page — but
+  // that page has already loaded its JS from the OLD worker. Only reload #2 shows
+  // the new code. Nobody should have to know that, so: when a new worker takes
+  // control, reload once, automatically.
+  // The guard matters — controllerchange also fires on the very FIRST registration
+  // (no controller -> this one), and reloading there would be a pointless flash.
+  var hadController = !!navigator.serviceWorker.controller, swapped = false;
+  navigator.serviceWorker.addEventListener("controllerchange", function () {
+    if (swapped || !hadController) return;
+    swapped = true;
+    location.reload();
+  });
 }
 </script>
 <script>
