@@ -2465,10 +2465,12 @@ export function buildHallway(ctx) {
       { label: "warm", apply: function () { [bulbS, bulbN, bulbB].forEach(function (b) { b.light.color.setHex(0xffd9a0); b.bulb.material.emissive.setHex(0xffd9a0); }); } },
       { label: "daylight", apply: function () { [bulbS, bulbN, bulbB].forEach(function (b) { b.light.color.setHex(0xcfe0ff); b.bulb.material.emissive.setHex(0xcfe0ff); }); } },
     ] },
-    { k: "closet", label: "the closet door", vals: [
-      { label: "shut", apply: function () { cloOpen = false; } },
-      { label: "ajar", apply: function () { cloOpen = true; } },
-    ] },
+    // ⚠️ NO CLOSET OPTION HERE. The closet is real and fully built — see it at
+    // cloG — but it stands at z 3.35, and the hall's camera stands at z 3.72, so
+    // it is BESIDE the eye in both facings and projects behind the near plane from
+    // every resting view in the house. Offering to open a door nobody can see just
+    // makes the panel look broken (Kyle: "says there is a closet door but i dont
+    // see one"). The door still opens if you click it; it simply isn't advertised.
   ]);
   [hb1, hb2].forEach(function (m) {
     tag(m, "the hall boxes", function () { openStash(hallStash); },
