@@ -482,8 +482,15 @@ export function buildHallway(ctx) {
   // Pivot on the WEST jamb so it swings inward across the west half of the opening,
   // away from the hall table; rotating -1.95 rad lays it along the hall wall and
   // leaves the walk line clear.
-  var fPivot = new THREE.Group(); fPivot.position.set(-0.49, 0, 0.03); front.add(fPivot);
-  var fDoor = box(0.98, 2.08, 0.06, mat(0x5a3a24, 0.65)); fDoor.position.set(0.49, 1.04, 0); fPivot.add(fDoor);
+  // ⚠️ THE SLAB IS SIZED FROM THE FRAME, not guessed. The jambs' inner faces sit at
+  // ±0.51 and the lintel's underside at 2.19, so the clear opening is 1.02 x 2.19 —
+  // and the old 0.98 x 2.08 slab left an 11cm GAP above the door you could see the
+  // hall through. 1.00 x 2.16 leaves a 1cm reveal each side and 3cm at the head,
+  // which is what a real door does. Derived from the frame constants below so the
+  // two can never drift apart again.
+  var FD_W = 1.00, FD_H = 2.16;
+  var fPivot = new THREE.Group(); fPivot.position.set(-FD_W / 2, 0, 0.03); front.add(fPivot);
+  var fDoor = box(FD_W, FD_H, 0.06, mat(0x5a3a24, 0.65)); fDoor.position.set(FD_W / 2, FD_H / 2, 0); fPivot.add(fDoor);
   [[-0.56, 0], [0.56, 0]].forEach(function (j) {
     var jm = box(0.1, 2.2, 0.09, mat(0x241b12, 0.8)); jm.position.set(j[0], 1.1, 0.045); front.add(jm);
   });
@@ -504,7 +511,7 @@ export function buildHallway(ctx) {
   arch.position.set(0, 2.3, 0.055); front.add(arch);
   var fkT = new THREE.Mesh(new THREE.SphereGeometry(0.03, 12, 10),
     new THREE.MeshStandardMaterial({ color: 0xc8a44a, roughness: 0.3, metalness: 0.65 }));
-  fkT.position.set(0.85, 1.02, 0.06); fPivot.add(fkT); // rides the slab, obviously
+  fkT.position.set(FD_W - 0.15, 1.02, 0.06); fPivot.add(fkT); // rides the slab, obviously
   // ⚠️ THE SLOT RIDES fPivot, NOT front. It was parented to the DOORWAY, so opening
   // the door left a brass letterbox hanging in mid-air in the empty opening — which
   // is exactly what Kyle saw after stepping out and turning round. The knob two
@@ -512,7 +519,7 @@ export function buildHallway(ctx) {
   // Local coords are fPivot's now: front-local (0,0.78,0.07) minus fPivot's own
   // (-0.49,0,0.03) offset = (0.49,0.78,0.04), and 0.045 clears the slab face at 0.03.
   var slot = box(0.26, 0.035, 0.02, new THREE.MeshStandardMaterial({ color: 0xc8a44a, roughness: 0.35, metalness: 0.6 }));
-  slot.position.set(0.49, 0.78, 0.045); fPivot.add(slot);
+  slot.position.set(FD_W / 2, 0.78, 0.045); fPivot.add(slot);   // centred on the slab
   var matT = canvasTex(256, 128, function (c, w, h) {
     c.fillStyle = "#4a5238"; c.fillRect(0, 0, w, h);
     c.strokeStyle = "#33392a"; c.lineWidth = 6; c.strokeRect(8, 8, w - 16, h - 16);
@@ -1031,8 +1038,15 @@ export function buildHallway(ctx) {
   [PX0 + 0.22, PX1 - 0.22].forEach(function (px) {
     var pst = box(0.14, 2.85, 0.14, postM); pst.position.set(px, 1.42, PZ1 + 0.2); pst.castShadow = true; yadd(pst);
   });
-  var proof = box(PX1 - PX0 + 0.5, 0.14, PZ0 - PZ1 + 0.55, mat(0x4a3a2e, 0.9));
-  proof.position.set((PX0 + PX1) / 2, 2.92, (PZ0 + PZ1) / 2 - 0.1); yadd(proof);
+  // ⚠️⚠️ THE ROOF STOPS AT THE HOUSE (HOUSE_F), IT DOES NOT PASS THROUGH IT. It used
+  // to reach z -3.32 — 13cm past the hall's inner face at -3.45 — so a 5.7m dark beam
+  // poked through the north wall, crossed the whole hallway at 2.9m, and cut straight
+  // across the taped door at the top of the stairs. From inside it read as a structural
+  // beam that had no business being there; it is the PORCH ROOF, seen from indoors.
+  // South edge is unchanged (PZ1 - 0.375) so the overhang over the steps is the same.
+  var ROOF_S = PZ1 - 0.375;
+  var proof = box(PX1 - PX0 + 0.5, 0.14, HOUSE_F - ROOF_S, mat(0x4a3a2e, 0.9));
+  proof.position.set((PX0 + PX1) / 2, 2.92, (HOUSE_F + ROOF_S) / 2); yadd(proof);
   var pfascia = box(PX1 - PX0 + 0.5, 0.2, 0.07, postM);
   pfascia.position.set((PX0 + PX1) / 2, 2.82, PZ1 - 0.27); yadd(pfascia);
   var prail = box(PX1 - PX0, 0.07, 0.07, postM);
@@ -1576,7 +1590,13 @@ export function buildHallway(ctx) {
   // ⚠️ 0.04, not 0.085. Additive over a 5m cone accumulates hard — at the value that
   // looked right in the code it rendered as a solid wedge of custard, not as light.
   beam(-3.66, GROUND + 2.5, Z_WALK - 1.4, 0.22, 2.6, 4.9, 0.040);      // the streetlight
-  beam(FRONT_X + 0.95, GROUND + 1.35, HOUSE_F - 0.30, 0.14, 1.15, 3.2, 0.038); // the porch lamp
+  // ⚠️ the porch lamp's cone must STAY OUTSIDE THE HOUSE. At botR 1.15 centred on
+  // HOUSE_F-0.30 it reached z -2.65 — nearly a metre INSIDE the hallway — and being
+  // additive it washed the hall wall beside the front door into a pale grey wedge
+  // that looked like a lighting bug indoors. Narrower (0.58) and set out to
+  // HOUSE_F-0.72, its near edge stops at -3.64, clear of the wall's -3.55 face. A
+  // tighter cone also suits a small lantern better than a 2.3m-wide floodlight did.
+  beam(FRONT_X + 0.95, GROUND + 1.35, HOUSE_F - 0.72, 0.10, 0.58, 3.2, 0.042); // the porch lamp
   // and a breath of mist sitting on the lawn, which is what makes the beams read
   var mistT = canvasTex(128, 128, function (c, w, h) {
     var g4 = c.createRadialGradient(w / 2, h / 2, 2, w / 2, h / 2, w / 2);
