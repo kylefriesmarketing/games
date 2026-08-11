@@ -1928,35 +1928,85 @@ export function buildHallway(ctx) {
   var backG = new THREE.Group(); add(backG);
   function badd(m) { backG.add(m); return m; }
 
-  // --- the yard, painted, seen through the glass. Three depths: a backdrop
-  // canvas out past the fence, real deck boards just outside the sill, and the
-  // blinds in front of everything. Layering is what stops it reading as a poster.
-  // ⚠️ painted MUCH darker than it looks in the canvas. This is a MeshBasicMaterial,
-  // so it skips lighting but still goes through ACES at exposure 1.45 in the
-  // composite — the first pass used ordinary night colours and came out a pale
-  // sunlit green. Everything here is roughly half the value you'd expect.
-  var yardT = canvasTex(512, 320, function (c, w, h) {
-    var sky = c.createLinearGradient(0, 0, 0, h * 0.62);
-    sky.addColorStop(0, "#05080f"); sky.addColorStop(1, "#141b2b");
+  /* --- THE BACK YARD, BUILT FOR REAL -----------------------------------------
+   * It was ONE PAINTED PLANE 2.6m behind the glass: a canvas with a fence, a tree
+   * and a neighbour drawn on it. From the resting camera it read as a poster taped
+   * to the window, and stepping toward the slider never changed a thing, because
+   * there was no depth to reveal. Kyle picked "rebuild it real, like the front"
+   * back in the graphics pass and this is that, finally: a lawn you can see across,
+   * a board fence with real posts, a tree with a trunk you can walk your eye up, a
+   * washing line, and the neighbour's roof beyond the fence.
+   * ⚠️ the moon light lives INSIDE backG on purpose. three.js skips a whole subtree
+   * when a parent is invisible, lights included — so the yard lighting switches
+   * itself off with the hall, and never washes the bedroom the way the FRONT yard's
+   * lights did before they were gated. Distance 15 from z+18 reaches z 3 at the
+   * nearest, which is the hall's south end: moonlight through the glass, no further. */
+  var backSkyT = canvasTex(256, 128, function (c, w, h) {
+    var sky = c.createLinearGradient(0, 0, 0, h);
+    sky.addColorStop(0, "#0b1120"); sky.addColorStop(0.72, "#1d2740"); sky.addColorStop(1, "#2b3550");
     c.fillStyle = sky; c.fillRect(0, 0, w, h);
-    for (var s = 0; s < 40; s++) { // stars, same night as the bedroom window
-      c.fillStyle = "rgba(255,255,255," + (0.2 + Math.random() * 0.45).toFixed(2) + ")";
-      c.fillRect(Math.random() * w, Math.random() * h * 0.5, 2, 2);
+    for (var s = 0; s < 150; s++) {
+      var sy = Math.random() * h * 0.8;
+      c.fillStyle = "rgba(255,255,255," + (0.15 + Math.random() * 0.5 * (1 - sy / h)).toFixed(2) + ")";
+      c.fillRect(Math.random() * w, sy, 1.4, 1.4);
     }
-    c.fillStyle = "#0b120b"; c.fillRect(0, h * 0.58, w, h * 0.42);           // lawn
-    c.fillStyle = "#140f0a";                                                 // the fence, board by board
-    for (var b = 0; b < 26; b++) c.fillRect(b * 20 + 2, h * 0.40, 17, h * 0.20);
-    c.fillRect(0, h * 0.44, w, 5); c.fillRect(0, h * 0.53, w, 5);
-    c.fillStyle = "#080605";                                                 // next door, one light on
-    c.fillRect(w * 0.60, h * 0.12, w * 0.30, h * 0.30);
-    c.fillStyle = "rgba(255,206,138,0.8)"; c.fillRect(w * 0.66, h * 0.20, 26, 20);
-    c.fillStyle = "#080b06";                                                 // the tree that drops things on the deck
-    c.beginPath(); c.arc(w * 0.16, h * 0.30, 62, 0, 7); c.fill();
-    c.fillRect(w * 0.15, h * 0.30, 10, h * 0.30);
   });
-  var yard = new THREE.Mesh(new THREE.PlaneGeometry(6.2, 3.9),
-    new THREE.MeshBasicMaterial({ map: yardT }));
-  yard.position.set(XC, 1.5, Z_S + 2.6); yard.rotation.y = Math.PI; badd(yard);
+  backSkyT.colorSpace = THREE.SRGBColorSpace;   // ⚠️ canvasTex leaves it LINEAR otherwise
+  var backSky = new THREE.Mesh(new THREE.PlaneGeometry(90, 34),
+    new THREE.MeshBasicMaterial({ map: backSkyT }));
+  backSky.position.set(XC, GROUND + 12, Z_S + 34); backSky.rotation.y = Math.PI; badd(backSky);
+
+  var backLawn = new THREE.Mesh(new THREE.PlaneGeometry(30, 17), grassM);  // shares the front lawn's material
+  backLawn.rotation.x = -Math.PI / 2; backLawn.position.set(XC, GROUND, Z_S + 9.4); badd(backLawn);
+
+  var bFenceM = mat(0x6a5540, 0.95);
+  for (var fb = 0; fb < 46; fb++) {                       // board fence, board by board
+    var bd = box(0.17, 1.65, 0.04, bFenceM);
+    bd.position.set(XC - 11.5 + fb * 0.51, GROUND + 0.82, Z_S + 16.2); badd(bd);
+  }
+  [-11.4, -5.7, 0, 5.7, 11.4].forEach(function (px) {     // and its posts
+    var po = box(0.13, 1.85, 0.13, mat(0x51402f, 0.95));
+    po.position.set(XC + px, GROUND + 0.92, Z_S + 16.24); badd(po);
+  });
+  [GROUND + 0.35, GROUND + 1.42].forEach(function (ry) {  // rails
+    var rl = box(23.4, 0.09, 0.05, mat(0x5e4a37, 0.95));
+    rl.position.set(XC, ry, Z_S + 16.27); badd(rl);
+  });
+
+  (function () {                                          // the tree that drops things on the deck
+    var tg = new THREE.Group(); tg.position.set(XC - 5.6, GROUND, Z_S + 11.4); badd(tg);
+    var tr = new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.26, 4.4, 7), mat(0x3d2f22, 0.95));
+    tr.position.y = 2.2; tg.add(tr);
+    [[0, 4.9, 0, 1.5], [-1.0, 4.5, 0.5, 1.15], [1.1, 4.6, -0.4, 1.2],
+     [0.3, 5.5, 0.6, 1.0], [-0.6, 5.4, -0.7, 0.95]].forEach(function (bl) {
+      var lf = new THREE.Mesh(new THREE.IcosahedronGeometry(bl[3], 1), mat(bl[3] > 1.1 ? 0x2f4a2a : 0x35522f, 0.95));
+      lf.position.set(bl[0], bl[1], bl[2]); lf.scale.y = 0.82; tg.add(lf);
+    });
+  })();
+
+  [[-2.9, 0], [2.9, 0]].forEach(function (wp) {           // the washing line
+    var wpo = box(0.09, 1.9, 0.09, mat(0x6a5540, 0.95));
+    wpo.position.set(XC + wp[0], GROUND + 0.95, Z_S + 6.6); badd(wpo);
+  });
+  var wline = box(5.8, 0.015, 0.015, mat(0xcfc8b6, 0.8));
+  wline.position.set(XC, GROUND + 1.82, Z_S + 6.6); badd(wline);
+  [[-1.9, 0.34, 0xd8dce4], [-0.6, 0.42, 0xc9d2dc], [0.8, 0.30, 0xdfe6dc]].forEach(function (pg) {
+    var cl = box(0.30, pg[1], 0.012, mat(pg[2], 0.95));
+    cl.position.set(XC + pg[0], GROUND + 1.82 - pg[1] / 2, Z_S + 6.6); badd(cl);
+  });
+
+  (function () {                                          // next door's roof, one light still on
+    var nb = box(9.5, 3.6, 6.0, mat(0x2a3242, 0.95));
+    nb.position.set(XC + 8.2, GROUND + 1.8, Z_S + 21.5); badd(nb);
+    var rf = new THREE.Mesh(new THREE.ConeGeometry(7.0, 2.3, 4), mat(0x222a36, 0.95));
+    rf.rotation.y = Math.PI / 4; rf.position.set(XC + 8.2, GROUND + 4.7, Z_S + 21.5); badd(rf);
+    var win = new THREE.Mesh(new THREE.PlaneGeometry(1.0, 0.8),
+      new THREE.MeshBasicMaterial({ color: 0xffd9a0 }));
+    win.position.set(XC + 6.4, GROUND + 2.1, Z_S + 18.45); win.rotation.y = Math.PI; badd(win);
+  })();
+
+  var backMoon = new THREE.PointLight(0x9fb4d8, 1.15, 15, 1.7);
+  backMoon.position.set(XC, GROUND + 7.5, Z_S + 8.0); badd(backMoon);
 
   var deckM = new THREE.MeshStandardMaterial({ color: 0x5b4530, roughness: 0.95 });
   var deck = box(3.4, 0.08, 1.5, deckM); deck.position.set(XC, -0.04, Z_S + 0.78); badd(deck);
@@ -2133,6 +2183,94 @@ export function buildHallway(ctx) {
 
   /* ---- light ------------------------------------------------------------------ */
   // Two ceiling bulbs on cords. The south one has the pull chain — yes, you can
+  /* ---- THE HALL AND THE BACK, LIVED IN ----------------------------------------
+   * Same treatment the kitchen got. This block sits AFTER the kitchen on purpose:
+   * kShadeT, kWearT and radialTex are declared there and this reuses them rather
+   * than making a second set of identical decal textures. */
+  function hDecal(addFn, tex, x, y, z, rx, rz, op) {
+    var m = new THREE.Mesh(new THREE.PlaneGeometry(rx * 2, rz * 2),
+      new THREE.MeshBasicMaterial({ map: tex, transparent: true, opacity: op, depthWrite: false,
+        polygonOffset: true, polygonOffsetFactor: -6, polygonOffsetUnits: -6 }));
+    m.rotation.x = -Math.PI / 2; m.position.set(x, y, z); m.renderOrder = 2; addFn(m); return m;
+  }
+  // contact shade under the heavy things, so they sit IN the hall instead of on it
+  [[TBL_X, TBL_Z, 0.34, 0.26, 0.42],          // the hall table
+   [-6.35, -2.55, 0.42, 0.36, 0.46],          // the moving boxes under the stairs
+   [STAND_X, STAND_Z, 0.16, 0.16, 0.44],      // the umbrella stand
+   [W_IN + 0.36, 7.5, 0.40, 0.62, 0.44],      // the chest freezer
+   [E_IN - 0.75, 7.0, 0.30, 0.30, 0.30]       // the boots by the back door
+  ].forEach(function (s) { hDecal(add, kShadeT, s[0], 0.010, s[1], s[2], s[3], s[4]); });
+
+  // ⚠️ WEAR GOES WHERE FEET GO, and in a hall that is not the middle of the floor —
+  // it is the doorways. A hall's traffic is a series of pinch points: the mat, the
+  // foot of the stairs, and one patch outside every door somebody actually opens.
+  [[FRONT_X, -2.75, 0.40, 0.34, 0.50],        // inside the front door
+   [-6.95, -2.30, 0.42, 0.38, 0.52],          // the foot of the stairs
+   [W_IN + 0.62, -0.35, 0.30, 0.34, 0.44],    // the kitchen door
+   [W_IN + 0.62, 1.90, 0.28, 0.32, 0.38],     // the living room door
+   [E_IN - 0.55, 0.10, 0.30, 0.38, 0.42],     // the bedroom doorway
+   [XC, 8.10, 0.44, 0.32, 0.46],              // the slider
+   [W_IN + 0.62, 6.30, 0.28, 0.32, 0.36]      // the garage door
+  ].forEach(function (s) { hDecal(add, kWearT, s[0], 0.008, s[1], s[2], s[3], s[4]); });
+
+  // the post, landed on the mat and not picked up
+  [[-0.10, -0.04, 0.13, 0xf0ead8], [0.06, 0.05, -0.31, 0xe6dcc4], [-0.02, 0.11, 0.62, 0xdfe8ee]]
+    .forEach(function (lt) {
+      var env = box(0.17, 0.006, 0.11, mat(lt[3], 0.95));
+      env.position.set(FRONT_X + lt[0], 0.018, -3.00 + lt[1]); env.rotation.y = lt[2]; add(env);
+      tag(env, "the post", null, "letters for somebody who used to live here. nobody has moved them.");
+    });
+  // the dish by the phone that every set of keys in this house ends up in
+  var keyDish = new THREE.Mesh(new THREE.CylinderGeometry(0.062, 0.05, 0.022, 16), mat(0x6a4f7a, 0.55));
+  keyDish.position.set(TBL_X + 0.16, 0.751, TBL_Z - 0.08); add(keyDish);
+  [[-0.015, 0.55], [0.02, -0.3]].forEach(function (kk) {
+    var key = box(0.012, 0.004, 0.05, mat(0xb8a24a, 0.4));
+    key.position.set(TBL_X + 0.16 + kk[0], 0.762, TBL_Z - 0.08 + kk[0] * 0.6);
+    key.rotation.y = kk[1]; add(key);
+  });
+  tag(keyDish, "the key dish", null, "every set of keys in this house ends up here eventually.");
+
+  // a pair of boots kicked off by the back door, and the watering can
+  var bootM = mat(0x2f3a44, 0.9);
+  [[-0.10, 0.25], [0.10, -0.18]].forEach(function (bt) {
+    var bg2 = new THREE.Group(); bg2.position.set(E_IN - 0.75 + bt[0], 0, 7.0); bg2.rotation.y = bt[1]; add(bg2);
+    var shaft = box(0.10, 0.24, 0.13, bootM); shaft.position.y = 0.12; bg2.add(shaft);
+    var toe = box(0.10, 0.08, 0.10, bootM); toe.position.set(0, 0.04, 0.10); bg2.add(toe);
+  });
+  var canG = new THREE.Group(); canG.position.set(XC + 1.15, 0, 8.15); canG.rotation.y = -0.5; add(canG);
+  var canB = new THREE.Mesh(new THREE.CylinderGeometry(0.10, 0.11, 0.20, 12), mat(0x3f6b52, 0.6));
+  canB.position.y = 0.10; canG.add(canB);
+  var canS = new THREE.Mesh(new THREE.CylinderGeometry(0.022, 0.032, 0.26, 8), mat(0x3f6b52, 0.6));
+  canS.rotation.z = -0.9; canS.position.set(0.15, 0.16, 0); canG.add(canS);
+  var canH = new THREE.Mesh(new THREE.TorusGeometry(0.055, 0.011, 6, 12, Math.PI), mat(0x3f6b52, 0.6));
+  canH.rotation.y = Math.PI / 2; canH.position.set(-0.02, 0.21, 0); canG.add(canH);
+  tag(canB, "the watering can", null, "it lives by the back door and gets used twice a summer.");
+
+  // --- DUST, hanging in the light. A hall this still should have some.
+  var dustT = radialTex("255,240,214", 0.85);
+  var dust = [];
+  for (var dm = 0; dm < 26; dm++) {
+    var sp2 = new THREE.Mesh(new THREE.PlaneGeometry(0.016, 0.016),
+      new THREE.MeshBasicMaterial({ map: dustT, transparent: true, opacity: 0, depthWrite: false,
+        blending: THREE.AdditiveBlending }));
+    sp2.renderOrder = 7; add(sp2);
+    dust.push({ m: sp2, x: XC + (Math.random() - 0.5) * 2.4, z: -2.6 + Math.random() * 10.4,
+      y: 0.5 + Math.random() * 1.9, ph: Math.random() * 9, sp: 0.10 + Math.random() * 0.16 });
+  }
+  function hallLife(dt, t, lampOn) {
+    for (var i = 0; i < dust.length; i++) {
+      var d = dust[i];
+      d.y += dt * d.sp * 0.10;
+      if (d.y > 2.55) d.y = 0.35;
+      d.m.position.set(d.x + Math.sin(t * 0.35 + d.ph) * 0.13, d.y,
+                       d.z + Math.cos(t * 0.27 + d.ph * 1.3) * 0.11);
+      // brightest near a bulb — dust you can only see when it drifts through the beam
+      var near = Math.min(Math.abs(d.z - 1.9), Math.abs(d.z + 2.2), Math.abs(d.z - 6.4));
+      d.m.material.opacity = 0.30 * lampOn * Math.max(0, 1 - near / 1.5) * (0.55 + 0.45 * Math.sin(t * 0.9 + d.ph));
+      d.m.quaternion.copy(camera.quaternion);
+    }
+  }
+
   // turn the hall lights off; no, the underdoor spills don't care.
   function bulbAt(z, warm) {
     var bg = new THREE.Group(); bg.position.set(XC, 0, z); add(bg);
@@ -2657,6 +2795,7 @@ export function buildHallway(ctx) {
     strip.material.emissiveIntensity = 1.3 * dim * kStripOn;
     frGlow.intensity = (0.24 + 0.06 * Math.sin(t * 1.7)) * dim;
     kitchenLife(dt, dim);   // steam off the kettle, and the tap that drips
+    hallLife(dt, t, dim * on);   // dust, visible only where it drifts through a bulb
     bGlow.material.opacity = 0.08 + 0.05 * Math.sin(t * 0.9); // the basement, breathing
     var target = cloOpen ? -1.6 : 0;
     cloAnim += (target - cloAnim) * Math.min(1, dt * 7);
