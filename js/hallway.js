@@ -407,8 +407,21 @@ export function buildHallway(ctx) {
   }
   tag(cloShelf, "the shelf", null, "board games with pieces missing, and tapes nobody can play any more.");
 
+  // THE SHOES, moved in from the mud room — a row of them along the front of the
+  // closet floor, which is the actual reason a hall closet has a floor. Two grown-up
+  // pairs and one small bright pair, kicked off rather than lined up.
+  [[-0.34, 0x2f3a48, 0.06], [-0.19, 0x2f3a48, -0.10],
+   [0.13, 0x5e3a2e, 0.22], [0.28, 0x5e3a2e, -0.06]].forEach(function (sh) {
+    var sg = new THREE.Group(); sg.position.set(0.11, 0.0, sh[0]); sg.rotation.y = sh[2]; cloG.add(sg);
+    var sole = box(0.11, 0.025, 0.25, mat(0x1d1f22, 0.85)); sole.position.y = 0.013; sg.add(sole);
+    var upper = box(0.10, 0.07, 0.16, mat(sh[1], 0.8)); upper.position.set(0, 0.058, -0.03); sg.add(upper);
+    var toe2 = box(0.10, 0.045, 0.09, mat(sh[1], 0.8)); toe2.position.set(0, 0.045, 0.085); sg.add(toe2);
+    tag(sole, "the shoes", null, "kicked off at the back door and never once put away.");
+  });
   // the floor of it: rollerblades kicked in, a Super Soaker stood in the corner
-  [[0.10, -0.26, 0.5], [0.19, -0.06, -0.9]].forEach(function (rb) {
+  // ⚠️ pushed to the BACK (x 0.26) now that the shoes have the front row at x 0.11 —
+  // different depth bands, so nothing has to share floor with anything
+  [[0.53, -0.10, 0.5], [0.53, 0.08, -0.9]].forEach(function (rb) {
     var bl = new THREE.Group(); bl.position.set(0.10 + rb[0] * 0.3, 0.03, rb[1]); bl.rotation.y = rb[2]; cloG.add(bl);
     var boot = box(0.10, 0.13, 0.24, mat(0xe8e4da, 0.6)); boot.position.y = 0.10; bl.add(boot);
     var cuff = box(0.105, 0.06, 0.13, mat(0x2f3f8a, 0.6)); cuff.position.set(0, 0.185, -0.04); bl.add(cuff);
@@ -418,7 +431,7 @@ export function buildHallway(ctx) {
     }
     tag(boot, "the rollerblades", null, "somebody was very good at these for one summer.");
   });
-  var soak = new THREE.Group(); soak.position.set(0.24, 0.0, -0.27); soak.rotation.set(0, 0.5, -0.24); cloG.add(soak);
+  var soak = new THREE.Group(); soak.position.set(0.27, 0.0, -0.33); soak.rotation.set(0, 0.5, -0.24); cloG.add(soak);
   var skBody = box(0.075, 0.46, 0.10, mat(0x2fb8a8, 0.55)); skBody.position.y = 0.25; soak.add(skBody);
   var skTank = new THREE.Mesh(new THREE.CylinderGeometry(0.055, 0.055, 0.16, 12), mat(0xf2d24a, 0.5));
   skTank.position.set(0, 0.50, -0.01); soak.add(skTank);
@@ -426,7 +439,8 @@ export function buildHallway(ctx) {
   skNoz.rotation.x = Math.PI / 2; skNoz.position.set(0, 0.44, 0.10); soak.add(skNoz);
   var skGrip = box(0.06, 0.13, 0.05, mat(0xe8478a, 0.6)); skGrip.position.set(0, 0.10, 0.05); soak.add(skGrip);
   tag(skBody, "the Super Soaker", null, "the 50. still the best one. still has a bit of water in it.");
-  var shoebox2 = box(0.3, 0.11, 0.18, mat(0x9a8a6a, 0.9)); shoebox2.position.set(0.26, 0.075, 0.30); shoebox2.rotation.y = 0.4; cloG.add(shoebox2);
+  // the shoebox went UP to the shelf — the floor belongs to the shoes now
+  var shoebox2 = box(0.28, 0.11, 0.17, mat(0x9a8a6a, 0.9)); shoebox2.position.set(0.20, 2.00, -0.26); shoebox2.rotation.y = 0.25; cloG.add(shoebox2);
   // the closet's own bulb — a pull-cord fixture that only reads when the door is open
   var cloBulb = new THREE.Mesh(new THREE.SphereGeometry(0.032, 10, 8),
     new THREE.MeshStandardMaterial({ color: 0xfff2d8, emissive: 0xffd9a0, emissiveIntensity: 0, roughness: 0.4 }));
@@ -435,8 +449,12 @@ export function buildHallway(ctx) {
   // under the lid lit the shelf and left the floor of the closet black — which is
   // exactly where the rollerblades and the Super Soaker are. Dropping it to chest
   // height inside the box lights the whole depth; the bulb mesh stays up top.
-  var cloLight = new THREE.PointLight(0xffd9a0, 0, 2.6, 1.5);
-  cloLight.position.set(0.14, 1.35, -0.05); cloG.add(cloLight);
+  // ⚠️ up at the front-top (y 1.88) and gentler (decay 1.15, range 3.0), not chest-high
+  // and hot. At y 1.35 it sat ~10cm off the coats and blew the windbreaker to pure
+  // white — a closet lamp is above and in front of what it lights, and its falloff has
+  // to reach the floor two metres down, which a 1.5 decay never did.
+  var cloLight = new THREE.PointLight(0xffd9a0, 0, 3.0, 1.15);
+  cloLight.position.set(0.05, 1.88, 0.02); cloG.add(cloLight);
   // ⚠️⚠️ HINGE SOUTH **AND** ROTATION POSITIVE. Both halves matter and I got each of
   // them wrong once. The hall is at -x, so an opening door must sweep to -x; with the
   // pivot at +0.44 and the leaf at -0.42 that needs θ = +1.6, because R_y sends
@@ -472,7 +490,9 @@ export function buildHallway(ctx) {
   var cloKnob = new THREE.Mesh(new THREE.SphereGeometry(0.024, 10, 8),
     new THREE.MeshStandardMaterial({ color: 0xb08d3f, roughness: 0.35, metalness: 0.6 }));
   cloKnob.position.set(-0.04, 1.0, -0.76); cloDoorP.add(cloKnob);
-  var cloOpen = false, cloAnim = 0;
+  // ⚠️ OPEN by default. It's the one door down here that works, and everything worth
+  // looking at is inside it — shut, it's a brown rectangle. The stash still closes it.
+  var cloOpen = true, cloAnim = 0;
   function closetToggle() { cloOpen = !cloOpen; AUDIO.ratchetSfx && AUDIO.ratchetSfx(); }
   [cloDoor, cloKnob].forEach(function (m) {
     tag(m, "the closet", closetToggle, "the hall closet");
@@ -2217,7 +2237,13 @@ export function buildHallway(ctx) {
   tag(blindRail, "the blinds", null, "vertical blinds, half drawn. they have always been half drawn.");
 
   // --- THE GARAGE: taped like every other room that isn't yours yet
-  var garDoor = slabDoor(W_IN + 0.03, 6.3, 0, 1.0, 0x3f4a52, "the garage door",
+  // ⚠️ z 5.60, not 6.30. The shelving and its bins start at z 6.8 on this same wall,
+  // and from the hall camera a west-wall object at LARGER z sits closer to frame
+  // centre — so at 6.30 the shelf uprights and the orange bins were landing right on
+  // the garage door's near jamb. Pulling it north moves it toward the frame edge and
+  // opens a clear 0.7m gap between the two. (Kyle: "so it and its frame is not
+  // covered by the shelf and boxes".)
+  var garDoor = slabDoor(W_IN + 0.03, 5.6, 0, 1.0, 0x3f4a52, "the garage door",
     "the garage — one car, a workbench, and everything that didn't fit. 2027.", 0xbfc8d8, 0.12);
   tapeX(garDoor, 1.0); plaque(garDoor, "GARAGE", "opening soon");
 
@@ -2251,12 +2277,10 @@ export function buildHallway(ctx) {
    * washer and dryer that were always modelled in there, and it gives the back of the
    * hall the thing it was actually short of: somewhere to see INTO. The casing below
    * still frames the opening, so it reads as a nook and not a hole in the wall. */
-  [-0.80, 0.80].forEach(function (bz) {          // the nook's casing, flat to the wall
-    var cs2 = box(0.05, 2.08, 0.07, mat(0x6a5a42, 0.85));
-    cs2.position.set(-0.02, 1.04, bz); launG.add(cs2);
-  });
-  var launHead = box(0.05, 0.07, 1.67, mat(0x6a5a42, 0.85));
-  launHead.position.set(-0.02, 2.045, 0); launG.add(launHead);
+  // ⚠️ and the casing is gone too (Kyle: "remove the laundry leaf on the wall
+  // completely"). The leaves went first, then their frame — which was still a pale
+  // 2.08m slab standing on the wall doing the same job of interrupting the run. The
+  // laundry is simply an alcove now: appliances, a basket, and a sock.
   launG.children.forEach(function (m) {
     if (m.isMesh) tag(m, "the laundry", null, "the laundry. one sock has been down here since 1997.");
   });
@@ -2269,13 +2293,12 @@ export function buildHallway(ctx) {
   // was wrong with the mud room — it was here first. 6.60 is the gap between the
   // laundry (ends 6.10) and the closet opening (starts 7.24), so the back wall reads
   // laundry, mud room, closet in a row, which is the order a real back hall has them.
-  var mudG = new THREE.Group(); mudG.position.set(E_IN - 0.26, 0, 6.60); add(mudG);
-  [[-0.30, 0x3a4a5e, 0.20], [-0.16, 0x3a4a5e, 0.20], [0.10, 0x5e3a2e, 0.16], [0.24, 0x5e3a2e, 0.16]]
-    .forEach(function (bt) {
-      var boot = box(0.16, bt[2], 0.12, mat(bt[1], 0.9));
-      boot.position.set(0, bt[2] / 2, bt[0]); mudG.add(boot);
-      var toe = box(0.2, 0.06, 0.12, mat(bt[1], 0.9)); toe.position.set(-0.03, 0.03, bt[0]); mudG.add(toe);
-    });
+  // ⚠️ z 6.30 (Kyle: slide it over) and THE BOOTS ARE NOT HERE ANY MORE — they moved
+  // into the closet, which is where shoes by a back door actually go. What's left is
+  // the wall-mounted half: the hook rail, the leash, and the dog bowl on the floor.
+  // The rail sits at y 1.6 and the leash hangs to 1.14, both clear over the dryer
+  // (0.9 tall) that this now overlaps in plan.
+  var mudG = new THREE.Group(); mudG.position.set(E_IN - 0.26, 0, 6.30); add(mudG);
   var hookRail = box(0.05, 0.06, 0.7, mat(0x4a3a24, 0.8)); hookRail.position.set(-0.06, 1.6, 0); mudG.add(hookRail);
   [-0.24, 0, 0.24].forEach(function (hz) {
     var hk = new THREE.Mesh(new THREE.CylinderGeometry(0.012, 0.012, 0.1, 8), mat(0x8f959b, 0.4));
@@ -2651,9 +2674,9 @@ export function buildHallway(ctx) {
       { label: "off", apply: function () { backPorchOn = 0; } },
     ] },
     // the closet moved to the back, so the laundry basket is the box that owns it
-    { k: "closet", label: "the closet door", vals: [
+    { k: "closet", label: "the closet door", vals: [   // open first: it's the default now
+      { label: "open", apply: function () { cloOpen = true; } },
       { label: "shut", apply: function () { cloOpen = false; } },
-      { label: "ajar", apply: function () { cloOpen = true; } },
     ] },
     { k: "sock", label: "the lost sock", vals: [
       { label: "where it fell", apply: function () { sock.visible = true; } },
@@ -3038,7 +3061,7 @@ export function buildHallway(ctx) {
     // the closet's bulb comes up with the door, so the 1997 inside it is only lit
     // while you're actually looking at it — and never leaks into the hall when shut
     var cf = Math.min(1, Math.abs(cloAnim) / 1.2);
-    cloLight.intensity = 2.8 * cf * dim;
+    cloLight.intensity = 1.35 * cf * dim;
     cloBulb.material.emissiveIntensity = 1.7 * cf * dim;
     // somebody on the path, briefly
     if (figT > 0) { figT -= dt; figG.visible = true; figG.position.x = FRONT_X + 0.35 + Math.sin(t * 0.7) * 0.05; }
