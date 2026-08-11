@@ -1990,9 +1990,10 @@ export function buildHallway(ctx) {
   });
   var wline = box(5.8, 0.015, 0.015, mat(0xcfc8b6, 0.8));
   wline.position.set(XC, GROUND + 1.82, Z_S + 6.6); badd(wline);
+  var washing = [];
   [[-1.9, 0.34, 0xd8dce4], [-0.6, 0.42, 0xc9d2dc], [0.8, 0.30, 0xdfe6dc]].forEach(function (pg) {
     var cl = box(0.30, pg[1], 0.012, mat(pg[2], 0.95));
-    cl.position.set(XC + pg[0], GROUND + 1.82 - pg[1] / 2, Z_S + 6.6); badd(cl);
+    cl.position.set(XC + pg[0], GROUND + 1.82 - pg[1] / 2, Z_S + 6.6); badd(cl); washing.push(cl);
   });
 
   (function () {                                          // next door's roof, one light still on
@@ -2214,11 +2215,13 @@ export function buildHallway(ctx) {
   ].forEach(function (s) { hDecal(add, kWearT, s[0], 0.008, s[1], s[2], s[3], s[4]); });
 
   // the post, landed on the mat and not picked up
+  var thePost = [];
   [[-0.10, -0.04, 0.13, 0xf0ead8], [0.06, 0.05, -0.31, 0xe6dcc4], [-0.02, 0.11, 0.62, 0xdfe8ee]]
     .forEach(function (lt) {
       var env = box(0.17, 0.006, 0.11, mat(lt[3], 0.95));
       env.position.set(FRONT_X + lt[0], 0.018, -3.00 + lt[1]); env.rotation.y = lt[2]; add(env);
       tag(env, "the post", null, "letters for somebody who used to live here. nobody has moved them.");
+      thePost.push(env);
     });
   // the dish by the phone that every set of keys in this house ends up in
   var keyDish = new THREE.Mesh(new THREE.CylinderGeometry(0.062, 0.05, 0.022, 16), mat(0x6a4f7a, 0.55));
@@ -2311,6 +2314,9 @@ export function buildHallway(ctx) {
   var stashPanel = null, stashOpenKey = null;
   function closeStash() { if (stashPanel) stashPanel.style.display = "none"; stashOpenKey = null; }
   function renderStash(st) {
+    // a shared option may have been changed from a different container since this
+    // one was last drawn — re-read it, or the button would show a stale label
+    st.opts.forEach(function (o) { if (o.shared) o.i = readShared(o.shared) % o.vals.length; });
     var html = "<div style='font-weight:700;letter-spacing:.02em;margin-bottom:8px'>" + st.title + "</div>";
     st.opts.forEach(function (o, i) {
       html += "<div style='display:flex;justify-content:space-between;gap:12px;align-items:center;margin:5px 0'>" +
@@ -2353,21 +2359,75 @@ export function buildHallway(ctx) {
     renderStash(st);
     stashPanel.style.display = "block";
   }
+  /* ---- HOUSE LOOKS: whole-house themes, the way the bedroom has ROOM_THEMES -----
+   * Kyle asked for room types out here too — "one option you should definitely have
+   * is the room types such as cozy cabin like you do in the bedroom". The bedroom
+   * swaps whole texture sets; the house can't, because it is painted procedurally
+   * rather than from a library of wallpapers. So a look here is a GRADE: every keyed
+   * material's own base colour lerped toward one tint by one amount.
+   * ⚠️ that indirection is the whole trick. material.color MULTIPLIES the map, and
+   * these materials each arrive with a base already tuned against their own texture
+   * (grass 0x9fb894, siding 0xeae6da). Assigning flat colours per look would throw
+   * that tuning away and every look would have to re-solve ten materials against ten
+   * textures. Lerping from the CAPTURED base keeps every relationship and makes a new
+   * look two numbers. */
+  var LOOK_MATS = [hwallM, plankM, runner.material, oakM, kWallM, lamM,
+                   sidingM, grassM, deckM, bFenceM, pdeckM];
+  var LOOK_BASE = LOOK_MATS.map(function (m) { return m.color.getHex(); });
+  var LOOKS = [
+    { key: "asfound", name: "as found", icon: "🏚️" },
+    { key: "cabin",   name: "cozy cabin",   icon: "🔥", tint: 0xffa552, amt: 0.34, bulb: 0xffc07a },
+    { key: "seaside", name: "seaside",      icon: "🌊", tint: 0x8ecbe6, amt: 0.30, bulb: 0xe4f2ff },
+    { key: "harvest", name: "harvest",      icon: "🍂", tint: 0xd87a3a, amt: 0.26, bulb: 0xffcf96 },
+    { key: "moonlit", name: "moonlit",      icon: "🌙", tint: 0x7d95d4, amt: 0.38, bulb: 0xcfe0ff },
+    { key: "greenhouse", name: "greenhouse", icon: "🌿", tint: 0x8fc47a, amt: 0.24, bulb: 0xeaffd8 },
+  ];
+  var lookBulb = 0xffd9a0;
+  function applyLook(key) {
+    var L = null;
+    LOOKS.forEach(function (x) { if (x.key === key) L = x; });
+    if (!L) L = LOOKS[0];
+    var tint = L.tint != null ? new THREE.Color(L.tint) : null;
+    LOOK_MATS.forEach(function (m, i) {
+      var c = new THREE.Color(LOOK_BASE[i]);
+      if (tint) c.lerp(tint, L.amt);
+      m.color.copy(c);
+    });
+    lookBulb = L.bulb || 0xffd9a0;
+    [bulbS, bulbN, bulbB].forEach(function (b) {
+      b.light.color.setHex(lookBulb); b.bulb.material.emissive.setHex(lookBulb);
+    });
+  }
+
   var stashByKey = {};
+  // ⚠️ a `shared` option keeps its index in its OWN localStorage key, not the stash's,
+  // so the house look reads the same from whichever container you open — four copies
+  // of one setting that disagreed would be worse than not offering it four times.
+  function readShared(k) { try { return parseInt(localStorage.getItem(k) || "0", 10) || 0; } catch (e) { return 0; } }
   function makeStash(key, title, opts) {
     var saved = {};
     try { saved = JSON.parse(localStorage.getItem("room-stash-" + key) || "{}"); } catch (e) { }
     opts.forEach(function (o) {
-      o.i = (saved[o.k] | 0) % o.vals.length;
+      o.i = (o.shared ? readShared(o.shared) : (saved[o.k] | 0)) % o.vals.length;
       o.vals[o.i].apply();                    // a saved choice is live from frame one
     });
     var st = { key: key, title: title, opts: opts, save: function () {
       var s = {};
-      opts.forEach(function (o) { s[o.k] = o.i; });
+      opts.forEach(function (o) {
+        if (o.shared) { try { localStorage.setItem(o.shared, String(o.i)); } catch (e) { } }
+        else s[o.k] = o.i;
+      });
       try { localStorage.setItem("room-stash-" + key, JSON.stringify(s)); } catch (e) { }
     } };
     stashByKey[key] = st;
     return st;
+  }
+  // every container offers the whole-house look, and they all mean the same thing
+  function lookOption() {
+    return { k: "look", label: "the house look", shared: "room-house-look",
+      vals: LOOKS.map(function (L) {
+        return { label: L.icon + " " + L.name, apply: function () { applyLook(L.key); } };
+      }) };
   }
 
   // --- HALL: moving boxes that never got unpacked, by the closet
@@ -2391,6 +2451,11 @@ export function buildHallway(ctx) {
   var hb1 = box(0.56, 0.42, 0.46, hallBoxM); hb1.position.y = 0.21; hallBoxes.add(hb1);
   var hb2 = box(0.46, 0.36, 0.4, hallBoxM); hb2.position.set(0.06, 0.60, -0.02); hb2.rotation.y = 0.22; hallBoxes.add(hb2);
   var hallStash = makeStash("hall", "📦 the hall boxes", [
+    lookOption(),
+    { k: "post", label: "the post", vals: [
+      { label: "still on the mat", apply: function () { thePost.forEach(function (e) { e.visible = true; }); } },
+      { label: "picked up", apply: function () { thePost.forEach(function (e) { e.visible = false; }); } },
+    ] },
     { k: "runner", label: "the runner", vals: [
       { label: "as woven", apply: function () { runner.material.color.set(0xffffff); } },
       { label: "sun-faded", apply: function () { runner.material.color.set(0xcfc4b4); } },
@@ -2421,6 +2486,11 @@ export function buildHallway(ctx) {
   bskRim.rotation.x = Math.PI / 2; bskRim.position.y = 0.30; basketG.add(bskRim);
   var bskWash = box(0.3, 0.1, 0.26, mat(0xd8cfc0, 0.95)); bskWash.position.y = 0.32; bskWash.rotation.y = 0.4; basketG.add(bskWash);
   var backStash = makeStash("back", "🧺 the laundry basket", [
+    lookOption(),
+    { k: "washing", label: "the washing", vals: [
+      { label: "out on the line", apply: function () { washing.forEach(function (w) { w.visible = true; }); } },
+      { label: "brought in", apply: function () { washing.forEach(function (w) { w.visible = false; }); } },
+    ] },
     { k: "blinds", label: "the blinds", vals: [
       { label: "half drawn", apply: function () { blindSlats.forEach(function (s, i) { s.visible = true; s.rotation.y = 0.62 + (i % 2) * 0.05; }); } },
       { label: "open", apply: function () { blindSlats.forEach(function (s) { s.visible = true; s.rotation.y = 1.44; }); } },
@@ -2455,6 +2525,11 @@ export function buildHallway(ctx) {
   tbxHandle.position.y = 0.26; tbxG.add(tbxHandle);
   var trowel = box(0.05, 0.02, 0.2, mat(0x8f959b, 0.4)); trowel.position.set(0.3, 0.03, 0.05); trowel.rotation.y = 0.5; tbxG.add(trowel);
   var frontStash = makeStash("front", "🧰 the yard toolbox", [
+    lookOption(),
+    { k: "mower", label: "the mower", vals: [
+      { label: "left out mid-job", apply: function () { mowG.visible = true; } },
+      { label: "back in the shed", apply: function () { mowG.visible = false; } },
+    ] },
     { k: "flag", label: "the mailbox flag", vals: [
       { label: "up — mail out", apply: function () { mbFlag.rotation.x = 0; } },
       { label: "down", apply: function () { mbFlag.rotation.x = 1.35; } },
@@ -2479,6 +2554,11 @@ export function buildHallway(ctx) {
   var rcpLid = box(0.24, 0.04, 0.16, mat(0x7d5a34, 0.75)); rcpLid.position.set(0, 0.155, -0.015); rcpLid.rotation.x = -0.2; rcpG.add(rcpLid);
   var rcpCard = box(0.18, 0.1, 0.008, mat(0xf4efdd, 0.95)); rcpCard.position.set(0, 0.16, 0.02); rcpCard.rotation.x = -0.25; rcpG.add(rcpCard);
   var kitchenStash = makeStash("kitchen", "🗃️ the recipe box", [
+    lookOption(),
+    { k: "rack", label: "the washing up", vals: [
+      { label: "still draining", apply: function () { rackG.visible = true; } },
+      { label: "put away", apply: function () { rackG.visible = false; } },
+    ] },
     { k: "strip", label: "the strip light", vals: [
       { label: "on", apply: function () { kStripOn = 1; } },
       { label: "off", apply: function () { kStripOn = 0; } },
