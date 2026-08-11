@@ -289,7 +289,6 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
     var f = url.split("/").pop();
     if (GLB_PRIO[f] != null) return GLB_PRIO[f];
     if (f.indexOf("kid_") === 0) return 2;   // his other animation clips: small, and he needs them
-    if (f.indexOf("army_") === 0) return 5;  // toy soldiers, thumb-sized on the rug
     return 3;
   }
   var pumpScheduled = false;
@@ -1028,73 +1027,19 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
   }
   chest.position.set(1.45, 0, -1.73); chest.rotation.y = 0; scene.add(chest); // left of the window, off the wall so the open lid clears it, clear of the nightstand
 
-  /* ---- THE RUG WAR: two plastic armies, frozen mid-battle ------------------- */
-  // Set up on the galaxy rug the way the Kid left them. Hovering wakes the
-  // battle: they waddle in place, muzzles flash. Clicking joins the war.
+  /* ---- (THE RUG WAR was here) ----------------------------------------------
+   * Nine Age of Toys figures set up mid-battle on the galaxy rug. REMOVED
+   * 2026-08-11 — Kyle: "they looked out of place anyways", and the efficiency
+   * pass had just independently found them to be the single most expensive thing
+   * in the house: NINE 1024x1024 textures on 15-20cm figures, 47.9 MB, which was
+   * 33% of ALL texture memory in the room. (army_soldier.glb was loaded three
+   * separate times and got a fresh copy of its texture each time.) Measured at
+   * 47-68 texels per centimetre against a house-wide norm of 14.
+   * AGE OF TOYS keeps its doorway — the toy chest, checked before removing this.
+   * The empty group stays: the rug's drag handler and the What's Out panel both
+   * address it, and it is where anything else that lives ON the rug would go. */
   var war = new THREE.Group();
-  var warHint = ttNow.started
-    ? "the rug war — " + ttNow.done + " / " + TT_IDS.length + " missions · take command"
-    : "the rug war — AGE OF TOYS, set up and waiting";
-  var warFigs = [], warFlashes = [], warPuffs = []; // (tick block keys off these; GLB men idle on their own)
-  // Real Age of Toys units, toy-sized. The infantry idles are skinned meshy rigs:
-  // they render at their AUTHORED height with no transform (the kid taught us),
-  // so scale is one empirical constant — never bbox-normalize a skinned mesh.
-  var WAR_SCALE = 0.16 / 1.7;
-  function warUnit(url, x, z, rotY, opts) {
-    opts = opts || {};
-    queueGLB(url, function (g) {
-      var root = g.scene;
-      root.traverse(function (o) { if (o.isMesh) { o.castShadow = o.receiveShadow = true; } });
-      var wrap = new THREE.Group();
-      if (opts.static) { // the tank is a plain mesh — bbox normalize is safe here
-        var bb = new THREE.Box3().setFromObject(root), sz = bb.getSize(new THREE.Vector3());
-        root.scale.setScalar((opts.h || 0.1) / (sz.y || 1));
-        bb.setFromObject(root); var c = bb.getCenter(new THREE.Vector3());
-        root.position.set(-c.x, -bb.min.y, -c.z);
-      } else {
-        root.scale.setScalar(WAR_SCALE);
-      }
-      wrap.add(root);
-      wrap.position.set(x, 0, z); wrap.rotation.y = rotY;
-      if (opts.fallen) { wrap.rotation.z = 1.42; wrap.position.y = 0.012; } // knocked flat
-      war.add(wrap);
-      if (g.animations && g.animations.length) { // the units breathe their in-game idles
-        var umx = new THREE.AnimationMixer(root);
-        umx.clipAction(g.animations[0]).play();
-        umx.setTime(Math.random() * 2); // desync the sway
-        mixers.push(umx);
-      }
-      root.traverse(function (o) {
-        if (o.isMesh) { clickable(o, "THE RUG WAR", go(BASE + "toybox-tactics/"), warHint); o.userData.war = true; }
-      });
-    });
-  }
-  // the green line vs the scouts' line, with armor in support
-  warUnit("assets/props/army_soldier.glb", -0.20, -0.18, Math.PI / 2 + 0.15);
-  warUnit("assets/props/army_soldier.glb", -0.27, 0.00, Math.PI / 2 - 0.1);
-  warUnit("assets/props/army_bazooka.glb", -0.33, 0.09, Math.PI / 2);
-  warUnit("assets/props/army_soldier.glb", -0.09, 0.07, Math.PI / 2 + 0.5, { fallen: true });
-  warUnit("assets/props/army_tank.glb", -0.52, -0.05, Math.PI / 2 - 0.08, { static: true, h: 0.12 });
-  warUnit("assets/props/army_archer.glb", 0.20, -0.10, -Math.PI / 2 - 0.2);
-  warUnit("assets/props/army_scout.glb", 0.28, 0.06, -Math.PI / 2 + 0.1);
-  warUnit("assets/props/army_archer.glb", 0.34, -0.06, -Math.PI / 2 + 0.05);
-  warUnit("assets/props/army_scout.glb", 0.08, -0.15, -Math.PI / 2 - 0.6, { fallen: true });
-  // cotton-ball smoke over no-man's-land — frozen, like the rest of the battle
-  for (var wp = 0; wp < 3; wp++) {
-    var puff = new THREE.Mesh(new THREE.SphereGeometry(0.028 + wp * 0.008, 10, 8),
-      new THREE.MeshStandardMaterial({ color: 0xb9bec7, roughness: 1, transparent: true, opacity: 0.42 }));
-    puff.position.set(-0.04 + wp * 0.05, 0.06 + wp * 0.035, -0.02 + wp * 0.04);
-    puff.scale.y = 0.75; puff.userData.skip = true;
-    warPuffs.push(puff); war.add(puff);
-  }
-  war.traverse(function (o) {
-    if (o.isMesh && !o.userData.skip) {
-      clickable(o, "THE RUG WAR", go(BASE + "toybox-tactics/"), warHint);
-      o.userData.war = true;
-    }
-  });
   war.position.set(rugCX, 0.013, rugCZ); war.rotation.y = 0.32; scene.add(war);
-  var warHeat = 0;
 
   /* ---- THE DESK: computer, brain, notebook, lamp (left side) --------------- */
   var desk = new THREE.Group();
@@ -3657,7 +3602,6 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
       if (!ob.isMesh || ob.userData.__ring || !visibleChain(ob)) continue;
       if (ob.userData.__stk) return ob.userData.__stk.cfg; // a wall sticker
       if (ob.userData.__frame) return ob.userData.__frame; // a poster frame slides along the walls
-      if (ob.userData.war && movableByKey.rug) return movableByKey.rug; // the army men grab the rug
       var p = ob, found = null;
       while (p) { if (p.userData.__movKey) { found = movableByKey[p.userData.__movKey]; break; } p = p.parent; }
       if (found) return found;
@@ -5380,8 +5324,6 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
     { key: "b_george", sec: "books", label: "G FOR GEORGE", get: function () { return [bookByTitle["G FOR GEORGE"]]; } },
     { key: "chest", sec: "toys", label: "the toy chest (AGE OF TOYS)", obs: 0,
       get: function () { return [chest]; } },
-    { key: "war", sec: "toys", label: "the army men on the rug",
-      get: function () { return [war]; } },
     { key: "cat", sec: "toys", label: "the pet (they won't mind)",
       get: function () { return [petGroup(petKind)]; } },
     { key: "island", sec: "toys", label: "the toy island (TIDEBOUND)", obs: 3,
@@ -6129,24 +6071,9 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
       }
     }
     if (pc.visible && (frameCount & 1) === 0) drawScreensaver(dt * 2); // the PC dreams at half rate (and not at all when it's put away)
-    // the rug war wakes while you watch it, freezes when you look away
-    warHeat += (((hovered && hovered.userData.war) ? 1 : 0) - warHeat) * Math.min(1, dt * 5);
-    if (warHeat > 0.01) {
-      for (var wf = 0; wf < warFigs.length; wf++) {
-        var fg = warFigs[wf];
-        if (fg.fallen) continue;
-        fg.g.rotation.z = fg.baseZ + Math.sin(t * 9 + fg.phase) * 0.1 * warHeat; // plastic waddle
-        fg.g.position.y = Math.abs(Math.sin(t * 9 + fg.phase)) * 0.006 * warHeat;
-      }
-      for (var wm = 0; wm < warFlashes.length; wm++) {
-        var fm2 = warFlashes[wm];
-        fm2.opacity = (Math.random() < 0.1 && warHeat > 0.3) ? warHeat : fm2.opacity * 0.55;
-      }
-      for (var wu = 0; wu < warPuffs.length; wu++) {
-        warPuffs[wu].position.y += Math.sin(t * 1.7 + wu * 2) * 0.0003 * warHeat;
-        warPuffs[wu].rotation.y += dt * 0.4 * warHeat;
-      }
-    }
+    // (the rug-war waddle/muzzle-flash/smoke ticker lived here — it drove figures
+    //  that no longer exist. Every frame it was reading a hover flag and stepping
+    //  three empty arrays.)
     if (chestGlowBase > 0) { // the campaign smolders in the chest
       chestGlow.intensity = chestGlowBase * (0.82 + 0.22 * Math.sin(t * 2.1)) * dim;
       if (chestGlowDisc) chestGlowDisc.material.opacity = (0.75 + 0.25 * Math.sin(t * 2.1)) * (0.25 + 0.75 * dim);
