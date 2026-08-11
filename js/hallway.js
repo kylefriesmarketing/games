@@ -407,12 +407,15 @@ export function buildHallway(ctx) {
   }
   tag(cloShelf, "the shelf", null, "board games with pieces missing, and tapes nobody can play any more.");
 
-  // THE SHOES, moved in from the mud room — a row of them along the front of the
-  // closet floor, which is the actual reason a hall closet has a floor. Two grown-up
-  // pairs and one small bright pair, kicked off rather than lined up.
-  [[-0.34, 0x2f3a48, 0.06], [-0.19, 0x2f3a48, -0.10],
-   [0.13, 0x5e3a2e, 0.22], [0.28, 0x5e3a2e, -0.06]].forEach(function (sh) {
-    var sg = new THREE.Group(); sg.position.set(0.11, 0.0, sh[0]); sg.rotation.y = sh[2]; cloG.add(sg);
+  // THE SHOES, back OUT in front of the closet where the bi-fold leaves room for them
+  // (Kyle: "then the shoes can go back in front of it"). x -0.28 is 28cm out from the
+  // jamb line — clear of the folded leaves, which stack to x -0.46.
+  // ⚠️ z -0.40..0.04, NOT out to 0.28: the folded leaves stack over z 8.03..8.19 and
+  // the southern-most shoe was standing under them. Shoes belong in front of the
+  // OPENING, which is the northern two-thirds once the door has folded away.
+  [[-0.40, 0x2f3a48, 0.06], [-0.26, 0x2f3a48, -0.10],
+   [-0.10, 0x5e3a2e, 0.22], [0.04, 0x5e3a2e, -0.06]].forEach(function (sh) {
+    var sg = new THREE.Group(); sg.position.set(-0.28, 0.0, sh[0]); sg.rotation.y = sh[2]; cloG.add(sg);
     var sole = box(0.11, 0.025, 0.25, mat(0x1d1f22, 0.85)); sole.position.y = 0.013; sg.add(sole);
     var upper = box(0.10, 0.07, 0.16, mat(sh[1], 0.8)); upper.position.set(0, 0.058, -0.03); sg.add(upper);
     var toe2 = box(0.10, 0.045, 0.09, mat(sh[1], 0.8)); toe2.position.set(0, 0.045, 0.085); sg.add(toe2);
@@ -421,7 +424,11 @@ export function buildHallway(ctx) {
   // the floor of it: rollerblades kicked in, a Super Soaker stood in the corner
   // ⚠️ pushed to the BACK (x 0.26) now that the shoes have the front row at x 0.11 —
   // different depth bands, so nothing has to share floor with anything
-  [[0.53, -0.10, 0.5], [0.53, 0.08, -0.9]].forEach(function (rb) {
+  // ⚠️ mild rotations (0.25 / -0.30) and x 0.29. At 0.5 / -0.9 a 0.10x0.24 boot swells
+  // its bounding box to 0.16 wide and the pair reached out of the back band into the
+  // front one, colliding with the boombox and the sleeping bag. A rotated box is wider
+  // than the box.
+  [[0.567, -0.10, 0.25], [0.567, 0.05, -0.30]].forEach(function (rb) {
     var bl = new THREE.Group(); bl.position.set(0.10 + rb[0] * 0.3, 0.03, rb[1]); bl.rotation.y = rb[2]; cloG.add(bl);
     var boot = box(0.10, 0.13, 0.24, mat(0xe8e4da, 0.6)); boot.position.y = 0.10; bl.add(boot);
     var cuff = box(0.105, 0.06, 0.13, mat(0x2f3f8a, 0.6)); cuff.position.set(0, 0.185, -0.04); bl.add(cuff);
@@ -431,7 +438,62 @@ export function buildHallway(ctx) {
     }
     tag(boot, "the rollerblades", null, "somebody was very good at these for one summer.");
   });
-  var soak = new THREE.Group(); soak.position.set(0.27, 0.0, -0.33); soak.rotation.set(0, 0.5, -0.24); cloG.add(soak);
+  /* --- the rest of the closet floor. The shoes moved out front, which left the whole
+   * front band (x ~0.13) empty, and an empty closet floor is a wasted closet. Two
+   * depth bands: the SOAKER and BLADES live at the back (x 0.26-0.28), everything
+   * below sits at x 0.13, so nothing ever shares floor with anything. */
+  // the boombox, mains lead never coiled once
+  var bbx = new THREE.Group(); bbx.position.set(0.11, 0, 0.21); bbx.rotation.y = 0.12; cloG.add(bbx);
+  var bbBody = box(0.14, 0.16, 0.30, mat(0x2f3238, 0.45)); bbBody.position.y = 0.08; bbx.add(bbBody);
+  [-0.09, 0.09].forEach(function (sp) {                       // the two speakers
+    var spk = new THREE.Mesh(new THREE.CylinderGeometry(0.045, 0.045, 0.012, 14), mat(0x1a1c20, 0.6));
+    spk.rotation.z = Math.PI / 2; spk.position.set(-0.071, 0.08, sp); bbx.add(spk);
+    var rim = new THREE.Mesh(new THREE.TorusGeometry(0.048, 0.006, 6, 16), mat(0x8f959b, 0.4));
+    rim.rotation.y = Math.PI / 2; rim.position.set(-0.072, 0.08, sp); bbx.add(rim);
+  });
+  var bbDeck = box(0.012, 0.06, 0.10, mat(0x4a4f57, 0.4));    // the tape deck
+  bbDeck.position.set(-0.072, 0.10, 0); bbx.add(bbDeck);
+  [0.03, 0.055, 0.08].forEach(function (bz2) {
+    var btn = box(0.01, 0.012, 0.018, mat(0xb4bac0, 0.35));
+    btn.position.set(-0.072, 0.035, bz2 - 0.055); bbx.add(btn);
+  });
+  var bbHandle = new THREE.Mesh(new THREE.TorusGeometry(0.075, 0.008, 6, 14, Math.PI), mat(0x1a1c20, 0.5));
+  bbHandle.rotation.set(Math.PI / 2, 0, Math.PI / 2); bbHandle.position.set(0, 0.16, 0); bbx.add(bbHandle);
+  tag(bbBody, "the boombox", null, "six D batteries and it still ate them in a weekend.");
+  // a basketball, gone soft
+  var ball = new THREE.Mesh(new THREE.SphereGeometry(0.068, 16, 12), mat(0xc4632a, 0.85));
+  ball.position.set(0.10, 0.068, -0.32); cloG.add(ball);
+  [0, Math.PI / 2].forEach(function (br) {                     // the seams
+    var sm2 = new THREE.Mesh(new THREE.TorusGeometry(0.068, 0.0035, 5, 20), mat(0x2a1c12, 0.8));
+    sm2.rotation.set(Math.PI / 2, br, 0); sm2.position.copy(ball.position); cloG.add(sm2);
+  });
+  tag(ball, "the basketball", null, "nobody in this house was ever any good at basketball.");
+  // board games, stacked on the floor because the shelf is full
+  [[0, 0x2f6a8a], [0.045, 0xc8322e]].forEach(function (gb, i) {
+    var g3 = box(0.135, 0.042, 0.27, mat(gb[1], 0.9));
+    g3.position.set(0.13, 0.022 + gb[0], -0.10); g3.rotation.y = i ? 0.10 : -0.06; cloG.add(g3);
+    if (!i) tag(g3, "more board games", null, "the shelf was full. these are the ones with pieces missing.");
+  });
+  // the sleeping bag, rolled since the last time anyone slept over
+  // ⚠️ STOOD ON END in the back corner, not lying down. Lying along z it ate 0.34 of
+  // the eighty centimetres of floor this closet has, and a closet with six things in
+  // it cannot spare that. Upright it occupies a 0.16 circle and reads exactly the same.
+  var bag = new THREE.Mesh(new THREE.CylinderGeometry(0.078, 0.078, 0.34, 14), mat(0x3f6b8a, 0.95));
+  bag.position.set(0.27, 0.17, 0.30); bag.rotation.z = 0.06; cloG.add(bag);
+  [-0.09, 0.09].forEach(function (ty) {
+    var strap = new THREE.Mesh(new THREE.TorusGeometry(0.080, 0.008, 6, 14), mat(0x2a2f36, 0.8));
+    strap.rotation.x = Math.PI / 2; strap.position.set(0.27, 0.17 + ty, 0.30); cloG.add(strap);
+  });
+  tag(bag, "the sleeping bag", null, "rolled since the last sleepover, which was a while ago now.");
+
+  // ⚠️ leaned 0.14, not 0.24, and set forward to x 0.22. A 0.5m-tall object tilted by
+  // 0.24rad throws its top 12cm sideways — enough to push the tank clean through the
+  // closet's back wall (measured x max -3.94 against a back face at -4.02). When you
+  // lean a tall thing, the base has to come forward by height·sin(tilt).
+  // ⚠️ lean 0.06 — barely leaning at all. The interior is only 0.34 deep and this thing
+  // is half a metre tall, so every 0.1rad of tilt costs 5cm of depth it hasn't got: at
+  // 0.14 the tank still ended up buried in the back panel. Tall + shallow = upright.
+  var soak = new THREE.Group(); soak.position.set(0.245, 0.0, -0.31); soak.rotation.set(0, 0.35, -0.06); cloG.add(soak);
   var skBody = box(0.075, 0.46, 0.10, mat(0x2fb8a8, 0.55)); skBody.position.y = 0.25; soak.add(skBody);
   var skTank = new THREE.Mesh(new THREE.CylinderGeometry(0.055, 0.055, 0.16, 12), mat(0xf2d24a, 0.5));
   skTank.position.set(0, 0.50, -0.01); soak.add(skTank);
@@ -470,31 +532,52 @@ export function buildHallway(ctx) {
   // 1975 and 2000 has one — and it is the cheapest possible read: 14 tilted bars in
   // two banks tell you "closet" before you've registered anything else in the frame.
   // The stiles and rails stay solid so the door still blocks the opening.
-  // ⚠️ the slab sits at local x -0.03, not 0: flush with the jambs its face landed on
-  // the same plane as theirs (-4.355 vs -4.357) and the two fought over 0.10m². Set
-  // back into the reveal it clears them by 3cm, which is also where a door belongs.
-  var cloDoor = box(0.045, 2.05, 0.84, mat(0x4a3524, 0.72)); cloDoor.position.set(-0.03, 1.025, -0.42); cloDoorP.add(cloDoor);
-  var slatM2 = mat(0x3d2b1c, 0.8);
-  [[0.30, 0.62], [1.16, 0.62]].forEach(function (bank) {     // two banks, gap for the rail
-    for (var s2 = 0; s2 < 7; s2++) {
-      var sl = box(0.055, 0.055, 0.70, slatM2);
-      sl.position.set(-0.012, bank[0] + s2 * (bank[1] / 7), -0.42);
-      sl.rotation.z = -0.42;                                  // tipped down, as they are
-      cloDoorP.add(sl);
-    }
-  });
-  [0.25, 0.92, 1.78].forEach(function (ry2) {                 // the rails between banks
-    var rl2 = box(0.05, 0.07, 0.84, mat(0x45301f, 0.75));
-    rl2.position.set(-0.004, ry2, -0.42); cloDoorP.add(rl2);
-  });
+  /* ⚠️⚠️ A BI-FOLD, not a single leaf (Kyle's call, and the right one twice over). A
+   * 0.84m slab swinging into a 3.1m hall had nowhere to go that wasn't in the way —
+   * hinged north it stood between the eye and the closet, hinged south it stood across
+   * the slider. A bi-fold folds to HALF that, tucks against its own jamb, and is the
+   * most nineties thing a hall closet can wear.
+   * The kinematics are the whole trick: leaf B counter-rotates at TWICE leaf A's
+   * angle, so at A = 86° the pair has folded face-to-face perpendicular to the wall.
+   * Measured open: the stack reaches x -4.84, which is 0.46 into the hall instead of
+   * 0.84, and it leaves the interior facing the room.
+   * ⚠️ no bottom rail — Kyle: "remove the board at the bottom of the closet door". It
+   * read as a plank lying across the doorway, so the slab below the lower louvre bank
+   * is plain now. */
+  var slatM2 = mat(0x3d2b1c, 0.8), bfRail = mat(0x45301f, 0.75);
+  function bfLeaf(parent, zc) {          // one louvered leaf, 0.46 wide, centred on zc
+    var sl0 = box(0.04, 2.05, 0.46, mat(0x4a3524, 0.72));
+    sl0.position.set(-0.03, 1.025, zc); parent.add(sl0);
+    [[0.30, 0.62], [1.16, 0.62]].forEach(function (bank) {
+      for (var s2 = 0; s2 < 7; s2++) {
+        // ⚠️ centred ON the slab (x -0.03), not offset to one side. Off-centre the
+        // slats only broke one face, and a folded bi-fold shows you its BACK — which
+        // came up as a blank brown panel. Straddling the slab louvres both faces.
+        var sl = box(0.055, 0.05, 0.38, slatM2);
+        sl.position.set(-0.03, bank[0] + s2 * (bank[1] / 7), zc);
+        sl.rotation.z = -0.42;                                // tipped down, as they are
+        parent.add(sl);
+      }
+    });
+    [0.92, 1.83].forEach(function (ry2) {                     // mid rail and head rail only
+      var rl2 = box(0.045, 0.06, 0.46, bfRail);
+      rl2.position.set(-0.006, ry2, zc); parent.add(rl2);
+    });
+    return sl0;
+  }
+  var cloDoor = bfLeaf(cloDoorP, -0.23);                      // leaf A, on the jamb
+  var bfB = new THREE.Group(); bfB.position.set(0, 0, -0.46); cloDoorP.add(bfB);
+  var cloDoorB = bfLeaf(bfB, -0.23);                          // leaf B, hinged to A
+  var bfHinge = box(0.03, 1.9, 0.03, mat(0x8f959b, 0.4));     // the piano hinge between them
+  bfHinge.position.set(-0.05, 1.02, 0); bfB.add(bfHinge);
   var cloKnob = new THREE.Mesh(new THREE.SphereGeometry(0.024, 10, 8),
     new THREE.MeshStandardMaterial({ color: 0xb08d3f, roughness: 0.35, metalness: 0.6 }));
-  cloKnob.position.set(-0.04, 1.0, -0.76); cloDoorP.add(cloKnob);
+  cloKnob.position.set(-0.055, 1.0, -0.14); bfB.add(cloKnob);   // the pull, on the leading leaf
   // ⚠️ OPEN by default. It's the one door down here that works, and everything worth
   // looking at is inside it — shut, it's a brown rectangle. The stash still closes it.
   var cloOpen = true, cloAnim = 0;
   function closetToggle() { cloOpen = !cloOpen; AUDIO.ratchetSfx && AUDIO.ratchetSfx(); }
-  [cloDoor, cloKnob].forEach(function (m) {
+  [cloDoor, cloDoorB, cloKnob].forEach(function (m) {   // both leaves open it
     tag(m, "the closet", closetToggle, "the hall closet");
   });
   tag(shoebox2, "another shoebox", null, "another shoebox — empty. for now.");
@@ -3055,9 +3138,13 @@ export function buildHallway(ctx) {
     kitchenLife(dt, dim);   // steam off the kettle, and the tap that drips
     hallLife(dt, t, dim * on);   // dust, visible only where it drifts through a bulb
     bGlow.material.opacity = 0.08 + 0.05 * Math.sin(t * 0.9); // the basement, breathing
-    var target = cloOpen ? 1.6 : 0;   // +, to match the hinge moving to the north jamb
+    // ⚠️ leaf B counter-rotates at TWICE leaf A — that ratio IS what makes a bi-fold
+    // fold instead of swing. Any other multiple and the two leaves tear apart at the
+    // hinge or scissor through each other.
+    var target = cloOpen ? 1.50 : 0;
     cloAnim += (target - cloAnim) * Math.min(1, dt * 7);
     cloDoorP.rotation.y = cloAnim;
+    bfB.rotation.y = -2 * cloAnim;
     // the closet's bulb comes up with the door, so the 1997 inside it is only lit
     // while you're actually looking at it — and never leaks into the hall when shut
     var cf = Math.min(1, Math.abs(cloAnim) / 1.2);
