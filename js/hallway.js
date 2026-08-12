@@ -2181,6 +2181,68 @@ export function buildHallway(ctx) {
   var passLite = new THREE.PointLight(0xffe0b0, 0, 12, 1.8); passLite.position.set(0, 0.9, -3.0); passG.add(passLite);
   var passX = 999, passDir = 1, passWait = 6 + Math.random() * 14;
 
+  /* ---- HERE COMES THE TRUCK: the hidden one ------------------------------------
+   * An ice cream truck comes down the street every five minutes and is gone in
+   * fifteen seconds. Catch it and you play the game; miss it and you wait. Nothing
+   * advertises it — no poster, no shelf entry, no hint text anywhere in the house.
+   * The JINGLE is the only tell, and it is audible from every room, because the
+   * mechanic is that you hear it somewhere else and run for the door. Bedroom to
+   * porch is two transitions, about five seconds, so fifteen is genuinely catchable
+   * and genuinely missable. That gap is the whole game.
+   * ⚠️ it drives on the FAR side of the road (z = ROADF side), the lane a truck
+   * heading that way would use, and the same lane the passing car uses. */
+  var TRUCK_CYCLE = 300, TRUCK_WINDOW = 15;      // five minutes; fifteen seconds
+  // ⚠️ the road is NOT at GROUND — it is sunk (see `road`, GROUND-0.06, 0.05 thick),
+  // so a truck placed at GROUND floats 3-4cm over its own lane. Drive off the road's
+  // top face, not the lawn's.
+  var TRUCK_Y = GROUND - 0.06 + 0.025;
+  var truckG = new THREE.Group(); truckG.visible = false; yadd(truckG);
+  var tkBodyM = mat(0xf2f0e6, 0.55), tkTrimM = mat(0xe4487a, 0.5);
+  var tkBox = box(4.5, 1.75, 2.0, tkBodyM); tkBox.position.set(0, 1.35, 0); truckG.add(tkBox);
+  var tkCab = box(1.5, 1.25, 1.9, tkBodyM); tkCab.position.set(2.7, 1.05, 0); truckG.add(tkCab);
+  var tkWind = box(0.06, 0.62, 1.7, mat(0x2a3340, 0.25)); tkWind.position.set(3.44, 1.32, 0); truckG.add(tkWind);
+  var tkStripe = box(4.52, 0.26, 2.02, tkTrimM); tkStripe.position.set(0, 1.05, 0); truckG.add(tkStripe);
+  // The serving hatch. ⚠️ at emissiveIntensity 1.5 this was the brightest thing in
+  // the whole street — a featureless white slab that read as a bug, not a window.
+  // The glow belongs in the POINT LIGHT below; the hatch only has to look lit.
+  var tkServe = new THREE.Mesh(new THREE.BoxGeometry(2.2, 0.95, 0.06),
+    new THREE.MeshStandardMaterial({ color: 0xffeec4, emissive: 0xffcf82, emissiveIntensity: 0.42, roughness: 0.5 }));
+  tkServe.position.set(-0.3, 1.55, -1.02); truckG.add(tkServe);
+  // …and things INSIDE it, so it isn't a blank rectangle: a counter, a menu board
+  // and the freezer's shoulder.
+  var tkSill = box(2.3, 0.09, 0.22, mat(0xd8d2c0, 0.55)); tkSill.position.set(-0.3, 1.05, -1.10); truckG.add(tkSill);
+  var tkMenu = box(0.62, 0.5, 0.03, mat(0x3b2f26, 0.8)); tkMenu.position.set(-1.18, 1.62, -1.06); truckG.add(tkMenu);
+  [[-1.18, 1.76], [-1.18, 1.62], [-1.18, 1.48]].forEach(function (ln) {
+    var l = box(0.44, 0.035, 0.02, mat(0xf3e6c8, 0.6)); l.position.set(ln[0], ln[1], -1.08); truckG.add(l);
+  });
+  var tkFrz = box(1.0, 0.42, 0.3, mat(0xbdb6a4, 0.6)); tkFrz.position.set(0.28, 1.34, -0.94); truckG.add(tkFrz);
+  var tkAwn = box(2.5, 0.08, 0.55, tkTrimM); tkAwn.position.set(-0.3, 2.12, -1.22); tkAwn.rotation.x = 0.32; truckG.add(tkAwn);
+  // a giant cone on the roof, because of course. ⚠️ ConeGeometry is 0.85 tall about
+  // its CENTRE and rotation.z=π puts the tip DOWN, so the tip sits at y−0.425 — at
+  // y 2.75 that left it hanging 10cm over a 2.225 roof.
+  var tkCone = new THREE.Mesh(new THREE.ConeGeometry(0.34, 0.85, 12), mat(0xe8c48a, 0.8));
+  tkCone.rotation.z = Math.PI; tkCone.position.set(-0.9, 2.62, 0); truckG.add(tkCone);
+  var tkScoop = new THREE.Mesh(new THREE.SphereGeometry(0.36, 14, 11), mat(0xf6b8cc, 0.65));
+  tkScoop.position.set(-0.9, 3.16, 0); truckG.add(tkScoop);
+  var tkHorn = new THREE.Mesh(new THREE.ConeGeometry(0.20, 0.36, 10), mat(0xd8d2c0, 0.5));
+  tkHorn.rotation.z = -Math.PI / 2; tkHorn.position.set(1.9, 2.41, 0); truckG.add(tkHorn);
+  [[1.55, 0.9], [1.55, -0.9], [-1.5, 0.9], [-1.5, -0.9]].forEach(function (w) {
+    var wh = new THREE.Mesh(new THREE.CylinderGeometry(0.42, 0.42, 0.24, 12), mat(0x1d1f22, 0.8));
+    wh.rotation.x = Math.PI / 2; wh.position.set(w[0], 0.42, w[1]); truckG.add(wh);
+  });
+  var tkHead = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.18, 1.6),
+    new THREE.MeshStandardMaterial({ color: 0xfff4d8, emissive: 0xffe9b0, emissiveIntensity: 1.8, roughness: 0.4 }));
+  tkHead.position.set(3.5, 0.85, 0); truckG.add(tkHead);
+  var tkLite = new THREE.PointLight(0xffd9a0, 0, 14, 1.7); tkLite.position.set(-0.3, 1.7, -2.2); truckG.add(tkLite);
+  truckG.children.forEach(function (m) {
+    ytag(m, "HERE COMES THE TRUCK", function () {
+      window.location.href = "https://kylefriesmarketing.github.io/here-comes-the-truck/";
+    }, "HERE COMES THE TRUCK — you caught it. click before it's gone");
+  });
+  // ⚠️ the truck starts its first run at 40s, not at 300. A five-minute wait before
+  // the mechanic even exists means most visitors never learn it is there.
+  var truckT = TRUCK_CYCLE - 40, truckJing = 0, truckSeen = false;
+
   // --- THE SILHOUETTE. The knock has been unanswered for the whole life of this
   // house. Open the door soon after one and somebody is on the path — and by the
   // time the door is actually open, they are not.
@@ -3230,6 +3292,39 @@ export function buildHallway(ctx) {
       passG.visible = true; passG.position.x = passX;
       passLite.intensity = 1.5 * PORCH_SKY[porchPhase].lamp;
       if ((passDir > 0 && passX > 46) || (passDir < 0 && passX < -46)) passX = 999;
+    }
+
+    /* --- the ice cream truck. Five minutes of nothing, fifteen seconds of chance. */
+    truckT += dt;
+    var inRun = (truckT % TRUCK_CYCLE) < TRUCK_WINDOW;
+    if (inRun) {
+      var f = (truckT % TRUCK_CYCLE) / TRUCK_WINDOW;          // 0..1 across the window
+      var tx = 52 - f * 104;                                   // east to west, 104m in 15s
+      truckG.visible = true;
+      truckG.position.set(tx, TRUCK_Y, (Z_KERB + Z_ROADF) / 2 + 2.1);
+      // ⚠️ the body is 4.5 long on LOCAL X with the cab at +x, and it drives toward
+      // −x. π (not −π/2, which parked it broadside across both lanes) points the
+      // cab down the road AND swings the serving window round to face the house.
+      truckG.rotation.y = Math.PI;
+      tkLite.intensity = 1.4 * PORCH_SKY[porchPhase].lamp;
+      // ⚠️ the jingle is retriggered on a timer, not looped, because each call
+      // SCHEDULES its phrase ahead on the audio clock — calling it every frame would
+      // stack seven oscillators per frame and turn the street into a chord organ.
+      truckJing -= dt;
+      if (truckJing <= 0) {
+        truckJing = 1.55;                                      // just over the phrase
+        // gain from how near it is, and halved indoors: you hear it through the
+        // walls, which is the entire point of the thing
+        var near = Math.max(0, 1 - Math.abs(tx + 5.7) / 46);
+        var muff = (space === "porch") ? 1 : 0.45;
+        AUDIO.truckJingle && AUDIO.truckJingle(near * near * muff);
+      }
+      if (!truckSeen && space === "porch") {                   // it only counts if you're out
+        truckSeen = true;
+        try { localStorage.setItem("room-truck-seen", "1"); } catch (e) { }
+      }
+    } else if (truckG.visible) {
+      truckG.visible = false; tkLite.intensity = 0; truckJing = 0;
     }
   }
 
