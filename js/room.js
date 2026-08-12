@@ -1041,6 +1041,53 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
   var war = new THREE.Group();
   war.position.set(rugCX, 0.013, rugCZ); war.rotation.y = 0.32; scene.add(war);
 
+  /* ---- THE LAST ISSUE: a stack of comics on the rug --------------------------
+   * Dropped exactly where the army men used to be — the patch measured completely
+   * empty after they came out, and a kid who stops playing soldiers and starts
+   * reading comics is the same kid a year later. Build-your-own-superhero, so the
+   * covers are hand-painted: a title bar, a figure, and a corner price box. */
+  var TLI_URL = "https://kylefriesmarketing.github.io/the-last-issue-demo/";
+  var tliRuns = readSave("tli-runs", function (v) { return Array.isArray(v) ? v.length : null; });
+  var tliHint = tliRuns
+    ? "THE LAST ISSUE — " + tliRuns + " issue" + (tliRuns === 1 ? "" : "s") + " printed · make another"
+    : "THE LAST ISSUE — build your own superhero, one issue at a time";
+  function comicCover(band, ink, hero) {
+    return canvasTex(96, 148, function (g, w, h) {
+      g.fillStyle = ink; g.fillRect(0, 0, w, h);
+      g.fillStyle = band; g.fillRect(0, 0, w, 26);            // the masthead
+      g.fillStyle = "#f6f1e2"; g.font = "bold 13px Georgia, serif"; g.textAlign = "center";
+      g.fillText("THE LAST", w / 2, 12); g.fillText("ISSUE", w / 2, 23);
+      g.fillStyle = hero;                                     // a figure, mid-leap
+      g.beginPath(); g.arc(w * 0.5, h * 0.44, 11, 0, 7); g.fill();
+      g.fillRect(w * 0.42, h * 0.50, 15, 30);
+      g.fillRect(w * 0.30, h * 0.52, 12, 7); g.fillRect(w * 0.58, h * 0.47, 12, 7);
+      g.fillStyle = "rgba(246,241,226,0.9)"; g.fillRect(4, h - 20, 26, 15);   // price box
+      g.fillStyle = ink; g.font = "bold 9px Georgia, serif"; g.textAlign = "left";
+      g.fillText("$1", 9, h - 9);
+    });
+  }
+  var comics = new THREE.Group();
+  comics.position.set(0.10, 0.013, 1.02); comics.rotation.y = -0.35; scene.add(comics);
+  [[0x8a2b2b, 0x1d2433, 0x4ab8d9, 0.000, 0.00],
+   [0x1f5fa8, 0x2a1d33, 0xd9a83a, 0.012, 0.09],
+   [0xd9a83a, 0x33241d, 0xc84a4a, 0.024, -0.07],
+   [0x2f7a4a, 0x1d3324, 0xe8e2d2, 0.036, 0.14]].forEach(function (c, i) {
+    var bk = new THREE.Mesh(new THREE.BoxGeometry(0.17, 0.011, 0.255),
+      new THREE.MeshStandardMaterial({ map: comicCover(hex6(c[0]), hex6(c[1]), hex6(c[2])), roughness: 0.88 }));
+    bk.position.set(i * 0.006, 0.006 + c[3], i * 0.004); bk.rotation.y = c[4];
+    bk.castShadow = true; comics.add(bk);
+  });
+  // the top one left open, face down, saving somebody's place
+  var openBk = new THREE.Mesh(new THREE.BoxGeometry(0.30, 0.009, 0.24),
+    new THREE.MeshStandardMaterial({ color: 0xe8e2d2, roughness: 0.92 }));
+  openBk.position.set(0.20, 0.010, -0.16); openBk.rotation.y = 0.55; openBk.castShadow = true; comics.add(openBk);
+  var spine = new THREE.Mesh(new THREE.BoxGeometry(0.012, 0.012, 0.24),
+    new THREE.MeshStandardMaterial({ color: 0x8a2b2b, roughness: 0.85 }));
+  spine.position.set(0.20, 0.016, -0.16); spine.rotation.y = 0.55; comics.add(spine);
+  comics.traverse(function (o) {
+    if (o.isMesh) clickable(o, "THE LAST ISSUE", go(TLI_URL), tliHint);
+  });
+
   /* ---- THE DESK: computer, brain, notebook, lamp (left side) --------------- */
   var desk = new THREE.Group();
   var dTop = box(2.1, 0.07, 0.95, woodM); dTop.position.y = 0.78; desk.add(dTop);

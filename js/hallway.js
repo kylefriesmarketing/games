@@ -1885,6 +1885,46 @@ export function buildHallway(ctx) {
   yadd(vlFly);
   ytag(vlFly, "VICTORY LAP", vlGo, vlLampHint);
 
+  /* ---- QUARRY: the sign on the neighbour's lawn ------------------------------
+   * An alien-hunting sim, so it gets a yard sign — the kind people stake out for a
+   * contractor or a candidate, except this one is a warning. Planted across the
+   * street on the lawn of the house opposite, which is the right distance: far
+   * enough to be somebody else's business, close enough to read from the porch.
+   * ⚠️ it is EMISSIVE (0.55). At 26m on an unlit lawn a painted board is a grey
+   * smudge; the glow is what makes it legible at all, and a sign that glows faintly
+   * in the dark is on-theme for a game about things landing in the night. */
+  var qSignT = canvasTex(128, 96, function (c, w, h) {
+    c.fillStyle = "#101a14"; c.fillRect(0, 0, w, h);
+    c.strokeStyle = "#5ce89a"; c.lineWidth = 5; c.strokeRect(5, 5, w - 10, h - 10);
+    c.fillStyle = "#5ce89a";                                   // the head
+    c.beginPath(); c.ellipse(w / 2, h * 0.44, 17, 22, 0, 0, 7); c.fill();
+    c.fillStyle = "#101a14";                                   // and the eyes
+    c.beginPath(); c.ellipse(w / 2 - 7, h * 0.44, 4.5, 8, 0.45, 0, 7); c.fill();
+    c.beginPath(); c.ellipse(w / 2 + 7, h * 0.44, 4.5, 8, -0.45, 0, 7); c.fill();
+    c.fillStyle = "#5ce89a"; c.font = "bold 13px Georgia, serif"; c.textAlign = "center";
+    c.fillText("QUARRY", w / 2, h - 12);
+  });
+  qSignT.colorSpace = THREE.SRGBColorSpace;
+  var qSignG = new THREE.Group(); qSignG.position.set(-8.5, GROUND, -31.0); qSignG.rotation.y = 0.16; yadd(qSignG);
+  [-0.38, 0.38].forEach(function (sx) {                        // the two stakes
+    var stk = box(0.05, 1.15, 0.05, mat(0x4a4438, 0.9));
+    stk.position.set(sx, 0.575, 0); qSignG.add(stk);
+  });
+  // ⚠️ 1.24 x 0.92 and emissive 0.85 — sized for 26 METRES, not for how it looks in
+  // isolation. At that range the board subtends about 2.5°, so a "realistic" yard sign
+  // is thirty pixels of grey; the glow and the extra 20% are the whole difference
+  // between a landmark you notice from the porch and a smudge on somebody's lawn.
+  var qBoard = new THREE.Mesh(new THREE.BoxGeometry(1.24, 0.92, 0.04),
+    new THREE.MeshStandardMaterial({ map: qSignT, roughness: 0.75,
+      emissive: 0x3f9a68, emissiveIntensity: 0.85 }));
+  qBoard.position.set(0, 1.14, 0.03); qSignG.add(qBoard);
+  groundShade(-8.5, -31.0, 0.5, 0.22, 0.4);
+  function qGo() { window.location.href = "https://kylefriesmarketing.github.io/quarry/"; }
+  [qBoard].concat(qSignG.children.filter(function (m) { return m !== qBoard; }))
+    .forEach(function (m) {
+      ytag(m, "QUARRY", qGo, "QUARRY — something came down out past the treeline · click to go hunting");
+    });
+
   /* ---- FRESH CUT: the mower, abandoned mid-stripe on its own front lawn ------- */
   var mowG = new THREE.Group(); mowG.position.set(-7.15, GROUND + 0.02, -9.8); mowG.rotation.y = -0.5; yadd(mowG);
   // ⚠️ RED, all of it, and brighter than looks right in the hex — the night
