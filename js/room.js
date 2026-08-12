@@ -799,7 +799,6 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
       t.needsUpdate = true;
     }
   }
-  function curViewRain() { return (WINDOW_VIEWS[curViewKey] || WINDOW_VIEWS.street).rain; }
   function applyWindowView() {
     curViewKey = WINDOW_VIEWS[paintState.view] ? paintState.view : "outside";
     var v = WINDOW_VIEWS[curViewKey];
@@ -812,9 +811,8 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
     // tell the hall to keep the street running while we're watching it from in here
     if (hall && hall.setPortalLive) hall.setPortalLive(!!v.real);
     redrawWindow();
-    winPane.userData.hint = "the window — " + v.hint;
-    if (!v.rain) { rainCtx.clearRect(0, 0, 256, 320); rainT.needsUpdate = true; }
-    AUDIO.setRain(v.rain ? phase.rainG : 0);
+    // the weather owns the glass and the sound now — the view only owns the scenery
+    applyWeather();
     if (winEv) { winEv.ev = null; winEvClear(); winEv.next = 6 + Math.random() * 8; } // fresh view, fresh traffic
   }
 
@@ -1918,15 +1916,32 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
     spring: { color: 0xffc4dc, size: 0.030, fall: 0.19, sway: 1.0, op: 0.72 },  // petals
     autumn: { color: 0xe8944a, size: 0.034, fall: 0.23, sway: 0.85, op: 0.72 }, // leaves
   };
-  var seasonFX = (function () {
+  // What the calendar says, and what you've asked for instead. "summer" is a real
+  // choice, not an absence — it means clear skies.
+  var SEASON_KEYS = ["auto", "winter", "spring", "summer", "autumn"];
+  var SEASON_LABEL = { auto: "your calendar", winter: "winter", spring: "spring", summer: "summer", autumn: "autumn" };
+  var SEASON_ICON = { auto: "📅", winter: "❄️", spring: "🌸", summer: "☀️", autumn: "🍂" };
+  var seasonForced = (function () {
     var q = /[?&]season=(winter|spring|autumn|summer|none)/.exec(location.search);
-    if (q) return (q[1] === "summer" || q[1] === "none") ? null : q[1];
+    return q ? (q[1] === "none" ? "summer" : q[1]) : null;
+  })();
+  function dateSeason() {
     var m = _md[0];
     if (m === 12 || m <= 2) return "winter";
     if (m >= 3 && m <= 5) return "spring";
     if (m >= 9 && m <= 11) return "autumn";
-    return null; // summer: clear skies
-  })();
+    return null;                              // summer: clear skies
+  }
+  function curSeasonKey() {
+    if (seasonForced) return seasonForced;
+    var s = (typeof paintState !== "undefined" && paintState) ? paintState.season : null;
+    return SEASON_KEYS.indexOf(s) > 0 ? s : "auto";
+  }
+  function curSeason() {                       // the resolved look, or null for clear
+    var k = curSeasonKey();
+    return k === "auto" ? dateSeason() : (SEASON_LOOKS[k] ? k : null);
+  }
+  var seasonFX = null;                         // resolved in applySeasonFX
   var seaN = 46, seaGeo = new THREE.BufferGeometry(), seaPos = new Float32Array(seaN * 3), seaPh = new Float32Array(seaN);
   for (var sfi = 0; sfi < seaN; sfi++) {
     seaPos[sfi * 3] = -3.3 + Math.random() * 6.6;
@@ -1938,9 +1953,12 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
   var seaMat = new THREE.PointsMaterial({ color: 0xffffff, size: 0.03, transparent: true, opacity: 0.7, depthWrite: false });
   var seaPoints = new THREE.Points(seaGeo, seaMat); seaPoints.visible = false; scene.add(seaPoints);
   function applySeasonFX() {
-    var look = (seasonFX && !paintState.noSeason) ? SEASON_LOOKS[seasonFX] : null;
+    seasonFX = curSeason();
+    var look = seasonFX ? SEASON_LOOKS[seasonFX] : null;
     seaPoints.visible = !!look;
     if (look) { seaMat.color.set(look.color); seaMat.size = look.size; seaMat.opacity = look.op; seaMat.needsUpdate = true; }
+    // …and it falls on the street too, which the window is now looking at
+    if (hall && hall.setSeason) hall.setSeason(seasonFX);
   }
 
   /* ---- the room follows your clock -------------------------------------------- */
@@ -1972,6 +1990,41 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
     return PHASES.night;                          // the dead of night
   }
   var phase = PHASES.evening, phaseHour = -1, phaseOverride = null; // the wall switch can pin a mood
+  /* ---- THE WEATHER --------------------------------------------------------------
+   * Rain used to be a PROPERTY OF THE WINDOW VIEW: pick "the street" and it rained,
+   * pick the pines and it stopped. That was fine while the window was a painting,
+   * but the window is a camera on the real yard now, so the weather has to be a fact
+   * about the house instead of a fact about the picture — the same rain has to fall
+   * on the glass, in the yard, and on you when you step out onto the porch.
+   *
+   * Three settings, and the difference between the last two is real: rain is streaks
+   * and sound, storm adds the lightning and the thunder that answers it. */
+  var WEATHER = {
+    clear: { label: "clear", icon: "🌙", rain: false, storm: false, hint: "clear out there tonight" },
+    rain:  { label: "rain",  icon: "🌧️", rain: true,  storm: false, hint: "still raining out there" },
+    storm: { label: "storm", icon: "⛈️", rain: true,  storm: true,  hint: "it's really coming down" },
+  };
+  // ⚠️ rain is the DEFAULT on purpose. It is the room's oldest mood — "still raining
+  // out there" is written on the window — and making the real view the default view
+  // had quietly switched it off for everyone.
+  function curWeather() {
+    // ⚠️ paintState is loaded ~3400 lines below this, and applyPhase() runs at boot —
+    // an unguarded read here throws before the room has drawn a single frame.
+    return (typeof paintState !== "undefined" && paintState && WEATHER[paintState.weather]) || WEATHER.rain;
+  }
+  function curViewRain() { return curWeather().rain; }
+  function applyWeather() {
+    var w = curWeather();
+    // ⚠️ applyPhaseObj calls this during boot, before the rain canvas is built —
+    // guard rather than reorder, because the rain volume genuinely is a function of
+    // the hour and every phase change has to re-read it.
+    if (!w.rain && typeof rainCtx !== "undefined" && rainCtx) {
+      rainCtx.clearRect(0, 0, 256, 320); rainT.needsUpdate = true; flash = 0;
+    }
+    AUDIO.setRain(w.rain ? phase.rainG * (w.storm ? 1.4 : 1) : 0);
+    if (hall && hall.setWeather) hall.setWeather(w.storm ? "storm" : w.rain ? "rain" : "clear");
+    if (winPane) winPane.userData.hint = "the window — " + w.hint;
+  }
   function applyPhaseObj(p) {
     if (p === phase && amb.intensity === p.ambI * AMB_FLAT) return; // must match what we set below
     phase = p;
@@ -1987,7 +2040,7 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
     if (post.available && post.setGrade) post.setGrade(p.grade[0], p.grade[1], p.grade[2], p.grade[3]);
     // …and so does the front yard, which looks at the same street this window does
     if (hall && hall.setPhase) hall.setPhase(winPhaseName());
-    AUDIO.setRain(curViewRain() ? p.rainG : 0);
+    applyWeather();   // rain volume is keyed to the hour, so it re-reads on every phase
   }
   function applyPhase() {
     if (phaseOverride) { applyPhaseObj(PHASES[phaseOverride]); return; }
@@ -4643,19 +4696,19 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
     { key: "asfound", name: "as found", icon: "🛏️", need: 0, reset: true, hour: null },
     { key: "cabin", name: "cozy cabin", icon: "🔥", need: 0,
       paint: { walls: 0, carpet: 1, wood: 1, door: 1, rug: 1, neon: 1, lights: "warm glow", screen: "stars",
-               wallsTex: 3, carpetTex: 1, rugTex: 0, view: "woods" }, hour: "evening" }, // pine walls, pines outside
+               wallsTex: 3, carpetTex: 1, rugTex: 0, view: "woods", weather: "rain" }, hour: "evening" }, // pine walls, pines outside
     { key: "arcade", name: "neon arcade", icon: "🕹️", need: 2,
       paint: { walls: 0, carpet: 3, wood: 4, door: 4, rug: 0, neon: 3, lights: "ocean", screen: "logo",
                wallsTex: 2, carpetTex: 0, rugTex: 0, view: "city" }, hour: "night" }, // the neon grid print, city lights out there
     { key: "attic", name: "haunted attic", icon: "🕸️", need: 4,
       paint: { walls: 0, carpet: 3, wood: 2, door: 4, rug: 0, neon: 4, lights: "candy", screen: "rain",
-               wallsTex: 5, carpetTex: 2, rugTex: 0 }, hour: "night" }, // ghost wallpaper over bare boards
+               wallsTex: 5, carpetTex: 2, rugTex: 0, weather: "storm" }, hour: "night" }, // ghost wallpaper over bare boards
     { key: "sunroom", name: "sunroom", icon: "🌿", need: 6,
       paint: { walls: 0, carpet: 2, wood: 3, door: 3, rug: 2, neon: 2, lights: "classic", screen: "mystify",
-               wallsTex: 4, carpetTex: 0, rugTex: 1, view: "sea" }, hour: "day" }, // daisies, racetrack rug, the sea out there
+               wallsTex: 4, carpetTex: 0, rugTex: 1, view: "sea", weather: "clear", season: "summer" }, hour: "day" }, // daisies, racetrack rug, the sea out there
     { key: "winter", name: "winter room", icon: "❄️", need: 9,
       paint: { walls: 3, carpet: 3, wood: 3, door: 2, rug: 3, neon: 3, lights: "ocean", screen: "stars",
-               wallsTex: 1, carpetTex: 1, rugTex: 0 }, hour: "dusk" }, // glow stars under a sky tint
+               wallsTex: 1, carpetTex: 1, rugTex: 0, weather: "clear", season: "winter" }, hour: "dusk" }, // glow stars under a sky tint
   ];
   var THEME_BY_KEY = {};
   ROOM_THEMES.forEach(function (t) { THEME_BY_KEY[t.key] = t; });
@@ -4678,7 +4731,7 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
     else {
       var p = t.paint || {};
       ["walls", "carpet", "wood", "door", "rug", "neon", "lights", "screen",
-       "wallsTex", "carpetTex", "rugTex", "view"].forEach(function (f) {
+       "wallsTex", "carpetTex", "rugTex", "view", "weather", "season"].forEach(function (f) {
         if (p[f] != null) paintState[f] = p[f];
       });
       saveJSON("room-paint", paintState); applyPaint();
@@ -4999,6 +5052,11 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
       pushUndo(); setPaint("lights", key); dwRender(); clickSfx(1600);
     } else if ((key = b.getAttribute("data-light"))) {
       setLightMode(key === "clock" ? null : key); dwRender(); clickSfx(1500);
+    } else if ((key = b.getAttribute("data-weather"))) {
+      pushUndo(); setPaint("weather", key); applyWeather(); dwRender();
+      clickSfx(key === "clear" ? 1700 : key === "storm" ? 700 : 1200);
+    } else if ((key = b.getAttribute("data-season"))) {
+      pushUndo(); setPaint("season", key); applySeasonFX(); dwRender(); clickSfx(1600);
     } else if ((key = b.getAttribute("data-screen"))) {
       pushUndo(); setPaint("screen", key); dwRender(); clickSfx(1700);
     } else if ((key = b.getAttribute("data-preset"))) {
@@ -5029,10 +5087,6 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
       setGlow(!post.enabled); dwRender(); clickSfx(post.enabled ? 1700 : 900);
     } else if (act === "wash") {
       pushUndo(); pbWash(); dwRender(); clickSfx(900);
-    } else if (act === "seasontoggle") {
-      paintState.noSeason = !paintState.noSeason;
-      if (!paintState.noSeason) delete paintState.noSeason;
-      saveJSON("room-paint", paintState); applySeasonFX(); dwRender(); clickSfx(paintState.noSeason ? 900 : 1600);
     } else if (act === "surprise") {
       surpriseMe(); clickSfx(1700);
     } else if (act === "allout") {
@@ -5172,6 +5226,10 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
    * the existing textures (zero new assets); everything persists per visitor.
    * ========================================================================== */
   var paintState = loadJSON("room-paint") || {};
+  // ⚠️ `noSeason` was a boolean "turn off whatever the calendar says". The season is a
+  // PICKER now, so anyone who had it switched off keeps clear skies as an explicit
+  // choice instead of silently getting the snow back on their next visit.
+  if (paintState.noSeason && !paintState.season) { paintState.season = "summer"; delete paintState.noSeason; }
   var PAINT = {
     walls: { label: "the walls", mats: [wallM, wallMSide], opts: [
       ["as found", 0xffffff], ["mint", 0xcfe4d2], ["peach", 0xf2d4c2],
@@ -5357,6 +5415,8 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
     }
     applyMaterials(); // material swaps first conceptually, but tints above only touch .color so order is safe
     applyWindowView(); // what's out the window is paint too
+    applyWeather();    // …and so is the weather in it, and the season falling through it
+    applySeasonFX();
     var wantSS = paintState.screen || "stars";           // the PC keeps whichever it was left on
     for (var s = 0; s < SCREENSAVERS.length; s++) if (SCREENSAVERS[s][0] === wantSS) ssKind = wantSS;
     applyNeonPaint();
@@ -5444,14 +5504,27 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
         '</div><div class="n">' + s[1] + "</div></button>";
     });
     html += "</div>";
-    if (seasonFX) {
-      var seaOn = !paintState.noSeason;
-      var seaName = { winter: "snow", spring: "petals", autumn: "leaves" }[seasonFX];
-      html += '<div class="dw-sec">the season</div>' +
-        '<button type="button" class="dw-wide" data-act="seasontoggle" aria-pressed="' + (seaOn ? "true" : "false") + '">' +
-        (seaOn ? "❄ " + seaName + " is falling — turn it off" : "let the " + seaName + " fall").replace("❄", { winter: "❄", spring: "🌸", autumn: "🍂" }[seasonFX]) +
-        "</button>";
+    html += '<div class="dw-sec">the weather</div><div class="dw-grid">';
+    for (var wk in WEATHER) {
+      var ww = WEATHER[wk], wOn = (paintState.weather || "rain") === wk;
+      html += '<button type="button" class="dw-card' + (wOn ? " on" : "") + '" data-weather="' + wk +
+        '" aria-pressed="' + (wOn ? "true" : "false") + '"><div class="i">' + ww.icon +
+        '</div><div class="n">' + ww.label + "</div></button>";
     }
+    html += "</div>";
+    html += '<div class="dw-sec">the season</div><div class="dw-grid">';
+    SEASON_KEYS.forEach(function (sk) {
+      var sOn = curSeasonKey() === sk;
+      html += '<button type="button" class="dw-card' + (sOn ? " on" : "") + '" data-season="' + sk +
+        '" aria-pressed="' + (sOn ? "true" : "false") + '"><div class="i">' + SEASON_ICON[sk] +
+        '</div><div class="n">' + SEASON_LABEL[sk] + "</div></button>";
+    });
+    html += "</div>";
+    // what "your calendar" resolves to right now, so the auto option isn't a mystery
+    var seaNow = curSeason();
+    html += '<div class="dw-hint">' + (seaNow
+      ? { winter: "snow", spring: "petals", autumn: "leaves" }[seaNow] + " is falling"
+      : "clear skies — nothing falling") + "</div>";
     html += '<div class="dw-sec">this room belongs to</div><div class="dw-name">' +
       '<input id="dw-name-inp" maxlength="14" placeholder="write your name" autocomplete="off" spellcheck="false">' +
       '<button id="dw-name-set" type="button">put it up</button></div>' +
@@ -6355,20 +6428,23 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
       neonMesh.material.opacity = hum * (0.35 + 0.65 * dim);
       neonLight.intensity = 1.1 * hum * dim;
     }
-    // the storm outside — light first, thunder when the distance allows.
-    // Only the rainy view HAS a storm; the pines/sea/city/space sit it out.
-    if (curViewRain()) {
-      nextFlash -= dt;
-      if (nextFlash <= 0) {
-        flash = 1; nextFlash = phase.fMin + Math.random() * phase.fRnd;
-        thunderStrength = 0.25 + Math.random() * 0.75;
-        thunderIn = 0.15 + (1 - thunderStrength) * 2.2; // nearer strikes speak sooner
+    // the weather outside — streaks on the glass whenever it rains, and for a STORM
+    // the light first, then the thunder when the distance allows.
+    var wx = curWeather();
+    if (wx.rain) {
+      if (wx.storm) {
+        nextFlash -= dt;
+        if (nextFlash <= 0) {
+          flash = 1; nextFlash = phase.fMin + Math.random() * phase.fRnd;
+          thunderStrength = 0.25 + Math.random() * 0.75;
+          thunderIn = 0.15 + (1 - thunderStrength) * 2.2; // nearer strikes speak sooner
+        }
+        if (thunderIn > 0) { thunderIn -= dt; if (thunderIn <= 0) rumble(thunderStrength); }
       }
-      if (thunderIn > 0) { thunderIn -= dt; if (thunderIn <= 0) rumble(thunderStrength); }
       if (flash > 0.01) {
         flash *= Math.pow(0.02, dt); // fast decay
         moon.intensity = phase.moonI + flash * 2.2;
-        var wv = phase.lift + flash * 1.5; // lightning lifts the whole painted view
+        var wv = phase.lift + flash * 1.5; // lightning lifts the whole view
         winLift(wv, wv, wv * phase.liftB);
         if ((frameCount & 1) === 0) drawRain(flash > 0.25);
       } else if ((frameCount % 6) === 0) drawRain(false);

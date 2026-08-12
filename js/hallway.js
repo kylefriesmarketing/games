@@ -2158,6 +2158,7 @@ export function buildHallway(ctx) {
     }
     skyTex.needsUpdate = true;
     yardHemi.intensity = s.hemi; yardHemi.color.setHex(s.hemiC);
+    phaseHemi = s.hemi;                       // the baseline a lightning flash lifts from
     yardSun.intensity = s.sun; yardSun.color.setHex(s.sunC);
     streetLight.intensity = 1.5 * s.lamp;
     slLamp.material.emissiveIntensity = 1.6 * s.lamp;
@@ -2171,6 +2172,109 @@ export function buildHallway(ctx) {
     mists.forEach(function (m) { m.m.material.opacity = m.op * (0.35 + 0.65 * s.lamp); });
   }
   setPhase("evening");
+
+  /* ---- WEATHER AND SEASON, OUT HERE --------------------------------------------
+   * The bedroom has had rain streaks on its glass and a drift of snow/petals for a
+   * while. The street had neither — so "a rainy night" was a texture on a window in
+   * front of a bone-dry lawn, and now that the window is a real camera on that lawn
+   * you would see the lie. One house, one sky: room.js owns the setting, this owns
+   * what it looks like outdoors.
+   *
+   * Both fields are THREE.Points — one draw call each, and a square point carrying a
+   * streak texture reads as a drop at this distance. Both live in yardG, so they are
+   * skipped from indoors exactly like everything else out here. */
+  function fallField(n, box, tex, size, color, op) {
+    var geo = new THREE.BufferGeometry(), pos = new Float32Array(n * 3);
+    for (var i = 0; i < n; i++) {
+      pos[i * 3]     = box[0] + Math.random() * (box[1] - box[0]);
+      pos[i * 3 + 1] = box[2] + Math.random() * (box[3] - box[2]);
+      pos[i * 3 + 2] = box[4] + Math.random() * (box[5] - box[4]);
+    }
+    geo.setAttribute("position", new THREE.BufferAttribute(pos, 3));
+    var m = new THREE.PointsMaterial({ map: tex, color: color, size: size, transparent: true,
+      opacity: op, depthWrite: false, sizeAttenuation: true });
+    var p = new THREE.Points(geo, m); p.visible = false; p.frustumCulled = false; yadd(p);
+    return { pts: p, geo: geo, mat: m, box: box };
+  }
+  // a drop: a soft vertical streak down the middle of an otherwise empty square
+  var dropTex = canvasTex(16, 16, function (c, w, h) {
+    c.clearRect(0, 0, w, h);
+    var g5 = c.createLinearGradient(0, 0, 0, h);
+    g5.addColorStop(0, "rgba(210,226,246,0)"); g5.addColorStop(0.35, "rgba(210,226,246,0.95)");
+    g5.addColorStop(0.75, "rgba(210,226,246,0.75)"); g5.addColorStop(1, "rgba(210,226,246,0)");
+    c.fillStyle = g5; c.fillRect(w * 0.42, 0, w * 0.16, h);
+  });
+  var flakeTex = canvasTex(16, 16, function (c, w, h) {
+    c.clearRect(0, 0, w, h);
+    var g6 = c.createRadialGradient(w / 2, h / 2, 0, w / 2, h / 2, w / 2);
+    g6.addColorStop(0, "rgba(255,255,255,1)"); g6.addColorStop(0.5, "rgba(255,255,255,0.75)");
+    g6.addColorStop(1, "rgba(255,255,255,0)");
+    c.fillStyle = g6; c.fillRect(0, 0, w, h);
+  });
+  // ⚠️ the box is centred on where BOTH cameras stand (the porch at x -5.7 and the
+  // bedroom window at x -4.4, both looking north up the lawn) — a field spread evenly
+  // over the whole 80m street would be too thin to see where anyone is actually looking.
+  var RAIN_BOX = [-23, 13, GROUND, GROUND + 13, -33, -2];
+  var rainF = fallField(2400, RAIN_BOX, dropTex, 0.26, 0xc4d6ec, 0.5);
+  var seaF  = fallField(520, [-23, 13, GROUND, GROUND + 11, -33, -2], flakeTex, 0.1, 0xffffff, 0.75);
+  var SEASON_FALL = {   // matched to room.js's SEASON_LOOKS so indoors and out agree
+    winter: { color: 0xeaf2ff, size: 0.11, fall: 0.9,  sway: 0.55, op: 0.85 },
+    spring: { color: 0xffc4dc, size: 0.10, fall: 0.7,  sway: 1.1,  op: 0.72 },
+    autumn: { color: 0xe8944a, size: 0.12, fall: 0.85, sway: 0.95, op: 0.72 },
+  };
+  // ⚠️ seeded from the light setPhase("evening") just set, NOT a literal: this `var`
+  // runs after that call, so a hardcoded value here would be written over the real
+  // one and every lightning flash would key off the wrong baseline.
+  var wxKind = "clear", seaKind = null, boltT = 7, boltF = 0, phaseHemi = yardHemi.intensity;
+  function setYardWeather(k) {
+    wxKind = (k === "rain" || k === "storm") ? k : "clear";
+    rainF.pts.visible = wxKind !== "clear";
+    rainF.mat.opacity = wxKind === "storm" ? 0.62 : 0.5;
+    if (wxKind !== "storm") { boltF = 0; skyDome.material.color.setScalar(1); yardHemi.intensity = phaseHemi; }
+  }
+  function setYardSeason(k) {
+    var L = SEASON_FALL[k];
+    seaKind = L ? k : null;
+    seaF.pts.visible = !!L;
+    if (L) { seaF.mat.color.setHex(L.color); seaF.mat.size = L.size; seaF.mat.opacity = L.op; seaF.mat.needsUpdate = true; }
+  }
+  // ⚠️ `fall` is METRES PER SECOND, plainly. The first version multiplied by dt*60*0.06
+  // as well, which made 11 mean 39.6 — the rain crossed the whole 13m field in a third
+  // of a second and read as tracer fire rather than weather.
+  function tickFall(f, dt, t, fall, sway) {
+    var a = f.geo.attributes.position, p = a.array, b = f.box;
+    for (var i = 0; i < p.length; i += 3) {
+      p[i + 1] -= fall * dt;
+      if (sway) p[i] += Math.sin(t * 0.8 + i) * sway * dt * 0.35;
+      if (p[i + 1] < b[2]) {                       // back to the top, somewhere new
+        p[i + 1] = b[3];
+        p[i]     = b[0] + Math.random() * (b[1] - b[0]);
+        p[i + 2] = b[4] + Math.random() * (b[5] - b[4]);
+      }
+    }
+    a.needsUpdate = true;
+  }
+  function tickSky(t, dt) {
+    if (rainF.pts.visible) tickFall(rainF, dt, t, 11, 0.4);
+    if (seaF.pts.visible) {
+      var L = SEASON_FALL[seaKind];
+      tickFall(seaF, dt, t, L.fall, L.sway);
+    }
+    if (wxKind !== "storm") return;
+    // ⚠️ the flash MULTIPLIES the phase's own values and always returns to them.
+    // Writing absolute intensities here would fight setPhase and leave the street
+    // stuck bright the next time the hour changed.
+    boltT -= dt;
+    if (boltT <= 0) { boltT = 6 + Math.random() * 11; boltF = 1; }
+    if (boltF > 0) {
+      boltF = Math.max(0, boltF - dt * 2.6);
+      var k = boltF * boltF;
+      yardHemi.intensity = phaseHemi * (1 + k * 2.4);
+      skyDome.material.color.setScalar(1 + k * 1.7);
+    } else if (skyDome.material.color.r !== 1) {
+      yardHemi.intensity = phaseHemi; skyDome.material.color.setScalar(1);
+    }
+  }
 
   // --- a car goes past now and then. It is the only thing in this house that is
   // ever in a hurry.
@@ -3348,6 +3452,7 @@ export function buildHallway(ctx) {
      * and the ice cream truck sat at the origin for good — the one game you are
      * meant to CATCH could never come past the window. */
     if (!yardG.visible && !portalLive) return;
+    tickSky(t, dt);
     var gust = 0.6 + 0.4 * Math.sin(t * 0.23);            // the wind comes and goes
     for (var si = 0; si < swayers.length; si++) {
       var sw2 = swayers[si];
@@ -3450,6 +3555,7 @@ export function buildHallway(ctx) {
     knock: knockCame,
     portalBegin: portalBegin, portalEnd: portalEnd, aimPortal: aimPortal,
     setPortalLive: setPortalLive,
+    setWeather: setYardWeather, setSeason: setYardSeason,
     camTick: camTick, glowTick: glowTick, refreshPhotos: refreshPhotos
   };
 }
