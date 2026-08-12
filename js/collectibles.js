@@ -300,3 +300,145 @@ export function buildPalm() { // the island that isn't on any chart, pocket edit
   return g;
 }
 
+
+/* ---- the six that were missing (2026-08-11) -----------------------------------
+ * Every game on the shelf leaves something behind; these six had doorways but no
+ * treasure. Same rules as the rest: ~4-12cm, low poly, flat colour over canvas art
+ * (only the compass and the trophy plate earn a texture), built about y=0 so the
+ * shoebox can stand them on any surface.
+ */
+export function buildMug() { // SHORT STAFFED — the diner mug, chipped, never empty
+  var g = new THREE.Group();
+  var china = mat(0xe8e2d4, 0.55);
+  var body = new THREE.Mesh(new THREE.CylinderGeometry(0.026, 0.022, 0.042, 16), china);
+  body.position.y = 0.021; g.add(body);
+  var coffee = new THREE.Mesh(new THREE.CylinderGeometry(0.023, 0.023, 0.004, 16), mat(0x40241a, 0.35));
+  coffee.position.y = 0.039; g.add(coffee);
+  var band = new THREE.Mesh(new THREE.CylinderGeometry(0.0265, 0.0265, 0.006, 16), mat(0x9a2f2a, 0.5));
+  band.position.y = 0.030; g.add(band);
+  var handle = new THREE.Mesh(new THREE.TorusGeometry(0.013, 0.0032, 6, 14, Math.PI * 1.25), china);
+  handle.position.set(0.028, 0.022, 0); handle.rotation.set(Math.PI / 2, 0, -Math.PI * 0.62); g.add(handle);
+  // the saucer it never gets put back on
+  var sauc = new THREE.Mesh(new THREE.CylinderGeometry(0.042, 0.040, 0.004, 18), china);
+  sauc.position.y = 0.002; g.add(sauc);
+  return g;
+}
+export function buildCap() { // HOME BREW — the first cap you ever crimped, on its mat
+  var g = new THREE.Group();
+  var matM = mat(0xd8c9a8, 0.95);
+  var beermat = new THREE.Mesh(new THREE.CylinderGeometry(0.040, 0.040, 0.004, 20), matM);
+  beermat.position.y = 0.002; g.add(beermat);
+  var ring = new THREE.Mesh(new THREE.TorusGeometry(0.028, 0.0022, 6, 20), mat(0x8a6a3a, 0.85));
+  ring.rotation.x = -Math.PI / 2; ring.position.y = 0.0045; g.add(ring);
+  // the bottle, stout and brown
+  var glass = new THREE.MeshStandardMaterial({ color: 0x4a2a12, roughness: 0.22, metalness: 0.05 });
+  var bod = new THREE.Mesh(new THREE.CylinderGeometry(0.018, 0.018, 0.056, 14), glass);
+  bod.position.y = 0.032; g.add(bod);
+  var shldr = new THREE.Mesh(new THREE.CylinderGeometry(0.008, 0.018, 0.020, 14), glass);
+  shldr.position.y = 0.070; g.add(shldr);
+  var neck = new THREE.Mesh(new THREE.CylinderGeometry(0.008, 0.008, 0.020, 12), glass);
+  neck.position.y = 0.090; g.add(neck);
+  var label = new THREE.Mesh(new THREE.CylinderGeometry(0.0185, 0.0185, 0.026, 14), mat(0xe6c05a, 0.7));
+  label.position.y = 0.030; g.add(label);
+  var crown = new THREE.Mesh(new THREE.CylinderGeometry(0.0098, 0.0098, 0.006, 12), mat(0xc03a30, 0.45));
+  crown.position.y = 0.103; g.add(crown);
+  // and one crimped off, lying on the mat
+  var spent = new THREE.Mesh(new THREE.CylinderGeometry(0.0098, 0.0098, 0.005, 12), mat(0xc03a30, 0.45));
+  spent.position.set(0.026, 0.0065, 0.012); spent.rotation.x = 0.16; g.add(spent);
+  return g;
+}
+export function buildSparkPlug() { // FRESH CUT — the plug you finally changed
+  var g = new THREE.Group();
+  var steel = new THREE.MeshStandardMaterial({ color: 0xb9b3a6, roughness: 0.42, metalness: 0.6 });
+  var porc = mat(0xe4dccb, 0.5);
+  // lying on its side on a shop rag, because that is where it lived for a season
+  var rag = new THREE.Mesh(new THREE.BoxGeometry(0.072, 0.004, 0.046), mat(0x4e6b4a, 0.95));
+  rag.position.y = 0.002; rag.rotation.y = 0.22; g.add(rag);
+  var lay = new THREE.Group(); lay.position.set(0, 0.013, 0); lay.rotation.z = Math.PI / 2; lay.rotation.y = 0.22; g.add(lay);
+  var ins = new THREE.Mesh(new THREE.CylinderGeometry(0.0085, 0.0105, 0.030, 12), porc);
+  ins.position.y = 0.024; lay.add(ins);
+  var hex = new THREE.Mesh(new THREE.CylinderGeometry(0.0115, 0.0115, 0.010, 6), steel);
+  hex.position.y = 0.004; lay.add(hex);
+  var thread = new THREE.Mesh(new THREE.CylinderGeometry(0.0072, 0.0072, 0.018, 10), steel);
+  thread.position.y = -0.010; lay.add(thread);
+  var tip = new THREE.Mesh(new THREE.CylinderGeometry(0.0022, 0.0022, 0.006, 8), steel);
+  tip.position.y = -0.022; lay.add(tip);
+  var hook = new THREE.Mesh(new THREE.BoxGeometry(0.0035, 0.009, 0.0035), steel);
+  hook.position.set(0.006, -0.019, 0); lay.add(hook);
+  var term = new THREE.Mesh(new THREE.CylinderGeometry(0.005, 0.005, 0.008, 10), steel);
+  term.position.y = 0.043; lay.add(term);
+  // one blade of grass that came home in the tread
+  var blade = new THREE.Mesh(new THREE.PlaneGeometry(0.004, 0.020),
+    new THREE.MeshStandardMaterial({ color: 0x6aa84a, roughness: 0.9, side: THREE.DoubleSide }));
+  blade.position.set(-0.022, 0.012, 0.014); blade.rotation.set(0, 0.5, 0.3); g.add(blade);
+  return g;
+}
+export function buildComic() { // THE LAST ISSUE — bagged, boarded, and read anyway
+  var g = new THREE.Group();
+  // leaning against nothing, the way a comic does when you stand it up to look at it
+  var lean = new THREE.Group(); lean.rotation.z = -0.13; lean.rotation.y = 0.24; g.add(lean);
+  var board = new THREE.Mesh(new THREE.BoxGeometry(0.062, 0.092, 0.003), mat(0xe8e0cc, 0.95));
+  board.position.y = 0.046; lean.add(board);
+  var cover = new THREE.Mesh(new THREE.BoxGeometry(0.058, 0.088, 0.004), mat(0xb4302c, 0.7));
+  cover.position.set(0, 0.046, 0.0035); lean.add(cover);
+  var sky = new THREE.Mesh(new THREE.BoxGeometry(0.050, 0.040, 0.001), mat(0x3a68b0, 0.7));
+  sky.position.set(0, 0.056, 0.0060); lean.add(sky);
+  var figure = new THREE.Mesh(new THREE.BoxGeometry(0.011, 0.030, 0.001), mat(0x1a1a22, 0.8));
+  figure.position.set(-0.004, 0.052, 0.0068); lean.add(figure);       // a silhouette, mid-fall
+  var cape = new THREE.Mesh(new THREE.BoxGeometry(0.016, 0.014, 0.001), mat(0x1a1a22, 0.8));
+  cape.position.set(0.008, 0.062, 0.0068); cape.rotation.z = -0.5; lean.add(cape);
+  var banner = new THREE.Mesh(new THREE.BoxGeometry(0.058, 0.014, 0.001), mat(0xe6c34a, 0.6));
+  banner.position.set(0, 0.083, 0.0060); lean.add(banner);            // the logo bar
+  var price = new THREE.Mesh(new THREE.BoxGeometry(0.014, 0.010, 0.001), mat(0xf2ead6, 0.7));
+  price.position.set(-0.021, 0.020, 0.0060); lean.add(price);         // the corner box
+  var bag = new THREE.Mesh(new THREE.BoxGeometry(0.066, 0.098, 0.010),
+    new THREE.MeshStandardMaterial({ color: 0xdfe8ea, roughness: 0.15, transparent: true, opacity: 0.22 }));
+  bag.position.y = 0.049; lean.add(bag);                              // mylar, still on
+  return g;
+}
+export function buildFang() { // QUARRY — the first trophy you took, on its cord
+  var g = new THREE.Group();
+  var bone = mat(0xe4dcc6, 0.6);
+  // a display block, because a hunter mounts a trophy; it doesn't just keep it
+  var blk = new THREE.Mesh(new THREE.BoxGeometry(0.052, 0.010, 0.034), mat(0x2f2a24, 0.8));
+  blk.position.y = 0.005; g.add(blk);
+  var plate = new THREE.Mesh(new THREE.BoxGeometry(0.030, 0.001, 0.008), mat(0xa8873f, 0.55));
+  plate.position.set(0, 0.0105, 0.014); g.add(plate);
+  // the tooth: curved, so two tapered segments at a slight angle read better than one
+  var lower = new THREE.Mesh(new THREE.CylinderGeometry(0.0058, 0.0075, 0.026, 10), bone);
+  lower.position.set(0, 0.023, 0); lower.rotation.z = 0.10; g.add(lower);
+  var upper = new THREE.Mesh(new THREE.ConeGeometry(0.0058, 0.030, 10), bone);
+  upper.position.set(-0.005, 0.050, 0); upper.rotation.z = 0.30; g.add(upper);
+  var wrap = new THREE.Mesh(new THREE.TorusGeometry(0.0072, 0.0016, 6, 12), mat(0x7a4a2a, 0.9));
+  wrap.rotation.x = Math.PI / 2; wrap.rotation.y = 0.10; wrap.position.set(0.001, 0.017, 0); g.add(wrap);
+  // the cord, coiled where it was set down
+  for (var i = 0; i < 3; i++) {
+    var coil = new THREE.Mesh(new THREE.TorusGeometry(0.010 + i * 0.004, 0.0013, 5, 16), mat(0x6a4326, 0.9));
+    coil.rotation.x = -Math.PI / 2; coil.position.set(0.012, 0.0108 + i * 0.0006, -0.006); g.add(coil);
+  }
+  return g;
+}
+export function buildIceCream() { // HERE COMES THE TRUCK — you caught it once
+  var g = new THREE.Group();
+  var wafer = mat(0xd9a862, 0.85);
+  // a little wire stand, or it can only ever lie on its side
+  var ring = new THREE.Mesh(new THREE.TorusGeometry(0.016, 0.0016, 6, 16), mat(0xb9b3a6, 0.4));
+  ring.rotation.x = -Math.PI / 2; ring.position.y = 0.030; g.add(ring);
+  [0, 2.09, 4.19].forEach(function (a) {
+    var leg = new THREE.Mesh(new THREE.CylinderGeometry(0.0013, 0.0013, 0.032, 6), mat(0xb9b3a6, 0.4));
+    leg.position.set(Math.cos(a) * 0.015, 0.016, Math.sin(a) * 0.015);
+    leg.rotation.set(Math.sin(a) * 0.16, 0, -Math.cos(a) * 0.16); g.add(leg);
+  });
+  var cone = new THREE.Mesh(new THREE.ConeGeometry(0.019, 0.052, 12), wafer);
+  cone.rotation.z = Math.PI; cone.position.y = 0.050; g.add(cone);     // tip DOWN, into the stand
+  var scoop1 = new THREE.Mesh(new THREE.SphereGeometry(0.019, 12, 10), mat(0xf6d9b0, 0.6));
+  scoop1.position.y = 0.082; g.add(scoop1);                            // vanilla
+  var scoop2 = new THREE.Mesh(new THREE.SphereGeometry(0.016, 12, 10), mat(0xf2a8bc, 0.6));
+  scoop2.position.set(0.004, 0.105, -0.003); g.add(scoop2);            // strawberry, sliding
+  var flake = new THREE.Mesh(new THREE.CylinderGeometry(0.0026, 0.0026, 0.024, 6), mat(0x5e3a20, 0.8));
+  flake.position.set(-0.008, 0.116, 0.004); flake.rotation.z = 0.42; g.add(flake);
+  // one drip, already committed
+  var drip = new THREE.Mesh(new THREE.SphereGeometry(0.0042, 8, 6), mat(0xf6d9b0, 0.6));
+  drip.position.set(-0.017, 0.068, 0.002); drip.scale.y = 1.8; g.add(drip);
+  return g;
+}

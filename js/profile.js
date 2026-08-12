@@ -58,6 +58,21 @@ export var ACHIEVEMENTS = [
     check: function (c) { return c.riftWins > 0; } },
   { id: "lap", icon: "🚌", name: "One more week", hint: "get through a week in VICTORY LAP",
     check: function (c) { return c.lapWeeks > 0; } },
+  // the rest of the house — one badge per game that lives outside the bedroom
+  { id: "cook", icon: "🍳", name: "Short staffed", hint: "work a shift in SHORT STAFFED",
+    check: function (c) { return c.ssShifts > 0; } },
+  { id: "brewer", icon: "🍺", name: "Head brewer", hint: "discover a recipe in HOME BREW",
+    check: function (c) { return c.brewRecipes > 0; } },
+  { id: "mower", icon: "🌱", name: "Fresh cut", hint: "finish a lawn in FRESH CUT",
+    check: function (c) { return c.lawnsDone > 0; } },
+  { id: "issue", icon: "📕", name: "Back issue", hint: "finish a run in THE LAST ISSUE",
+    check: function (c) { return c.issueRuns > 0; } },
+  { id: "hunter", icon: "🦷", name: "First trophy", hint: "take a trophy in QUARRY",
+    check: function (c) { return c.quarryTrophies > 0; } },
+  // the hidden one: the truck only runs the street 15s in every 300, so this award
+  // is really "you were outside at the right moment" — earned before you ever play it
+  { id: "truck", icon: "🍦", name: "Heard the song", hint: "be out front when the ice cream truck goes by",
+    check: function (c) { return !!c.truckHeard; } },
   { id: "neighbour", icon: "🤝", name: "Good neighbour", hint: "try one of Dumb Tony's games too",
     check: function (c) { return c.tonyVisits > 0; } },
   { id: "collector", icon: "🧺", name: "Collector", hint: "earn five of the treasures",

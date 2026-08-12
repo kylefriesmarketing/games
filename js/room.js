@@ -1407,6 +1407,10 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
   var hall = buildHallway({
     scene: scene, camera: camera, lookAt: lookAt, clickable: clickable, glow: glow,
     kidSay: function (s, d) { kidSay(s, d); }, doorPivot: doorPivot,
+    // the house looks are bought with the same treasures the bedroom themes spend.
+    // A closure, not a number: COLLECT is declared far below this call, and the
+    // count changes the moment you come back from a game.
+    treasures: function () { return collectiblesEarned(); },
     onEnter: function () { // leaving the bedroom tidies up after itself
       if (decorMode) decorSet(false);
       endTour(true);
@@ -1667,11 +1671,23 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
     // survived are progress, but they are not endings, and without the flag the
     // "Twenty endings" award could be won without reading a single story.
     "BLOODRIFT":      { key: "br-profile-v1",   pick: function (m) { return m && m.chars ? countOf(m.chars) : null; }, total: 20, noun: "fighters", attempts: true },
-    "VICTORY LAP":    { key: "vl-meta-v1",      pick: function (m) { return (m && m.runs) || null; }, noun: "weeks", attempts: true }
+    "VICTORY LAP":    { key: "vl-meta-v1",      pick: function (m) { return (m && m.runs) || null; }, noun: "weeks", attempts: true },
+    // The rest of the house (2026-08-11). All `attempts` — lawns, shifts and days are
+    // progress, not endings, and without the flag they would inflate "Twenty endings".
+    // ⚠️ SHORT STAFFED stores a bare NAME, not JSON, so it needs `raw` — readSave
+    // JSON.parses and would throw on "Cook" and report the game as never started.
+    "SHORT STAFFED":  { key: "ss-name", raw: true, pick: function (v) { return v ? 1 : null; }, total: 1, noun: "shifts", attempts: true },
+    "HOME BREW":      { key: "mybrew-save-v1",  pick: function (m) { return countOf(m.G && m.G.discovered); }, noun: "recipes", attempts: true },
+    "FRESH CUT":      { key: "fc-save",         pick: function (m) { return countOf(m.done); }, total: 44, noun: "lawns", attempts: true },
+    "THE LAST ISSUE": { key: "tli-runs",        pick: function (m) { return Array.isArray(m) ? m.length : null; }, noun: "runs", attempts: true },
+    "QUARRY":         { key: "quarry-universe", pick: function (m) { return m && m.hunter ? countOf(m.hunter.trophies) : null; }, noun: "trophies", attempts: true },
+    "HERE COMES THE TRUCK": { key: "truck-save", pick: function (m) { return m.days || null; }, noun: "days", attempts: true }
   };
   function gameProgress(title) {
     var g = GAME_SAVES[title]; if (!g) return null;
-    var n = readSave(g.key, g.pick);
+    var n = g.raw
+      ? (function () { try { var v = localStorage.getItem(g.key); return v ? g.pick(v) : null; } catch (e) { return null; } })()
+      : readSave(g.key, g.pick);
     return { started: n != null && n > 0, done: n || 0, total: g.total || 0, noun: g.noun };
   }
   var priorVisits = 0; // visits BEFORE this one — captured in __roomEnter, read at greet
@@ -3214,6 +3230,14 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
       toysMissions: tt.done + tt.secrets,
       riftWins: brProfile().wins,
       lapWeeks: vlMeta().runs,
+      // the house games — gameProgress already knows how to read each save, so the
+      // awards read through it rather than duplicating six key names here
+      ssShifts: gameProgress("SHORT STAFFED").done,
+      brewRecipes: gameProgress("HOME BREW").done,
+      lawnsDone: gameProgress("FRESH CUT").done,
+      issueRuns: gameProgress("THE LAST ISSUE").done,
+      quarryTrophies: gameProgress("QUARRY").done,
+      truckHeard: (function () { try { return !!localStorage.getItem("room-truck-seen"); } catch (e) { return false; } })(),
       hoodRuns: hr ? (hr.lifetime && hr.lifetime.runs) || (hr.bestDist > 0 ? 1 : 0) : 0,
       hoodBest: hr ? Math.round(hr.bestDist || 0) : 0,
       tonyVisits: tony,
@@ -4173,6 +4197,57 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
       earn: "visit TIDEBOUND — the toy island", where: "on the floor by the shoebox",
       have: function () { try { return !!localStorage.getItem("room-visited-palm"); } catch (e) { return false; } },
       home: { x: -0.9, y: 0, z: 2.8 }, build: COLL.buildPalm },
+    // ---- the six that had doorways but no treasure (2026-08-11) --------------------
+    // Every one of these games ships on kylefriesmarketing.github.io, the SAME ORIGIN
+    // as this hub, so their saves are readable here exactly like the story games'.
+    // (Dumb Tony's are a different origin — that is why brainball and palm unlock by
+    // visiting instead.) Each condition is the game's own record of having really
+    // played, not of having loaded the page.
+    // ⚠️ y matches the SHIPPED neighbour on the same surface rather than a raycast:
+    // measured, the desk items all sit 3.6cm above the wood and the tv-stand pair
+    // read as floating over the floor. Whatever that convention is, breaking it for
+    // six new pieces would make them the odd ones out.
+    { key: "mug", title: "the diner mug", from: "SHORT STAFFED", icon: "☕",
+      earn: "work a shift in SHORT STAFFED", where: "on the desk, going cold",
+      // ss-name is written in doJoin() — the moment you actually clock in, not on load.
+      // A raw string, so readSave's JSON.parse would throw: read it directly.
+      have: function () { try { return !!localStorage.getItem("ss-name"); } catch (e) { return false; } },
+      // ⚠️ scanned, not guessed: the desktop is cluttered and rotated 1.05rad, so most
+      // "obvious" offsets land on the keyboard, the tray or under the monitor's
+      // overhang — and the whole left half is BEHIND the glowing brain from the room's
+      // own camera, which a clearance scan cannot tell you. This is open desk in view.
+      anchor: "desk", home: { x: 0.34, y: 0.851, z: 0.13 }, build: COLL.buildMug },
+    { key: "cap", title: "the first bottle cap", from: "HOME BREW", icon: "🍺",
+      earn: "discover a recipe in HOME BREW", where: "up on top of the big shelf",
+      have: function () { return anyOf("mybrew-save-v1", function (m) { return countOf(m.G && m.G.discovered); }); },
+      home: { x: -1.45, y: 2.392, z: -2.32 }, build: COLL.buildCap },
+    { key: "sparkplug", title: "the old spark plug", from: "FRESH CUT", icon: "🔩",
+      earn: "finish a lawn in FRESH CUT", where: "on the TV stand, on a shop rag",
+      have: function () { return anyOf("fc-save", function (m) { return countOf(m.done); }); },
+      // ⚠️ 0.17 clear of the bracelet: every treasure carries an 0.085-radius invisible
+      // grab proxy, so two homed closer than that fight over the same click.
+      anchor: "tv", home: { x: -0.66, y: 0.442, z: 0.16 }, build: COLL.buildSparkPlug },
+    { key: "comic", title: "the bagged first issue", from: "THE LAST ISSUE", icon: "📕",
+      earn: "finish a run in THE LAST ISSUE", where: "on the nightstand, still in its bag",
+      have: function () { return anyOf("tli-runs", function (m) { return Array.isArray(m) ? m.length : null; }); },
+      // +4mm over the nightstand: it leans, so a corner of the board dips below its own origin
+      anchor: "nstand", home: { x: 0.00, y: 0.556, z: -0.15 }, build: COLL.buildComic },
+    { key: "fang", title: "the mounted tooth", from: "QUARRY", icon: "🦷",
+      earn: "take a trophy in QUARRY", where: "up on top of the big shelf",
+      // QUARRY's whole scoring system is trophies, so its treasure here is one of them.
+      have: function () {
+        return anyOf("quarry-universe", function (m) {
+          return m && m.hunter ? countOf(m.hunter.trophies) : null;
+        });
+      },
+      home: { x: -0.72, y: 2.392, z: -2.32 }, build: COLL.buildFang },
+    { key: "icecream", title: "the cone you caught", from: "HERE COMES THE TRUCK", icon: "🍦",
+      earn: "serve a day in HERE COMES THE TRUCK", where: "on the desk, on its little stand",
+      have: function () { return anyOf("truck-save", function (m) { return m.days || null; }); },
+      // ⚠️ this one is 12.8cm TALL, so a clear patch of desk isn't enough — most of the
+      // desktop has only ~7cm of headroom under the monitor and the shelf, and the cone
+      // would have grown straight through them. Scanned for bare wood AND open sky.
+      anchor: "desk", home: { x: 0.54, y: 0.851, z: -0.07 }, build: COLL.buildIceCream },
   ];
   var collByKey = {};
   COLLECT.forEach(function (c) { collByKey[c.key] = c; });
@@ -4521,7 +4596,13 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
   ];
   var THEME_BY_KEY = {};
   ROOM_THEMES.forEach(function (t) { THEME_BY_KEY[t.key] = t; });
-  function collectiblesEarned() { var n = 0; COLLECT.forEach(function (c) { if (c.have()) n++; }); return n; }
+  // ⚠️ buildHallway runs ~2700 lines ABOVE the COLLECT literal and its stashes ask for
+  // the treasure count while they build (to pick a starting house look), so this is
+  // genuinely called before `var COLLECT` is assigned. Nothing is earned that early.
+  function collectiblesEarned() {
+    if (!COLLECT) return 0;
+    var n = 0; COLLECT.forEach(function (c) { if (c.have()) n++; }); return n;
+  }
   function themeUnlocked(t) { return !t.need || collectiblesEarned() >= t.need; }
   function applyTheme(key) {
     var t = THEME_BY_KEY[key]; if (!t) return;

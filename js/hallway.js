@@ -2686,6 +2686,12 @@ export function buildHallway(ctx) {
         "<button type='button' data-si='" + i + "' style='font:12px Georgia,serif;color:#f2e2c4;" +
         "background:rgba(242,226,196,.10);border:1px solid rgba(242,226,196,.30);border-radius:999px;" +
         "padding:3px 11px;cursor:pointer'>" + o.vals[o.i].label + "</button></div>";
+      // locked entries are skipped by the cycler, so without this the player would
+      // never learn there are more looks waiting behind the treasures
+      if (o.note) {
+        var n = o.note();
+        if (n) html += "<div style='margin:-2px 0 6px;opacity:.5;font-size:11.5px'>" + n + "</div>";
+      }
     });
     html += "<div style='text-align:right;margin-top:8px'><button type='button' data-si='x' " +
       "style='font:12px Georgia,serif;color:#f2e2c4;background:none;border:none;cursor:pointer;opacity:.6'>close</button></div>";
@@ -2710,13 +2716,19 @@ export function buildHallway(ctx) {
         var si = b.getAttribute("data-si");
         if (si === "x") { closeStash(); return; }
         var st2 = stashByKey[stashOpenKey], o = st2.opts[+si];
-        o.i = (o.i + 1) % o.vals.length;
+        o.i = nextUnlocked(o, o.i);
         o.vals[o.i].apply();
         st2.save();
         AUDIO.clickSfx && AUDIO.clickSfx(1400);
         renderStash(st2);
       });
     }
+    // now that room.js is fully built, the treasure count is real: if a stored choice
+    // is no longer owned (saves cleared, a new look added above your total), fall back
+    // to "as found" before the panel can offer it as the current setting.
+    st.opts.forEach(function (o) {
+      if (o.locked && o.locked(o.i)) { o.i = 0; o.vals[0].apply(); st.save(); }
+    });
     stashOpenKey = st.key;
     renderStash(st);
     stashPanel.style.display = "block";
@@ -2736,14 +2748,23 @@ export function buildHallway(ctx) {
   var LOOK_MATS = [hwallM, plankM, runner.material, oakM, kWallM, lamM,
                    sidingM, grassM, deckM, bFenceM, pdeckM];
   var LOOK_BASE = LOOK_MATS.map(function (m) { return m.color.getHex(); });
+  // `need` = treasures required, the same currency the bedroom's ROOM_THEMES spend.
+  // The bedroom ladder tops out at 9 of 21; the house goes all the way to 21, so the
+  // last look is the reward for a treasure from EVERY game in the house.
   var LOOKS = [
-    { key: "asfound", name: "as found", icon: "🏚️" },
-    { key: "cabin",   name: "cozy cabin",   icon: "🔥", tint: 0xffa552, amt: 0.34, bulb: 0xffc07a },
-    { key: "seaside", name: "seaside",      icon: "🌊", tint: 0x8ecbe6, amt: 0.30, bulb: 0xe4f2ff },
-    { key: "harvest", name: "harvest",      icon: "🍂", tint: 0xd87a3a, amt: 0.26, bulb: 0xffcf96 },
-    { key: "moonlit", name: "moonlit",      icon: "🌙", tint: 0x7d95d4, amt: 0.38, bulb: 0xcfe0ff },
-    { key: "greenhouse", name: "greenhouse", icon: "🌿", tint: 0x8fc47a, amt: 0.24, bulb: 0xeaffd8 },
+    { key: "asfound", name: "as found", icon: "🏚️", need: 0 },
+    { key: "cabin",   name: "cozy cabin",   icon: "🔥", need: 0,  tint: 0xffa552, amt: 0.34, bulb: 0xffc07a },
+    { key: "seaside", name: "seaside",      icon: "🌊", need: 3,  tint: 0x8ecbe6, amt: 0.30, bulb: 0xe4f2ff },
+    { key: "harvest", name: "harvest",      icon: "🍂", need: 6,  tint: 0xd87a3a, amt: 0.26, bulb: 0xffcf96 },
+    { key: "moonlit", name: "moonlit",      icon: "🌙", need: 10, tint: 0x7d95d4, amt: 0.38, bulb: 0xcfe0ff },
+    { key: "greenhouse", name: "greenhouse", icon: "🌿", need: 14, tint: 0x8fc47a, amt: 0.24, bulb: 0xeaffd8 },
+    { key: "firstlight", name: "first light", icon: "🌅", need: 18, tint: 0xffcf9a, amt: 0.30, bulb: 0xffe8c8 },
+    { key: "midnight", name: "midnight",    icon: "🌌", need: 21, tint: 0x5a6bab, amt: 0.44, bulb: 0xc4d6ff },
   ];
+  // how many of the room's treasures the player has earned; room.js owns the table,
+  // so it hands us a reader rather than us duplicating twenty-one save conditions
+  var treasures = ctx.treasures || function () { return 0; };
+  function lookLocked(i) { return (LOOKS[i].need || 0) > treasures(); }
   var lookBulb = 0xffd9a0;
   function applyLook(key) {
     var L = null;
@@ -2766,11 +2787,24 @@ export function buildHallway(ctx) {
   // so the house look reads the same from whichever container you open — four copies
   // of one setting that disagreed would be worse than not offering it four times.
   function readShared(k) { try { return parseInt(localStorage.getItem(k) || "0", 10) || 0; } catch (e) { return 0; } }
+  // advance one step, then keep going past anything still locked. Bounded by the
+  // list length, so an all-locked option can never spin forever — and index 0 of
+  // every option is unlocked by construction, which is what makes that safe.
+  function nextUnlocked(o, from) {
+    var i = (from + 1) % o.vals.length;
+    for (var n = 0; o.locked && o.locked(i) && n < o.vals.length; n++) i = (i + 1) % o.vals.length;
+    return i;
+  }
   function makeStash(key, title, opts) {
     var saved = {};
     try { saved = JSON.parse(localStorage.getItem("room-stash-" + key) || "{}"); } catch (e) { }
     opts.forEach(function (o) {
       o.i = (o.shared ? readShared(o.shared) : (saved[o.k] | 0)) % o.vals.length;
+      // ⚠️ NO lock check here. Stashes are built during buildHallway, which room.js
+      // calls long before its COLLECT table exists, so the treasure count reads 0 at
+      // this moment for everyone — gating here would quietly reset every player's
+      // saved look to "as found" on every single load. The check lives in openStash,
+      // where the count is real.
       o.vals[o.i].apply();                    // a saved choice is live from frame one
     });
     var st = { key: key, title: title, opts: opts, save: function () {
@@ -2787,6 +2821,15 @@ export function buildHallway(ctx) {
   // every container offers the whole-house look, and they all mean the same thing
   function lookOption() {
     return { k: "look", label: "the house look", shared: "room-house-look",
+      locked: lookLocked,
+      note: function () {                       // tell them there IS more, and the price
+        var t = treasures(), next = null;
+        LOOKS.forEach(function (L) {
+          if ((L.need || 0) > t && (next === null || L.need < next)) next = L.need;
+        });
+        return next === null ? "every look unlocked"
+          : "next look at " + next + " treasures — you have " + t;
+      },
       vals: LOOKS.map(function (L) {
         return { label: L.icon + " " + L.name, apply: function () { applyLook(L.key); } };
       }) };
