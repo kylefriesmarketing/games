@@ -441,7 +441,7 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
    * the room's hour. */
   var WIN_OVER = 1.5, WIN_OFF0 = (1 - 1 / WIN_OVER) / 2;         // horizontal overscan for parallax
   var WIN_OVERY = 1.12, WIN_OFFY = (1 - 1 / WIN_OVERY) / 2;      // a little vertical headroom too
-  var winLayerT = [], winLayerM = [];
+  var winLayerT = [], winLayerM = [], winLayerP = [];
   for (var wl = 0; wl < 3; wl++) (function (wl) {
     var t = canvasTex(768, 512, function (g, w, h) { g.clearRect(0, 0, w, h); });
     t.repeat.set(1 / WIN_OVER, 1 / WIN_OVERY); t.offset.set(WIN_OFF0, WIN_OFFY); t.anisotropy = 8;
@@ -449,7 +449,7 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
     var p = new THREE.Mesh(new THREE.PlaneGeometry(1.44, 1.74), m);
     p.position.set(2.35, 1.95, -2.538 + wl * 0.005); // far behind, near almost at the glass
     scene.add(p);
-    winLayerT.push(t); winLayerM.push(m);
+    winLayerT.push(t); winLayerM.push(m); winLayerP.push(p);
   })(wl);
   // a fourth layer for TRANSIENT LIFE — cars, gulls, owls, shooting stars. Cleared when
   // idle; only re-uploaded while something is actually crossing the view.
@@ -464,6 +464,49 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
     winEvM.color.setRGB(r, g2, b);
   }
   winLift(1, 1, 1);
+  /* ---- THE REAL VIEW: the yard, rendered through the window ---------------------
+   * The five painted views are still here (the themes pick them, and a bedroom in
+   * the pines is a nice thing to own), but the DEFAULT is now the actual street —
+   * the same lawn, road, streetlamp, neighbours' houses and passing traffic you
+   * stand in when you walk out the front door. Catch the right moment and the ice
+   * cream truck goes past the window.
+   *
+   * ⚠️ Portrait target, matched to the window's own 1.44 x 1.74. Getting the aspect
+   * wrong here doesn't crop, it STRETCHES — the houses go fat and nobody can say why.
+   * ⚠️ HalfFloat, not the default byte target: the main scene renders to post's HDR
+   * buffer with tone mapping OFF (three.js only tone-maps when the target is the
+   * canvas), so the yard's linear values must survive with headroom or the moon and
+   * the streetlamp clip to flat white and the composite has nothing to bloom. */
+  var PORTAL_W = 1.44, PORTAL_H = 1.74;
+  var portalRT = new THREE.WebGLRenderTarget(432, 522, {
+    type: THREE.HalfFloatType, samples: 4,
+    minFilter: THREE.LinearFilter, magFilter: THREE.LinearFilter, depthBuffer: true,
+  });
+  var portalCam = new THREE.PerspectiveCamera(48, PORTAL_W / PORTAL_H, 0.4, 140);
+  var portalM = new THREE.MeshBasicMaterial({ map: portalRT.texture, toneMapped: false });
+  var portalP = new THREE.Mesh(new THREE.PlaneGeometry(PORTAL_W, PORTAL_H), portalM);
+  portalP.position.set(2.35, 1.95, -2.536);   // the painted stack's own slot
+  portalP.visible = false; scene.add(portalP);
+  var portalFrame = 0;
+  function renderOutside(sway) {
+    if (!portalP.visible || !hall || !hall.portalBegin) return;
+    // every other frame. The yard is low-poly and mostly still; at 30Hz nothing in
+    // it reads as choppy, and it halves the cost of having a second scene render.
+    if ((portalFrame++ & 1)) return;
+    hall.aimPortal(portalCam, sway || 0);
+    var was = hall.portalBegin();
+    // ⚠️ the bedroom's three no-falloff lights would light the LAWN — amb and bounce
+    // flatten it to daylight grey and moon adds a second moon. The hall hides the
+    // yard's lights from the bedroom for exactly this reason; this is the other half
+    // of that bargain.
+    amb.visible = false; moon.visible = false; bounce.visible = false;
+    renderer.setRenderTarget(portalRT);
+    renderer.render(scene, portalCam);
+    renderer.setRenderTarget(null);
+    amb.visible = true; moon.visible = true; bounce.visible = true;
+    hall.portalEnd(was);
+  }
+
   var rainT = canvasTex(256, 320, function (g) { g.clearRect(0, 0, 256, 320); });
   var winPane = new THREE.Mesh(new THREE.PlaneGeometry(1.4, 1.7),
     new THREE.MeshBasicMaterial({ map: rainT, transparent: true, depthWrite: false }));
@@ -522,6 +565,11 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
     g.lineTo(x + w * 0.5, base - h * 1.12); g.lineTo(x + w * 0.88, base - h * 0.45); g.fill();
   }
   var WINDOW_VIEWS = {
+    // The real one, and the default. `real` means there is nothing to paint — the
+    // window shows the yard itself, rendered live. Kept first so it reads as the
+    // room's own view and the painted five as alternatives to it.
+    outside: { label: "outside", icon: "🏠", rain: false, real: true,
+      hint: "the front yard — that's our street" },
     street: { label: "the street", icon: "🌧️", rain: true, hint: "still raining out there", layers: [
       function (g, w, h, ph) { // far: sky, moon, a HAZY distant roofline (unmistakably far away)
         var s = _sky(g, w, h, ph, 0.8);
@@ -736,10 +784,11 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
       },
     ] },
   };
-  var curViewKey = "street", winDrawnKey = null;
+  var curViewKey = "outside", winDrawnKey = null;
   function winPhaseName() { for (var k in PHASES) if (PHASES[k] === phase) return k; return "evening"; }
   function redrawWindow() {
     var v = WINDOW_VIEWS[curViewKey] || WINDOW_VIEWS.street;
+    if (v.real) return;                       // nothing to paint — it renders the yard
     var stamp = curViewKey + "|" + winPhaseName();
     if (stamp === winDrawnKey) return;
     winDrawnKey = stamp;
@@ -752,8 +801,16 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
   }
   function curViewRain() { return (WINDOW_VIEWS[curViewKey] || WINDOW_VIEWS.street).rain; }
   function applyWindowView() {
-    curViewKey = WINDOW_VIEWS[paintState.view] ? paintState.view : "street";
+    curViewKey = WINDOW_VIEWS[paintState.view] ? paintState.view : "outside";
     var v = WINDOW_VIEWS[curViewKey];
+    // the real view and the painted stack are the same slot in the wall — exactly
+    // one of them is ever up. (winEvP is the painted views' traffic layer; the real
+    // street has real cars.)
+    portalP.visible = !!v.real;
+    winLayerP.forEach(function (p) { p.visible = !v.real; });
+    winEvP.visible = !v.real;
+    // tell the hall to keep the street running while we're watching it from in here
+    if (hall && hall.setPortalLive) hall.setPortalLive(!!v.real);
     redrawWindow();
     winPane.userData.hint = "the window — " + v.hint;
     if (!v.rain) { rainCtx.clearRect(0, 0, 256, 320); rainT.needsUpdate = true; }
@@ -1891,11 +1948,17 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
   // wash, the "moon" (which doubles as daylight), the window's lift, how hard
   // it rains (streaks + audio), how the TV behaves, and how often the storm
   // flashes. ?hour=23 in the URL pins a phase for tinkering.
+  // ⚠️ `shaft` was 0.28/0.5/0.62 and is now 0.12/0.20/0.26. It was tuned against a
+  // PAINTED window, where there was nothing behind it worth reading; the shaft is an
+  // additive plane whose bright band crosses the middle of the glass, and once the
+  // window showed the real street it erased the road, the sidewalk and most of the
+  // right-hand pane. Captured as a matched pair before changing it. The light still
+  // leans in and lies down the floor — it just no longer costs you the view.
   var PHASES = {
     day:     { amb: 0x4a5468, ambI: 1.3, shaft: 0.0,  moonC: 0xbcc8da, moonI: 0.8,  lift: 1.04, liftB: 1.0,  stars: 0.12, streaks: 36, rainG: 0.04,  grade: [1.0, 1.0, 1.01, 1.0],  test: false, fMin: 20, fRnd: 30, on: [13, 9], off: [2, 3] },
-    dusk:    { amb: 0x4a3c40, ambI: 1.15, shaft: 0.28, moonC: 0xe8935a, moonI: 0.55, lift: 1.0,  liftB: 0.96, stars: 0.3,  streaks: 44, rainG: 0.05,  grade: [1.03, 0.995, 0.97, 1.0],  test: false, fMin: 16, fRnd: 26, on: [9, 8],  off: [3, 4] },
-    evening: { amb: 0x2c3440, ambI: 1.0, shaft: 0.5,  moonC: 0x7d9cc4, moonI: 0.4,  lift: 0.96, liftB: 1.05, stars: 0.45, streaks: 44, rainG: 0.05,  grade: [1.0, 0.995, 1.03, 0.99],  test: false, fMin: 14, fRnd: 26, on: [9, 8],  off: [3, 4] },
-    night:   { amb: 0x1e2634, ambI: 0.85, shaft: 0.62, moonC: 0x8fb4e8, moonI: 0.52, lift: 0.88, liftB: 1.1,  stars: 0.78, streaks: 64, rainG: 0.085, grade: [0.97, 0.99, 1.06, 0.96], test: true,  fMin: 8,  fRnd: 14, on: [7, 5],  off: [4, 5] },
+    dusk:    { amb: 0x4a3c40, ambI: 1.15, shaft: 0.12, moonC: 0xe8935a, moonI: 0.55, lift: 1.0,  liftB: 0.96, stars: 0.3,  streaks: 44, rainG: 0.05,  grade: [1.03, 0.995, 0.97, 1.0],  test: false, fMin: 16, fRnd: 26, on: [9, 8],  off: [3, 4] },
+    evening: { amb: 0x2c3440, ambI: 1.0, shaft: 0.20,  moonC: 0x7d9cc4, moonI: 0.4,  lift: 0.96, liftB: 1.05, stars: 0.45, streaks: 44, rainG: 0.05,  grade: [1.0, 0.995, 1.03, 0.99],  test: false, fMin: 14, fRnd: 26, on: [9, 8],  off: [3, 4] },
+    night:   { amb: 0x1e2634, ambI: 0.85, shaft: 0.26, moonC: 0x8fb4e8, moonI: 0.52, lift: 0.88, liftB: 1.1,  stars: 0.78, streaks: 64, rainG: 0.085, grade: [0.97, 0.99, 1.06, 0.96], test: true,  fMin: 8,  fRnd: 14, on: [7, 5],  off: [4, 5] },
   };
   var HOUR_DEBUG = (function () {
     var m = /[?&]hour=(\d+)/.exec(location.search);
@@ -6345,6 +6408,9 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
       }
       decorTick(t, dt);
     }
+    // ⚠️ BEFORE drawFrame, never after: renderOutside re-targets the renderer and
+    // borrows the yard's lights, and drawFrame's post chain expects the canvas back.
+    renderOutside(camera.position.x);
     drawFrame();
   }
   // Bake world matrices + paint one frame immediately, so picking works even
@@ -6470,6 +6536,10 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
       hurry: function () { catNextMove = 0; } },
     mixers: mixers, // animation mixers (the pane suspends rAF — tests drive these by hand)
     winlife: { start: winEvStart, tick: winEvTick, state: winEv, clear: winEvClear, events: WIN_EVENTS },
+    // the real view out the window. `render(sway)` fills the target once — call it
+    // twice to beat the every-other-frame throttle, then __room.draw().
+    outside: { render: function (s) { portalFrame = 0; renderOutside(s); }, cam: portalCam,
+      rt: portalRT, plane: portalP },
     post: post, draw: drawFrame, setGlow: setGlow, // tune live: __room.post.p.bloomStrength = … ; __room.draw()
     pets: { kind: function () { return petKind; }, set: setPet, group: function () { return petGroup(petKind); },
       labels: PET_LABEL, turtle: function () { return { g: turtleG, s: turtle }; },

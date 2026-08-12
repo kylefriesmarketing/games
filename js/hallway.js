@@ -3086,6 +3086,46 @@ export function buildHallway(ctx) {
     _v.lerpVectors(pts[i], pts[i + 1], f);
     _w.lerpVectors(lks[i], lks[i + 1], f);
   }
+  /* ---- THE VIEW FROM THE BOY'S WINDOW ------------------------------------------
+   * The bedroom window used to be three painted canvas layers of a street that did
+   * not exist. It looks at THIS street now: room.js renders the yard through a
+   * second camera into a texture, and hangs that in the window.
+   *
+   * The bedroom is not modelled above the hall — the two rooms are separate
+   * footprints dropped in the same world — so this is a portal, not a hole. These
+   * numbers place the camera where the boy's window WOULD be: over the porch roof,
+   * a little to the right of the front door, looking down the lawn at the road.
+   *
+   * ⚠️ room.js must make the yard visible for that one render and hide it again
+   * immediately, for the reason camTick documents below: yardHemi and yardSun have
+   * no falloff and light the bedroom straight through the walls if they are left
+   * up. portalBegin/portalEnd are that bracket — always pair them. */
+  // ⚠️ THE PORCH ROOF IS RIGHT UNDER THIS WINDOW (a slab at y 2.99 reaching out to
+  // about z -6.6). At GROUND+4.05 the eye cleared it by 0.6m and it swallowed the
+  // BOTTOM HALF of the frame as an unlit black wedge. Measured by raycasting a fan
+  // down the frame, not by squinting at it. At GROUND+5.2 — a believable second
+  // storey — with the aim raised to match, the roof reads as a strip of your own
+  // shingles along the sill, which is exactly what an upstairs window should show.
+  var WIN_EYE = new THREE.Vector3(FRONT_X + 1.30, GROUND + 5.20, HOUSE_F - 0.10);
+  var WIN_AIM = new THREE.Vector3(FRONT_X + 0.20, GROUND + 0.91, Z_ROADF + 1.5);
+  // set by room.js whenever the window is showing the real view, so the street
+  // keeps living while you are indoors looking at it
+  var portalLive = false;
+  function setPortalLive(on) { portalLive = !!on; }
+  function portalBegin() {
+    var was = { g: g.visible, y: yardG.visible };
+    g.visible = true; yardG.visible = true;
+    return was;
+  }
+  function portalEnd(was) { g.visible = was.g; yardG.visible = was.y; }
+  /* `sway` is the room camera's own lateral drift. Translating the EYE while the
+   * aim stays put is what a real window does when you move your head: the lawn
+   * slides further than the houses across the road, and the frame crops. Yawing
+   * both together would just pan the world and read as a video playing on a wall. */
+  function aimPortal(cam, sway) {
+    cam.position.set(WIN_EYE.x + sway * 0.62, WIN_EYE.y + sway * 0.05, WIN_EYE.z);
+    cam.lookAt(WIN_AIM);
+  }
   var BED_LOOK = new THREE.Vector3(0, 1.2, -0.4); // the bedroom's home gaze (room.js only ever steers its x)
   function camTick(t, dt, mx, my) {
     // ⚠️ THE YARD IS HIDDEN FROM THE BEDROOM, and not just to save draw calls.
@@ -3300,9 +3340,14 @@ export function buildHallway(ctx) {
     else if (figG.visible) figG.visible = false;
 
     /* ---- the street, alive ---------------------------------------------------
-     * Skipped entirely from indoors — the yard group is hidden there, so none of
-     * this is visible and none of it should cost anything. */
-    if (!yardG.visible) return;
+     * Skipped from indoors when nothing is looking at it — the yard group is
+     * hidden there, so none of it is visible and none of it should cost anything.
+     * ⚠️ EXCEPT when the bedroom window is showing the real street. That window is
+     * a second camera on this same yard, and this early-return froze everything it
+     * looks at: the passing cars parked themselves, the lamp stopped flickering,
+     * and the ice cream truck sat at the origin for good — the one game you are
+     * meant to CATCH could never come past the window. */
+    if (!yardG.visible && !portalLive) return;
     var gust = 0.6 + 0.4 * Math.sin(t * 0.23);            // the wind comes and goes
     for (var si = 0; si < swayers.length; si++) {
       var sw2 = swayers[si];
@@ -3403,6 +3448,8 @@ export function buildHallway(ctx) {
     stashes: stashByKey, openStash: openStash, closeStash: closeStash,
     setPhase: setPhase, phase: function () { return porchPhase; },
     knock: knockCame,
+    portalBegin: portalBegin, portalEnd: portalEnd, aimPortal: aimPortal,
+    setPortalLive: setPortalLive,
     camTick: camTick, glowTick: glowTick, refreshPhotos: refreshPhotos
   };
 }
