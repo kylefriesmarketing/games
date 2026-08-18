@@ -126,7 +126,13 @@ export function buildHallway(ctx) {
   // the WEST wall is cut for the kitchen doorway — third hole in this house, same
   // lesson each time: a door you can walk through needs an opening, not a slab
   var KDO = { z0: -0.90, z1: 0.20, y1: 2.16 };
-  [[Z_N, KDO.z0, 0, 3.4], [KDO.z1, Z_S, 0, 3.4], [KDO.z0, KDO.z1, KDO.y1, 3.4]].forEach(function (p) {
+  // …and cut AGAIN for the garage doorway (FIFTH hole, same lesson as the other
+  // four: the garage door was a decor slab on solid wall from the day it went up,
+  // and the moment it became a door you could open it would have opened onto
+  // wallpaper, exactly like the closet did).
+  var GDO = { z0: 5.08, z1: 6.12, y1: 2.16 };
+  [[Z_N, KDO.z0, 0, 3.4], [KDO.z1, GDO.z0, 0, 3.4], [GDO.z1, Z_S, 0, 3.4],
+   [KDO.z0, KDO.z1, KDO.y1, 3.4], [GDO.z0, GDO.z1, GDO.y1, 3.4]].forEach(function (p) {
     var seg = box(0.1, p[3] - p[2], p[1] - p[0], hwallM);
     seg.position.set(W_IN - 0.05, (p[2] + p[3]) / 2, (p[0] + p[1]) / 2); add(seg);
   });
@@ -1798,18 +1804,31 @@ export function buildHallway(ctx) {
   var apron = box(1.7, 0.06, 2.6, driveM); apron.position.set(-12.75, GROUND + 0.02, 5.6); yadd(apron);
   ytag(drive, "the driveway", null, "the driveway. it goes down the side to the garage.");
   var garM = new THREE.MeshStandardMaterial({ map: sideT, roughness: 0.95 });
-  var garage = box(4.7, 3.0, 4.4, garM); garage.position.set(-9.9, 1.5 + GROUND, 6.4); yadd(garage);
+  // ⚠️ the garage shell is SEVEN boxes now, not one. The old solid cuboid meant the
+  // big door had siding behind it — roll the door up and you'd be looking at wall.
+  // A door you can open needs a hole (sixth time this file has learned it), so the
+  // north face is two strips and a header around a real 3.4 x 2.3 opening.
+  // ⚠️ the EAST wall is three pieces too — the man door to the hall goes through
+  // it. Built solid, its inward face sealed the doorway with siding: from the
+  // garage you looked at lap boards where the hall should be. (A box's faces all
+  // point OUTWARD, so a solid shell is visible from inside wherever the interior
+  // walls don't stand in front of it.)
+  [[4.7, 3.0, 0.2, -9.9, 1.05, 8.5],       // back
+   [0.2, 3.0, 4.4, -12.15, 1.05, 6.4],     // west
+   [0.2, 3.0, 0.88, -7.65, 1.05, 4.64],    // east, north of the man door
+   [0.2, 3.0, 2.48, -7.65, 1.05, 7.36],    // east, south of it
+   [0.2, 0.46, 1.04, -7.65, 2.32, 5.60],   // east header over it
+   [1.15, 2.3, 0.2, -8.125, 0.70, 4.30],   // north, east of the opening
+   [0.15, 2.3, 0.2, -12.175, 0.70, 4.30],  // north, the sliver west of it
+   [4.7, 0.7, 0.2, -9.9, 2.20, 4.30],      // north header over the opening
+   [4.7, 0.1, 4.4, -9.9, 2.50, 6.4]]       // lid under the roof
+    .forEach(function (s6) {
+      var seg = box(s6[0], s6[1], s6[2], garM); seg.position.set(s6[3], s6[4], s6[5]); yadd(seg);
+    });
   var garRoof = box(5.1, 0.16, 4.8, mat(0x3a2f26, 0.9)); garRoof.position.set(-9.9, 3.08 + GROUND, 6.4); yadd(garRoof);
-  var garDoorT = canvasTex(128, 96, function (c, w, h) {
-    c.fillStyle = "#b9bcb4"; c.fillRect(0, 0, w, h);
-    for (var p = 0; p < 4; p++) {                       // four panels, like every garage door
-      c.strokeStyle = "rgba(40,44,40,0.55)"; c.lineWidth = 3;
-      c.strokeRect(6, p * 24 + 4, w - 12, 18);
-    }
-  });
-  var garDoor = box(3.4, 2.3, 0.1, new THREE.MeshStandardMaterial({ map: garDoorT, roughness: 0.7 }));
-  garDoor.position.set(-10.4, 1.15 + GROUND, 4.18); yadd(garDoor);
-  ytag(garDoor, "the garage", null, "the garage, from the outside. still shut. 2027.");
+  // ⚠️ the big door is no longer a painted slab here — it is FOUR REAL PANELS on a
+  // track, built with the garage interior further down (rollPanels), living in
+  // yardG so the same door reads from the drive and from inside. It can open.
   // the car, parked where it always is
   var carG = new THREE.Group(); carG.position.set(-15.2, GROUND, -8.6); yadd(carG);
   var carBody = box(1.9, 0.62, 4.3, mat(0x6b2f36, 0.5)); carBody.position.y = 0.62; carG.add(carBody);
@@ -2525,16 +2544,42 @@ export function buildHallway(ctx) {
     });
   tag(blindRail, "the blinds", null, "vertical blinds, half drawn. they have always been half drawn.");
 
-  // --- THE GARAGE: taped like every other room that isn't yours yet
+  // --- THE GARAGE: the tape came off. It's a real room now, through a real door.
   // ⚠️ z 5.60, not 6.30. The shelving and its bins start at z 6.8 on this same wall,
   // and from the hall camera a west-wall object at LARGER z sits closer to frame
   // centre — so at 6.30 the shelf uprights and the orange bins were landing right on
   // the garage door's near jamb. Pulling it north moves it toward the frame edge and
   // opens a clear 0.7m gap between the two. (Kyle: "so it and its frame is not
   // covered by the shelf and boxes".)
-  var garDoor = slabDoor(W_IN + 0.03, 5.6, 0, 1.0, 0x3f4a52, "the garage door",
-    "the garage — one car, a workbench, and everything that didn't fit. 2027.", 0xbfc8d8, 0.12);
-  tapeX(garDoor, 1.0); plaque(garDoor, "GARAGE", "opening soon");
+  // Same construction as the kitchen door: the slab hangs on a real hinge (north
+  // jamb, swings INTO the garage); jambs, spill and plaque stay on the wall.
+  var gDoorPivot = new THREE.Group(); gDoorPivot.position.set(W_IN + 0.03, 0, 6.06); add(gDoorPivot);
+  var gSlab = box(0.05, 2.05, 0.92, mat(0x3f4a52, 0.72)); gSlab.position.set(0, 1.025, -0.46); gDoorPivot.add(gSlab);
+  var gKnob = new THREE.Mesh(new THREE.SphereGeometry(0.026, 12, 10),
+    new THREE.MeshStandardMaterial({ color: 0xb08d3f, roughness: 0.35, metalness: 0.6 }));
+  gKnob.position.set(0.05, 1.0, -0.80); gDoorPivot.add(gKnob);
+  [[2.09, 0.08, 1.06, 5.60], [1.02, 2.12, 0.08, 5.08], [1.02, 2.12, 0.08, 6.12]].forEach(function (j) {
+    var jm = box(0.08, j[1], j[2], mat(0x241b12, 0.8));
+    jm.position.set(W_IN + 0.045, j[0], j[3]); add(jm);
+  });
+  var gSpill = new THREE.Mesh(new THREE.PlaneGeometry(0.92, 0.08),
+    new THREE.MeshBasicMaterial({ color: 0xffd9a0, transparent: true, opacity: 0.12, blending: THREE.AdditiveBlending, depthWrite: false }));
+  gSpill.rotation.x = -Math.PI / 2; gSpill.rotation.z = Math.PI / 2;
+  gSpill.position.set(W_IN + 0.12, 0.012, 5.60); add(gSpill);
+  (function () {
+    var pg = new THREE.Group(); pg.position.set(W_IN + 0.03, 0, 5.60); add(pg);
+    plaque(pg, "GARAGE", "mind your head");
+  })();
+  [gSlab, gKnob].forEach(function (m) {
+    tag(m, "the garage door", function () { enterGarage(); },
+      "the garage — one car, a workbench, and everything that didn't fit. click to go in");
+  });
+  // the way back: an invisible hitbox in the opening, garage side
+  var gBackHit = new THREE.Mesh(new THREE.BoxGeometry(0.2, 2.0, 1.0),
+    new THREE.MeshBasicMaterial({ transparent: true, opacity: 0, depthWrite: false }));
+  gBackHit.position.set(W_IN - 0.15, 1.03, 5.60); add(gBackHit);
+  clickable(gBackHit, "the hallway", function () { leaveGarage(); }, "back to the hall");
+  gBackHit.userData.space = "garage";
 
   // --- THE LAUNDRY: the truest thing at the back of any hallway
   var launG = new THREE.Group(); launG.position.set(E_IN - 0.34, 0, 5.45); add(launG);
@@ -2770,6 +2815,384 @@ export function buildHallway(ctx) {
   }
   [pull, bead].forEach(function (m) { tag(m, "the pull chain", pullChain, "the pull chain — clack."); });
 
+  /* ---- THE GARAGE, INSIDE -------------------------------------------------------
+   * One car, a workbench, and everything that didn't fit — the hint was already
+   * true, it just needed the room built behind it. The interior lives inside the
+   * exterior shell's footprint (x -12.10..-7.60, z 4.35..8.45) with its own
+   * inward-facing walls, because the exterior box's faces are front-side only and
+   * simply don't exist from in here.
+   * Floor at y 0 like the hall — the kid walks in here too, and he has no idea
+   * what a step down is. Ceiling at 2.05: garages are low, and it makes the roll
+   * door's track believable. */
+  var garWallT = canvasTex(128, 128, function (c, w, h) {
+    c.fillStyle = "#a8a396"; c.fillRect(0, 0, w, h);
+    c.fillStyle = "rgba(0,0,0,0.07)"; c.fillRect(0, h * 0.62, w, 3);   // the drywall seam
+    for (var i = 0; i < 14; i++) {                                     // years of scuffs
+      c.fillStyle = "rgba(60,56,48," + (0.04 + (i % 3) * 0.02) + ")";
+      c.fillRect((i * 37) % w, (i * 53) % h, 5 + (i % 4) * 3, 2 + (i % 3));
+    }
+  });
+  garWallT.wrapS = garWallT.wrapT = THREE.RepeatWrapping; garWallT.repeat.set(3, 1);
+  var garWallM = new THREE.MeshStandardMaterial({ map: garWallT, roughness: 0.95 });
+  var garFloorT = canvasTex(256, 256, function (c, w, h) {
+    c.fillStyle = "#8e8c86"; c.fillRect(0, 0, w, h);
+    for (var i = 0; i < 240; i++) {                                    // concrete mottle
+      c.fillStyle = "rgba(" + (i % 2 ? "255,255,255" : "40,40,44") + "," + (0.025 + (i % 5) * 0.008) + ")";
+      c.fillRect((i * 71) % w, (i * 97) % h, 2 + (i % 5), 2 + (i % 3));
+    }
+    c.strokeStyle = "rgba(40,40,44,0.5)"; c.lineWidth = 2;             // expansion grooves
+    c.beginPath(); c.moveTo(w / 2, 0); c.lineTo(w / 2, h); c.stroke();
+    c.beginPath(); c.moveTo(0, h / 2); c.lineTo(w, h / 2); c.stroke();
+    c.strokeStyle = "rgba(30,30,34,0.4)"; c.lineWidth = 1;             // one honest crack
+    c.beginPath(); c.moveTo(w * 0.15, h * 0.9); c.lineTo(w * 0.3, h * 0.62); c.lineTo(w * 0.34, h * 0.4); c.stroke();
+  });
+  var garFloorM = new THREE.MeshStandardMaterial({ map: garFloorT, roughness: 0.98 });
+  var benchM = mat(0x8a6f4a, 0.85), steelM = new THREE.MeshStandardMaterial({ color: 0x454b52, roughness: 0.4, metalness: 0.6 });
+  function gtag(m, name, action, hint) { clickable(m, name, action, hint); m.userData.space = "garage"; return m; }
+  // shell
+  var gFloor = box(4.50, 0.10, 4.10, garFloorM); gFloor.position.set(-9.85, -0.05, 6.40); add(gFloor);
+  gtag(gFloor, "the garage floor", null, "bare concrete. it remembers every project.");
+  var gCeil = box(4.50, 0.08, 4.10, mat(0x8f7b5e, 0.95)); gCeil.position.set(-9.85, 2.09, 6.40); add(gCeil);
+  [5.4, 7.4].forEach(function (jz) {
+    var joist = box(4.50, 0.09, 0.14, mat(0x5e4c38, 0.9)); joist.position.set(-9.85, 2.00, jz); add(joist);
+  });
+  var gwW = box(0.12, 2.05, 4.10, garWallM); gwW.position.set(-12.04, 1.025, 6.40); add(gwW);
+  var gwS = box(4.50, 2.05, 0.12, garWallM); gwS.position.set(-9.85, 1.025, 8.39); add(gwS);
+  // ⚠️ 0.24 thick, centred -7.70: the exterior shell's inward face sits at -7.75,
+  // and a 0.12 wall at -7.66 left that face 3cm PROUD of the drywall — the whole
+  // east side of the room rendered as exterior siding. The interior wall has to
+  // swallow the shell's face, not stand behind it.
+  [[0.73, 4.715], [2.33, 7.285]].forEach(function (p) {   // east wall, split around the man door
+    var seg = box(0.24, 2.05, p[0], garWallM); seg.position.set(-7.70, 1.025, p[1]); add(seg);
+  });
+  var gwN = box(1.10, 2.05, 0.12, garWallM); gwN.position.set(-8.15, 1.025, 4.41); add(gwN);
+  var gwNh = box(3.40, 0.20, 0.12, garWallM); gwNh.position.set(-10.40, 1.95, 4.41); add(gwNh);
+  // ⚠️ the sill's top is BURIED 2cm inside the floor slab, not flush with it — at a
+  // shared y 0 the two top faces were coplanar across the whole opening strip,
+  // which is the baseboard-flashing bug all over again.
+  var gSill = box(3.40, 0.40, 0.10, garFloorM); gSill.position.set(-10.40, -0.28, 4.41); add(gSill);
+  var gThresh = box(0.46, 0.04, 1.04, mat(0x6b5638, 0.85)); gThresh.position.set(-7.62, 0.0, 5.60); add(gThresh);
+  /* ---- the big door: four real panels on a track. It opens. --------------------
+   * Lives in yardG so the SAME door reads from the driveway and from inside —
+   * one door, one truth, like the truck. applyRoll walks each panel along a
+   * vertical run, round the bend, and back along the ceiling. */
+  var panT = canvasTex(64, 32, function (c, w, h) {
+    c.fillStyle = "#b9bcb4"; c.fillRect(0, 0, w, h);
+    c.fillStyle = "rgba(255,255,255,0.18)"; c.fillRect(0, 2, w, 3);
+    c.fillStyle = "rgba(40,44,40,0.45)"; c.fillRect(0, h - 4, w, 4);
+    c.strokeStyle = "rgba(40,44,40,0.3)"; c.lineWidth = 2; c.strokeRect(6, 7, w * 0.42 - 8, h - 14); c.strokeRect(w * 0.5 + 2, 7, w * 0.42 - 8, h - 14);
+  });
+  var panM = new THREE.MeshStandardMaterial({ map: panT, roughness: 0.7 });
+  var rollPanels = [], ROLL_C0 = [-0.1625, 0.4125, 0.9875, 1.5625];  // closed panel centres
+  for (var rp = 0; rp < 4; rp++) {
+    var pg2 = new THREE.Group(); pg2.position.set(-10.40, ROLL_C0[rp], 4.30); yadd(pg2);
+    var pb = box(3.36, 0.555, 0.05, panM); pg2.add(pb);
+    if (rp === 0) { var hdl = box(0.22, 0.05, 0.04, steelM); hdl.position.set(0, -0.16, 0.05); pg2.add(hdl); }
+    gtag(pb, "the big door", function () { toggleRoll(); },
+      "the big door — years of WD-40 say it still rolls");
+    rollPanels.push(pg2);
+  }
+  [[-12.06, 0.95, 4.44, 0.05, 1.75, 0.06], [-8.74, 0.95, 4.44, 0.05, 1.75, 0.06],
+   [-12.06, 1.70, 5.75, 0.05, 0.06, 2.60], [-8.74, 1.70, 5.75, 0.05, 0.06, 2.60]]
+    .forEach(function (tr) {
+      var t2 = box(tr[3], tr[4], tr[5], steelM); t2.position.set(tr[0], tr[1], tr[2]); add(t2);
+    });
+  var rollA = 0, rollTarget = 0;
+  function applyRoll(a) {
+    for (var i = 0; i < 4; i++) {
+      var t3 = ROLL_C0[i] + a * 2.7, p3 = rollPanels[i];
+      if (t3 <= 1.56) { p3.position.y = t3; p3.position.z = 4.30; p3.rotation.x = 0; }
+      else {
+        // ⚠️ the horizontal run tops out at y 1.62, NOT higher: the interior header
+        // hangs from 1.85, and a 0.575 panel pivoting mid-bend sweeps ~0.2 above its
+        // own centre — cap it here and the sweep peaks at 1.83, just under the wood.
+        var e = t3 - 1.56;
+        p3.rotation.x = Math.min(1, e / 0.45) * (Math.PI / 2);
+        p3.position.y = Math.min(1.56 + e * 0.5, 1.62);
+        p3.position.z = 4.30 + Math.max(0, e - 0.12);
+      }
+    }
+  }
+  function toggleRoll() {
+    rollTarget = rollTarget > 0.5 ? 0 : 1;
+    AUDIO.ratchetSfx && AUDIO.ratchetSfx();
+  }
+  // --- the workbench, and the wall of intentions above it
+  var bTop = box(0.60, 0.07, 2.20, benchM); bTop.position.set(-11.70, 0.90, 6.30); add(bTop);
+  gtag(bTop, "the workbench", null, "the workbench. every scar on it was a Saturday.");
+  [[-11.94, 5.28], [-11.46, 5.28], [-11.94, 7.32], [-11.46, 7.32]].forEach(function (lp) {
+    var leg = box(0.09, 0.86, 0.09, mat(0x6b5638, 0.9)); leg.position.set(lp[0], 0.43, lp[1]); add(leg);
+  });
+  var bShelf = box(0.56, 0.04, 2.00, mat(0x6b5638, 0.9)); bShelf.position.set(-11.70, 0.28, 6.30); add(bShelf);
+  var oilCan = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.06, 0.16, 10), mat(0x3a5e3a, 0.6));
+  oilCan.position.set(-11.72, 0.38, 5.70); add(oilCan);
+  var bCrate = box(0.34, 0.22, 0.30, mat(0x8a6a44, 0.9)); bCrate.position.set(-11.70, 0.41, 6.90); add(bCrate);
+  // the vice, which has outlived three of everything else
+  var vBase = box(0.16, 0.08, 0.12, steelM); vBase.position.set(-11.70, 0.975, 5.42); add(vBase);
+  [[5.35], [5.49]].forEach(function (vj) {
+    var jaw = box(0.14, 0.10, 0.05, steelM); jaw.position.set(-11.70, 1.06, vj[0]); add(jaw);
+  });
+  var vScrew = new THREE.Mesh(new THREE.CylinderGeometry(0.015, 0.015, 0.20, 8), steelM);
+  vScrew.rotation.x = Math.PI / 2; vScrew.position.set(-11.70, 1.02, 5.60); add(vScrew);
+  var vHandle = new THREE.Mesh(new THREE.CylinderGeometry(0.008, 0.008, 0.16, 6), steelM);
+  vHandle.position.set(-11.70, 1.02, 5.70); add(vHandle);
+  gtag(vBase, "the vice", null, "the vice. it has held pipes, pinewood, and one very sorry walkman.");
+  // the bench project — what's clamped mid-build is the coffee can's business
+  function projGroup() { var g7 = new THREE.Group(); g7.position.set(-11.68, 0.935, 6.55); add(g7); return g7; }
+  var bpBird = projGroup();
+  var bhBody = box(0.16, 0.16, 0.14, mat(0xa88a5e, 0.9)); bhBody.position.y = 0.08; bpBird.add(bhBody);
+  [[-0.045, 0.19], [0.045, 0.19]].forEach(function (r5, i5) {
+    var ro = box(0.11, 0.02, 0.16, mat(0x7a5c38, 0.9)); ro.position.set(r5[0], r5[1], 0); ro.rotation.z = i5 ? -0.6 : 0.6; bpBird.add(ro);
+  });
+  var bhHole = new THREE.Mesh(new THREE.CylinderGeometry(0.025, 0.025, 0.01, 10), mat(0x241b12, 0.9));
+  bhHole.rotation.x = Math.PI / 2; bhHole.position.set(0, 0.09, 0.075); bpBird.add(bhHole);
+  var bpDerby = projGroup();
+  var dbody = box(0.07, 0.035, 0.24, mat(0xb03a2e, 0.55)); dbody.position.y = 0.045; bpDerby.add(dbody);
+  var dnose = box(0.07, 0.02, 0.10, mat(0xb03a2e, 0.55)); dnose.position.set(0, 0.065, -0.05); bpDerby.add(dnose);
+  [[-0.045, 0.08], [0.045, 0.08], [-0.045, -0.08], [0.045, -0.08]].forEach(function (dw) {
+    var wl = new THREE.Mesh(new THREE.CylinderGeometry(0.018, 0.018, 0.012, 8), mat(0x1d1f22, 0.8));
+    wl.rotation.z = Math.PI / 2; wl.position.set(dw[0], 0.018, dw[1]); bpDerby.add(wl);
+  });
+  var bpRocket = projGroup();
+  var rkB = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.03, 0.24, 10), mat(0xe4e0d2, 0.6));
+  rkB.position.y = 0.12; bpRocket.add(rkB);
+  var rkN = new THREE.Mesh(new THREE.ConeGeometry(0.03, 0.08, 10), mat(0xb03a2e, 0.55));
+  rkN.position.y = 0.28; bpRocket.add(rkN);
+  for (var rf = 0; rf < 3; rf++) {
+    var fin = box(0.015, 0.07, 0.05, mat(0xb03a2e, 0.55));
+    var fa = rf / 3 * Math.PI * 2;
+    fin.position.set(Math.cos(fa) * 0.04, 0.035, Math.sin(fa) * 0.04); fin.rotation.y = -fa; bpRocket.add(fin);
+  }
+  bpDerby.visible = bpRocket.visible = false;
+  [bpBird, bpDerby, bpRocket].forEach(function (bp) {
+    bp.children.forEach(function (m) { gtag(m, "the project", null, "the bench project. it is nearly done. it has been nearly done for a while."); });
+  });
+  // THE COFFEE CAN OF BOLTS — the garage keeps its opinions in here (the stash)
+  var canG = new THREE.Group(); canG.position.set(-11.72, 0.935, 7.15); add(canG);
+  var canBody = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.07, 0.15, 14), mat(0xa83226, 0.6));
+  canBody.position.y = 0.075; canG.add(canBody);
+  var canLid = new THREE.Mesh(new THREE.CylinderGeometry(0.071, 0.071, 0.015, 14), mat(0xc8c2b2, 0.5));
+  canLid.position.y = 0.155; canG.add(canLid);
+  var canLbl = new THREE.Mesh(new THREE.CylinderGeometry(0.0705, 0.0705, 0.07, 14),
+    new THREE.MeshStandardMaterial({ map: canvasTex(128, 32, function (c, w, h) {
+      c.fillStyle = "#e8e0cc"; c.fillRect(0, 0, w, h);
+      c.fillStyle = "#3a3020"; c.font = "bold 20px Georgia, serif"; c.textAlign = "center";
+      c.fillText("B O L T S", w / 2, 23);
+    }), roughness: 0.8 }));
+  canLbl.position.y = 0.08; canG.add(canLbl);
+  for (var bnum = 0; bnum < 3; bnum++) {
+    var bolt = new THREE.Mesh(new THREE.CylinderGeometry(0.008, 0.008, 0.045, 6), steelM);
+    bolt.rotation.z = Math.PI / 2; bolt.rotation.y = bnum * 1.1;
+    bolt.position.set(0.10 + bnum * 0.035, 0.008, 0.05 - bnum * 0.04); canG.add(bolt);
+  }
+  // --- pegboard: every tool gets an outline, so it can be missed properly
+  var pegT = canvasTex(256, 128, function (c, w, h) {
+    c.fillStyle = "#c9a86b"; c.fillRect(0, 0, w, h);
+    c.fillStyle = "rgba(60,48,30,0.5)";
+    for (var px = 8; px < w; px += 12) for (var py = 8; py < h; py += 12) { c.beginPath(); c.arc(px, py, 1.6, 0, 7); c.fill(); }
+    c.strokeStyle = "rgba(250,248,240,0.85)"; c.lineWidth = 3;
+    function outline(x0) { c.strokeRect(x0, 30, 10, 62); }               // handle silhouettes
+    outline(48); c.strokeRect(38, 18, 30, 16);                            // hammer head
+    outline(108); c.beginPath(); c.arc(113, 24, 12, 0, 7); c.stroke();    // wrench ring
+    outline(168); c.strokeRect(158, 90, 30, 18);                          // saw grip
+    c.beginPath(); c.arc(225, 55, 14, 0, 7); c.stroke();                  // the missing socket
+    c.font = "10px Georgia, serif"; c.fillStyle = "rgba(250,248,240,0.7)"; c.textAlign = "center";
+    c.fillText("10mm", 225, 85);
+  });
+  var pegB = box(0.02, 0.85, 2.10, new THREE.MeshStandardMaterial({ map: pegT, roughness: 0.9 }));
+  pegB.position.set(-11.96, 1.52, 6.30); add(pegB);
+  gtag(pegB, "the pegboard", null, "every tool has a painted outline so it can be missed properly. the 10mm has been missing since 1996.");
+  // three of the four tools are even where they belong
+  var hamH = box(0.03, 0.30, 0.05, benchM); hamH.position.set(-11.92, 1.48, 5.85); add(hamH);
+  var hamHd = box(0.05, 0.09, 0.13, steelM); hamHd.position.set(-11.92, 1.66, 5.85); add(hamHd);
+  var wrH = box(0.025, 0.28, 0.06, steelM); wrH.position.set(-11.92, 1.50, 6.30); add(wrH);
+  var wrRing = new THREE.Mesh(new THREE.TorusGeometry(0.045, 0.016, 6, 12), steelM);
+  wrRing.rotation.y = Math.PI / 2; wrRing.position.set(-11.92, 1.70, 6.30); add(wrRing);
+  var sawB = box(0.015, 0.36, 0.10, steelM); sawB.position.set(-11.92, 1.42, 6.72); add(sawB);
+  var sawH = box(0.03, 0.12, 0.09, benchM); sawH.position.set(-11.92, 1.66, 6.72); add(sawH);
+  [hamH, hamHd, wrH, wrRing, sawB, sawH].forEach(function (m) {
+    gtag(m, "the tools", null, "hammer, wrench, saw. present and accounted for.");
+  });
+  // --- shelves on the south wall, and the dad trick: jars screwed to the plank by their lids
+  [[1.15], [1.70]].forEach(function (sy) {
+    var plank = box(3.00, 0.05, 0.28, mat(0x6b5638, 0.9)); plank.position.set(-10.30, sy[0], 8.24); add(plank);
+    [-11.6, -10.3, -9.0].forEach(function (bx2) {
+      var br = box(0.04, 0.16, 0.22, steelM); br.position.set(bx2, sy[0] - 0.10, 8.30); add(br);
+    });
+  });
+  [[-11.45, 0xb8b2a4], [-11.05, 0xb8b2a4], [-10.65, 0x8a4a3a]].forEach(function (pc2) {
+    var can2 = new THREE.Mesh(new THREE.CylinderGeometry(0.10, 0.10, 0.20, 12), mat(pc2[1], 0.55));
+    can2.position.set(pc2[0], 1.825, 8.24); add(can2);
+    gtag(can2, "the paint cans", null, "one of these is the touch-up for the hall. nobody remembers which.");
+  });
+  [[-10.15, 0xc03a30], [-9.95, 0x3a68b0]].forEach(function (sc2) {
+    var spr = new THREE.Mesh(new THREE.CylinderGeometry(0.045, 0.045, 0.18, 10), mat(0xd8d2c0, 0.4));
+    spr.position.set(sc2[0], 1.815, 8.24); add(spr);
+    var cap2 = new THREE.Mesh(new THREE.CylinderGeometry(0.045, 0.045, 0.03, 10), mat(sc2[1], 0.5));
+    cap2.position.set(sc2[0], 1.92, 8.24); add(cap2);
+  });
+  var jarGlass = new THREE.MeshStandardMaterial({ color: 0xb08a4a, roughness: 0.25, transparent: true, opacity: 0.72 });
+  for (var jn = 0; jn < 4; jn++) {
+    var jar = new THREE.Mesh(new THREE.CylinderGeometry(0.055, 0.055, 0.12, 10), jarGlass);
+    jar.position.set(-9.6 + jn * 0.24, 1.605, 8.24); add(jar);
+    gtag(jar, "the screw jars", null, "jars screwed to the shelf by their lids. the single greatest idea any dad has ever had.");
+  }
+  [[-9.4, 1.325, "XMAS"], [-8.95, 1.325, "CABLES"]].forEach(function (bx3) {
+    var cb = box(0.36, 0.30, 0.26, mat(0xb08d5a, 0.92)); cb.position.set(bx3[0], bx3[1], 8.24); add(cb);
+    // ⚠️ MeshStandard, not Basic: an unlit label renders full-bright and reads as a
+    // backlit sign in a dark garage (captured — XMAS glowed like a marquee)
+    var lb = new THREE.Mesh(new THREE.PlaneGeometry(0.24, 0.10),
+      new THREE.MeshStandardMaterial({ roughness: 0.9, map: canvasTex(96, 40, function (c, w, h) {
+        c.fillStyle = "#d8cfc0"; c.fillRect(0, 0, w, h);
+        c.fillStyle = "#4a3a26"; c.font = "bold 17px Georgia, serif"; c.textAlign = "center";
+        c.fillText(bx3[2], w / 2, 27);
+      }) }));
+    lb.rotation.y = Math.PI; lb.position.set(bx3[0], bx3[1], 8.10); add(lb);
+  });
+  // --- the project, under its tarp, which is where projects live
+  var carPrimM = mat(0x7d8085, 0.9);
+  var carBodyG = new THREE.Group(); carBodyG.position.set(-9.55, 0, 6.75); add(carBodyG);
+  var pcB = box(1.60, 0.46, 3.20, carPrimM); pcB.position.y = 0.62; carBodyG.add(pcB);
+  var pcC = box(1.44, 0.40, 1.60, carPrimM); pcC.position.set(0, 1.02, 0.15); carBodyG.add(pcC);
+  var pcW = box(1.30, 0.26, 1.50, mat(0x22282e, 0.3)); pcW.position.set(0, 1.05, 0.15); carBodyG.add(pcW);
+  var pcFender = box(0.10, 0.30, 0.85, mat(0xc05a3a, 0.6)); pcFender.position.set(-0.78, 0.55, -1.0); carBodyG.add(pcFender);
+  carBodyG.children.forEach(function (m) {
+    gtag(m, "the project car", null, "primer, one red fender, and a promise.");
+  });
+  carBodyG.visible = false;
+  [[-0.72, -1.15], [0.72, -1.15], [-0.72, 1.15], [0.72, 1.15]].forEach(function (tp) {
+    var ty = new THREE.Mesh(new THREE.CylinderGeometry(0.30, 0.30, 0.22, 12), mat(0x1a1c1e, 0.85));
+    ty.rotation.z = Math.PI / 2; ty.position.set(-9.55 + tp[0], 0.30, 6.75 + tp[1]); add(ty);
+  });
+  // ⚠️ the first tarp was untextured boxes and photographed as a navy SHIPPING
+  // CRATE — the single worst thing in the room. Fold lines and hem shadow live in
+  // the MAP; the map is drawn in white so material.color still tints it and the
+  // coffee can's colour options keep working (color MULTIPLIES the map — the rule).
+  var tarpT = canvasTex(256, 128, function (c, w, h) {
+    c.fillStyle = "#ffffff"; c.fillRect(0, 0, w, h);
+    for (var f2 = 0; f2 < 9; f2++) {                       // slack folds, roughly diagonal
+      c.strokeStyle = "rgba(30,34,44," + (0.10 + (f2 % 3) * 0.05) + ")";
+      c.lineWidth = 2 + (f2 % 2);
+      c.beginPath();
+      c.moveTo((f2 * 37) % w, 0);
+      c.quadraticCurveTo((f2 * 37) % w + 26, h * 0.5, (f2 * 41) % w, h);
+      c.stroke();
+      c.strokeStyle = "rgba(255,255,255,0.35)"; c.lineWidth = 1;   // highlight beside each crease
+      c.beginPath();
+      c.moveTo((f2 * 37) % w + 4, 0);
+      c.quadraticCurveTo((f2 * 37) % w + 30, h * 0.5, (f2 * 41) % w + 4, h);
+      c.stroke();
+    }
+    c.fillStyle = "rgba(20,22,28,0.28)"; c.fillRect(0, h - 12, w, 12);  // hem shadow
+  });
+  tarpT.wrapS = tarpT.wrapT = THREE.RepeatWrapping; tarpT.repeat.set(2, 1);
+  var tarpM = new THREE.MeshStandardMaterial({ map: tarpT, color: 0x5d7089, roughness: 0.95 });
+  var tarpG = new THREE.Group(); tarpG.position.set(-9.55, 0, 6.75); add(tarpG);
+  // lower and more stepped than the first try: hood, roof, deck — a car shape, draped
+  var tpMain = box(1.80, 0.44, 3.42, tarpM); tpMain.position.y = 0.62; tarpG.add(tpMain);
+  var tpHood = box(1.70, 0.16, 1.05, tarpM); tpHood.position.set(0, 0.92, -1.05); tarpG.add(tpHood);
+  var tpHump = box(1.46, 0.40, 1.55, tarpM); tpHump.position.set(0, 1.04, 0.35); tarpG.add(tpHump);
+  var tpSkirt = box(1.92, 0.26, 3.54, tarpM); tpSkirt.position.y = 0.34; tarpG.add(tpSkirt);
+  [[-0.90, -1.70, 0.22], [0.90, -1.70, -0.22], [-0.90, 1.70, -0.22], [0.90, 1.70, 0.22]].forEach(function (sk) {
+    var flap = box(0.32, 0.30, 0.05, tarpM);
+    flap.position.set(sk[0], 0.30, sk[1]); flap.rotation.x = sk[2]; flap.rotation.y = 0.4 * (sk[0] > 0 ? -1 : 1); tarpG.add(flap);
+  });
+  tarpG.children.forEach(function (m) {
+    gtag(m, "the project", null, "under that tarp is the project. it will run again. this has been true for eleven years.");
+  });
+  var oilT = canvasTex(128, 96, function (c, w, h) {
+    var g8 = c.createRadialGradient(w / 2, h / 2, 4, w / 2, h / 2, w / 2);
+    g8.addColorStop(0, "rgba(24,22,20,0.62)"); g8.addColorStop(0.7, "rgba(24,22,20,0.30)"); g8.addColorStop(1, "rgba(24,22,20,0)");
+    c.fillStyle = g8; c.fillRect(0, 0, w, h);
+  });
+  // ⚠️ polygonOffset, not a raised y — the contact-shadow lesson. A decal at a fixed
+  // height over a floor it doesn't own is how you get an invisible stain.
+  var oilStain = new THREE.Mesh(new THREE.PlaneGeometry(1.05, 0.75),
+    new THREE.MeshBasicMaterial({ map: oilT, transparent: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -4, polygonOffsetUnits: -4 }));
+  oilStain.rotation.x = -Math.PI / 2; oilStain.position.set(-9.55, 0.006, 5.45); oilStain.renderOrder = 1; add(oilStain);
+  gtag(oilStain, "the oil stain", null, "the car marks its territory.");
+  // --- the rest of any honest garage
+  var bikeM = mat(0x2b3a8c, 0.6);
+  [[1.70], [1.02]].forEach(function (bw) {
+    var wh2 = new THREE.Mesh(new THREE.TorusGeometry(0.27, 0.035, 8, 18), mat(0x1d1f22, 0.8));
+    wh2.position.set(-8.20, bw[0], 8.26); add(wh2);
+  });
+  var bkFrame1 = box(0.055, 0.56, 0.055, bikeM); bkFrame1.position.set(-8.20, 1.36, 8.26); bkFrame1.rotation.z = 0.24; add(bkFrame1);
+  var bkFrame2 = box(0.055, 0.44, 0.055, bikeM); bkFrame2.position.set(-8.27, 1.26, 8.26); bkFrame2.rotation.z = -0.38; add(bkFrame2);
+  var bkCross = box(0.055, 0.34, 0.055, bikeM); bkCross.position.set(-8.13, 1.30, 8.26); bkCross.rotation.z = 0.9; add(bkCross);
+  var bkSeat = box(0.16, 0.05, 0.07, mat(0x1d1f22, 0.7)); bkSeat.position.set(-8.34, 1.44, 8.26); add(bkSeat);
+  var bkBars = box(0.32, 0.045, 0.06, steelM); bkBars.position.set(-8.16, 1.94, 8.26); add(bkBars);
+  var bkHook = new THREE.Mesh(new THREE.TorusGeometry(0.05, 0.014, 6, 10), steelM);
+  bkHook.position.set(-8.20, 2.02, 8.26); add(bkHook);
+  [bkFrame1, bkFrame2, bkBars].forEach(function (m) {
+    gtag(m, "the bike", null, "hung up for winter in 1997. it is beginning to suspect.");
+  });
+  var leanG = new THREE.Group(); leanG.position.set(-11.86, 0, 4.72); add(leanG);
+  [[0, 0x6b5638, "rake"], [0.22, 0x8a8f96, "shovel"], [0.44, 0xb8a06a, "broom"]].forEach(function (ln2, i6) {
+    var pole = new THREE.Mesh(new THREE.CylinderGeometry(0.016, 0.016, 1.5, 8), mat(0x8a6f4a, 0.9));
+    pole.position.set(0.05, 0.75, ln2[0]); pole.rotation.x = 0.05; pole.rotation.z = -0.13; leanG.add(pole);
+    var head = box(i6 === 0 ? 0.03 : 0.16, i6 === 0 ? 0.30 : 0.20, i6 === 2 ? 0.10 : 0.03, mat(ln2[1], 0.85));
+    head.position.set(0.14, i6 === 2 ? 0.10 : 0.14, ln2[0]); leanG.add(head);
+  });
+  leanG.children.forEach(function (m) {
+    gtag(m, "the leaning tools", null, "rake, shovel, push broom. the order changes; the leaning doesn't.");
+  });
+  var dartT = canvasTex(96, 96, function (c, w, h) {
+    ["#2b2e33", "#c8c2b2", "#a83226", "#c8c2b2", "#2f5e3a"].forEach(function (col, ri) {
+      c.fillStyle = col; c.beginPath(); c.arc(w / 2, h / 2, 44 - ri * 9, 0, 7); c.fill();
+    });
+  });
+  var dart = new THREE.Mesh(new THREE.CylinderGeometry(0.23, 0.23, 0.03, 20),
+    new THREE.MeshStandardMaterial({ map: dartT, roughness: 0.85 }));
+  dart.rotation.z = Math.PI / 2; dart.position.set(-7.80, 1.30, 7.05); add(dart);
+  gtag(dart, "the dartboard", null, "501, straight in, double out. nobody in this house has ever finished a game.");
+  var pennT = new THREE.CanvasTexture(document.createElement("canvas"));
+  pennT.image.width = 128; pennT.image.height = 48;
+  pennT.colorSpace = THREE.SRGBColorSpace;
+  function pennantDraw(bg, txt) {
+    var c = pennT.image.getContext("2d");
+    c.clearRect(0, 0, 128, 48);
+    c.fillStyle = bg; c.beginPath(); c.moveTo(0, 0); c.lineTo(128, 24); c.lineTo(0, 48); c.closePath(); c.fill();
+    c.fillStyle = "rgba(250,246,232,0.92)"; c.font = "bold 13px Georgia, serif";
+    c.fillText(txt, 8, 29);
+    pennT.needsUpdate = true;
+  }
+  pennantDraw("#2f5e3a", "HAZEL PARK");
+  var penn = new THREE.Mesh(new THREE.PlaneGeometry(0.62, 0.22),
+    new THREE.MeshBasicMaterial({ map: pennT, transparent: true }));
+  penn.rotation.y = -Math.PI / 2; penn.position.set(-7.79, 1.80, 7.05); add(penn);
+  gtag(penn, "the pennant", null, "they were never good. that was never the point.");
+  var frG = new THREE.Group(); frG.position.set(-8.14, 0, 7.90); add(frG);
+  var frBody = box(0.62, 1.30, 0.60, mat(0xe8eae6, 0.5)); frBody.position.y = 0.71; frG.add(frBody);
+  var frBase = box(0.62, 0.08, 0.60, mat(0x2b2e33, 0.8)); frBase.position.y = 0.04; frG.add(frBase);
+  var frHandle = box(0.03, 0.5, 0.05, mat(0xc4c8c4, 0.4)); frHandle.position.set(-0.33, 0.85, -0.20); frG.add(frHandle);
+  [[0.55, 0xc03a30], [0.72, 0x3a68b0], [0.93, 0xe0b03a]].forEach(function (mg) {
+    var m2 = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.02, 0.01, 8), mat(mg[1], 0.4));
+    m2.rotation.z = Math.PI / 2; m2.position.set(-0.315, mg[0], 0.08); frG.add(m2);
+  });
+  frG.children.forEach(function (m) {
+    gtag(m, "the garage fridge", null, "the garage fridge. it has held exactly: pop, film, and one birthday cake overflow. summer lives in here.");
+  });
+  [[0.36, 0.11, 0.28, 0.055], [0.34, 0.10, 0.26, 0.165]].forEach(function (np) {
+    var st3 = box(np[0], np[1], np[2], mat(0xcfc8b4, 0.95)); st3.position.set(-8.05, np[3], 7.30); add(st3);
+    gtag(st3, "the newspapers", null, "tied and ready for a paper drive that stopped happening in 1998.");
+  });
+  // the bare bulb, and the clack it answers to
+  var garOn = true;
+  var gShade = new THREE.Mesh(new THREE.ConeGeometry(0.16, 0.10, 14, 1, true), mat(0x3a5e3a, 0.6));
+  gShade.position.set(-9.60, 1.93, 6.20); add(gShade);
+  var gBulb = new THREE.Mesh(new THREE.SphereGeometry(0.045, 10, 8),
+    new THREE.MeshStandardMaterial({ color: 0xfff2d8, emissive: 0xffd9a0, emissiveIntensity: 1.6, roughness: 0.4 }));
+  gBulb.position.set(-9.60, 1.85, 6.20); add(gBulb);
+  var gChain = new THREE.Mesh(new THREE.CylinderGeometry(0.004, 0.004, 0.22, 6), mat(0xd8d2c0, 0.8));
+  gChain.position.set(-9.51, 1.78, 6.20); add(gChain);
+  var gBead = new THREE.Mesh(new THREE.SphereGeometry(0.014, 8, 8), mat(0xd8d2c0, 0.7));
+  gBead.position.set(-9.51, 1.66, 6.20); add(gBead);
+  var garLite = new THREE.PointLight(0xffe0b0, 1.7, 6.5, 1.9);
+  garLite.position.set(-9.60, 1.80, 6.20); add(garLite);
+  function togGarLight() { garOn = !garOn; AUDIO.clickSfx && AUDIO.clickSfx(garOn ? 1200 : 700); }
+  [gChain, gBead, gBulb].forEach(function (m) { gtag(m, "the pull chain", togGarLight, "the pull chain — clack."); });
+
   /* ---- STASHES: a "my stuff" box for every room of the house ------------------
    * The bedroom has the shoebox; Kyle's call is that every area deserves its own —
    * moving boxes in the hall, a laundry basket at the back, a toolbox on the
@@ -2850,7 +3273,8 @@ export function buildHallway(ctx) {
    * textures. Lerping from the CAPTURED base keeps every relationship and makes a new
    * look two numbers. */
   var LOOK_MATS = [hwallM, plankM, runner.material, oakM, kWallM, lamM,
-                   sidingM, grassM, deckM, bFenceM, pdeckM];
+                   sidingM, grassM, deckM, bFenceM, pdeckM,
+                   garWallM, garFloorM, benchM];   // the garage wears the house look too
   var LOOK_BASE = LOOK_MATS.map(function (m) { return m.color.getHex(); });
   // `need` = treasures required, the same currency the bedroom's ROOM_THEMES spend.
   // The bedroom ladder tops out at 9 of 21; the house goes all the way to 21, so the
@@ -3088,6 +3512,36 @@ export function buildHallway(ctx) {
       "the recipe box — the kitchen keeps its opinions in here");
   });
 
+  // --- GARAGE: the coffee can of bolts, which holds the garage's opinions
+  var garStash = makeStash("garage", "☕ the coffee can", [
+    lookOption(),
+    { k: "proj", label: "the bench project", vals: [
+      { label: "the birdhouse", apply: function () { bpBird.visible = true; bpDerby.visible = bpRocket.visible = false; } },
+      { label: "the derby car", apply: function () { bpDerby.visible = true; bpBird.visible = bpRocket.visible = false; } },
+      { label: "the rocket", apply: function () { bpRocket.visible = true; bpBird.visible = bpDerby.visible = false; } },
+    ] },
+    { k: "tarp", label: "the tarp", vals: [
+      { label: "dusty blue", apply: function () { tarpG.visible = true; carBodyG.visible = false; tarpM.color.setHex(0x5d7089); } },
+      { label: "canvas tan", apply: function () { tarpG.visible = true; carBodyG.visible = false; tarpM.color.setHex(0xb8a577); } },
+      { label: "forest green", apply: function () { tarpG.visible = true; carBodyG.visible = false; tarpM.color.setHex(0x4a6349); } },
+      { label: "off — let it breathe", apply: function () { tarpG.visible = false; carBodyG.visible = true; } },
+    ] },
+    { k: "pennant", label: "the pennant", vals: [
+      { label: "HAZEL PARK", apply: function () { pennantDraw("#2f5e3a", "HAZEL PARK"); } },
+      { label: "MARLINS", apply: function () { pennantDraw("#2a6a72", "MARLINS"); } },
+      { label: "VARSITY", apply: function () { pennantDraw("#6e2a38", "VARSITY"); } },
+      { label: "CHAMPS '91", apply: function () { pennantDraw("#8a6a2a", "CHAMPS '91"); } },
+    ] },
+    { k: "stain", label: "the oil stain", vals: [
+      { label: "still there", apply: function () { oilStain.visible = true; } },
+      { label: "scrubbed out", apply: function () { oilStain.visible = false; } },
+    ] },
+  ]);
+  canG.children.forEach(function (m) {
+    gtag(m, "the coffee can", function () { openStash(garStash); },
+      "the coffee can of bolts — the garage keeps its opinions in here");
+  });
+
   /* ---- state & camera ---------------------------------------------------------
    * space: "bedroom" | "hall". The transition walks the camera through the real
    * doorway while the door swings; while it runs, busy() guards the pointer.
@@ -3109,6 +3563,12 @@ export function buildHallway(ctx) {
     kdoor2: new THREE.Vector3(-7.20, 1.63, -0.35),  // in the doorway
     kdoorL: new THREE.Vector3(-9.4, 1.25, -0.6),    // what you see through it
     klookB: new THREE.Vector3(-6.1, 1.28, -0.85),   // turned round: the doorway, the hall beyond
+    grest: new THREE.Vector3(-7.92, 1.64, 4.68),    // the corner the door swing keeps clear
+    glook: new THREE.Vector3(-11.70, 1.30, 7.55),   // down the long diagonal: pegboard, bench, tarp
+    glookB: new THREE.Vector3(-7.40, 1.15, 5.70),   // turned round: the door back to the hall
+    gdoor1: new THREE.Vector3(-5.98, 1.66, 5.60),   // squared up to the garage door, hall side
+    gdoor2: new THREE.Vector3(-7.25, 1.62, 5.60),   // in the doorway
+    gdoorL: new THREE.Vector3(-10.6, 0.90, 6.90),   // what you see through it
     porch: new THREE.Vector3(-5.70, 1.62, -5.35),   // out on the boards
     porchL: new THREE.Vector3(-5.62, 0.75, -14.5),  // down the path at the street
     porchB: new THREE.Vector3(-6.05, 1.72, -2.4),   // turned round: the house you live in
@@ -3156,6 +3616,19 @@ export function buildHallway(ctx) {
     mode = "kitchenOut"; tt = 0;
     c0.copy(camera.position); l0.copy(lookAt);
   }
+  function enterGarage() {
+    if (mode !== "idle" || space !== "hall") return;
+    mode = "garageIn"; tt = 0;
+    c0.copy(camera.position); l0.copy(lookAt);
+    AUDIO.ratchetSfx && AUDIO.ratchetSfx();
+    if (turnBtn) turnBtn.style.display = "none";
+  }
+  function leaveGarage() {
+    if (mode !== "idle" && mode !== "turning") return;
+    if (space !== "garage") return;
+    mode = "garageOut"; tt = 0;
+    c0.copy(camera.position); l0.copy(lookAt);
+  }
   // ⚠️ the front door's swing is driven by the SAME tt as the walk, exactly like
   // the bedroom door — so the slab is always open by the time the camera is in it
   function stepOut() {
@@ -3172,15 +3645,19 @@ export function buildHallway(ctx) {
     if (turnBtn) turnBtn.style.display = "none";
   }
   // which end of wherever you're standing you're looking at
-  function restPos() { return space === "porch" ? P.porch : space === "kitchen" ? P.krest : P.rest; }
+  function restPos() {
+    return space === "porch" ? P.porch : space === "kitchen" ? P.krest
+         : space === "garage" ? P.grest : P.rest;
+  }
   function aimFor(f) {
     if (space === "porch") return f === "house" ? P.porchB : P.porchL;
     if (space === "kitchen") return f === "door" ? P.klookB : P.klook;
+    if (space === "garage") return f === "door" ? P.glookB : P.glook;
     return f === "south" ? P.lookS : P.look;
   }
   function flipOf(f) {
     if (space === "porch") return f === "street" ? "house" : "street";
-    if (space === "kitchen") return f === "door" ? "room" : "door";
+    if (space === "kitchen" || space === "garage") return f === "door" ? "room" : "door";
     return f === "north" ? "south" : "north";
   }
   function ease(x) { return x * x * (3 - 2 * x); }
@@ -3264,6 +3741,25 @@ export function buildHallway(ctx) {
       }
       return true;
     }
+    if (mode === "garageIn" || mode === "garageOut") {   // through the garage door
+      tt = Math.min(1, tt + dt / 2.1);
+      var gk = mode === "garageIn" ? tt : 1 - tt;
+      // -2.0 rad: the slab swings INTO the garage, toward the cleared corner by the
+      // roll door — the fridge and the newspapers live at the OTHER end for this
+      gDoorPivot.rotation.y = 2.0 * ease(Math.min(1, Math.max(0, (gk - 0.04) / 0.42)));
+      if (mode === "garageIn") walk([c0, P.gdoor1, P.gdoor2, P.grest], [l0, P.gdoorL, P.glook, P.glook], tt);
+      else walk([c0, P.gdoor2, P.gdoor1], [l0, P.gdoorL, P.lookS], tt);
+      camera.position.copy(_v); lookAt.copy(_w); camera.lookAt(lookAt);
+      if (tt >= 1) {
+        if (mode === "garageIn") { space = "garage"; facing = turnTo = "room"; gDoorPivot.rotation.y = 2.0; }
+        else {
+          space = "hall"; facing = turnTo = "south"; gDoorPivot.rotation.y = 0;
+          AUDIO.clickSfx && AUDIO.clickSfx(500);
+        }
+        turnK = 1; mode = "idle"; syncTurnBtn();
+      }
+      return true;
+    }
     if (mode === "out" || mode === "in") {           // through the front door, both ways
       tt = Math.min(1, tt + dt / 2.5);
       var k2 = mode === "out" ? tt : 1 - tt;
@@ -3308,7 +3804,7 @@ export function buildHallway(ctx) {
       }
       return true;
     }
-    if (space === "hall" || space === "porch" || space === "kitchen") { // at rest: same parallax drift as the bedroom
+    if (space === "hall" || space === "porch" || space === "kitchen" || space === "garage") { // at rest: same parallax drift as the bedroom
       // ⚠️ the swing is driven by a SEPARATE eased term, not by lerping lookAt
       // straight from one end to the other. A direct lerp passes the target
       // through the camera's own position on the way past, and the view whips
@@ -3351,7 +3847,8 @@ export function buildHallway(ctx) {
   }
   function turn(to) {
     if (space === "bedroom" || mode === "entering" || mode === "leaving" ||
-        mode === "out" || mode === "in" || mode === "kitchenIn" || mode === "kitchenOut") return;
+        mode === "out" || mode === "in" || mode === "kitchenIn" || mode === "kitchenOut" ||
+        mode === "garageIn" || mode === "garageOut") return;
     to = to || flipOf(facing);
     if (to === facing && mode !== "turning") { syncTurnBtn(); return; }
     turnTo = to; turnK = 0; mode = "turning";
@@ -3379,12 +3876,15 @@ export function buildHallway(ctx) {
       turnBtn.addEventListener("pointerdown", function (e) { e.stopPropagation(); });
       document.body.appendChild(turnBtn);
     }
-    var show = space === "hall" || space === "porch" || space === "kitchen" || mode === "entering";
+    var show = space === "hall" || space === "porch" || space === "kitchen" ||
+               space === "garage" || mode === "entering";
     turnBtn.style.display = show ? "block" : "none";
     var next = flipOf(mode === "turning" ? turnTo : facing);
+    // ⚠️ kitchen and garage share the room/door facing tokens, so "room" has to be
+    // resolved per-space or the button in the garage offers you the kitchen
     var LBL = { south: "the back of the house", north: "the front door",
                 house: "the house", street: "the street",
-                door: "the way out", room: "the kitchen" };
+                door: "the way out", room: space === "garage" ? "the garage" : "the kitchen" };
     turnBtn.textContent = "⟲  turn around — " + (LBL[next] || "the other way");
     turnBtn.setAttribute("aria-label", "Turn around to face " + (LBL[next] || "the other way"));
   }
@@ -3402,6 +3902,11 @@ export function buildHallway(ctx) {
       if (b.halo) b.halo.material.opacity = 0.34 * dim * on * breathe;
     });
     hallFill.intensity = 0.5 * dim * on;
+    // the garage bulb answers its own chain, not the hall switch
+    var gon = garOn ? 1 : 0.03;
+    garLite.intensity = 1.7 * dim * gon * breathe;
+    gBulb.material.emissiveIntensity = 1.6 * dim * gon;
+    gSpill.material.opacity = 0.12 * dim * gon;
     // the porch light is OUTSIDE, so the pull chain doesn't touch it — that's the
     // point of it: turn the hall off and the yard is still faintly there
     porchLight.intensity = 1.5 * dim * backPorchOn;
@@ -3434,6 +3939,11 @@ export function buildHallway(ctx) {
     cloAnim += (target - cloAnim) * Math.min(1, dt * 7);
     cloDoorP.rotation.y = cloAnim;
     bfB.rotation.y = -2 * cloAnim;
+    // the big garage door rolls the same lazy way — slower, it weighs a lot more
+    if (Math.abs(rollTarget - rollA) > 0.0004) {
+      rollA += (rollTarget - rollA) * Math.min(1, dt * 1.6);
+      applyRoll(rollA);
+    }
     // the closet's bulb comes up with the door, so the 1997 inside it is only lit
     // while you're actually looking at it — and never leaks into the hall when shut
     var cf = Math.min(1, Math.abs(cloAnim) / 1.2);
@@ -3546,10 +4056,13 @@ export function buildHallway(ctx) {
       fPivot.rotation.y = 0; kDoorPivot.rotation.y = 0; figT = 0; figG.visible = false;
       yardG.visible = false;   // camTick would do it next frame, but bfcache may not get one
       cloOpen = false; cloAnim = 0; cloDoorP.rotation.y = 0;
+      gDoorPivot.rotation.y = 0; rollTarget = 0; rollA = 0; applyRoll(0);
     },
     turn: turn, facing: function () { return facing; },
     stepOut: stepOut, stepIn: stepIn,
     kitchen: { enter: enterKitchen, leave: leaveKitchen },
+    garage: { enter: enterGarage, leave: leaveGarage, roll: toggleRoll,
+      rollA: function () { return rollA; } },
     stashes: stashByKey, openStash: openStash, closeStash: closeStash,
     setPhase: setPhase, phase: function () { return porchPhase; },
     knock: knockCame,
