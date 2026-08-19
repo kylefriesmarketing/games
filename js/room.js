@@ -4257,6 +4257,11 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
   // flat tops a collectible can sit on — including the new floating wall shelves
   var SURFACES = [floor, rug, dTop, caseTop, sill, stand, nsTop].concat(shelfTops);
   var shoeState = loadJSON("room-shoebox") || { placed: {}, seen: {} };
+  // ⚠️ a MAP keyed by collectible, not a list. As an append-only array it never
+  // healed: fix the anchor, re-place the treasure, and the audit still reported
+  // the old failure forever. An audit that cries wolf gets ignored, which costs
+  // more than having no audit at all.
+  var deadAnchors = {};   // key -> missing anchor name; placeColl clears on success
   if (!shoeState.placed) shoeState.placed = {};
   if (!shoeState.seen) shoeState.seen = {};
   function persistShoe() { saveJSON("room-shoebox", shoeState); }
@@ -4271,9 +4276,31 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
     if (!c || c.inst) return;
     var gp = c.build();
     var hx = c.home.x, hz = c.home.z;
-    if (c.anchor && movableByKey[c.anchor]) { // anchored homes ride their furniture, even after a remodel
-      var ar = movableByKey[c.anchor].root.position;
-      hx = ar.x + c.home.x; hz = ar.z + c.home.z;
+    if (!c.anchor) delete deadAnchors[key];
+    if (c.anchor) {
+      if (movableByKey[c.anchor]) {  // anchored homes ride their furniture, even after a remodel
+        var ar = movableByKey[c.anchor].root.position;
+        hx = ar.x + c.home.x; hz = ar.z + c.home.z;
+        delete deadAnchors[key];
+      } else {
+        /* ⚠️⚠️ A DEAD ANCHOR IS SILENT, AND IT HAS SHIPPED TWICE. `&& movableByKey[...]`
+         * used to be part of the condition above, so when a piece of furniture left
+         * the bedroom its treasure quietly fell back to home x/z — which are OFFSETS,
+         * usually within half a metre of the origin. The result is a trinket floating
+         * in the middle of the room, and nothing says a word: no throw, no warning,
+         * no audit finding. It happened when the VICTORY LAP crate moved to the hall
+         * (2026-08-06) and again when the arcade cabinet moved to the basement
+         * (2026-08-19), and both times a SCREENSHOT caught it, not the code.
+         * The fallback stays — a missing anchor must never break the room — but it
+         * announces itself now, and audit() fails on it. */
+        deadAnchors[key] = c.anchor;
+        try {
+          console.warn("[room] collectible '" + key + "' is anchored to '" + c.anchor +
+            "', which no longer exists. Falling back to absolute home (" +
+            c.home.x + ", " + c.home.z + ") — that is almost certainly mid-room. " +
+            "Give it real world coordinates, or re-anchor it.");
+        } catch (e) { }
+      }
     }
     gp.position.set(hx, c.home.y || 0, hz);
     // a fingertip-sized grab proxy: these are 4-12cm trinkets, often across the room —
@@ -6453,6 +6480,48 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
           say("warn", "kid station " + si + " (" + s.act + ")", "sits inside obstacle " + oi);
       });
     });
+    // 6. every anchored treasure's anchor must still exist. Two treasures have
+    // already been orphaned by furniture leaving the bedroom, and both times the
+    // fallback dropped them mid-room in total silence. This is that failure, caught.
+    COLLECT.forEach(function (c) {
+      if (c.anchor && !movableByKey[c.anchor])
+        say("error", c.title, "is anchored to '" + c.anchor + "', which no longer exists — " +
+          "its home is an OFFSET, so it will sit mid-room. Give it world coordinates.");
+    });
+    for (var dk in deadAnchors)
+      say("error", dk, "is standing where a missing anchor ('" + deadAnchors[dk] + "') put it");
+
+    // 7. nothing in the bedroom may hang through the floor into the basement.
+    // ⚠️ THE BEDROOM IS NOT WATERTIGHT AT y=0. Several props sag below their own
+    // origin — Rex's toes and tail reach -0.15 — which was free for years because
+    // there was nothing under this floor. The den is under it now, and the first
+    // ceiling (-0.10) had a dinosaur's feet hanging into the arcade corner. This
+    // measures the real clearance instead of trusting the number I guessed.
+    var bsm = hall && hall.basement && hall.basement.box;
+    if (bsm) {
+      var hallRoot = hall.group, worst = null;
+      scene.traverse(function (o) {
+        if (!o.isMesh || !o.visible) return;
+        var p2 = o; while (p2) { if (p2 === hallRoot) return; p2 = p2.parent; }  // the hall owns the den
+        // ⚠️ SOLID GEOMETRY ONLY. depthWrite:false is this codebase's marker for an
+        // effect layer — contact shadows, stains, glows, and the window light shaft,
+        // whose tilted plane dips to y -0.547 and tripped this check on the day it
+        // was written. Those are depth-TESTED against opaque geometry, so the den's
+        // own ceiling hides them: measured by firing up from (2.30, -1.60, -1.62),
+        // where the first hit is the ceiling box at -0.28 and it writes depth.
+        // An opaque prop in the same place would really be hanging in the room.
+        if (o.material && o.material.depthWrite === false) return;
+        var b4 = bb(o); if (!b4) return;
+        if (b4.min.y >= bsm.ce) return;                       // clears the ceiling
+        if (b4.max.x < bsm.x0 || b4.min.x > bsm.x1) return;   // not over the den
+        if (b4.max.z < bsm.z0 || b4.min.z > bsm.z1) return;
+        if (!worst || b4.min.y < worst.y) worst = { y: b4.min.y, n: (o.userData && o.userData.name) || o.geometry.type };
+      });
+      if (worst)
+        say("error", "the basement ceiling", worst.n + " reaches y " + worst.y.toFixed(3) +
+          ", through the den ceiling at " + bsm.ce.toFixed(2));
+    }
+
     return { findings: F, checked: seen, ok: F.filter(function (f) { return f.severity === "error"; }).length === 0 };
   }
 

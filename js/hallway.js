@@ -5056,7 +5056,9 @@ export function buildHallway(ctx) {
     garage: { enter: enterGarage, leave: leaveGarage, roll: toggleRoll,
       rollA: function () { return rollA; } },
     back: { enter: enterBack, leave: leaveBack },
-    basement: { enter: enterBasement, leave: leaveBasement },
+    // `box` is the den's real extent so room.js can PROVE nothing upstairs hangs
+    // through the ceiling into it — see the clearance check in audit().
+    basement: { enter: enterBasement, leave: leaveBasement, box: BSM },
     stashes: stashByKey, openStash: openStash, closeStash: closeStash,
     setPhase: setPhase, phase: function () { return porchPhase; },
     knock: knockCame,
