@@ -3566,7 +3566,13 @@ export function buildHallway(ctx) {
    * `g`, so it gates with the hall; all three lights are distance-capped so they
    * cannot climb through the floor and re-light the corridor. */
   var bstag = function (m, name, action, hint) { clickable(m, name, action, hint); m.userData.space = "basement"; return m; };
-  var BSM = { x0: -7.40, x1: 3.30, z0: -2.40, z1: 4.60, fl: -2.42, ce: -0.10 };
+  // ⚠️ ce is -0.28, NOT -0.10: the bedroom's movables live at y 0 directly above,
+  // and several GLBs sag below their own origin — Rex's toes and tail reach -0.15,
+  // and at a -0.10 ceiling they dangled INTO the den, draped over the copper pipe
+  // above the arcade corner like something out of a worse game. An 18cm joist
+  // space (bedroom floor 0 down to slab top -0.20) swallows anything a player
+  // drags around up there, which is exactly what a real joist space is for.
+  var BSM = { x0: -7.40, x1: 3.30, z0: -2.40, z1: 4.60, fl: -2.42, ce: -0.28 };
   var panelT = canvasTex(128, 128, function (c, w, h) {
     c.fillStyle = "#7a5a38"; c.fillRect(0, 0, w, h);
     for (var pv = 0; pv < w; pv += 16) {                    // vertical plank grooves
@@ -3760,6 +3766,198 @@ export function buildHallway(ctx) {
   bikeG2.children.forEach(function (m) {
     bstag(m, "the exercise bike", null, "january's big idea. it faces the wall now, and it knows why.");
   });
+  /* ---- THE ARCADE CORNER ---------------------------------------------------------
+   * Two full-size cabinets against the block wall: BLOODRIFT (moved down from the
+   * bedroom — a cabinet belongs in a den, and at 1.0 scale instead of the 0.85 the
+   * bedroom's sightlines forced on it) and THE LAST ISSUE, built to match. Same
+   * recipe as the original: angled control deck, emissive screen and marquee
+   * pushed past the bloom threshold, side art on polygonOffset. Both attract
+   * screens read your saves — same origin, same trick as everything else.
+   * ⚠️ toe-in: the two machines angle 3 degrees toward each other, because
+   * parallel cabinets read as furniture and angled ones read as an ARCADE. */
+  var brSave = (function () {
+    try {
+      var p = JSON.parse(localStorage.getItem("br-profile-v1") || "null");
+      if (!p || !p.chars) return { wins: 0, top: null };
+      var wins = 0, top = null, topXp = -1;
+      for (var id in p.chars) {
+        var ch = p.chars[id] || {};
+        wins += ch.wins || 0;
+        if ((ch.xp || 0) > topXp) { topXp = ch.xp || 0; top = id; }
+      }
+      return { wins: wins, top: top };
+    } catch (e) { return { wins: 0, top: null }; }
+  })();
+  var BR_TINTS = {
+    zenith: 0x4ea8ff, triage: 0x4ea8ff, centurion: 0x4ea8ff, joule: 0x4ea8ff, marrow: 0x4ea8ff,
+    sovereign: 0xffb03a, terminus: 0xffb03a, halflight: 0xffb03a, chorus: 0xffb03a, kestrel: 0xffb03a,
+    strigoi: 0xc4232f, lycaon: 0xc4232f, graft: 0xc4232f, khet: 0xc4232f, harrow: 0xc4232f,
+    flux: 0x9a5ce8, vespra: 0x9a5ce8, ordnance: 0x9a5ce8, null: 0x9a5ce8, vyrm: 0x9a5ce8,
+  };
+  var tliSave = (function () {
+    try { var rn = JSON.parse(localStorage.getItem("tli-runs") || "null"); return Array.isArray(rn) ? rn.length : 0; }
+    catch (e) { return 0; }
+  })();
+  function makeCab(cx, cz, ry4, opts) {
+    var cab = new THREE.Group(); cab.position.set(cx, BSM.fl, cz); cab.rotation.y = ry4; add(cab);
+    var cabM2 = mat(0x22242c, 0.72), cabDark2 = mat(0x15161b, 0.8), cabTrim2 = mat(opts.trim, 0.5);
+    var AW2 = 0.60, AD2 = 0.64;
+    var kick2 = box(AW2 - 0.02, 0.10, AD2 - 0.08, cabDark2); kick2.position.y = 0.05; cab.add(kick2);
+    var body2 = box(AW2, 0.78, AD2, cabM2); body2.position.y = 0.49; cab.add(body2);
+    var coin2 = box(0.22, 0.14, 0.03, cabDark2); coin2.position.set(0, 0.42, AD2 / 2 + 0.005); cab.add(coin2);
+    [-0.05, 0.05].forEach(function (sx2) {
+      var slot2 = box(0.015, 0.045, 0.02, mat(0x0a0b0e, 0.9));
+      slot2.position.set(sx2, 0.45, AD2 / 2 + 0.018); cab.add(slot2);
+    });
+    var deck = box(AW2, 0.045, 0.30, cabDark2);
+    deck.position.set(0, 0.905, 0.26); deck.rotation.x = -0.40; cab.add(deck);
+    [-0.145, 0.145].forEach(function (px3) {
+      var ball2 = new THREE.Mesh(new THREE.SphereGeometry(0.019, 10, 8), mat(0xd8d8dc, 0.35));
+      ball2.position.set(px3 - 0.075, 0.965, 0.30); cab.add(ball2);
+      var shaft2 = new THREE.Mesh(new THREE.CylinderGeometry(0.006, 0.006, 0.03, 8), mat(0x8a8f98, 0.4));
+      shaft2.position.set(px3 - 0.075, 0.948, 0.30); cab.add(shaft2);
+      for (var bi2 = 0; bi2 < 6; bi2++) {
+        var btn2 = new THREE.Mesh(new THREE.CylinderGeometry(0.011, 0.011, 0.008, 12),
+          mat(bi2 < 3 ? opts.btnA : opts.btnB, 0.4));
+        btn2.position.set(px3 + 0.02 + (bi2 % 3) * 0.033, 0.958 + (bi2 < 3 ? 0.006 : -0.006), 0.325 - (bi2 < 3 ? 0 : 0.042));
+        btn2.rotation.x = -0.40; cab.add(btn2);
+      }
+    });
+    var scrBox = box(AW2, 0.46, 0.46, cabM2); scrBox.position.set(0, 1.15, -0.01); cab.add(scrBox);
+    var scrT = canvasTex(256, 192, opts.screen);
+    var scr = new THREE.Mesh(new THREE.PlaneGeometry(0.46, 0.345),
+      new THREE.MeshStandardMaterial({ map: scrT, emissive: 0xffffff, emissiveMap: scrT, emissiveIntensity: 1.25, roughness: 0.4 }));
+    scr.position.set(0, 1.16, AD2 / 2 - 0.09); scr.rotation.x = 0.10; cab.add(scr);
+    var bez = box(0.52, 0.40, 0.02, cabDark2); bez.position.set(0, 1.16, AD2 / 2 - 0.105); cab.add(bez);
+    var mqT = canvasTex(256, 72, opts.marquee);
+    var mqBox = box(AW2, 0.18, 0.20, cabDark2); mqBox.position.set(0, 1.45, 0.14); cab.add(mqBox);
+    var mq = new THREE.Mesh(new THREE.PlaneGeometry(0.54, 0.145),
+      new THREE.MeshStandardMaterial({ map: mqT, emissive: 0xffffff, emissiveMap: mqT, emissiveIntensity: 1.5, roughness: 0.5 }));
+    mq.position.set(0, 1.45, 0.254); cab.add(mq);
+    var crown2 = box(AW2 + 0.04, 0.05, AD2 - 0.04, cabTrim2); crown2.position.y = 1.565; cab.add(crown2);
+    var sdT = canvasTex(128, 256, opts.side);
+    [-1, 1].forEach(function (sd2) {
+      var sm2 = new THREE.Mesh(new THREE.PlaneGeometry(AD2 - 0.02, 0.76),
+        new THREE.MeshStandardMaterial({ map: sdT, roughness: 0.8,
+          polygonOffset: true, polygonOffsetFactor: -6, polygonOffsetUnits: -6 }));
+      sm2.position.set(sd2 * (AW2 / 2 + 0.004), 0.49, 0); sm2.rotation.y = sd2 * Math.PI / 2; cab.add(sm2);
+    });
+    var cl3 = new THREE.PointLight(opts.glow, 0.6, 3.0, 2);
+    cl3.position.set(cx, BSM.fl + 1.05, cz + 0.62); add(cl3);
+    cab.traverse(function (o) {
+      if (o.isMesh) bstag(o, opts.name, function () { window.location.href = opts.url; }, opts.hint);
+    });
+    return cab;
+  }
+  var brTint2 = (brSave.top && BR_TINTS[brSave.top]) || 0xc4232f;
+  makeCab(0.15, -1.88, 0.05, {
+    name: "BLOODRIFT", url: "https://kylefriesmarketing.github.io/bloodrift/",
+    hint: brSave.wins ? "BLOODRIFT — " + brSave.wins + " win" + (brSave.wins === 1 ? "" : "s") + " on this machine · click to fight"
+                      : "BLOODRIFT — 20 fighters, four realities, one wound · click to fight",
+    trim: 0x8e1526, btnA: 0xd94b52, btnB: 0xe0a83c, glow: brTint2,
+    screen: function (g, w, h) {
+      var grd = g.createLinearGradient(0, 0, 0, h);
+      grd.addColorStop(0, "#1a0910"); grd.addColorStop(1, "#31060f");
+      g.fillStyle = grd; g.fillRect(0, 0, w, h);
+      g.strokeStyle = "#ff5a6e"; g.lineWidth = 4; g.beginPath();
+      var rx2 = w / 2; g.moveTo(rx2, 0);
+      for (var y3 = 0; y3 <= h; y3 += 16) { rx2 = w / 2 + (((y3 / 16) % 2) ? 9 : -9); g.lineTo(rx2, y3); }
+      g.stroke();
+      g.strokeStyle = "rgba(255,150,170,0.35)"; g.lineWidth = 12; g.stroke();
+      [[w * 0.26, -1], [w * 0.74, 1]].forEach(function (f4) {
+        g.save(); g.translate(f4[0], h * 0.60); g.scale(f4[1], 1);
+        g.fillStyle = f4[1] < 0 ? "#0d0508" : "#0a0409";
+        g.beginPath(); g.arc(0, -46, 11, 0, 7); g.fill();
+        g.fillRect(-13, -35, 26, 34);
+        g.fillRect(-26, -30, 15, 9); g.fillRect(10, -22, 20, 8);
+        g.fillRect(-15, -1, 11, 26); g.fillRect(6, -1, 11, 22);
+        g.restore();
+      });
+      g.fillStyle = "#ffd9df"; g.textAlign = "center";
+      g.font = "bold 27px Georgia, serif"; g.fillText("BLOODRIFT", w / 2, 30);
+      g.fillStyle = "rgba(0,0,0,0.55)"; g.fillRect(0, h - 26, w, 26);
+      g.fillStyle = "#ffb9c4"; g.font = "bold 14px Georgia, serif";
+      g.fillText(brSave.wins ? brSave.wins + " WIN" + (brSave.wins === 1 ? "" : "S") + " · INSERT COIN"
+                             : "PRESS START · 20 FIGHTERS", w / 2, h - 8);
+    },
+    marquee: function (g, w, h) {
+      g.fillStyle = "#12060a"; g.fillRect(0, 0, w, h);
+      g.fillStyle = "#" + brTint2.toString(16).padStart(6, "0");
+      g.fillRect(0, 0, w, 5); g.fillRect(0, h - 5, w, 5);
+      g.textAlign = "center"; g.textBaseline = "middle";
+      g.font = "bold 40px Georgia, serif";
+      g.fillStyle = "#ffe3e8"; g.fillText("BLOODRIFT", w / 2, h / 2 + 2);
+      g.strokeStyle = "#ff4d63"; g.lineWidth = 3;
+      g.beginPath(); g.moveTo(w / 2 - 7, 4); g.lineTo(w / 2 + 6, h / 2); g.lineTo(w / 2 - 5, h - 4); g.stroke();
+    },
+    side: function (g, w, h) {
+      g.fillStyle = "#1b1d24"; g.fillRect(0, 0, w, h);
+      var gr2 = g.createLinearGradient(0, 0, w, h);
+      gr2.addColorStop(0, "rgba(196,35,47,0.75)"); gr2.addColorStop(1, "rgba(90,12,26,0.2)");
+      g.fillStyle = gr2;
+      g.beginPath(); g.moveTo(w * 0.5, 0);
+      for (var y4 = 0; y4 <= h; y4 += 22) g.lineTo(w * (0.5 + (((y4 / 22) % 2) ? 0.16 : -0.16)), y4);
+      for (var y5 = h; y5 >= 0; y5 -= 22) g.lineTo(w * (0.5 + (((y5 / 22) % 2) ? 0.30 : -0.30)), y5);
+      g.closePath(); g.fill();
+    },
+  });
+  makeCab(1.35, -1.88, -0.05, {
+    name: "THE LAST ISSUE", url: "https://kylefriesmarketing.github.io/the-last-issue-demo/",
+    hint: tliSave ? "THE LAST ISSUE — " + tliSave + " issue" + (tliSave === 1 ? "" : "s") + " printed · make another"
+                  : "THE LAST ISSUE — build your own superhero, one issue at a time",
+    trim: 0xb88a1e, btnA: 0xe0b03a, btnB: 0xc0392b, glow: 0xe8b93a,
+    screen: function (g, w, h) {
+      g.fillStyle = "#b4302c"; g.fillRect(0, 0, w, h);          // the cover red
+      g.fillStyle = "rgba(255,255,255,0.10)";                    // halftone field
+      for (var hd2 = 0; hd2 < 220; hd2++) g.fillRect((hd2 * 29) % w, (hd2 * 41) % h, 2, 2);
+      g.fillStyle = "#1a1a22";                                   // the skyline
+      for (var sk3 = 0; sk3 < 7; sk3++) g.fillRect(sk3 * 38 - 6, h - 44 - (sk3 * 17 % 38), 30, 60);
+      g.save(); g.translate(w * 0.52, h * 0.52);                 // the hero, mid-fall
+      g.fillStyle = "#0d0d14";
+      g.beginPath(); g.arc(0, -24, 9, 0, 7); g.fill();
+      g.fillRect(-10, -16, 20, 26);
+      g.fillRect(-24, -14, 15, 7); g.fillRect(9, -10, 18, 7);
+      g.fillRect(-12, 10, 9, 20); g.fillRect(4, 10, 9, 18);
+      g.beginPath(); g.moveTo(-10, -14); g.lineTo(-30, 10); g.lineTo(-6, 6); g.closePath(); g.fill(); // the cape
+      g.restore();
+      g.fillStyle = "#e6c34a"; g.fillRect(0, 6, w, 30);          // the masthead bar
+      g.fillStyle = "#1a1a22"; g.textAlign = "center";
+      g.font = "bold 21px Georgia, serif"; g.fillText("THE LAST ISSUE", w / 2, 28);
+      g.fillStyle = "#f2ead6"; g.fillRect(6, 44, 34, 24);        // the corner box
+      g.fillStyle = "#1a1a22"; g.font = "bold 12px Georgia, serif"; g.fillText("No.1", 23, 60);
+      g.fillStyle = "rgba(0,0,0,0.55)"; g.fillRect(0, h - 26, w, 26);
+      g.fillStyle = "#ffe9b0"; g.font = "bold 14px Georgia, serif";
+      g.fillText(tliSave ? tliSave + " ISSUE" + (tliSave === 1 ? "" : "S") + " · INSERT COIN"
+                         : "PRESS START · MAKE A HERO", w / 2, h - 8);
+    },
+    marquee: function (g, w, h) {
+      g.fillStyle = "#e6c34a"; g.fillRect(0, 0, w, h);
+      g.fillStyle = "rgba(180,48,44,0.9)";                       // burst rays
+      for (var br3 = 0; br3 < 12; br3++) {
+        g.save(); g.translate(w / 2, h / 2); g.rotate(br3 / 12 * Math.PI * 2);
+        g.fillRect(46, -3, 96, 6); g.restore();
+      }
+      g.fillStyle = "rgba(26,26,34,0.16)";
+      for (var hd3 = 0; hd3 < 90; hd3++) g.fillRect((hd3 * 37) % w, (hd3 * 23) % h, 2, 2);
+      g.textAlign = "center"; g.textBaseline = "middle";
+      g.font = "bold 30px Georgia, serif";
+      g.strokeStyle = "#1a1a22"; g.lineWidth = 5; g.strokeText("THE LAST ISSUE", w / 2, h / 2 + 2);
+      g.fillStyle = "#f2ead6"; g.fillText("THE LAST ISSUE", w / 2, h / 2 + 2);
+    },
+    side: function (g, w, h) {
+      g.fillStyle = "#1a1a22"; g.fillRect(0, 0, w, h);
+      g.fillStyle = "rgba(230,195,74,0.8)";
+      for (var br4 = 0; br4 < 9; br4++) {
+        g.save(); g.translate(w / 2, h * 0.32); g.rotate(br4 / 9 * Math.PI * 2);
+        g.fillRect(20, -4, 90, 8); g.restore();
+      }
+      g.fillStyle = "#b4302c";
+      g.beginPath(); g.arc(w / 2, h * 0.32, 22, 0, 7); g.fill();
+      g.fillStyle = "rgba(255,255,255,0.12)";
+      for (var hd4 = 0; hd4 < 160; hd4++) g.fillRect((hd4 * 31) % w, h * 0.6 + (hd4 * 17) % (h * 0.4), 2, 2);
+    },
+  });
+
   // utility corner: water heater, furnace, and the boxes that never made the move
   var whG = new THREE.Group(); whG.position.set(-6.62, BSM.fl, -1.62); add(whG);
   var whBody = new THREE.Mesh(new THREE.CylinderGeometry(0.34, 0.34, 1.55, 14), mat(0xd8d2c4, 0.6));

@@ -1096,52 +1096,10 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
   var war = new THREE.Group();
   war.position.set(rugCX, 0.013, rugCZ); war.rotation.y = 0.32; scene.add(war);
 
-  /* ---- THE LAST ISSUE: a stack of comics on the rug --------------------------
-   * Dropped exactly where the army men used to be — the patch measured completely
-   * empty after they came out, and a kid who stops playing soldiers and starts
-   * reading comics is the same kid a year later. Build-your-own-superhero, so the
-   * covers are hand-painted: a title bar, a figure, and a corner price box. */
-  var TLI_URL = "https://kylefriesmarketing.github.io/the-last-issue-demo/";
-  var tliRuns = readSave("tli-runs", function (v) { return Array.isArray(v) ? v.length : null; });
-  var tliHint = tliRuns
-    ? "THE LAST ISSUE — " + tliRuns + " issue" + (tliRuns === 1 ? "" : "s") + " printed · make another"
-    : "THE LAST ISSUE — build your own superhero, one issue at a time";
-  function comicCover(band, ink, hero) {
-    return canvasTex(96, 148, function (g, w, h) {
-      g.fillStyle = ink; g.fillRect(0, 0, w, h);
-      g.fillStyle = band; g.fillRect(0, 0, w, 26);            // the masthead
-      g.fillStyle = "#f6f1e2"; g.font = "bold 13px Georgia, serif"; g.textAlign = "center";
-      g.fillText("THE LAST", w / 2, 12); g.fillText("ISSUE", w / 2, 23);
-      g.fillStyle = hero;                                     // a figure, mid-leap
-      g.beginPath(); g.arc(w * 0.5, h * 0.44, 11, 0, 7); g.fill();
-      g.fillRect(w * 0.42, h * 0.50, 15, 30);
-      g.fillRect(w * 0.30, h * 0.52, 12, 7); g.fillRect(w * 0.58, h * 0.47, 12, 7);
-      g.fillStyle = "rgba(246,241,226,0.9)"; g.fillRect(4, h - 20, 26, 15);   // price box
-      g.fillStyle = ink; g.font = "bold 9px Georgia, serif"; g.textAlign = "left";
-      g.fillText("$1", 9, h - 9);
-    });
-  }
-  var comics = new THREE.Group();
-  comics.position.set(0.10, 0.013, 1.02); comics.rotation.y = -0.35; scene.add(comics);
-  [[0x8a2b2b, 0x1d2433, 0x4ab8d9, 0.000, 0.00],
-   [0x1f5fa8, 0x2a1d33, 0xd9a83a, 0.012, 0.09],
-   [0xd9a83a, 0x33241d, 0xc84a4a, 0.024, -0.07],
-   [0x2f7a4a, 0x1d3324, 0xe8e2d2, 0.036, 0.14]].forEach(function (c, i) {
-    var bk = new THREE.Mesh(new THREE.BoxGeometry(0.17, 0.011, 0.255),
-      new THREE.MeshStandardMaterial({ map: comicCover(hex6(c[0]), hex6(c[1]), hex6(c[2])), roughness: 0.88 }));
-    bk.position.set(i * 0.006, 0.006 + c[3], i * 0.004); bk.rotation.y = c[4];
-    bk.castShadow = true; comics.add(bk);
-  });
-  // the top one left open, face down, saving somebody's place
-  var openBk = new THREE.Mesh(new THREE.BoxGeometry(0.30, 0.009, 0.24),
-    new THREE.MeshStandardMaterial({ color: 0xe8e2d2, roughness: 0.92 }));
-  openBk.position.set(0.20, 0.010, -0.16); openBk.rotation.y = 0.55; openBk.castShadow = true; comics.add(openBk);
-  var spine = new THREE.Mesh(new THREE.BoxGeometry(0.012, 0.012, 0.24),
-    new THREE.MeshStandardMaterial({ color: 0x8a2b2b, roughness: 0.85 }));
-  spine.position.set(0.20, 0.016, -0.16); spine.rotation.y = 0.55; comics.add(spine);
-  comics.traverse(function (o) {
-    if (o.isMesh) clickable(o, "THE LAST ISSUE", go(TLI_URL), tliHint);
-  });
+  // (THE LAST ISSUE's comic stack lived here 2026-08-11 -> 08-19. The game is an
+  // arcade cabinet in the BASEMENT now, next to BLOODRIFT's — one doorway per
+  // game, the VICTORY LAP rule. Its treasure and list-view card are save-driven
+  // and untouched.)
 
   /* ---- THE DESK: computer, brain, notebook, lamp (left side) --------------- */
   var desk = new THREE.Group();
@@ -2604,144 +2562,10 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
     }, hoodHint);
   });
 
-  /* ---- BLOODRIFT: the arcade cabinet, beside the bed -------------------------- */
-  // A fighting game wants a cabinet, and this room never had one. Placed at
-  // (2.5, 1.55) ON PURPOSE: from the default camera every object sits in its own
-  // screen column, and that spot is the only free floor tall enough for a cabinet
-  // that doesn't stand in front of the window OR the TV (both sightline cones were
-  // measured before it went in — see the free-floor grid in the session notes).
-  var brNow = brProfile(), brOpen = brRun();
-  var arcade = new THREE.Group();
-  var cabM = mat(0x22242c, 0.72), cabDark = mat(0x15161b, 0.8), cabTrim = mat(0x8e1526, 0.5);
-  var AW = 0.60, AD = 0.64;
-  // the fighter you've sunk the most XP into tints the whole machine
-  var brTint = (brNow.top && BR_FACTION[brNow.top]) || 0xc4232f;
-  var kick = box(AW - 0.02, 0.10, AD - 0.08, cabDark); kick.position.y = 0.05; arcade.add(kick);
-  var cabBody = box(AW, 0.78, AD, cabM); cabBody.position.y = 0.49; arcade.add(cabBody);
-  var coin = box(0.22, 0.14, 0.03, cabDark); coin.position.set(0, 0.42, AD / 2 + 0.005); arcade.add(coin);
-  [-0.05, 0.05].forEach(function (cx) {
-    var slot = box(0.015, 0.045, 0.02, mat(0x0a0b0e, 0.9));
-    slot.position.set(cx, 0.45, AD / 2 + 0.018); arcade.add(slot);
-  });
-  // control panel, angled up toward the player: two sticks, six buttons each
-  var panel = box(AW, 0.045, 0.30, cabDark);
-  panel.position.set(0, 0.905, 0.26); panel.rotation.x = -0.40; arcade.add(panel);
-  [-0.145, 0.145].forEach(function (px) {
-    var ballTop = new THREE.Mesh(new THREE.SphereGeometry(0.019, 10, 8), mat(0xd8d8dc, 0.35));
-    ballTop.position.set(px - 0.075, 0.965, 0.30); arcade.add(ballTop);
-    var shaft = new THREE.Mesh(new THREE.CylinderGeometry(0.006, 0.006, 0.03, 8), mat(0x8a8f98, 0.4));
-    shaft.position.set(px - 0.075, 0.948, 0.30); arcade.add(shaft);
-    for (var bi = 0; bi < 6; bi++) { // two rows of three, the fighting-game layout
-      var btn = new THREE.Mesh(new THREE.CylinderGeometry(0.011, 0.011, 0.008, 12),
-        mat(bi < 3 ? 0xd94b52 : 0xe0a83c, 0.4));
-      btn.position.set(px + 0.02 + (bi % 3) * 0.033, 0.958 + (bi < 3 ? 0.006 : -0.006), 0.325 - (bi < 3 ? 0 : 0.042));
-      btn.rotation.x = -0.40; arcade.add(btn);
-    }
-  });
-  var screenBox = box(AW, 0.46, 0.46, cabM); screenBox.position.set(0, 1.15, -0.01); arcade.add(screenBox);
-  // the attract screen — a VS card that reads your profile
-  function arcadeScreenTex() {
-    return canvasTex(256, 192, function (g, w, h) {
-      var grd = g.createLinearGradient(0, 0, 0, h);
-      grd.addColorStop(0, "#1a0910"); grd.addColorStop(1, "#31060f");
-      g.fillStyle = grd; g.fillRect(0, 0, w, h);
-      // the Rift: a jagged tear straight down the middle
-      g.strokeStyle = "#ff5a6e"; g.lineWidth = 4; g.beginPath();
-      var rx = w / 2;
-      g.moveTo(rx, 0);
-      for (var y = 0; y <= h; y += 16) { rx = w / 2 + (((y / 16) % 2) ? 9 : -9); g.lineTo(rx, y); }
-      g.stroke();
-      g.strokeStyle = "rgba(255,150,170,0.35)"; g.lineWidth = 12; g.stroke();
-      // two fighters, squared up
-      [[w * 0.26, -1], [w * 0.74, 1]].forEach(function (f) {
-        g.save(); g.translate(f[0], h * 0.60); g.scale(f[1], 1);
-        g.fillStyle = f[1] < 0 ? "#0d0508" : "#0a0409";
-        g.beginPath(); g.arc(0, -46, 11, 0, 7); g.fill();              // head
-        g.fillRect(-13, -35, 26, 34);                                   // torso
-        g.fillRect(-26, -30, 15, 9); g.fillRect(10, -22, 20, 8);        // arms, one thrown
-        g.fillRect(-15, -1, 11, 26); g.fillRect(6, -1, 11, 22);         // legs
-        g.restore();
-      });
-      g.fillStyle = "#ffd9df"; g.textAlign = "center";
-      g.font = "bold 27px Georgia, serif"; g.fillText("BLOODRIFT", w / 2, 30);
-      g.fillStyle = "rgba(0,0,0,0.55)"; g.fillRect(0, h - 26, w, 26);
-      g.fillStyle = "#ffb9c4"; g.font = "bold 14px Georgia, serif";
-      var line = brOpen ? "TOWER · FLOOR " + brOpen.floor + " — RESUME"
-        : brNow.played ? brNow.wins + " WIN" + (brNow.wins === 1 ? "" : "S") +
-            (brNow.best ? " · BEST FLOOR " + brNow.best : "")
-        : "PRESS START · 20 FIGHTERS";
-      g.fillText(line, w / 2, h - 8);
-    });
-  }
-  var arcScreenT = arcadeScreenTex();
-  // ⚠️ emissive, not MeshBasic: bloomThreshold is 1.0 in LINEAR light, so a plain
-  // mapped material tops out AT the threshold and never blooms. Intensity 1.25
-  // pushes the lit pixels over it, which is what makes the cabinet throw light.
-  var arcScreenM = new THREE.MeshStandardMaterial({
-    map: arcScreenT, emissive: 0xffffff, emissiveMap: arcScreenT, emissiveIntensity: 1.25, roughness: 0.4,
-  });
-  var arcScreen = new THREE.Mesh(new THREE.PlaneGeometry(0.46, 0.345), arcScreenM);
-  arcScreen.position.set(0, 1.16, AD / 2 - 0.09); arcScreen.rotation.x = 0.10; arcade.add(arcScreen);
-  var bezel = box(0.52, 0.40, 0.02, cabDark); bezel.position.set(0, 1.16, AD / 2 - 0.105); arcade.add(bezel);
-  // the marquee, lit from behind like the real thing
-  var marqT = canvasTex(256, 72, function (g, w, h) {
-    g.fillStyle = "#12060a"; g.fillRect(0, 0, w, h);
-    g.fillStyle = "#" + brTint.toString(16).padStart(6, "0");
-    g.fillRect(0, 0, w, 5); g.fillRect(0, h - 5, w, 5);
-    g.textAlign = "center"; g.textBaseline = "middle";
-    g.font = "bold 40px Georgia, serif";
-    g.fillStyle = "#ffe3e8"; g.fillText("BLOODRIFT", w / 2, h / 2 + 2);
-    g.strokeStyle = "#ff4d63"; g.lineWidth = 3;                      // the tear through the word
-    g.beginPath(); g.moveTo(w / 2 - 7, 4); g.lineTo(w / 2 + 6, h / 2); g.lineTo(w / 2 - 5, h - 4); g.stroke();
-  });
-  var marqM = new THREE.MeshStandardMaterial({
-    map: marqT, emissive: 0xffffff, emissiveMap: marqT, emissiveIntensity: 1.5, roughness: 0.5,
-  });
-  var marqBox = box(AW, 0.18, 0.20, cabDark); marqBox.position.set(0, 1.45, 0.14); arcade.add(marqBox);
-  var marquee = new THREE.Mesh(new THREE.PlaneGeometry(0.54, 0.145), marqM);
-  marquee.position.set(0, 1.45, 0.254); arcade.add(marquee);  // ⚠️ 0.254 not 0.243: at 3mm
-  // (2.5mm after the cabinet's 0.85 scale) the marquee art fought its own backing box
-  var crown = box(AW + 0.04, 0.05, AD - 0.04, cabTrim); crown.position.y = 1.565; arcade.add(crown);
-  // side art: the rift crack down both flanks
-  var sideT = canvasTex(128, 256, function (g, w, h) {
-    g.fillStyle = "#1b1d24"; g.fillRect(0, 0, w, h);
-    var gr = g.createLinearGradient(0, 0, w, h);
-    gr.addColorStop(0, "rgba(196,35,47,0.75)"); gr.addColorStop(1, "rgba(90,12,26,0.2)");
-    g.fillStyle = gr;
-    g.beginPath(); g.moveTo(w * 0.5, 0);
-    for (var y = 0; y <= h; y += 22) g.lineTo(w * (0.5 + (((y / 22) % 2) ? 0.16 : -0.16)), y);
-    for (var y2 = h; y2 >= 0; y2 -= 22) g.lineTo(w * (0.5 + (((y2 / 22) % 2) ? 0.30 : -0.30)), y2);
-    g.closePath(); g.fill();
-  });
-  // ⚠️ polygonOffset, not +0.002. The side art is flat ON the cabinet, and 2mm — 1.7mm
-  // after the group's 0.85 scale — is below what the depth buffer resolves at this
-  // far plane, so both sides strobed. Same bug and same fix as the hall skirting.
-  [-1, 1].forEach(function (s) {
-    var sm = new THREE.Mesh(new THREE.PlaneGeometry(AD - 0.02, 0.76),
-      new THREE.MeshStandardMaterial({ map: sideT, roughness: 0.8,
-        polygonOffset: true, polygonOffsetFactor: -6, polygonOffsetUnits: -6 }));
-    sm.position.set(s * (AW / 2 + 0.004), 0.49, 0); sm.rotation.y = s * Math.PI / 2; arcade.add(sm);
-  });
-  var arcLight = new THREE.PointLight(brTint, brOpen ? 0.85 : 0.55, 3.2, 2);
-  // ⚠️ (2.32, 1.92) and not the 0.4m further forward it started at: the audit caught
-  // the cabinet's circle overlapping kid station 7, the spot he stands on to climb
-  // into bed. He'd have clipped straight through it every bedtime.
-  arcLight.position.set(2.15, 1.00, 1.95 + 0.50); scene.add(arcLight); // scene-level: rides via attachObjs
-  // ⚠️ Scale and spot were MEASURED, not eyeballed. The TV sits at NDC 0.44–0.85 and
-  // the frame edge is 1.0, so a full-size cabinet cannot fit between them — every
-  // position that got the whole machine on screen put it straight in front of the
-  // TV. Raycasting the TV screen at four scales found this one: 1.35m tall (a real
-  // compact cabinet), 82% in frame, and 3 of 25 sample rays clipped — the TV's
-  // corner, not its picture. Don't "fix" the size back up without redoing that test.
-  arcade.scale.setScalar(0.85);
-  arcade.position.set(2.15, 0, 1.95); arcade.rotation.y = 0.32; scene.add(arcade);
-  var brHint = brOpen
-    ? "BLOODRIFT — a tower left on floor " + brOpen.floor + " · click to climb"
-    : brNow.played
-      ? "BLOODRIFT — " + brNow.matches + " match" + (brNow.matches === 1 ? "" : "es") + ", " +
-        brNow.wins + " won" + (brNow.best ? " · best floor " + brNow.best : "") + " · click to fight"
-      : "BLOODRIFT — 20 fighters, four realities, one wound · click to fight";
-  arcade.traverse(function (o) { if (o.isMesh) clickable(o, "BLOODRIFT", go(BLOODRIFT_URL), brHint); });
+  // (BLOODRIFT's cabinet stood beside the bed 2026-08-05 -> 08-19. It moved down
+  // to the BASEMENT arcade corner with THE LAST ISSUE's machine — a cabinet
+  // belongs in a den. The rift shard stays up here: collectibles are a bedroom
+  // system end to end, and it marks where the machine used to stand.)
 
   /* ---- VICTORY LAP: the corner that keeps not leaving ------------------------- */
   // A milk crate with the jacket he still wears, and the board where the week gets
@@ -3020,7 +2844,6 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
     // ⚠️ a station must sit at least (obstacle r + KID_R) from its own centre even
     // WITH `over` — that flag only silences the audit, it doesn't relax the walker's
     // hard clamp, so a closer spot leaves him shuffling at the edge forever.
-    { x: 1.55, z: 2.45, act: "idle", over: 8 },     // stood at the cabinet, playing a round
     // (the crate station is gone with the crate — it reads the board in the hall now)
     { x: 2.35, z: -1.9, act: "window" }             // between the chest and the TV, watching the world go by
   ];
@@ -3037,10 +2860,10 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
     { x: -2.62, z: 1.2, r: 0.42 },  // the beanbag
     { x: TV_X, z: TV_Z, r: 0.55 },  // the TV stand
     { x: -2.5, z: -0.32, r: 0.34 }, // the desk chair
-    { x: -3.5, z: 1.75, r: 0.34 },  // the duffel bag + safe (index 7)
-    { x: 2.15, z: 1.95, r: 0.36 }   // the arcade cabinet (index 8)
-    // (index 9 was the VICTORY LAP crate; it's in the hallway now. It was LAST in
-    //  the array, so dropping it reindexes nothing — obs:7 and obs:8 still resolve.)
+    { x: -3.5, z: 1.75, r: 0.34 }   // the duffel bag + safe (index 7)
+    // (index 8 was the arcade cabinet — in the basement now; index 9 the VICTORY
+    //  LAP crate — in the hallway. Both were LAST when they left, so nothing here
+    //  ever reindexed. Keep retiring obstacles from the tail only.)
   ];
   /* ---- THE KID LIVES IN THE WHOLE HOUSE NOW ------------------------------------
    * He used to be bedroom-only, which stopped making sense the moment the house
@@ -3083,6 +2906,8 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
     { x: -5.30, z: -1.85, r: 0.60 }, // the furnace
     { x: 2.82, z: 2.55, r: 0.55 },   // the aquarium
     { x: 2.62, z: -1.72, r: 0.50 },  // the bike
+    { x: 0.15, z: -1.88, r: 0.50 },  // BLOODRIFT's cabinet
+    { x: 1.35, z: -1.88, r: 0.50 },  // THE LAST ISSUE's cabinet
     { x: 2.55, z: 4.28, r: 0.65 },   // the record console
   ];
   var KID_BACK_OBSTACLES = [
@@ -3133,6 +2958,7 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
     { x: -4.30, z: 3.20, y: -2.42, act: "idle" },    // mid-den, taking it in
     { x: -0.90, z: 0.20, y: -2.42, act: "fidget" },  // at the ping-pong table, ready
     { x: 1.90, z: 2.30, y: -2.42, act: "idle" },     // in the aquarium glow
+    { x: 0.75, z: -0.92, y: -2.42, act: "fidget" },  // between the two cabinets, agonising
   ];
   var KID_BACK_STATIONS = [   // lawn stations carry y — the yard is 45cm below the deck
     { x: -5.30, z: 9.65, act: "idle" },                 // on the deck boards
@@ -4071,10 +3897,6 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
     shadowR: 0.62, shadowRZ: 0.42, attachObjs: [crtLight, gCrt] });
   registerMovable({ key: "nstand", label: "the nightstand", root: nstand, r: 0.3, rot: true, attachObjs: [gLava] });
   registerMovable({ key: "hoodbag", label: "the duffel bag", root: hoodG, r: 0.34, rot: true, obs: 7, stations: [8] });
-  // shadow radii are pre-divided by the cabinet's 0.85 scale — the contact shadow is
-  // parented to the group, so it shrinks with it
-  registerMovable({ key: "arcade", label: "the arcade cabinet", root: arcade, r: 0.36, rot: true, obs: 8, stations: [9],
-    shadowR: 0.46, shadowRZ: 0.50, attachObjs: [arcLight] });
   // ⚠️ the VICTORY LAP crate is NOT registered as a movable any more — it moved to
   // the hallway (see the corner-that-keeps-not-leaving block), and every movable is
   // a BEDROOM movable: decor mode drags in bedroom coords, the drop test uses the
@@ -4352,12 +4174,13 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
       // was the shelf top (y 2.392) — a 1.7cm ingot up there is invisible from below
       home: { x: -2.55, y: 0, z: 1.35 }, build: COLL.buildGoldBar },
     { key: "riftshard", title: "the rift shard", from: "BLOODRIFT", icon: "🩸",
-      earn: "win a match in BLOODRIFT", where: "on the carpet by the arcade cabinet",
+      earn: "win a match in BLOODRIFT", where: "on the carpet where the cabinet stood",
       have: function () { return brProfile().wins > 0; },
-      // anchored to the cabinet and left on the FLOOR: it's the one treasure that
-      // gives off its own light, so the carpet beside the machine shows it off
-      // better than any shelf could.
-      anchor: "arcade", home: { x: -0.42, y: 0, z: 0.16 }, build: COLL.buildRiftShard },
+      // ⚠️ the cabinet moved to the basement 2026-08-19 and took its anchor with it —
+      // a dead anchor drops the shard at absolute coords mid-room (the VL trophy
+      // lesson). Absolute home now: the dent in the carpet where the machine stood,
+      // which is exactly where a shard of the Rift would linger.
+      home: { x: 1.73, y: 0, z: 1.62 }, build: COLL.buildRiftShard },
     // ⚠️ re-homed 2026-08-06: this used to anchor to "vlcrate", and the crate moved
     // to the hallway. Collectibles are a BEDROOM system end to end (decor drag, the
     // shoebox, placement persistence), so the trinket stays home even though its
@@ -5652,8 +5475,6 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
       get: function () { return movableByKey.island ? [movableByKey.island.root] : []; } },
     { key: "hoodbag", sec: "toys", label: "the duffel bag (HOOD RUN) + poster", obs: 7,
       get: function () { return [hoodG, posterHood]; } },
-    { key: "arcade", sec: "toys", label: "the arcade cabinet (BLOODRIFT)", obs: 8,
-      halos: function () { return []; }, get: function () { return [arcade, arcLight]; } },
     // (the VICTORY LAP crate used to be here — it lives in the hallway now, and the
     //  decor tabs only dress the bedroom)
     { key: "brain", sec: "desk", label: "the brain (BRAINROT) + poster", halos: function () { return [gBrain]; },

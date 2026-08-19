@@ -11,7 +11,7 @@
  *                          contents, and they effectively never change — so serve them
  *                          instantly and only hit the network on a miss.
  */
-var CACHE = "the-room-v16"; // v16: the basement opens — the chain came off, the den is real
+var CACHE = "the-room-v17"; // v17: the arcade corner — BLOODRIFT and THE LAST ISSUE, cabinet to cabinet
 var SHELL = ["./", "./index.html", "./manifest.webmanifest", "./icon.svg",
   // room.js imports these at parse time — miss one and the offline room won't boot
   "./js/room.js", "./js/util.js", "./js/stickers.js", "./js/collectibles.js",
