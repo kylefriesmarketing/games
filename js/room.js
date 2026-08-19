@@ -3073,6 +3073,18 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
     { x: -9.72, z: 0.30, r: 0.80 },  // the table and chairs
     { x: -8.50, z: 1.55, r: 0.60 },  // the fridge
   ];
+  var KID_BASEMENT_OBSTACLES = [
+    { x: 0.60, z: 4.05, r: 1.15 },   // the couch
+    { x: 0.60, z: 1.60, r: 0.70 },   // the TV cart
+    { x: 0.60, z: 2.92, r: 0.60 },   // the coffee table
+    { x: -2.10, z: -0.75, r: 1.50 }, // ping-pong
+    { x: -2.40, z: 2.20, r: 0.25 },  // the pole (he has run into it; see the pole)
+    { x: -6.62, z: -1.62, r: 0.55 }, // the water heater
+    { x: -5.30, z: -1.85, r: 0.60 }, // the furnace
+    { x: 2.82, z: 2.55, r: 0.55 },   // the aquarium
+    { x: 2.62, z: -1.72, r: 0.50 },  // the bike
+    { x: 2.55, z: 4.28, r: 0.65 },   // the record console
+  ];
   var KID_BACK_OBSTACLES = [
     // ⚠️ the POOL is two obstacle circles. The kid cannot swim; nothing in his
     // steering knows about water, so the water is a wall as far as he knows.
@@ -3096,7 +3108,8 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
          : kidSpace === "porch" ? KID_PORCH_OBSTACLES
          : kidSpace === "kitchen" ? KID_KITCHEN_OBSTACLES
          : kidSpace === "garage" ? KID_GARAGE_OBSTACLES
-         : kidSpace === "back" ? KID_BACK_OBSTACLES : KID_OBSTACLES;
+         : kidSpace === "back" ? KID_BACK_OBSTACLES
+         : kidSpace === "basement" ? KID_BASEMENT_OBSTACLES : KID_OBSTACLES;
   }
   var KID_HALL_STATIONS = [
     { x: -5.55, z: 2.50, act: "idle" },    // by the closet
@@ -3116,6 +3129,11 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
     { x: -11.5, z: 0.9, act: "fidget" },   // by the sink end
     { x: -8.6, z: -0.6, act: "idle" },     // hovering near the fridge, obviously
   ];
+  var KID_BASEMENT_STATIONS = [   // every station carries y: the den floor is -2.42
+    { x: -4.30, z: 3.20, y: -2.42, act: "idle" },    // mid-den, taking it in
+    { x: -0.90, z: 0.20, y: -2.42, act: "fidget" },  // at the ping-pong table, ready
+    { x: 1.90, z: 2.30, y: -2.42, act: "idle" },     // in the aquarium glow
+  ];
   var KID_BACK_STATIONS = [   // lawn stations carry y — the yard is 45cm below the deck
     { x: -5.30, z: 9.65, act: "idle" },                 // on the deck boards
     { x: -4.30, z: 15.2, y: -0.45, act: "fidget" },     // poolside, north-west corner
@@ -3131,7 +3149,8 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
          : kidSpace === "porch" ? KID_PORCH_STATIONS
          : kidSpace === "kitchen" ? KID_KITCHEN_STATIONS
          : kidSpace === "garage" ? KID_GARAGE_STATIONS
-         : kidSpace === "back" ? KID_BACK_STATIONS : KID_STATIONS;
+         : kidSpace === "back" ? KID_BACK_STATIONS
+         : kidSpace === "basement" ? KID_BASEMENT_STATIONS : KID_STATIONS;
   }
   // where he appears when he follows you: the doorway you both just came through,
   // so it reads as him walking in rather than as a teleport
@@ -3142,9 +3161,11 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
     kitchen: { x: -7.95, z: -0.35 },  // just inside the kitchen doorway
     garage:  { x: -8.00, z: 5.60 },   // just inside the garage doorway
     back:    { x: -5.34, z: 9.55 },   // out the slider, on the deck
+    basement: { x: -6.97, z: 0.95 },  // top of the flight — he GLIDES down it, free
   };
   var KID_HUBS = { bedroom: { x: 0.3, z: 1.35 }, hall: { x: -5.9, z: 1.2 }, porch: { x: -5.9, z: -4.8 },
-    kitchen: { x: -10.4, z: -1.2 }, garage: { x: -9.0, z: 5.15 }, back: { x: -4.6, z: 13.4 } };
+    kitchen: { x: -10.4, z: -1.2 }, garage: { x: -9.0, z: 5.15 }, back: { x: -4.6, z: 13.4 },
+    basement: { x: -3.2, z: 1.9 } };
   var kidFollowT = -1, kidFollowTo = null;
 
   // One avoidance step toward (tx,tz): steer around obstacles, then hard-clamp out
@@ -3260,6 +3281,7 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
              : kidSpace === "kitchen" ? "the kitchen! this is where the cereal lives."
              : kidSpace === "garage" ? "the GARAGE. i'm not allowed to touch the bench. i touch the bench."
              : kidSpace === "back" ? "a POOL. we have a POOL. we've always had one but STILL."
+             : kidSpace === "basement" ? "the BASEMENT. all the best games live where the spiders are."
                                       : "i know this bit. this is the hallway.", 4);
       } catch (e) { }
     }

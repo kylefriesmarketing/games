@@ -634,31 +634,34 @@ export function buildHallway(ctx) {
   upSignM.rotation.y = Math.PI / 2; upSignM.position.set(W_IN + 0.02, 1.85, -0.72); upSignM.rotation.z = -0.02; add(upSignM);
 
   // DOWN: a real hole in the floor, steps descending into a cold green glow.
-  // The chain says not yet. The temperature says the basement is already awake.
-  var holeDark = box(HOLE.x1 - HOLE.x0, 0.02, HOLE.z1 - HOLE.z0, mat(0x05070a, 1));
-  holeDark.position.set((HOLE.x0 + HOLE.x1) / 2, -1.3, (HOLE.z0 + HOLE.z1) / 2); add(holeDark);
-  for (var ds = 0; ds < 5; ds++) {
+  // ⚠️ THE CHAIN CAME OFF. It hung across the top since the hall was built —
+  // "opening soon" — and the basement is open now, so it hangs coiled on the
+  // south rail post the way an unhooked chain actually lives. The full flight
+  // is ELEVEN risers: the original five stopped at y -1.0 in a room that needs
+  // to reach -2.42, a staircase into nothing.
+  for (var ds = 0; ds < 11; ds++) {
     var dstep = new THREE.Mesh(new THREE.BoxGeometry(HOLE.x1 - HOLE.x0 - 0.06, 0.16, 0.24), stairM);
-    dstep.position.set((HOLE.x0 + HOLE.x1) / 2, -0.1 - ds * 0.22, HOLE.z0 + 0.16 + ds * 0.19); add(dstep);
+    dstep.position.set((HOLE.x0 + HOLE.x1) / 2, -0.1 - ds * 0.21, HOLE.z0 + 0.16 + ds * 0.19); add(dstep);
   }
-  [[HOLE.x1 + 0.02, HOLE.z0 - 0.03, (HOLE.x1 - HOLE.x0) + 0.1, 0],   // railings around the hole
-   [HOLE.x1 + 0.02, HOLE.z1 + 0.03, (HOLE.x1 - HOLE.x0) + 0.1, 0]].forEach(function (r, i) {
-    var hr = new THREE.Mesh(new THREE.BoxGeometry(r[2], 0.05, 0.05), mat(0x3a2c1c, 0.7));
-    hr.position.set((HOLE.x0 + HOLE.x1) / 2 + 0.05, 0.62, r[1]); add(hr);
+  // rails: SOUTH and EAST only — the north edge is the mouth you walk in through
+  (function () {
+    var hr = new THREE.Mesh(new THREE.BoxGeometry((HOLE.x1 - HOLE.x0) + 0.1, 0.05, 0.05), mat(0x3a2c1c, 0.7));
+    hr.position.set((HOLE.x0 + HOLE.x1) / 2 + 0.05, 0.62, HOLE.z1 + 0.03); add(hr);
     var hp = new THREE.Mesh(new THREE.BoxGeometry(0.045, 0.62, 0.045), mat(0x3a2c1c, 0.7));
-    hp.position.set(HOLE.x1, 0.31, r[1]); add(hp);
-  });
+    hp.position.set(HOLE.x1, 0.31, HOLE.z1 + 0.03); add(hp);
+  })();
   var eastRail = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.05, HOLE.z1 - HOLE.z0 + 0.1), mat(0x3a2c1c, 0.7));
   eastRail.position.set(HOLE.x1 + 0.02, 0.62, (HOLE.z0 + HOLE.z1) / 2); add(eastRail);
   var bGlow = new THREE.Mesh(new THREE.PlaneGeometry(HOLE.x1 - HOLE.x0, HOLE.z1 - HOLE.z0),
     new THREE.MeshBasicMaterial({ color: 0x77d9a8, transparent: true, opacity: 0.1, blending: THREE.AdditiveBlending, depthWrite: false }));
   bGlow.rotation.x = -Math.PI / 2; bGlow.position.set((HOLE.x0 + HOLE.x1) / 2, 0.02, (HOLE.z0 + HOLE.z1) / 2); add(bGlow);
-  var chain = new THREE.Mesh(new THREE.BoxGeometry(0.02, 0.05, HOLE.z1 - HOLE.z0 + 0.06), new THREE.MeshStandardMaterial({ color: 0x777777, metalness: 0.7, roughness: 0.45 }));
-  chain.position.set(HOLE.x1, 0.5, (HOLE.z0 + HOLE.z1) / 2); chain.rotation.x = 0.12; add(chain);
+  var chain = new THREE.Mesh(new THREE.BoxGeometry(0.02, 0.34, 0.05), new THREE.MeshStandardMaterial({ color: 0x777777, metalness: 0.7, roughness: 0.45 }));
+  chain.position.set(HOLE.x1, 0.38, HOLE.z1 + 0.03); chain.rotation.x = 0.1; add(chain);
   var downHit = box(HOLE.x1 - HOLE.x0, 0.6, HOLE.z1 - HOLE.z0, new THREE.MeshBasicMaterial({ visible: false }));
   downHit.position.set((HOLE.x0 + HOLE.x1) / 2, 0.3, (HOLE.z0 + HOLE.z1) / 2); add(downHit);
-  tag(downHit, "the stairs down", null, "the basement — opening soon. the light down there already works.");
-  tag(chain, "the stairs down", null, "the basement — opening soon. the light down there already works.");
+  tag(downHit, "the stairs down", function () { enterBasement(); },
+    "the basement — the light's on down there. click to go down");
+  tag(chain, "the chain", null, "unhooked. it only ever said 'not yet', and it isn't 'not yet' anymore.");
 
   /* ---- THE PHOTO WALL --------------------------------------------------------
    * Twenty frames on the east wall, one per achievement, two staggered rows.
@@ -3551,6 +3554,301 @@ export function buildHallway(ctx) {
   function togGarLight() { garOn = !garOn; AUDIO.clickSfx && AUDIO.clickSfx(garOn ? 1200 : 700); }
   [gChain, gBead, gBulb].forEach(function (m) { gtag(m, "the pull chain", togGarLight, "the pull chain — clack."); });
 
+  /* ---- THE BASEMENT ---------------------------------------------------------------
+   * The den. Wood paneling on two walls, block on the other two, joists and duct
+   * overhead, a lally column holding the whole house up, and the good furniture
+   * that got demoted: plaid couch, CRT on a wheeled cart, ping-pong table, the
+   * record console, an exercise bike facing the wall in shame. The cold green
+   * glow the hall promised for months is the AQUARIUM — the light down there
+   * really did already work.
+   * Footprint: under the hall and the bedroom (x -7.4..3.3, z -2.4..4.6), floor
+   * at -2.42, ceiling hung at -0.10 just under the hall floor. Everything is in
+   * `g`, so it gates with the hall; all three lights are distance-capped so they
+   * cannot climb through the floor and re-light the corridor. */
+  var bstag = function (m, name, action, hint) { clickable(m, name, action, hint); m.userData.space = "basement"; return m; };
+  var BSM = { x0: -7.40, x1: 3.30, z0: -2.40, z1: 4.60, fl: -2.42, ce: -0.10 };
+  var panelT = canvasTex(128, 128, function (c, w, h) {
+    c.fillStyle = "#7a5a38"; c.fillRect(0, 0, w, h);
+    for (var pv = 0; pv < w; pv += 16) {                    // vertical plank grooves
+      c.fillStyle = "rgba(46,30,16,0.55)"; c.fillRect(pv, 0, 2, h);
+      c.fillStyle = "rgba(255,220,170,0.07)"; c.fillRect(pv + 2, 0, 3, h);
+    }
+    for (var pg2 = 0; pg2 < 26; pg2++) {                    // grain flecks
+      c.fillStyle = "rgba(40,26,12,0.18)";
+      c.fillRect((pg2 * 37) % w, (pg2 * 53) % h, 1.5, 5 + (pg2 % 4) * 3);
+    }
+  });
+  panelT.wrapS = panelT.wrapT = THREE.RepeatWrapping; panelT.repeat.set(4, 1);
+  var panelM = new THREE.MeshStandardMaterial({ map: panelT, roughness: 0.85 });
+  var cinderT = canvasTex(128, 128, function (c, w, h) {
+    c.fillStyle = "#8a8c88"; c.fillRect(0, 0, w, h);
+    c.strokeStyle = "rgba(50,52,50,0.5)"; c.lineWidth = 2;
+    for (var cy3 = 0; cy3 <= h; cy3 += 21) { c.beginPath(); c.moveTo(0, cy3); c.lineTo(w, cy3); c.stroke(); }
+    for (var rw2 = 0; rw2 < 6; rw2++) for (var cx3 = ((rw2 % 2) ? 21 : 0); cx3 <= w; cx3 += 42) {
+      c.beginPath(); c.moveTo(cx3, rw2 * 21); c.lineTo(cx3, rw2 * 21 + 21); c.stroke();
+    }
+  });
+  cinderT.wrapS = cinderT.wrapT = THREE.RepeatWrapping; cinderT.repeat.set(3, 1.4);
+  var cinderM = new THREE.MeshStandardMaterial({ map: cinderT, roughness: 0.97 });
+  var bsFloorM = mat(0x77756e, 0.98);
+  var bsFloor = box(BSM.x1 - BSM.x0, 0.10, BSM.z1 - BSM.z0, bsFloorM);
+  bsFloor.position.set((BSM.x0 + BSM.x1) / 2, BSM.fl - 0.05, (BSM.z0 + BSM.z1) / 2); add(bsFloor);
+  bstag(bsFloor, "the basement floor", null, "cold through socks. everyone knows, everyone forgets.");
+  var BSH = BSM.ce - BSM.fl, BSY = (BSM.ce + BSM.fl) / 2;
+  var bwN = box(BSM.x1 - BSM.x0, BSH, 0.12, cinderM); bwN.position.set((BSM.x0 + BSM.x1) / 2, BSY, BSM.z0 + 0.06); add(bwN);
+  var bwW = box(0.12, BSH, BSM.z1 - BSM.z0, cinderM); bwW.position.set(BSM.x0 + 0.06, BSY, (BSM.z0 + BSM.z1) / 2); add(bwW);
+  var bwS = box(BSM.x1 - BSM.x0, BSH, 0.12, panelM); bwS.position.set((BSM.x0 + BSM.x1) / 2, BSY, BSM.z1 - 0.06); add(bwS);
+  var bwE = box(0.12, BSH, BSM.z1 - BSM.z0, panelM); bwE.position.set(BSM.x1 - 0.06, BSY, (BSM.z0 + BSM.z1) / 2); add(bwE);
+  bstag(bwS, "the paneling", null, "real simulated wood. the finest kind.");
+  // ceiling in three pieces around the stairwell notch, joists and a duct below it
+  [[BSM.x0, BSM.x1, BSM.z0, 0.35], [BSM.x0, BSM.x1, 1.30, BSM.z1], [-6.55, BSM.x1, 0.35, 1.30]]
+    .forEach(function (cp2) {
+      var cs = box(cp2[1] - cp2[0], 0.08, cp2[3] - cp2[2], mat(0x241f1a, 0.98));
+      cs.position.set((cp2[0] + cp2[1]) / 2, BSM.ce + 0.04, (cp2[2] + cp2[3]) / 2); add(cs);
+    });
+  [-1.2, 1.0, 3.2].forEach(function (jz2) {
+    var js2 = box(BSM.x1 - BSM.x0, 0.09, 0.13, mat(0x3a2c1c, 0.95));
+    js2.position.set((BSM.x0 + BSM.x1) / 2, BSM.ce - 0.05, jz2); add(js2);
+  });
+  var duct = box(BSM.x1 - BSM.x0 - 0.8, 0.26, 0.34, new THREE.MeshStandardMaterial({ color: 0x9aa2ab, roughness: 0.4, metalness: 0.5 }));
+  duct.position.set((BSM.x0 + BSM.x1) / 2 - 0.4, BSM.ce - 0.24, 2.15); add(duct);
+  [[-0.62, 0x8a4a3a], [-0.50, 0x707880]].forEach(function (pp2) {
+    var pipe = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.035, BSM.x1 - BSM.x0 - 0.4, 8),
+      new THREE.MeshStandardMaterial({ color: pp2[1], roughness: 0.5, metalness: 0.4 }));
+    pipe.rotation.z = Math.PI / 2; pipe.position.set((BSM.x0 + BSM.x1) / 2, BSM.ce - 0.16, pp2[0]); add(pipe);
+  });
+  var lally = new THREE.Mesh(new THREE.CylinderGeometry(0.055, 0.055, BSH, 10),
+    new THREE.MeshStandardMaterial({ color: 0x8a2f2a, roughness: 0.5, metalness: 0.3 }));
+  lally.position.set(-2.4, BSY, 2.2); add(lally);
+  bstag(lally, "the pole", null, "holds the whole house up. also holds the record for being run into.");
+  var stringer = box(0.08, 1.15, 2.45, panelM); stringer.position.set(-6.51, BSM.fl + 0.95, 1.55); add(stringer);
+  // the den rug, couch, coffee table
+  var rugT = canvasTex(128, 96, function (c, w, h) {
+    c.fillStyle = "#5d3a2a"; c.fillRect(0, 0, w, h);
+    c.strokeStyle = "rgba(216,180,120,0.5)"; c.lineWidth = 5; c.strokeRect(8, 8, w - 16, h - 16);
+    c.fillStyle = "rgba(30,18,10,0.25)"; c.fillRect(w * 0.3, h * 0.28, w * 0.4, h * 0.44);
+  });
+  var bsRug = new THREE.Mesh(new THREE.PlaneGeometry(3.2, 2.4),
+    new THREE.MeshStandardMaterial({ map: rugT, roughness: 0.98, polygonOffset: true, polygonOffsetFactor: -3, polygonOffsetUnits: -3 }));
+  bsRug.rotation.x = -Math.PI / 2; bsRug.position.set(0.7, BSM.fl + 0.006, 3.0); bsRug.renderOrder = 1; add(bsRug);
+  var plaidM = mat(0x6e4a30, 0.95);
+  var couchG = new THREE.Group(); couchG.position.set(0.6, BSM.fl, 4.02); add(couchG);
+  var cBase = box(2.05, 0.42, 0.85, plaidM); cBase.position.y = 0.28; couchG.add(cBase);
+  var cBack = box(2.05, 0.55, 0.24, plaidM); cBack.position.set(0, 0.72, 0.32); couchG.add(cBack);
+  [[-1.06], [1.06]].forEach(function (ar2) {
+    var arm2 = box(0.24, 0.36, 0.85, plaidM); arm2.position.set(ar2[0], 0.62, 0); couchG.add(arm2);
+  });
+  [-0.62, 0.05, 0.72].forEach(function (cu2) {
+    var cush = box(0.6, 0.13, 0.72, mat(0x7d5638, 0.95)); cush.position.set(cu2, 0.54, -0.03); couchG.add(cush);
+  });
+  var afghan = box(0.72, 0.05, 0.55, mat(0x8a2f2a, 0.98));
+  afghan.position.set(-0.55, 1.02, 0.30); afghan.rotation.x = -0.25; couchG.add(afghan);
+  couchG.children.forEach(function (m) { bstag(m, "the couch", null, "it eats remotes. it has eaten three."); });
+  var ctG = new THREE.Group(); ctG.position.set(0.6, BSM.fl, 2.92); add(ctG);
+  var ctTop = box(1.05, 0.06, 0.55, mat(0x6b5638, 0.85)); ctTop.position.y = 0.40; ctG.add(ctTop);
+  [[-0.46, -0.2], [0.46, -0.2], [-0.46, 0.2], [0.46, 0.2]].forEach(function (cl2) {
+    var lg3 = box(0.06, 0.38, 0.06, mat(0x4a3524, 0.9)); lg3.position.set(cl2[0], 0.19, cl2[1]); ctG.add(lg3);
+  });
+  var bgBox = box(0.36, 0.06, 0.26, mat(0x3a68b0, 0.7)); bgBox.position.set(0.28, 0.46, 0.06); bgBox.rotation.y = 0.2; ctG.add(bgBox);
+  bstag(bgBox, "the board game", null, "the rules are in the box. the ARGUMENTS are eternal.");
+  // 🎲 THE CIGAR BOX — the den keeps its opinions in here
+  var cigG = new THREE.Group(); cigG.position.set(0.15, BSM.fl + 0.43, 2.86); cigG.rotation.y = -0.25; add(cigG);
+  var cigBody = box(0.26, 0.07, 0.17, mat(0x5e3a20, 0.75)); cigBody.position.y = 0.035; cigG.add(cigBody);
+  var cigLid = box(0.26, 0.02, 0.17, mat(0x7a4a2a, 0.7)); cigLid.position.set(0, 0.08, -0.012); cigLid.rotation.x = -0.12; cigG.add(cigLid);
+  var cigBand = box(0.27, 0.03, 0.05, mat(0xe0b03a, 0.6)); cigBand.position.set(0, 0.045, 0.062); cigG.add(cigBand);
+  // the TV cart, mid-room the way basement TVs are, screen at the couch
+  var cartG = new THREE.Group(); cartG.position.set(0.6, BSM.fl, 1.62); add(cartG);
+  [[0.36], [0.02]].forEach(function (sh2) {
+    var shl = box(0.95, 0.05, 0.6, mat(0x2b2e33, 0.6)); shl.position.y = sh2[0] + 0.4; cartG.add(shl);
+  });
+  [[-0.43, -0.25], [0.43, -0.25], [-0.43, 0.25], [0.43, 0.25]].forEach(function (cp3) {
+    var pst = box(0.05, 0.78, 0.05, mat(0x2b2e33, 0.6)); pst.position.set(cp3[0], 0.39, cp3[1]); cartG.add(pst);
+    var whl = new THREE.Mesh(new THREE.CylinderGeometry(0.045, 0.045, 0.04, 8), mat(0x1d1f22, 0.5));
+    whl.rotation.z = Math.PI / 2; whl.position.set(cp3[0], 0.045, cp3[1]); cartG.add(whl);
+  });
+  var crt = box(0.66, 0.52, 0.56, mat(0x4a4438, 0.7)); crt.position.set(0, 1.05, -0.02); cartG.add(crt);
+  var staticT = canvasTex(64, 64, function (c, w, h) {
+    for (var sp2 = 0; sp2 < w * h / 2; sp2++) {
+      var vv = 90 + Math.random() * 165 | 0;
+      c.fillStyle = "rgb(" + vv + "," + vv + "," + vv + ")";
+      c.fillRect(Math.random() * w | 0, Math.random() * h | 0, 1, 1);
+    }
+  });
+  var crtScr = new THREE.Mesh(new THREE.PlaneGeometry(0.52, 0.40),
+    new THREE.MeshStandardMaterial({ map: staticT, emissiveMap: staticT, color: 0x8a8f96,
+      emissive: 0xbfc8d8, emissiveIntensity: 0.7, roughness: 0.3 }));
+  crtScr.position.set(0, 1.06, 0.27); cartG.add(crtScr);
+  var conSole = box(0.34, 0.07, 0.24, mat(0x3a3f45, 0.6)); conSole.position.set(0.02, 0.475, 0.12); cartG.add(conSole);
+  [[-0.28, 0.9, 0x3a3f45], [0.18, 0.55, 0x3a3f45]].forEach(function (pd2) {
+    var pad = box(0.13, 0.035, 0.09, mat(pd2[2], 0.5));
+    pad.position.set(pd2[0], 0.045, 0.55); pad.rotation.y = pd2[1]; cartG.add(pad);
+  });
+  for (var kt2 = 0; kt2 < 3; kt2++) {
+    var cart2 = box(0.12, 0.035, 0.16, mat([0x8a8f96, 0xb8934a, 0x4a6349][kt2], 0.6));
+    cart2.position.set(-0.25 + kt2 * 0.06, 0.455 + kt2 * 0.037, -0.1); cart2.rotation.y = kt2 * 0.14; cartG.add(cart2);
+  }
+  var tvLite = new THREE.PointLight(0xbfd8e8, 0.55, 3.2, 1.9);
+  tvLite.position.set(0.6, BSM.fl + 1.1, 2.1); add(tvLite);
+  cartG.children.forEach(function (m) {
+    bstag(m, "the TV", null, "channel 3, holding its breath. it is waiting for a player.");
+  });
+  // ping-pong, north half
+  var ppG = new THREE.Group(); ppG.position.set(-2.1, BSM.fl, -0.75); add(ppG);
+  var ppT = canvasTex(128, 76, function (c, w, h) {
+    c.fillStyle = "#2f6a4a"; c.fillRect(0, 0, w, h);
+    c.strokeStyle = "#e8e4d8"; c.lineWidth = 3; c.strokeRect(2, 2, w - 4, h - 4);
+    c.fillStyle = "#e8e4d8"; c.fillRect(w / 2 - 1, 2, 2, h - 4);
+  });
+  var ppTop = box(2.45, 0.05, 1.36, new THREE.MeshStandardMaterial({ map: ppT, roughness: 0.7 }));
+  ppTop.position.y = 0.76; ppG.add(ppTop);
+  [[-1.1, -0.55], [1.1, -0.55], [-1.1, 0.55], [1.1, 0.55]].forEach(function (pl2) {
+    var lg4 = box(0.07, 0.74, 0.07, mat(0x2b2e33, 0.6)); lg4.position.set(pl2[0], 0.37, pl2[1]); ppG.add(lg4);
+  });
+  var net = box(0.02, 0.14, 1.44, mat(0x1d1f22, 0.9)); net.position.y = 0.855; ppG.add(net);
+  [[-0.7, 0.35, 0xb03a2e], [0.85, -0.3, 0x2b4a8c]].forEach(function (pdl) {
+    var pad2 = new THREE.Mesh(new THREE.CylinderGeometry(0.085, 0.085, 0.02, 10), mat(pdl[2], 0.6));
+    pad2.position.set(pdl[0], 0.80, pdl[1]); ppG.add(pad2);
+    var hdl = box(0.03, 0.02, 0.09, mat(0x8a6a44, 0.8)); hdl.position.set(pdl[0], 0.80, pdl[1] + (pdl[1] > 0 ? 0.12 : -0.12)); ppG.add(hdl);
+  });
+  var ppBall = new THREE.Mesh(new THREE.SphereGeometry(0.021, 8, 6), mat(0xf4efdd, 0.4));
+  ppBall.position.set(0.3, 0.805, 0.1); ppG.add(ppBall);
+  ppG.children.forEach(function (m) {
+    bstag(m, "the ping-pong table", null, "best of five. best of seven. best of ELEVEN, fine.");
+  });
+  // the aquarium — the green light the hall has been promising for months
+  var aqCab = box(0.9, 0.62, 0.42, mat(0x4a3524, 0.85)); aqCab.position.set(2.82, BSM.fl + 0.31, 2.55); add(aqCab);
+  var aqGlass = new THREE.Mesh(new THREE.BoxGeometry(0.82, 0.5, 0.36),
+    new THREE.MeshStandardMaterial({ color: 0x9fd8c8, roughness: 0.1, transparent: true, opacity: 0.35 }));
+  aqGlass.position.set(2.82, BSM.fl + 0.90, 2.55); add(aqGlass);
+  var aqWater = new THREE.Mesh(new THREE.BoxGeometry(0.76, 0.4, 0.30),
+    new THREE.MeshStandardMaterial({ color: 0x77d9a8, emissive: 0x3fae76, emissiveIntensity: 0.85, roughness: 0.3, transparent: true, opacity: 0.55 }));
+  aqWater.position.set(2.82, BSM.fl + 0.87, 2.55); add(aqWater);
+  var aqGravel = box(0.76, 0.05, 0.30, mat(0x6a5540, 0.95)); aqGravel.position.set(2.82, BSM.fl + 0.685, 2.55); add(aqGravel);
+  var aqFish = [];
+  [[0.2, 0.94, 0xe0713a], [-0.18, 0.82, 0xe0b03a]].forEach(function (ff2) {
+    var fsh = box(0.06, 0.03, 0.015, mat(ff2[2], 0.5));
+    fsh.position.set(2.82 + ff2[0], BSM.fl + ff2[1], 2.55); add(fsh); aqFish.push({ m: fsh, ph: ff2[0] * 9 });
+  });
+  var aqLite = new THREE.PointLight(0x77d9a8, 1.1, 3.4, 1.8);
+  aqLite.position.set(2.82, BSM.fl + 1.05, 2.55); add(aqLite);
+  [aqGlass, aqWater].forEach(function (m) {
+    bstag(m, "the aquarium", null, "the cold green glow, explained. two fish, zero names that stuck.");
+  });
+  // the record console and its crate
+  var rcG = new THREE.Group(); rcG.position.set(2.55, BSM.fl, 4.28); add(rcG);
+  var rcBody = box(1.1, 0.55, 0.44, mat(0x5e4028, 0.8)); rcBody.position.y = 0.34; rcG.add(rcBody);
+  [[-0.48], [0.48]].forEach(function (rl3) {
+    var lg5 = box(0.05, 0.14, 0.05, mat(0x3a2c1c, 0.8)); lg5.position.set(rl3[0], 0.07, 0); rcG.add(lg5);
+  });
+  var platter = new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.16, 0.015, 16), mat(0x1d1f22, 0.5));
+  platter.position.set(-0.22, 0.625, 0); rcG.add(platter);
+  var crate = box(0.42, 0.3, 0.34, mat(0x8a6a44, 0.9)); crate.position.set(0.85, 0.15, -0.02); rcG.add(crate);
+  for (var rv2 = 0; rv2 < 5; rv2++) {
+    var slv = box(0.02, 0.26, 0.26, mat([0xb03a2e, 0x2b4a8c, 0xe0b03a, 0x2f5e3a, 0x8a4a6a][rv2], 0.85));
+    slv.position.set(0.72 + rv2 * 0.05, 0.32, -0.02); slv.rotation.z = 0.05 * rv2; rcG.add(slv);
+  }
+  rcG.children.forEach(function (m) { bstag(m, "the records", null, "side B of everything. the good side."); });
+  // the exercise bike, facing the wall (the cigar box can grant it forgiveness)
+  var bikeG2 = new THREE.Group(); bikeG2.position.set(2.62, BSM.fl, -1.72); bikeG2.rotation.y = Math.PI; add(bikeG2);
+  var bkBase2 = box(0.7, 0.08, 0.22, mat(0x8a8f96, 0.5)); bkBase2.position.y = 0.06; bikeG2.add(bkBase2);
+  var bkPost1 = box(0.07, 0.62, 0.07, mat(0x8a8f96, 0.5)); bkPost1.position.set(0.22, 0.38, 0); bikeG2.add(bkPost1);
+  var bkPost2 = box(0.07, 0.5, 0.07, mat(0x8a8f96, 0.5)); bkPost2.position.set(-0.24, 0.32, 0); bikeG2.add(bkPost2);
+  var bkSeat2 = box(0.2, 0.06, 0.14, mat(0x1d1f22, 0.7)); bkSeat2.position.set(-0.24, 0.60, 0); bikeG2.add(bkSeat2);
+  var bkBars2 = box(0.1, 0.05, 0.34, mat(0x1d1f22, 0.7)); bkBars2.position.set(0.22, 0.72, 0); bikeG2.add(bkBars2);
+  var bkWheel = new THREE.Mesh(new THREE.CylinderGeometry(0.19, 0.19, 0.05, 14), mat(0x2b2e33, 0.5));
+  bkWheel.rotation.z = Math.PI / 2; bkWheel.position.set(0.05, 0.24, 0); bikeG2.add(bkWheel);
+  bikeG2.children.forEach(function (m) {
+    bstag(m, "the exercise bike", null, "january's big idea. it faces the wall now, and it knows why.");
+  });
+  // utility corner: water heater, furnace, and the boxes that never made the move
+  var whG = new THREE.Group(); whG.position.set(-6.62, BSM.fl, -1.62); add(whG);
+  var whBody = new THREE.Mesh(new THREE.CylinderGeometry(0.34, 0.34, 1.55, 14), mat(0xd8d2c4, 0.6));
+  whBody.position.y = 0.815; whG.add(whBody);
+  var whCap = new THREE.Mesh(new THREE.CylinderGeometry(0.09, 0.14, 0.3, 10), mat(0x9aa2ab, 0.5));
+  whCap.position.y = 1.72; whG.add(whCap);
+  whG.children.forEach(function (m) { bstag(m, "the water heater", null, "everyone's showers, single file."); });
+  var furn = box(0.85, 1.15, 0.6, mat(0x707880, 0.6)); furn.position.set(-5.3, BSM.fl + 0.575, -1.85); add(furn);
+  var fDuct = box(0.3, 0.75, 0.3, new THREE.MeshStandardMaterial({ color: 0x9aa2ab, roughness: 0.4, metalness: 0.5 }));
+  fDuct.position.set(-5.3, BSM.fl + 1.85, -1.85); add(fDuct);
+  bstag(furn, "the furnace", null, "it kicks on like it's clearing its throat.");
+  [[-6.85, 3.85, 0, "SCHOOL"], [-6.35, 3.95, 0.3, "MISC"]].forEach(function (bb2) {
+    var bx4 = box(0.42, 0.34, 0.32, mat(0xb08d5a, 0.92)); bx4.position.set(bb2[0], BSM.fl + 0.17 + (bb2[2] ? 0 : 0), bb2[1]); bx4.rotation.y = bb2[2]; add(bx4);
+    bstag(bx4, "the boxes", null, "sealed since the last house. opening them admits defeat.");
+  });
+  var rolled = new THREE.Mesh(new THREE.CylinderGeometry(0.13, 0.13, 1.6, 10), mat(0x5d3a2a, 0.95));
+  rolled.position.set(-7.15, BSM.fl + 0.8, 3.3); rolled.rotation.z = 0.06; add(rolled);
+  bstag(rolled, "the rolled rug", null, "it will go somewhere someday. today it leans.");
+  // posters on the paneling
+  [[-1.4, "SPRING FLING '96", "#2b4a8c", "#f4efdd"], [-3.6, "LAKESIDE", "#2f5e3a", "#e8e4d8"]].forEach(function (po3) {
+    var poT = canvasTex(96, 128, function (c, w, h) {
+      c.fillStyle = po3[2]; c.fillRect(0, 0, w, h);
+      c.strokeStyle = po3[3]; c.lineWidth = 3; c.strokeRect(6, 6, w - 12, h - 12);
+      c.fillStyle = po3[3]; c.font = "bold 13px Georgia, serif"; c.textAlign = "center";
+      c.fillText(po3[1], w / 2, 34);
+      c.beginPath(); c.moveTo(20, 96); c.lineTo(48, 60); c.lineTo(76, 96); c.closePath(); c.fill();
+    });
+    var pom = new THREE.Mesh(new THREE.PlaneGeometry(0.5, 0.68),
+      new THREE.MeshStandardMaterial({ map: poT, roughness: 0.9 }));
+    pom.position.set(po3[0], BSM.fl + 1.55, BSM.z1 - 0.13); pom.rotation.y = Math.PI; pom.rotation.z = 0.02; add(pom);
+    bstag(pom, "the posters", null, "load-bearing nostalgia.");
+  });
+  // the hopper window, high on the north wall — street level is up there
+  var hopFrame = box(0.86, 0.44, 0.08, mat(0x4a4438, 0.8)); hopFrame.position.set(-4.5, BSM.ce - 0.45, BSM.z0 + 0.10); add(hopFrame);
+  var hopGlass = box(0.74, 0.32, 0.03, new THREE.MeshStandardMaterial({ color: 0x101828, roughness: 0.2 }));
+  hopGlass.position.set(-4.5, BSM.ce - 0.45, BSM.z0 + 0.13); add(hopGlass);
+  bstag(hopGlass, "the little window", null, "shins go by, sometimes. that's the whole channel.");
+  // light: a warm floor lamp by the couch, and a bare bulb over the stairs
+  var lampPole = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.03, 1.35, 8), mat(0x8a6a44, 0.7));
+  lampPole.position.set(1.85, BSM.fl + 0.675, 3.85); add(lampPole);
+  var lampShade = new THREE.Mesh(new THREE.ConeGeometry(0.19, 0.24, 12, 1, true), mat(0xd8b46a, 0.8));
+  lampShade.position.set(1.85, BSM.fl + 1.42, 3.85); add(lampShade);
+  var bsLamp = new THREE.PointLight(0xffd9a0, 1.5, 4.6, 1.8);
+  bsLamp.position.set(1.85, BSM.fl + 1.3, 3.85); add(bsLamp);
+  bstag(lampShade, "the lamp", null, "the click of it is the sound of the evening starting.");
+  var bsBulb = new THREE.Mesh(new THREE.SphereGeometry(0.04, 10, 8),
+    new THREE.MeshStandardMaterial({ color: 0xfff2d8, emissive: 0xffd9a0, emissiveIntensity: 1.4, roughness: 0.4 }));
+  bsBulb.position.set(-6.97, BSM.ce - 0.28, 2.35); add(bsBulb);
+  var bsStairLite = new THREE.PointLight(0xffe0b0, 0.9, 3.6, 1.8);
+  bsStairLite.position.set(-6.97, BSM.ce - 0.35, 2.35); add(bsStairLite);
+  var bsUpHit = new THREE.Mesh(new THREE.BoxGeometry(1.1, 1.9, 1.3),
+    new THREE.MeshBasicMaterial({ transparent: true, opacity: 0, depthWrite: false }));
+  bsUpHit.position.set(-6.9, BSM.fl + 0.95, 2.3); add(bsUpHit);
+  clickable(bsUpHit, "the stairs up", function () { leaveBasement(); }, "back up to the hall — mind the low bit");
+  bsUpHit.userData.space = "basement";
+  // the den breathes: static crawls, fish patrol, the tank light sways
+  function bsmTick(t) {
+    if (crtOn) {
+      staticT.offset.y = (t * 3.1) % 1;
+      crtScr.material.emissiveIntensity = 0.62 + Math.sin(t * 23) * 0.08 + Math.sin(t * 7.3) * 0.05;
+      tvLite.intensity = 0.5 + Math.sin(t * 19) * 0.08;
+    }
+    for (var af2 = 0; af2 < aqFish.length; af2++) {
+      var fo2 = aqFish[af2];
+      fo2.m.position.x = 2.82 + Math.sin(t * 0.5 + fo2.ph) * 0.28;
+      fo2.m.rotation.y = Math.cos(t * 0.5 + fo2.ph) > 0 ? 0 : Math.PI;
+    }
+    if (aqLite.visible) aqLite.intensity = 1.1 + Math.sin(t * 1.3) * 0.12;
+  }
+  var crtOn = true;
+  function setCrt(on3) {
+    crtOn = !!on3;
+    crtScr.material.emissiveIntensity = crtOn ? 0.7 : 0.0;
+    crtScr.material.color.setHex(crtOn ? 0x8a8f96 : 0x14161a);
+    tvLite.visible = crtOn;
+  }
+  function setTank(mode3) {   // 0 green · 1 blue · 2 lights out
+    var col = mode3 === 1 ? 0x7fb4e8 : 0x77d9a8;
+    aqLite.visible = mode3 !== 2;
+    aqLite.color.setHex(col);
+    aqWater.material.emissive.setHex(mode3 === 2 ? 0x0a201a : (mode3 === 1 ? 0x2f6a9c : 0x3fae76));
+    aqWater.material.emissiveIntensity = mode3 === 2 ? 0.15 : 0.85;
+  }
+  function setAfghan(mode4) {  // 0 plaid red · 1 orange · 2 folded away
+    afghan.visible = mode4 !== 2;
+    afghan.material.color.setHex(mode4 === 1 ? 0xc4742a : 0x8a2f2a);
+  }
+  function setBike(faceTv) { bikeG2.rotation.y = faceTv ? 0.35 : Math.PI; }
+
   /* ---- STASHES: a "my stuff" box for every room of the house ------------------
    * The bedroom has the shoebox; Kyle's call is that every area deserves its own —
    * moving boxes in the hall, a laundry basket at the back, a toolbox on the
@@ -3632,7 +3930,7 @@ export function buildHallway(ctx) {
    * look two numbers. */
   var LOOK_MATS = [hwallM, plankM, runner.material, oakM, kWallM, lamM,
                    sidingM, grassM, deckM, bFenceM, pdeckM,
-                   garWallM, garFloorM, benchM, poolConcM];   // the garage and pool deck wear it too
+                   garWallM, garFloorM, benchM, poolConcM, panelM];   // garage, pool deck, den paneling too
   var LOOK_BASE = LOOK_MATS.map(function (m) { return m.color.getHex(); });
   // `need` = treasures required, the same currency the bedroom's ROOM_THEMES spend.
   // The bedroom ladder tops out at 9 of 21; the house goes all the way to 21, so the
@@ -3927,6 +4225,33 @@ export function buildHallway(ctx) {
       "the cooler — pop on top, mystery at the bottom");
   });
 
+  // --- BASEMENT: the cigar box, which holds the den's opinions
+  var basementStash = makeStash("basement", "🎲 the cigar box", [
+    lookOption(),
+    { k: "crt", label: "the TV", vals: [
+      { label: "static on", apply: function () { setCrt(true); } },
+      { label: "off", apply: function () { setCrt(false); } },
+    ] },
+    { k: "tank", label: "the aquarium light", vals: [
+      { label: "green", apply: function () { setTank(0); } },
+      { label: "blue", apply: function () { setTank(1); } },
+      { label: "lights out", apply: function () { setTank(2); } },
+    ] },
+    { k: "afghan", label: "the afghan", vals: [
+      { label: "plaid red", apply: function () { setAfghan(0); } },
+      { label: "burnt orange", apply: function () { setAfghan(1); } },
+      { label: "folded away", apply: function () { setAfghan(2); } },
+    ] },
+    { k: "bike", label: "the exercise bike", vals: [
+      { label: "facing the wall", apply: function () { setBike(false); } },
+      { label: "facing the TV (brave)", apply: function () { setBike(true); } },
+    ] },
+  ]);
+  cigG.children.forEach(function (m) {
+    bstag(m, "the cigar box", function () { openStash(basementStash); },
+      "the cigar box — the den keeps its opinions in here");
+  });
+
   /* ---- state & camera ---------------------------------------------------------
    * space: "bedroom" | "hall". The transition walks the camera through the real
    * doorway while the door swings; while it runs, busy() guards the pointer.
@@ -3948,6 +4273,13 @@ export function buildHallway(ctx) {
     kdoor2: new THREE.Vector3(-7.20, 1.63, -0.35),  // in the doorway
     kdoorL: new THREE.Vector3(-9.4, 1.25, -0.6),    // what you see through it
     klookB: new THREE.Vector3(-6.1, 1.28, -0.85),   // turned round: the doorway, the hall beyond
+    cellar1: new THREE.Vector3(-5.95, 1.68, 0.60),  // squared to the hole, hall side
+    cellar2: new THREE.Vector3(-6.97, 1.25, 0.45),  // over the mouth of it
+    cellar3: new THREE.Vector3(-6.97, -0.60, 1.40), // mid-flight, under the floor now
+    cellar4: new THREE.Vector3(-6.97, -1.35, 2.55), // nearly down
+    bsrest: new THREE.Vector3(-5.30, -0.82, 3.30),  // standing in the den
+    bslook: new THREE.Vector3(1.60, -1.75, 1.45),   // the couch, the cart, the glow
+    bslookB: new THREE.Vector3(-6.97, -1.05, 1.60), // turned round: the stairs up
     brest: new THREE.Vector3(-4.55, 1.28, 13.9),    // on the back lawn, pool-side of the line
     blook: new THREE.Vector3(-1.20, -0.45, 17.1),   // the water
     blookB: new THREE.Vector3(-5.60, 1.45, 9.4),    // turned round: the slider, the lit house
@@ -4020,6 +4352,19 @@ export function buildHallway(ctx) {
     mode = "garageOut"; tt = 0;
     c0.copy(camera.position); l0.copy(lookAt);
   }
+  function enterBasement() {
+    if (mode !== "idle" || space !== "hall") return;
+    mode = "basementIn"; tt = 0;
+    c0.copy(camera.position); l0.copy(lookAt);
+    AUDIO.clickSfx && AUDIO.clickSfx(600);   // the first tread always announces you
+    if (turnBtn) turnBtn.style.display = "none";
+  }
+  function leaveBasement() {
+    if (mode !== "idle" && mode !== "turning") return;
+    if (space !== "basement") return;
+    mode = "basementOut"; tt = 0;
+    c0.copy(camera.position); l0.copy(lookAt);
+  }
   function enterBack() {
     if (mode !== "idle" || space !== "hall") return;
     mode = "backIn"; tt = 0;
@@ -4051,19 +4396,22 @@ export function buildHallway(ctx) {
   // which end of wherever you're standing you're looking at
   function restPos() {
     return space === "porch" ? P.porch : space === "kitchen" ? P.krest
-         : space === "garage" ? P.grest : space === "back" ? P.brest : P.rest;
+         : space === "garage" ? P.grest : space === "back" ? P.brest
+         : space === "basement" ? P.bsrest : P.rest;
   }
   function aimFor(f) {
     if (space === "porch") return f === "house" ? P.porchB : P.porchL;
     if (space === "kitchen") return f === "door" ? P.klookB : P.klook;
     if (space === "garage") return f === "door" ? P.glookB : P.glook;
     if (space === "back") return f === "house" ? P.blookB : P.blook;
+    if (space === "basement") return f === "stairs" ? P.bslookB : P.bslook;
     return f === "south" ? P.lookS : P.look;
   }
   function flipOf(f) {
     if (space === "porch") return f === "street" ? "house" : "street";
     if (space === "kitchen" || space === "garage") return f === "door" ? "room" : "door";
     if (space === "back") return f === "pool" ? "house" : "pool";
+    if (space === "basement") return f === "den" ? "stairs" : "den";
     return f === "north" ? "south" : "north";
   }
   function ease(x) { return x * x * (3 - 2 * x); }
@@ -4166,6 +4514,22 @@ export function buildHallway(ctx) {
       }
       return true;
     }
+    if (mode === "basementIn" || mode === "basementOut") {   // down the hole, into the den
+      tt = Math.min(1, tt + dt / 2.7);
+      if (mode === "basementIn")
+        walk([c0, P.cellar1, P.cellar2, P.cellar3, P.cellar4, P.bsrest],
+             [l0, new THREE.Vector3(-6.97, -1.2, 2.1), new THREE.Vector3(-6.8, -1.5, 2.5), P.bslook, P.bslook, P.bslook], tt);
+      else
+        walk([c0, P.cellar4, P.cellar3, P.cellar2, P.cellar1],
+             [l0, new THREE.Vector3(-6.97, 0.4, 0.9), new THREE.Vector3(-6.97, 1.2, 0.4), P.look, P.look], tt);
+      camera.position.copy(_v); lookAt.copy(_w); camera.lookAt(lookAt);
+      if (tt >= 1) {
+        if (mode === "basementIn") { space = "basement"; facing = turnTo = "den"; }
+        else { space = "hall"; facing = turnTo = "north"; AUDIO.clickSfx && AUDIO.clickSfx(500); }
+        turnK = 1; mode = "idle"; syncTurnBtn();
+      }
+      return true;
+    }
     if (mode === "backIn" || mode === "backOut") {   // through the slider, onto the lawn
       tt = Math.min(1, tt + dt / 2.4);
       var bk = mode === "backIn" ? tt : 1 - tt;
@@ -4229,7 +4593,7 @@ export function buildHallway(ctx) {
       }
       return true;
     }
-    if (space === "hall" || space === "porch" || space === "kitchen" || space === "garage" || space === "back") { // at rest: same parallax drift as the bedroom
+    if (space === "hall" || space === "porch" || space === "kitchen" || space === "garage" || space === "back" || space === "basement") { // at rest: same parallax drift as the bedroom
       // ⚠️ the swing is driven by a SEPARATE eased term, not by lerping lookAt
       // straight from one end to the other. A direct lerp passes the target
       // through the camera's own position on the way past, and the view whips
@@ -4273,7 +4637,8 @@ export function buildHallway(ctx) {
   function turn(to) {
     if (space === "bedroom" || mode === "entering" || mode === "leaving" ||
         mode === "out" || mode === "in" || mode === "kitchenIn" || mode === "kitchenOut" ||
-        mode === "garageIn" || mode === "garageOut" || mode === "backIn" || mode === "backOut") return;
+        mode === "garageIn" || mode === "garageOut" || mode === "backIn" || mode === "backOut" ||
+        mode === "basementIn" || mode === "basementOut") return;
     to = to || flipOf(facing);
     if (to === facing && mode !== "turning") { syncTurnBtn(); return; }
     turnTo = to; turnK = 0; mode = "turning";
@@ -4302,12 +4667,13 @@ export function buildHallway(ctx) {
       document.body.appendChild(turnBtn);
     }
     var show = space === "hall" || space === "porch" || space === "kitchen" ||
-               space === "garage" || space === "back" || mode === "entering";
+               space === "garage" || space === "back" || space === "basement" || mode === "entering";
     turnBtn.style.display = show ? "block" : "none";
     var next = flipOf(mode === "turning" ? turnTo : facing);
     // ⚠️ kitchen and garage share the room/door facing tokens, so "room" has to be
     // resolved per-space or the button in the garage offers you the kitchen
     var LBL = { south: "the back of the house", north: "the front door", pool: "the pool",
+                den: "the den", stairs: "the stairs up",
                 house: "the house", street: "the street",
                 door: "the way out", room: space === "garage" ? "the garage" : "the kitchen" };
     turnBtn.textContent = "⟲  turn around — " + (LBL[next] || "the other way");
@@ -4333,6 +4699,7 @@ export function buildHallway(ctx) {
     gBulb.material.emissiveIntensity = 1.6 * dim * gon;
     gSpill.material.opacity = 0.12 * dim * gon;
     poolTick(t, dt);   // the water never stops, even seen through the glass
+    bsmTick(t);        // and neither do the static or the fish
     // the porch light is OUTSIDE, so the pull chain doesn't touch it — that's the
     // point of it: turn the hall off and the yard is still faintly there
     porchLight.intensity = 1.5 * dim * backPorchOn;
@@ -4491,6 +4858,7 @@ export function buildHallway(ctx) {
     garage: { enter: enterGarage, leave: leaveGarage, roll: toggleRoll,
       rollA: function () { return rollA; } },
     back: { enter: enterBack, leave: leaveBack },
+    basement: { enter: enterBasement, leave: leaveBasement },
     stashes: stashByKey, openStash: openStash, closeStash: closeStash,
     setPhase: setPhase, phase: function () { return porchPhase; },
     knock: knockCame,
