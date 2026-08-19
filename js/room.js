@@ -199,7 +199,17 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
   var kidShadow = contactShadow(scene, 0.2, 0.2, 0.5);
 
   var pick = []; // clickable meshes
-  function clickable(mesh, name, action, hint) { mesh.userData = { name: name, action: action, hint: hint || "click to open" }; pick.push(mesh); return mesh; }
+  /* ⚠️ MERGES, it does not REPLACE. This was `mesh.userData = {…}`, which threw
+   * away anything set on the mesh beforehand — silently, with no way to notice
+   * except the flag you set simply not being there later. It ate a `__swings`
+   * marker on the door slabs the first time anyone tried to annotate a mesh
+   * before tagging it. Callers that set `space` or `__movKey` afterwards were
+   * fine by luck of ordering; nothing should depend on that. */
+  function clickable(mesh, name, action, hint) {
+    var u = mesh.userData || (mesh.userData = {});
+    u.name = name; u.action = action; u.hint = hint || "click to open";
+    pick.push(mesh); return mesh;
+  }
   function go(url) { var f = function () { markVisited(url); window.location.href = url; }; f.__nav = url; return f; } // __nav marks doorway actions — THE KID walks to those
   var BASE = "https://kylefriesmarketing.github.io/";
   // Declared up here because BOTH the duffel bag and its wall poster read it, and the
@@ -6423,18 +6433,55 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
     // 1. nothing a player can click may sit past a wall or under the floor.
     // ⚠️ dedupe by MESH, not by name — the desk brain and the poster are both
     // called "BRAINROT", and skipping by name hid a poster shoved through a wall.
+    /* ⚠️ THIS USED TO RETURN EARLY FOR EVERY SPACE BUT THE BEDROOM ("the hallway
+     * has its own walls"), which was true in the days when the hallway WAS the
+     * rest of the house. There are seven spaces now and 461 of the ~746 pickables
+     * live outside this room, so five sixths of the house could put a button
+     * through a wall and the audit would still say ok. Every space is checked
+     * against its own box now, and hallway.js exports those boxes from the very
+     * constants that build the geometry so the two can never drift apart. */
     var seen = {}, told = {};
+    var SP = (hall && hall.bounds) || {};
+    var BEDROOM_BOX = { x: [-WALL_IN - 0.12, WALL_IN + 0.12], z: [-2.7, 3.6], y: [0.005, 3.4] };
     pick.forEach(function (m) {
       var n = m.userData.name; if (!n) return;
-      if ((m.userData.space || "bedroom") !== "bedroom") return; // the hallway has its own walls
+      var sp = m.userData.space || "bedroom";
+      if (sp === "both") return;                    // the door belongs to two rooms; neither box fits it
+      var B = sp === "bedroom" ? BEDROOM_BOX : SP[sp];
+      /* ⚠️⚠️ A MISSING BOX IS A FAILURE, NOT A SKIP. This started as a quiet
+       * `if (!B) return;` and the very first run reported 0 errors across all
+       * seven spaces — which looked like a pass and was actually the whole check
+       * doing nothing, because a stale hallway.js meant hall.bounds was undefined
+       * and every space fell through the guard. A check that silently disables
+       * itself is worse than no check: it reports success. Say so instead. */
+      if (!B) { once("nobox", "is in space '" + sp + "', which has no bounds declared — UNCHECKED"); return; }
       seen[n] = 1;
-      var p = m; while (p) { if (!p.visible) return; p = p.parent; }
+      /* ⚠️⚠️ ONLY THE BEDROOM SKIPS HIDDEN THINGS. The other six spaces are hidden
+       * whenever you are not standing in them, so this guard meant the audit
+       * validated the room you happened to be in and quietly skipped the other
+       * 461 pickables — you would have had to walk to a room to find out it was
+       * broken, which is the opposite of what an audit is for. A Box3 does not
+       * care whether a mesh is rendered. The bedroom keeps the guard because its
+       * PUT-AWAY system genuinely takes objects out of the room. */
+      if (sp === "bedroom") { var p = m; while (p) { if (!p.visible) return; p = p.parent; } }
       var b = bb(m); if (!b) return;
       var c = b.getCenter(new V());
-      function once(why, detail) { var k = n + why; if (told[k]) return; told[k] = 1; say("error", n, detail); }
-      if (Math.abs(c.x) > WALL_IN + 0.12) once("wall", "is past the wall at x " + c.x.toFixed(2));
-      if (c.z < -2.7 || c.z > 3.6) once("room", "is outside the room at z " + c.z.toFixed(2));
-      if (b.max.y < 0.005) once("floor", "is under the floor");
+      function once(why, detail) {
+        var k = n + "|" + sp + "|" + why; if (told[k]) return; told[k] = 1;
+        say("error", n + " (" + sp + ")", detail);
+      }
+      /* ⚠️ a DOOR is allowed to be in two rooms — that is the entire job. The
+       * kitchen and garage slabs are tagged to the hall (that is where you click
+       * them) but they hinge on the hall wall and swing INTO the next room, so
+       * while they stand open their centre is legitimately 40cm past the west
+       * wall. Skip the horizontal box for those; the floor and ceiling checks
+       * below still apply, because no door should ever be underground. */
+      if (!m.userData.__swings) {
+        if (c.x < B.x[0] || c.x > B.x[1]) once("wall", "is past the wall at x " + c.x.toFixed(2));
+        if (c.z < B.z[0] || c.z > B.z[1]) once("room", "is outside the room at z " + c.z.toFixed(2));
+      }
+      if (b.max.y < B.y[0]) once("floor", "is under the floor (top at y " + b.max.y.toFixed(2) + ")");
+      if (b.min.y > B.y[1]) once("ceil", "is above the ceiling (base at y " + b.min.y.toFixed(2) + ")");
     });
 
     // 2. things mounted on the walls must not intersect each other

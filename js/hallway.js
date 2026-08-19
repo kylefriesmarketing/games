@@ -306,6 +306,7 @@ export function buildHallway(ctx) {
     plaque(pg, "KITCHEN", "come in");
   })();
   [kSlab, kKnob].forEach(function (m) {
+    m.userData.__swings = 1;   // hinged on the hall wall, opens INTO the kitchen
     tag(m, "the kitchen door", function () { enterKitchen(); },
       "the kitchen — the fridge hums. click to go in");
   });
@@ -691,10 +692,24 @@ export function buildHallway(ctx) {
       }
     });
   }
+  /* ⚠️⚠️ THE GALLERY SIZES ITSELF TO THE ACHIEVEMENT LIST. It used to be a hard
+   * two rows at a fixed 0.4 pitch — `z = 1.15 - col * 0.4` — which fitted the
+   * twenty awards it was built for and nothing more. Six new ones landed on
+   * 2026-08-11 (one per game that had no badge) and the last three columns
+   * marched straight out through the north wall to z -3.65, hanging in the front
+   * yard. Nobody saw it because you never stand north of the hall looking back.
+   * Now the run of wall is FIXED and the layout adapts to fill it, so adding
+   * awards re-flows the wall instead of posting them outside the house. */
+  var PW_Z0 = 1.15, PW_Z1 = -2.85;          // the stretch of east wall the gallery owns
+  var PW_N = PROFILE.ACHIEVEMENTS.length;
+  var pwRows = 2, pwCols = Math.ceil(PW_N / pwRows);
+  if ((pwCols - 1) * 0.40 > (PW_Z0 - PW_Z1)) { pwRows = 3; pwCols = Math.ceil(PW_N / pwRows); }
+  var pwStep = Math.min(0.40, (PW_Z0 - PW_Z1) / Math.max(1, pwCols - 1));
+  var pwY0 = pwRows > 2 ? 1.34 : 1.46, pwYStep = pwRows > 2 ? 0.50 : 0.48;
   var frames = [];
   PROFILE.ACHIEVEMENTS.forEach(function (a, i) {
-    var row = i % 2, col = (i / 2) | 0;
-    var z = 1.15 - col * 0.4, y = row ? 1.46 : 1.94;
+    var row = i % pwRows, col = (i / pwRows) | 0;
+    var z = PW_Z0 - col * pwStep, y = pwY0 + row * pwYStep;
     var fr = new THREE.Group(); fr.position.set(E_IN + 0.012, y, z); fr.rotation.z = (((i * 7) % 5) - 2) * 0.012; photoWall.add(fr);
     var when = pState.ach[a.id] || null;
     var frameM = mat(when ? 0x6a4e2e : 0x3c3630, 0.8);
@@ -2932,6 +2947,7 @@ export function buildHallway(ctx) {
     plaque(pg, "GARAGE", "mind your head");
   })();
   [gSlab, gKnob].forEach(function (m) {
+    m.userData.__swings = 1;   // hinged on the hall wall, opens INTO the garage
     tag(m, "the garage door", function () { enterGarage(); },
       "the garage — one car, a workbench, and everything that didn't fit. click to go in");
   });
@@ -3741,7 +3757,12 @@ export function buildHallway(ctx) {
     bstag(m, "the aquarium", null, "the cold green glow, explained. two fish, zero names that stuck.");
   });
   // the record console and its crate
-  var rcG = new THREE.Group(); rcG.position.set(2.55, BSM.fl, 4.28); add(rcG);
+  // ⚠️ 2.20, not 2.55: the crate sits at +0.85 and the sleeves fan to +0.92, so at
+  // 2.55 they reached x 3.47 — through the paneling at 3.24 and out into the dirt.
+  // ⚠️ 2.05 and not 2.20 either: the CRATE is the widest thing here (0.42 wide at
+  // +0.85, so +1.06), not the record sleeves I sized the first correction against.
+  // Measure the widest CHILD, not the one you happen to be thinking about.
+  var rcG = new THREE.Group(); rcG.position.set(2.05, BSM.fl, 4.28); add(rcG);
   var rcBody = box(1.1, 0.55, 0.44, mat(0x5e4028, 0.8)); rcBody.position.y = 0.34; rcG.add(rcBody);
   [[-0.48], [0.48]].forEach(function (rl3) {
     var lg5 = box(0.05, 0.14, 0.05, mat(0x3a2c1c, 0.8)); lg5.position.set(rl3[0], 0.07, 0); rcG.add(lg5);
@@ -5019,6 +5040,13 @@ export function buildHallway(ctx) {
       }
     } else if (truckG.visible) {
       truckG.visible = false; tkLite.intensity = 0; truckJing = 0;
+    } else if (truckG.position.x === 0 && truckG.position.z === 0) {
+      // ⚠️ it starts life at the ORIGIN, which is inside the house. Invisible, so
+      // nobody ever saw it — but it is a porch clickable sitting in the bedroom,
+      // and the moment the audit started checking hidden objects it said so.
+      // Park it up the street where it waits anyway.
+      truckG.position.set(52, TRUCK_Y, (Z_KERB + Z_ROADF) / 2 + 2.1);
+      truckG.rotation.y = Math.PI;
     }
   }
 
@@ -5059,6 +5087,26 @@ export function buildHallway(ctx) {
     // `box` is the den's real extent so room.js can PROVE nothing upstairs hangs
     // through the ceiling into it — see the clearance check in audit().
     basement: { enter: enterBasement, leave: leaveBasement, box: BSM },
+    /* Where each space physically IS, derived from the same constants that build
+     * it so the two can never drift. audit() checks every clickable against its
+     * own space's box — before this, 461 of the house's 746 pickables (the hall,
+     * kitchen, garage, basement, porch and back yard) had NO geometric check at
+     * all: the audit returned early for anything that wasn't the bedroom, so six
+     * of seven rooms could put a button through a wall and nothing would say so.
+     * ⚠️ the hall's east edge is -3.90, not E_IN (-4.35): the closet is a real
+     * recess cut INTO that wall and its shelf, rod and floor junk legitimately
+     * live past the wall line.
+     * ⚠️ the porch box is enormous on x because the ice cream truck is a porch
+     * clickable that drives from x +52 to -52. */
+    bounds: {
+      hall:     { x: [W_IN - 0.15, -3.90], z: [Z_N - 0.20, Z_S + 0.20], y: [-0.15, CEIL + 0.60] },
+      kitchen:  { x: [KX0 - 0.15, KX1 + 0.15], z: [KZ0 - 0.15, KZ1 + 0.15], y: [-0.15, KCEIL + 0.50] },
+      garage:   { x: [-12.20, -7.40], z: [4.25, 8.55], y: [-0.15, 2.25] },
+      basement: { x: [BSM.x0 - 0.15, BSM.x1 + 0.15], z: [BSM.z0 - 0.15, BSM.z1 + 0.15],
+                  y: [BSM.fl - 0.15, BSM.ce + 0.10] },
+      porch:    { x: [-60, 60], z: [-62, HOUSE_F + 0.60], y: [GROUND - 0.20, GROUND + 14] },
+      back:     { x: [-32, 26], z: [Z_S - 0.70, 46], y: [GROUND - 1.60, GROUND + 12] },
+    },
     stashes: stashByKey, openStash: openStash, closeStash: closeStash,
     setPhase: setPhase, phase: function () { return porchPhase; },
     knock: knockCame,

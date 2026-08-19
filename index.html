@@ -362,7 +362,20 @@ body.no3d #enter,body.listing #enter{display:none}
 <script>
 // Installable + instant on repeat visits. Registered after load so it never competes
 // with the room's own 11MB of props for bandwidth on a first visit.
-if ("serviceWorker" in navigator && location.protocol !== "file:") {
+// ⚠️⚠️ NOT ON LOCALHOST. The worker is network-first for code, but it still
+// sits between the dev server and the page, and a stale copy has repeatedly served
+// yesterday's room.js to a freshly-edited file — most expensively as an audit that
+// reported a clean pass while the check it was testing did not exist yet. On a dev
+// host it unregisters itself instead, so what you reload is what you just wrote.
+// Real visitors never hit localhost and are unaffected.
+var SW_DEV = ["localhost", "127.0.0.1", "[::1]", "::1"].indexOf(location.hostname) >= 0;
+if (SW_DEV && "serviceWorker" in navigator) {
+  navigator.serviceWorker.getRegistrations()
+    .then(function (rs) { rs.forEach(function (r) { r.unregister(); }); }).catch(function () { });
+  if (window.caches && caches.keys)
+    caches.keys().then(function (ks) { ks.forEach(function (k) { caches.delete(k); }); }).catch(function () { });
+}
+if ("serviceWorker" in navigator && location.protocol !== "file:" && !SW_DEV) {
   window.addEventListener("load", function () {
     navigator.serviceWorker.register("sw.js").catch(function () { /* offline support is a bonus, never a blocker */ });
   });
