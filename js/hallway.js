@@ -2176,6 +2176,43 @@ export function buildHallway(ctx) {
       skyCtx.beginPath(); skyCtx.ellipse((cx + 150) % W, cy + 4, cw * 0.6, 1.6, 0, 0, 7); skyCtx.fill();
     }
     skyTex.needsUpdate = true;
+    /* ⚠️ the BACK sky is the SAME sky. It shipped as a separate always-night
+     * painting, so at noon the street baked in daylight while the pool sat under
+     * stars — two worlds on one lot (Kyle: the house is its own world, the back
+     * yard is part of the neighborhood). Painted here, from the same palette, so
+     * the two horizons can never disagree again. Guarded because setPhase runs
+     * once before the back yard exists; the sync call at the end of the pool
+     * section repaints it the moment it does. */
+    if (typeof backSkyT !== "undefined" && backSkyT) {
+      var bc = backSkyT.image.getContext("2d"), BW = 256, BH = 128;
+      var bgr = bc.createLinearGradient(0, 0, 0, BH);
+      bgr.addColorStop(0, s.top); bgr.addColorStop(1, s.bot);
+      bc.fillStyle = bgr; bc.fillRect(0, 0, BW, BH);
+      if (night) {
+        for (var bst = 0; bst < 150; bst++) {
+          var bsy = Math.random() * BH * 0.72;
+          bc.fillStyle = "rgba(255,255,255," + (0.15 + Math.random() * 0.5 * (1 - bsy / BH)).toFixed(2) + ")";
+          bc.fillRect(Math.random() * BW, bsy, 1.3, 1.3);
+        }
+        // the same moon, squashed for THIS plane's stretch (90/34 vs 256/128 = 1.32)
+        var bmx = BW * 0.62, bmy = 26, AR2 = 1.32;
+        var bhalo = bc.createRadialGradient(bmx, bmy, 2, bmx, bmy, 26);
+        bhalo.addColorStop(0, "rgba(226,234,255,0.4)"); bhalo.addColorStop(1, "rgba(226,234,255,0)");
+        bc.save(); bc.translate(bmx, bmy); bc.scale(1 / AR2, 1); bc.translate(-bmx, -bmy);
+        bc.fillStyle = bhalo; bc.beginPath(); bc.arc(bmx, bmy, 26 * AR2, 0, 7); bc.fill();
+        bc.restore();
+        bc.fillStyle = "#e8edff";
+        bc.beginPath(); bc.ellipse(bmx, bmy, 7.5 / AR2, 7.5, 0, 0, 7); bc.fill();
+      }
+      for (var bcb = 0; bcb < 7; bcb++) {
+        var bcy = 14 + bcb * 12, bcw = 56 + (bcb * 41 % 110);
+        bc.fillStyle = cl;
+        bc.beginPath(); bc.ellipse((bcb * 77) % BW, bcy, bcw, 2.4 + (bcb % 3), 0, 0, 7); bc.fill();
+      }
+      backSkyT.needsUpdate = true;
+      backMoon.intensity = night ? 1.15 : name === "dusk" ? 0.55 : 0.2;
+      if (typeof bWins !== "undefined" && bWins) bWins.forEach(function (bw2) { bw2.emissiveIntensity = 1.1 * s.lamp; });
+    }
     yardHemi.intensity = s.hemi; yardHemi.color.setHex(s.hemiC);
     phaseHemi = s.hemi;                       // the baseline a lightning flash lifts from
     yardSun.intensity = s.sun; yardSun.color.setHex(s.sunC);
@@ -2492,15 +2529,87 @@ export function buildHallway(ctx) {
     cl.position.set(XC + pg[0], GROUND + 1.82 - pg[1] / 2, Z_S + 6.6); badd(cl); washing.push(cl);
   });
 
-  (function () {                                          // next door's roof, one light still on
-    var nb = box(9.5, 3.6, 6.0, mat(0x2a3242, 0.95));
-    nb.position.set(XC + 8.2, GROUND + 1.8, Z_S + 21.5); badd(nb);
-    var rf = new THREE.Mesh(new THREE.ConeGeometry(7.0, 2.3, 4), mat(0x222a36, 0.95));
-    rf.rotation.y = Math.PI / 4; rf.position.set(XC + 8.2, GROUND + 4.7, Z_S + 21.5); badd(rf);
-    var win = new THREE.Mesh(new THREE.PlaneGeometry(1.0, 0.8),
-      new THREE.MeshBasicMaterial({ color: 0xffd9a0 }));
-    win.position.set(XC + 6.4, GROUND + 2.1, Z_S + 18.45); win.rotation.y = Math.PI; badd(win);
-  })();
+  /* --- THE NEIGHBORHOOD, ALL THE WAY ROUND ---------------------------------------
+   * Kyle's rule: the house is its own world, and the back yard is part of the
+   * neighborhood — not a diorama behind the fence. So: neighbour houses on every
+   * property line (their windows dim with the hour exactly like the front street's),
+   * side fences that actually close the lot, telephone poles carrying sagging lines
+   * along the back easement, and trees between the roofs. bWins collects every lit
+   * window so setPhase can drive them all with one loop, same as nbWin out front. */
+  var bWins = [];
+  function bHouse(hx, hz, hw, hh, hd, ry2, wins) {
+    var hg = new THREE.Group(); hg.position.set(hx, GROUND, hz); hg.rotation.y = ry2; badd(hg);
+    var bod = box(hw, hh, hd, mat(0x2a3242, 0.95)); bod.position.y = hh / 2; hg.add(bod);
+    var rf = new THREE.Mesh(new THREE.ConeGeometry(hw * 0.74, hh * 0.62, 4), mat(0x222a36, 0.95));
+    rf.rotation.y = Math.PI / 4; rf.position.y = hh + hh * 0.31; hg.add(rf);
+    (wins || []).forEach(function (wn) {
+      var win = new THREE.Mesh(new THREE.PlaneGeometry(0.95, 0.75),
+        new THREE.MeshStandardMaterial({ color: 0xfff0cc, emissive: 0xffd9a0, emissiveIntensity: 1.1, roughness: 0.6 }));
+      win.position.set(wn[0], wn[1], -hd / 2 - 0.03); win.rotation.y = Math.PI; hg.add(win);
+      bWins.push(win.material);
+    });
+    return hg;
+  }
+  function bTree(tx, tz, sc) {
+    var tg2 = new THREE.Group(); tg2.position.set(tx, GROUND, tz); tg2.scale.setScalar(sc || 1); badd(tg2);
+    var tr2 = new THREE.Mesh(new THREE.CylinderGeometry(0.14, 0.24, 3.6, 7), mat(0x3d2f22, 0.95));
+    tr2.position.y = 1.8; tg2.add(tr2);
+    [[0, 4.1, 0, 1.35], [-0.9, 3.8, 0.4, 1.0], [0.9, 3.9, -0.3, 1.05]].forEach(function (bl2) {
+      var lf2 = new THREE.Mesh(new THREE.IcosahedronGeometry(bl2[3], 1), mat(0x2f4a2a, 0.95));
+      lf2.position.set(bl2[0], bl2[1], bl2[2]); lf2.scale.y = 0.82; tg2.add(lf2);
+    });
+  }
+  bHouse(XC + 8.2, Z_S + 21.5, 9.5, 3.6, 6.0, 0, [[-1.8, 2.55], [1.4, 1.5]]);   // next door (kept its light)
+  bHouse(XC - 4.1, Z_S + 21.9, 7.8, 3.2, 5.6, 0.06, [[0.9, 1.4]]);              // the one behind the tree line
+  bHouse(XC - 14.2, Z_S + 19.4, 8.6, 3.4, 5.8, -0.09, [[-1.2, 1.5], [1.6, 2.4]]); // the corner lot
+  bHouse(XC + 17.6, Z_S + 8.0, 8.8, 3.4, 6.0, Math.PI / 2, [[-1.0, 1.5]]);      // east over the side fence
+  bHouse(XC - 17.9, Z_S + 5.6, 8.2, 3.2, 5.6, -Math.PI / 2, [[0.8, 1.4]]);      // west, across the drive
+  bTree(XC - 7.4, Z_S + 18.9, 1.15); bTree(XC + 14.4, Z_S + 19.7, 0.9); bTree(XC + 3.1, Z_S + 19.9, 0.8);
+  // side fences: the lot actually closes now. Boards run along z, mirrored pair.
+  [[XC - 11.55, 1], [XC + 11.55, -1]].forEach(function (sf) {
+    for (var sb2 = 0; sb2 < 30; sb2++) {
+      var bd2 = box(0.04, 1.65, 0.17, bFenceM);
+      bd2.position.set(sf[0], GROUND + 0.82, Z_S + 1.1 + sb2 * 0.51); badd(bd2);
+    }
+    [Z_S + 2.4, Z_S + 8.1, Z_S + 13.8].forEach(function (pz2) {
+      var po2 = box(0.13, 1.85, 0.13, mat(0x51402f, 0.95));
+      po2.position.set(sf[0] + sf[1] * 0.04, GROUND + 0.92, pz2); badd(po2);
+    });
+    [GROUND + 0.35, GROUND + 1.42].forEach(function (ry3) {
+      var rl2 = box(0.05, 0.09, 15.3, mat(0x5e4a37, 0.95));
+      rl2.position.set(sf[0] + sf[1] * 0.045, ry3, Z_S + 8.75); badd(rl2);
+    });
+  });
+  // telephone poles on the back easement, lines sagging between them
+  [[XC - 11.8, Z_S + 16.6], [XC + 11.8, Z_S + 16.6]].forEach(function (tp2) {
+    var pole3 = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.10, 5.4, 8), mat(0x4a3a2a, 0.95));
+    pole3.position.set(tp2[0], GROUND + 2.7, tp2[1]); badd(pole3);
+    var arm = box(1.3, 0.09, 0.09, mat(0x4a3a2a, 0.95));
+    arm.position.set(tp2[0], GROUND + 4.9, tp2[1]); badd(arm);
+  });
+  [[GROUND + 4.92, -0.45], [GROUND + 4.92, 0.45]].forEach(function (wl2) {
+    [-1, 1].forEach(function (hs2) {   // two half-spans meeting lower in the middle = the sag
+      var seg2 = new THREE.Mesh(new THREE.CylinderGeometry(0.012, 0.012, 11.85, 5), mat(0x1d1f22, 0.9));
+      seg2.rotation.z = Math.PI / 2 + hs2 * 0.055;
+      seg2.position.set(XC + hs2 * 5.9, wl2[0] - 0.16, Z_S + 16.6 + wl2[1]); badd(seg2);
+    });
+  });
+  /* --- one continuous ground. The front lawn ends at z 4.0 and the back lawn
+   * began at z 9.7 — the strip between them, both SIDES of the house, was void:
+   * stand by the pool, look past the garage, and the world stopped at a black
+   * band. Four fill planes tie every edge to every other edge, all meeting at
+   * exact seams (adjacent, never overlapping — coplanar overlap is the baseboard
+   * bug at landscape scale). */
+  // ⚠️ every joint LAPS by ~5cm. Edge-to-edge, a ray down the exact seam line slips
+  // between both planes (measured: a hole at x -14, z 9.70 precisely). Coplanar
+  // overlap is safe HERE ONLY because both sides are the same material — the
+  // z-fight resolves to the same green either way, so it cannot flicker.
+  [[-45, 35, 4.0, 9.74], [-45, -20.86, 9.66, 26.74], [9.06, 35, 9.66, 26.74], [-45, 35, 26.66, 44]]
+    .forEach(function (gf) {
+      var gp2 = new THREE.Mesh(new THREE.PlaneGeometry(gf[1] - gf[0], gf[3] - gf[2]), grassM);
+      gp2.rotation.x = -Math.PI / 2;
+      gp2.position.set((gf[0] + gf[1]) / 2, GROUND, (gf[2] + gf[3]) / 2); badd(gp2);
+    });
 
   var backMoon = new THREE.PointLight(0x9fb4d8, 1.15, 15, 1.7);
   backMoon.position.set(XC, GROUND + 7.5, Z_S + 8.0); badd(backMoon);
@@ -2789,6 +2898,9 @@ export function buildHallway(ctx) {
     }
     if (poolLightOn) poolLight.intensity = 1.5 + Math.sin(t * 1.7) * 0.18;
   }
+  // the back yard exists now — repaint its sky from the current phase, so it joins
+  // the neighborhood mid-hour instead of waking up under yesterday's stars
+  setPhase(porchPhase);
 
   // --- THE GARAGE: the tape came off. It's a real room now, through a real door.
   // ⚠️ z 5.60, not 6.30. The shelving and its bins start at z 6.8 on this same wall,
