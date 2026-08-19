@@ -3073,6 +3073,17 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
     { x: -9.72, z: 0.30, r: 0.80 },  // the table and chairs
     { x: -8.50, z: 1.55, r: 0.60 },  // the fridge
   ];
+  var KID_BACK_OBSTACLES = [
+    // ⚠️ the POOL is two obstacle circles. The kid cannot swim; nothing in his
+    // steering knows about water, so the water is a wall as far as he knows.
+    { x: -2.40, z: 17.0, r: 1.75 },
+    { x: -0.20, z: 17.0, r: 1.75 },
+    { x: -11.5, z: 20.2, r: 0.85 },  // the tree
+    { x: -8.5,  z: 11.7, r: 0.60 },  // the grill
+    { x: -1.85, z: 19.6, r: 1.10 },  // loungers + the cooler
+    { x: -11.4, z: 15.4, r: 0.30 },  // washing line posts
+    { x: -5.6,  z: 15.4, r: 0.30 },
+  ];
   var KID_GARAGE_OBSTACLES = [
     { x: -11.65, z: 6.30, r: 0.90 },  // the workbench run
     { x: -9.55, z: 6.75, r: 1.40 },   // the project, under its tarp
@@ -3084,7 +3095,8 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
     return kidSpace === "hall" ? KID_HALL_OBSTACLES
          : kidSpace === "porch" ? KID_PORCH_OBSTACLES
          : kidSpace === "kitchen" ? KID_KITCHEN_OBSTACLES
-         : kidSpace === "garage" ? KID_GARAGE_OBSTACLES : KID_OBSTACLES;
+         : kidSpace === "garage" ? KID_GARAGE_OBSTACLES
+         : kidSpace === "back" ? KID_BACK_OBSTACLES : KID_OBSTACLES;
   }
   var KID_HALL_STATIONS = [
     { x: -5.55, z: 2.50, act: "idle" },    // by the closet
@@ -3104,6 +3116,11 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
     { x: -11.5, z: 0.9, act: "fidget" },   // by the sink end
     { x: -8.6, z: -0.6, act: "idle" },     // hovering near the fridge, obviously
   ];
+  var KID_BACK_STATIONS = [   // lawn stations carry y — the yard is 45cm below the deck
+    { x: -5.30, z: 9.65, act: "idle" },                 // on the deck boards
+    { x: -4.30, z: 15.2, y: -0.45, act: "fidget" },     // poolside, north-west corner
+    { x: 1.60,  z: 17.3, y: -0.45, act: "idle" },       // the far rail, watching the water
+  ];
   var KID_GARAGE_STATIONS = [
     { x: -8.55, z: 5.05, act: "idle" },    // just inside, taking it in
     { x: -10.70, z: 4.95, act: "fidget" }, // at the big door, willing it open
@@ -3113,7 +3130,8 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
     return kidSpace === "hall" ? KID_HALL_STATIONS
          : kidSpace === "porch" ? KID_PORCH_STATIONS
          : kidSpace === "kitchen" ? KID_KITCHEN_STATIONS
-         : kidSpace === "garage" ? KID_GARAGE_STATIONS : KID_STATIONS;
+         : kidSpace === "garage" ? KID_GARAGE_STATIONS
+         : kidSpace === "back" ? KID_BACK_STATIONS : KID_STATIONS;
   }
   // where he appears when he follows you: the doorway you both just came through,
   // so it reads as him walking in rather than as a teleport
@@ -3123,9 +3141,10 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
     porch:   { x: -5.70, z: -3.95 },
     kitchen: { x: -7.95, z: -0.35 },  // just inside the kitchen doorway
     garage:  { x: -8.00, z: 5.60 },   // just inside the garage doorway
+    back:    { x: -5.34, z: 9.55 },   // out the slider, on the deck
   };
   var KID_HUBS = { bedroom: { x: 0.3, z: 1.35 }, hall: { x: -5.9, z: 1.2 }, porch: { x: -5.9, z: -4.8 },
-    kitchen: { x: -10.4, z: -1.2 }, garage: { x: -9.0, z: 5.15 } };
+    kitchen: { x: -10.4, z: -1.2 }, garage: { x: -9.0, z: 5.15 }, back: { x: -4.6, z: 13.4 } };
   var kidFollowT = -1, kidFollowTo = null;
 
   // One avoidance step toward (tx,tz): steer around obstacles, then hard-clamp out
@@ -3240,6 +3259,7 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
         kidSay(kidSpace === "porch" ? "outside! we never come outside."
              : kidSpace === "kitchen" ? "the kitchen! this is where the cereal lives."
              : kidSpace === "garage" ? "the GARAGE. i'm not allowed to touch the bench. i touch the bench."
+             : kidSpace === "back" ? "a POOL. we have a POOL. we've always had one but STILL."
                                       : "i know this bit. this is the hallway.", 4);
       } catch (e) { }
     }

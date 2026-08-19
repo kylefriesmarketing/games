@@ -2233,9 +2233,11 @@ export function buildHallway(ctx) {
   // ⚠️ the box is centred on where BOTH cameras stand (the porch at x -5.7 and the
   // bedroom window at x -4.4, both looking north up the lawn) — a field spread evenly
   // over the whole 80m street would be too thin to see where anyone is actually looking.
-  var RAIN_BOX = [-23, 13, GROUND, GROUND + 13, -33, -2];
-  var rainF = fallField(2400, RAIN_BOX, dropTex, 0.26, 0xc4d6ec, 0.5);
-  var seaF  = fallField(520, [-23, 13, GROUND, GROUND + 11, -33, -2], flakeTex, 0.1, 0xffffff, 0.75);
+  // ⚠️ z runs to +19 now, not -2: the box used to stop at the house, so it rained
+  // on the street while the pool sat bone dry — one sky, both yards.
+  var RAIN_BOX = [-23, 13, GROUND, GROUND + 13, -33, 19];
+  var rainF = fallField(3400, RAIN_BOX, dropTex, 0.26, 0xc4d6ec, 0.5);
+  var seaF  = fallField(760, [-23, 13, GROUND, GROUND + 11, -33, 19], flakeTex, 0.1, 0xffffff, 0.75);
   var SEASON_FALL = {   // matched to room.js's SEASON_LOOKS so indoors and out agree
     winter: { color: 0xeaf2ff, size: 0.11, fall: 0.9,  sway: 0.55, op: 0.85 },
     spring: { color: 0xffc4dc, size: 0.10, fall: 0.7,  sway: 1.1,  op: 0.72 },
@@ -2407,6 +2409,21 @@ export function buildHallway(ctx) {
    * itself off with the hall, and never washes the bedroom the way the FRONT yard's
    * lights did before they were gated. Distance 15 from z+18 reaches z 3 at the
    * nearest, which is the hall's south end: moonlight through the glass, no further. */
+  /* ⚠️ THE BEDROOM NEEDS AN OUTSIDE NOW. Its walls are inward-facing planes — a
+   * doll-house — and no view before this one could tell: from the hall you look
+   * north or south along the corridor, from the porch you look at the street, and
+   * the old painted-backdrop yard stood exactly where this sightline runs. Stand
+   * on the back lawn, turn round, and the room's whole lit interior floated in
+   * the night beside the house: neon sign, bookshelf, beanbag, no walls. Three
+   * siding panels and a roof slab, in backG so they gate with everything else
+   * out here. (sidingM is the front porch's own cladding — one house, one skin.) */
+  [[8.0, 3.3, 0.14, -0.35, 1.2, 3.62],     // south face, sealing the hall-bedroom gap too
+   [0.14, 3.3, 7.3, 3.62, 1.2, 0.05],      // east face
+   [8.3, 0.12, 7.5, -0.35, 3.02, 0.05]]    // the lid
+    .forEach(function (bs) {
+      var shell = box(bs[0], bs[1], bs[2], sidingM);
+      shell.position.set(bs[3], bs[4], bs[5]); badd(shell);
+    });
   var backSkyT = canvasTex(256, 128, function (c, w, h) {
     var sky = c.createLinearGradient(0, 0, 0, h);
     sky.addColorStop(0, "#0b1120"); sky.addColorStop(0.72, "#1d2740"); sky.addColorStop(1, "#2b3550");
@@ -2422,8 +2439,19 @@ export function buildHallway(ctx) {
     new THREE.MeshBasicMaterial({ map: backSkyT }));
   backSky.position.set(XC, GROUND + 12, Z_S + 34); backSky.rotation.y = Math.PI; badd(backSky);
 
-  var backLawn = new THREE.Mesh(new THREE.PlaneGeometry(30, 17), grassM);  // shares the front lawn's material
-  backLawn.rotation.x = -Math.PI / 2; backLawn.position.set(XC, GROUND, Z_S + 9.4); badd(backLawn);
+  // ⚠️ the lawn is FOUR planes around a hole, not one — the pool is dug through it.
+  // One plane meant a ray down the pool mouth hit GRASS at y GROUND before it ever
+  // reached the water at -0.22: a pool painted over, the door-needs-a-hole lesson
+  // in landscaping form. The apron's border slabs hide the seams.
+  var LAWN = { x0: XC - 15, x1: XC + 15, z0: Z_S + 0.9, z1: Z_S + 17.9 };
+  var PHOLE = { x0: XC + 1.55, x1: XC + 7.65, z0: Z_S + 5.9, z1: Z_S + 10.5 };  // the apron footprint
+  [[LAWN.x0, LAWN.x1, LAWN.z0, PHOLE.z0], [LAWN.x0, LAWN.x1, PHOLE.z1, LAWN.z1],
+   [LAWN.x0, PHOLE.x0, PHOLE.z0, PHOLE.z1], [PHOLE.x1, LAWN.x1, PHOLE.z0, PHOLE.z1]]
+    .forEach(function (lp3) {
+      var lw = new THREE.Mesh(new THREE.PlaneGeometry(lp3[1] - lp3[0], lp3[3] - lp3[2]), grassM);
+      lw.rotation.x = -Math.PI / 2;
+      lw.position.set((lp3[0] + lp3[1]) / 2, GROUND, (lp3[2] + lp3[3]) / 2); badd(lw);
+    });
 
   var bFenceM = mat(0x6a5540, 0.95);
   for (var fb = 0; fb < 46; fb++) {                       // board fence, board by board
@@ -2450,14 +2478,16 @@ export function buildHallway(ctx) {
     });
   })();
 
-  [[-2.9, 0], [2.9, 0]].forEach(function (wp) {           // the washing line
+  // the washing line — shifted WEST of centre when the pool went in: its old east
+  // post stood 15cm off the water. Towels by a pool, fine; the good sheets, no.
+  [[-5.5, 0], [0.3, 0]].forEach(function (wp) {
     var wpo = box(0.09, 1.9, 0.09, mat(0x6a5540, 0.95));
     wpo.position.set(XC + wp[0], GROUND + 0.95, Z_S + 6.6); badd(wpo);
   });
   var wline = box(5.8, 0.015, 0.015, mat(0xcfc8b6, 0.8));
-  wline.position.set(XC, GROUND + 1.82, Z_S + 6.6); badd(wline);
+  wline.position.set(XC - 2.6, GROUND + 1.82, Z_S + 6.6); badd(wline);
   var washing = [];
-  [[-1.9, 0.34, 0xd8dce4], [-0.6, 0.42, 0xc9d2dc], [0.8, 0.30, 0xdfe6dc]].forEach(function (pg) {
+  [[-4.5, 0.34, 0xd8dce4], [-3.2, 0.42, 0xc9d2dc], [-1.8, 0.30, 0xdfe6dc]].forEach(function (pg) {
     var cl = box(0.30, pg[1], 0.012, mat(pg[2], 0.95));
     cl.position.set(XC + pg[0], GROUND + 1.82 - pg[1] / 2, Z_S + 6.6); badd(cl); washing.push(cl);
   });
@@ -2499,11 +2529,21 @@ export function buildHallway(ctx) {
     fr.position.set(XC + s * (SD_W / 2 + 0.045), SD_H / 2, SD_Z); badd(fr);
   });
   var midStile = box(0.07, SD_H, 0.16, alu); midStile.position.set(XC, SD_H / 2, SD_Z - 0.02); badd(midStile);
+  // ⚠️ the EAST pane is the one that moves (the blinds bunch over the west half),
+  // so it gets a handle var and a remembered home x — the walk-out slides it west
+  // over its neighbour, exactly like a real slider.
+  var sdPaneE = null;
   [-1, 1].forEach(function (s) {
     var pane = new THREE.Mesh(new THREE.PlaneGeometry(SD_W / 2 - 0.08, SD_H - 0.06), glassM2);
     pane.position.set(XC + s * SD_W / 4, SD_H / 2, SD_Z + s * 0.03); badd(pane);
+    if (s === 1) sdPaneE = pane;
   });
   var sdHandle = box(0.035, 0.30, 0.05, alu); sdHandle.position.set(XC + 0.16, 1.02, SD_Z - 0.06); badd(sdHandle);
+  var SD_PANE_X = sdPaneE.position.x, SD_HANDLE_X = sdHandle.position.x, SD_SLIDE = SD_W / 2 - 0.10;
+  function slideK(k2) {   // 0 shut .. 1 open: pane and handle travel together
+    sdPaneE.position.x = SD_PANE_X - SD_SLIDE * k2;
+    sdHandle.position.x = SD_HANDLE_X - SD_SLIDE * k2;
+  }
   var sdTrack = box(SD_W + 0.18, 0.03, 0.16, mat(0x6a727a, 0.5)); sdTrack.position.set(XC, 0.02, SD_Z); badd(sdTrack);
 
   // --- vertical blinds, half drawn: slats bunched across the west pane, the east
@@ -2540,9 +2580,215 @@ export function buildHallway(ctx) {
   }
   [sdHandle, midStile].concat(backG.children.filter(function (c) { return c.material === glassM2; }))
     .forEach(function (m) {
-      tag(m, "the sliding door", null, "the back yard — the grass needs cutting. summer 2027.");
+      tag(m, "the sliding door", function () { enterBack(); },
+        "the back yard — there's a pool out there. click to go out");
     });
+  // the way back in: an invisible hitbox over the opening, yard side
+  var bBackHit = new THREE.Mesh(new THREE.BoxGeometry(1.3, 2.0, 0.25),
+    new THREE.MeshBasicMaterial({ transparent: true, opacity: 0, depthWrite: false }));
+  bBackHit.position.set(XC + 0.56, SD_H / 2, Z_S + 0.28); badd(bBackHit);
+  clickable(bBackHit, "the house", function () { leaveBack(); }, "back inside — it's warmer than it looks out here");
+  bBackHit.userData.space = "back";
   tag(blindRail, "the blinds", null, "vertical blinds, half drawn. they have always been half drawn.");
+
+  /* ---- THE POOL -----------------------------------------------------------------
+   * The back yard's whole reason to walk out there. In-ground, east of the washing
+   * line: concrete apron, coping, a liner you can see through the water, and the
+   * night-pool glow — the water is faintly emissive and a cyan light sits under the
+   * surface, INSIDE backG so it gates itself with the hall like the back moon does.
+   * Everything out here is tagged space "back" (btag): visible through the glass
+   * from the hall, clickable only once you've stepped out. */
+  function btag(m, name, action, hint) { clickable(m, name, action, hint); m.userData.space = "back"; return m; }
+  var POOL = { x0: XC + 2.4, x1: XC + 6.8, z0: Z_S + 6.75, z1: Z_S + 9.65 };  // -3.5..0.9 x, 15.55..18.45 z
+  var PCX = (POOL.x0 + POOL.x1) / 2, PCZ = (POOL.z0 + POOL.z1) / 2;
+  var poolConcM = mat(0xa8a49a, 0.95);
+  // ⚠️ four border slabs, NOT one big one — a single slab would seal the pool mouth
+  // shut exactly the way the first version of every doorway in this house did.
+  [[POOL.x0 - 0.95, POOL.x1 + 0.95, POOL.z0 - 0.85, POOL.z0],
+   [POOL.x0 - 0.95, POOL.x1 + 0.95, POOL.z1, POOL.z1 + 0.85],
+   [POOL.x0 - 0.95, POOL.x0, POOL.z0, POOL.z1],
+   [POOL.x1, POOL.x1 + 0.95, POOL.z0, POOL.z1]]
+    .forEach(function (ap2) {
+      var slab2 = box(ap2[1] - ap2[0], 0.06, ap2[3] - ap2[2], poolConcM);
+      slab2.position.set((ap2[0] + ap2[1]) / 2, GROUND + 0.005, (ap2[2] + ap2[3]) / 2); badd(slab2);
+      btag(slab2, "the pool deck", null, "warm all day, cold the second the sun goes. feet remember.");
+    });
+  // coping lip around the water
+  [[PCX, POOL.z0 - 0.09, POOL.x1 - POOL.x0 + 0.36, 0.18], [PCX, POOL.z1 + 0.09, POOL.x1 - POOL.x0 + 0.36, 0.18],
+   [POOL.x0 - 0.09, PCZ, 0.18, POOL.z1 - POOL.z0], [POOL.x1 + 0.09, PCZ, 0.18, POOL.z1 - POOL.z0]]
+    .forEach(function (cp) {
+      var lip = box(cp[2], 0.09, cp[3], mat(0xc8c4b8, 0.9));
+      lip.position.set(cp[0], GROUND + 0.045, cp[1]); badd(lip);
+    });
+  // the basin: liner walls and floor, pale tile-blue with a darker waterline band
+  var linerM = mat(0xbfe4ea, 0.85), linerD = mat(0x8ec4d0, 0.85);
+  var pFloor = box(POOL.x1 - POOL.x0, 0.08, POOL.z1 - POOL.z0, linerM);
+  pFloor.position.set(PCX, GROUND - 1.30, PCZ); badd(pFloor);
+  [[PCX, POOL.z0 + 0.05, POOL.x1 - POOL.x0, 0.10], [PCX, POOL.z1 - 0.05, POOL.x1 - POOL.x0, 0.10],
+   [POOL.x0 + 0.05, PCZ, 0.10, POOL.z1 - POOL.z0], [POOL.x1 - 0.05, PCZ, 0.10, POOL.z1 - POOL.z0]]
+    .forEach(function (pw) {
+      var wall2 = box(pw[2], 1.30, pw[3], linerM);
+      wall2.position.set(pw[0], GROUND - 0.65, pw[1]); badd(wall2);
+      var band = box(pw[2] === 0.10 ? 0.11 : pw[2] + 0.01, 0.10, pw[3] === 0.10 ? 0.11 : pw[3] + 0.01, linerD);
+      band.position.set(pw[0], GROUND - 0.16, pw[1]); badd(band);
+    });
+  // the water. Caustic net drawn WHITE so colour comes from material.color (the rule),
+  // faint emissive so it reads lit from within after dark.
+  // ⚠️ mid-grey base, WHITE net. The first draw was white lines on a white fill —
+  // the map multiplied to a flat cyan sheet and the caustics never existed on
+  // screen. The net only reads if the base sits well below it.
+  var waterT = canvasTex(256, 256, function (c, w, h) {
+    c.fillStyle = "#b6c2c6"; c.fillRect(0, 0, w, h);
+    c.lineWidth = 2;
+    for (var n2 = 0; n2 < 26; n2++) {                       // wobbly cells, the caustic net
+      var cx2 = (n2 * 53) % w, cy2 = (n2 * 91) % h, rr = 18 + (n2 % 5) * 8;
+      c.strokeStyle = "rgba(255,255,255," + (0.45 + (n2 % 4) * 0.16) + ")";
+      c.beginPath();
+      for (var a2 = 0; a2 <= 12; a2++) {
+        var th = a2 / 12 * Math.PI * 2, wob = rr + Math.sin(th * 3 + n2) * 5;
+        var px2 = cx2 + Math.cos(th) * wob, py2 = cy2 + Math.sin(th) * wob * 0.7;
+        if (a2 === 0) c.moveTo(px2, py2); else c.lineTo(px2, py2);
+      }
+      c.stroke();
+    }
+  });
+  waterT.wrapS = waterT.wrapT = THREE.RepeatWrapping; waterT.repeat.set(2, 2);
+  var waterM = new THREE.MeshStandardMaterial({
+    map: waterT, color: 0x3fb4cc, transparent: true, opacity: 0.62, roughness: 0.15,
+    emissive: 0x1a7d8c, emissiveIntensity: 0.5, depthWrite: false,
+  });
+  var water = new THREE.Mesh(new THREE.PlaneGeometry(POOL.x1 - POOL.x0 - 0.06, POOL.z1 - POOL.z0 - 0.06), waterM);
+  water.rotation.x = -Math.PI / 2; water.position.set(PCX, GROUND - 0.22, PCZ); badd(water);
+  btag(water, "the pool", null, "the pool. heated by June, allegedly.");
+  var poolLight = new THREE.PointLight(0x7fd8e8, 1.5, 6.5, 1.8);
+  poolLight.position.set(PCX, GROUND - 0.7, PCZ); badd(poolLight);
+  var poolNiche = new THREE.Mesh(new THREE.CircleGeometry(0.11, 12),
+    new THREE.MeshStandardMaterial({ color: 0xd8f4fa, emissive: 0xaef0ff, emissiveIntensity: 1.6, roughness: 0.3 }));
+  poolNiche.position.set(PCX, GROUND - 0.62, POOL.z0 + 0.11); badd(poolNiche);
+  // ladder in the north-east corner (alu is the slider's own material, two blocks up)
+  [[-0.14], [0.14]].forEach(function (lr) {
+    var rail2 = new THREE.Mesh(new THREE.CylinderGeometry(0.022, 0.022, 1.15, 8), alu);
+    rail2.position.set(POOL.x1 - 0.35 + lr[0], GROUND + 0.22, POOL.z0 + 0.16); badd(rail2);
+    var bend = new THREE.Mesh(new THREE.CylinderGeometry(0.022, 0.022, 0.24, 8), alu);
+    bend.rotation.x = Math.PI / 2; bend.position.set(POOL.x1 - 0.35 + lr[0], GROUND + 0.79, POOL.z0 + 0.28); badd(bend);
+  });
+  for (var rg2 = 0; rg2 < 3; rg2++) {
+    var rung = new THREE.Mesh(new THREE.CylinderGeometry(0.018, 0.018, 0.28, 8), alu);
+    rung.rotation.z = Math.PI / 2;
+    rung.position.set(POOL.x1 - 0.35, GROUND - 0.05 - rg2 * 0.32, POOL.z0 + 0.16);
+    badd(rung); btag(rung, "the ladder", null, "the ladder nobody uses. everyone jumps.");
+  }
+  // diving board at the west end, over the deep half
+  var dbBase = box(0.5, 0.34, 0.42, poolConcM); dbBase.position.set(POOL.x0 - 0.55, GROUND + 0.17, PCZ); badd(dbBase);
+  var dbPlank = box(1.45, 0.06, 0.38, mat(0xe4e0d2, 0.7));
+  dbPlank.position.set(POOL.x0 + 0.25, GROUND + 0.37, PCZ); badd(dbPlank);
+  btag(dbPlank, "the diving board", null, "the rule is one bounce. the record is four.");
+  // floats: the inner tube and the beach ball, adrift (the cooler decides who's out)
+  var ringT = canvasTex(128, 16, function (c, w, h) {
+    c.fillStyle = "#e05a4a"; c.fillRect(0, 0, w, h);
+    c.fillStyle = "#f4efdd"; for (var st4 = 0; st4 < 4; st4++) c.fillRect(st4 * 32, 0, 16, h);
+  });
+  ringT.wrapS = THREE.RepeatWrapping;
+  var ring = new THREE.Mesh(new THREE.TorusGeometry(0.32, 0.11, 10, 22),
+    new THREE.MeshStandardMaterial({ map: ringT, roughness: 0.6 }));
+  ring.rotation.x = -Math.PI / 2; badd(ring);
+  btag(ring, "the inner tube", null, "first one in gets it. that is the whole law.");
+  var ballT = canvasTex(96, 48, function (c, w, h) {
+    ["#e05a4a", "#f4efdd", "#3a68b0", "#f4efdd", "#e0b03a", "#f4efdd"].forEach(function (col, i7) {
+      c.fillStyle = col; c.fillRect(i7 * 16, 0, 16, h);
+    });
+  });
+  var bball = new THREE.Mesh(new THREE.SphereGeometry(0.16, 14, 10),
+    new THREE.MeshStandardMaterial({ map: ballT, roughness: 0.5 }));
+  badd(bball);
+  btag(bball, "the beach ball", null, "it always drifts to the exact middle, just out of reach.");
+  var floatT = 0, floatMode = 0;   // 0 both out · 1 ring only · 2 ball only · 3 put away
+  // loungers + the cooler on the south apron
+  [[PCX - 0.9], [PCX + 0.35]].forEach(function (lg2) {
+    var lgG = new THREE.Group(); lgG.position.set(lg2[0], GROUND, POOL.z1 + 0.62); badd(lgG);
+    var seat = box(0.52, 0.05, 1.1, mat(0x3a6ac9, 0.8)); seat.position.set(0, 0.24, 0.1); lgG.add(seat);
+    var bck = box(0.52, 0.05, 0.5, mat(0x3a6ac9, 0.8));
+    bck.position.set(0, 0.38, -0.62); bck.rotation.x = -0.6; lgG.add(bck);
+    [[-0.21, 0.42], [0.21, 0.42], [-0.21, -0.35], [0.21, -0.35]].forEach(function (lp2) {
+      var leg2 = box(0.045, 0.24, 0.045, mat(0xd8d2c4, 0.5)); leg2.position.set(lp2[0], 0.12, lp2[1]); lgG.add(leg2);
+    });
+    lgG.children.forEach(function (m) { btag(m, "the loungers", null, "one for reading, one for the towels. it rotates."); });
+  });
+  // 🧊 THE COOLER — the back yard's stash
+  var coolG = new THREE.Group(); coolG.position.set(PCX + 1.35, GROUND, POOL.z1 + 0.58); coolG.rotation.y = -0.3; badd(coolG);
+  var coolBody = box(0.52, 0.34, 0.34, mat(0xb03a2e, 0.6)); coolBody.position.y = 0.17; coolG.add(coolBody);
+  var coolLid = box(0.54, 0.09, 0.36, mat(0xece8dc, 0.5)); coolLid.position.y = 0.385; coolG.add(coolLid);
+  var coolHandle = box(0.06, 0.04, 0.30, mat(0xece8dc, 0.5)); coolHandle.position.set(0.30, 0.24, 0); coolG.add(coolHandle);
+  // the grill, at a dad-approved distance from anything flammable
+  var grillG = new THREE.Group(); grillG.position.set(XC - 2.6, GROUND, Z_S + 2.9); grillG.rotation.y = 0.5; badd(grillG);
+  var kettle = new THREE.Mesh(new THREE.SphereGeometry(0.30, 14, 10), mat(0x1d1f22, 0.55));
+  kettle.scale.y = 0.72; kettle.position.y = 0.68; grillG.add(kettle);
+  var kLid2 = new THREE.Mesh(new THREE.CylinderGeometry(0.055, 0.055, 0.05, 10), mat(0x8a8f96, 0.4));
+  kLid2.position.y = 0.93; grillG.add(kLid2);
+  [[-0.16, 0.1], [0.16, 0.1], [0, -0.19]].forEach(function (gl2) {
+    var leg3 = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.02, 0.62, 8), mat(0x2b2e33, 0.5));
+    leg3.position.set(gl2[0], 0.31, gl2[1]); grillG.add(leg3);
+  });
+  var gShelf2 = box(0.34, 0.03, 0.22, mat(0x6b5638, 0.85)); gShelf2.position.set(0.42, 0.62, 0); grillG.add(gShelf2);
+  grillG.children.forEach(function (m) { btag(m, "the grill", null, "dad has a system. do not ask about the system."); });
+  // the slip 'n slide, still out from the weekend
+  var slideStrip = new THREE.Mesh(new THREE.PlaneGeometry(0.92, 4.4),
+    new THREE.MeshStandardMaterial({ color: 0xe8d24a, roughness: 0.35,
+      polygonOffset: true, polygonOffsetFactor: -3, polygonOffsetUnits: -3 }));
+  slideStrip.rotation.x = -Math.PI / 2; slideStrip.rotation.z = 0.12;
+  slideStrip.position.set(XC - 5.2, GROUND + 0.012, Z_S + 4.6); badd(slideStrip);
+  btag(slideStrip, "the slip 'n slide", null, "the bruises were worth it. every single one.");
+  [[XC - 5.0, Z_S + 2.2, 0.9], [XC - 4.4, Z_S + 1.5, 0.4]].forEach(function (hs) {
+    var hose = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.02, 1.3, 8), mat(0x2f5e3a, 0.7));
+    hose.rotation.z = Math.PI / 2; hose.rotation.y = hs[2]; hose.position.set(hs[0], GROUND + 0.03, hs[1]); badd(hose);
+  });
+  // tiki torches at the pool's south corners — lit or out is the cooler's call
+  var flames = [];
+  [[POOL.x0 - 0.5, POOL.z1 + 0.5], [POOL.x1 + 0.5, POOL.z1 + 0.5]].forEach(function (tk2) {
+    var pole2 = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.045, 1.45, 8), mat(0x8a6a44, 0.9));
+    pole2.position.set(tk2[0], GROUND + 0.72, tk2[1]); badd(pole2);
+    var cup = new THREE.Mesh(new THREE.CylinderGeometry(0.075, 0.045, 0.16, 8), mat(0x5e4a37, 0.9));
+    cup.position.set(tk2[0], GROUND + 1.5, tk2[1]); badd(cup);
+    var fl2 = new THREE.Mesh(new THREE.ConeGeometry(0.05, 0.16, 7),
+      new THREE.MeshStandardMaterial({ color: 0xffc86a, emissive: 0xff9a3a, emissiveIntensity: 2.2, roughness: 0.5 }));
+    fl2.position.set(tk2[0], GROUND + 1.66, tk2[1]); badd(fl2); flames.push(fl2);
+    btag(pole2, "the tiki torches", null, "for ambience, and for wasps that enjoy ambience.");
+  });
+  function setFloats(m2) {
+    floatMode = m2;
+    ring.visible = m2 === 0 || m2 === 1;
+    bball.visible = m2 === 0 || m2 === 2;
+  }
+  var poolLightOn = true;
+  function setPoolLight(on2) {
+    poolLightOn = !!on2;
+    poolLight.visible = poolLightOn; poolNiche.visible = poolLightOn;
+    waterM.emissiveIntensity = poolLightOn ? 0.5 : 0.12;
+  }
+  function setTorches(on2) { flames.forEach(function (f3) { f3.visible = !!on2; }); }
+  setFloats(0);
+  // the water breathes and the floats drift — ticked from glowTick (both loops)
+  function poolTick(t, dt) {
+    waterT.offset.x = Math.sin(t * 0.10) * 0.05 + t * 0.006;
+    waterT.offset.y = Math.cos(t * 0.083) * 0.04;
+    floatT += dt;
+    if (ring.visible) {
+      ring.position.set(PCX - 0.75 + Math.sin(floatT * 0.16) * 0.45,
+        GROUND - 0.20 + Math.sin(floatT * 0.9) * 0.015, PCZ + Math.cos(floatT * 0.13) * 0.5);
+      ring.rotation.z = floatT * 0.03;
+    }
+    if (bball.visible) {
+      bball.position.set(PCX + 1.05 + Math.cos(floatT * 0.11) * 0.5,
+        GROUND - 0.10 + Math.sin(floatT * 1.15 + 2) * 0.02, PCZ - 0.35 + Math.sin(floatT * 0.09) * 0.55);
+      bball.rotation.y = floatT * 0.12;
+    }
+    for (var fi2 = 0; fi2 < flames.length; fi2++) {
+      if (!flames[fi2].visible) continue;
+      flames[fi2].material.emissiveIntensity = 2.0 + Math.sin(t * 9 + fi2 * 2.4) * 0.5;
+      flames[fi2].scale.y = 1 + Math.sin(t * 11 + fi2) * 0.14;
+    }
+    if (poolLightOn) poolLight.intensity = 1.5 + Math.sin(t * 1.7) * 0.18;
+  }
 
   // --- THE GARAGE: the tape came off. It's a real room now, through a real door.
   // ⚠️ z 5.60, not 6.30. The shelving and its bins start at z 6.8 on this same wall,
@@ -3274,7 +3520,7 @@ export function buildHallway(ctx) {
    * look two numbers. */
   var LOOK_MATS = [hwallM, plankM, runner.material, oakM, kWallM, lamM,
                    sidingM, grassM, deckM, bFenceM, pdeckM,
-                   garWallM, garFloorM, benchM];   // the garage wears the house look too
+                   garWallM, garFloorM, benchM, poolConcM];   // the garage and pool deck wear it too
   var LOOK_BASE = LOOK_MATS.map(function (m) { return m.color.getHex(); });
   // `need` = treasures required, the same currency the bedroom's ROOM_THEMES spend.
   // The bedroom ladder tops out at 9 of 21; the house goes all the way to 21, so the
@@ -3542,6 +3788,33 @@ export function buildHallway(ctx) {
       "the coffee can of bolts — the garage keeps its opinions in here");
   });
 
+  // --- BACK YARD: the cooler, which holds the summer's settings
+  var backyardStash = makeStash("backyard", "🧊 the cooler", [
+    lookOption(),
+    { k: "float", label: "the floats", vals: [
+      { label: "both out", apply: function () { setFloats(0); } },
+      { label: "just the tube", apply: function () { setFloats(1); } },
+      { label: "just the ball", apply: function () { setFloats(2); } },
+      { label: "put away", apply: function () { setFloats(3); } },
+    ] },
+    { k: "plight", label: "the pool light", vals: [
+      { label: "on", apply: function () { setPoolLight(true); } },
+      { label: "off", apply: function () { setPoolLight(false); } },
+    ] },
+    { k: "torch", label: "the tiki torches", vals: [
+      { label: "lit", apply: function () { setTorches(true); } },
+      { label: "out", apply: function () { setTorches(false); } },
+    ] },
+    { k: "wash", label: "the washing line", vals: [
+      { label: "still out", apply: function () { washing.forEach(function (w2) { w2.visible = true; }); } },
+      { label: "taken in", apply: function () { washing.forEach(function (w2) { w2.visible = false; }); } },
+    ] },
+  ]);
+  coolG.children.forEach(function (m) {
+    btag(m, "the cooler", function () { openStash(backyardStash); },
+      "the cooler — pop on top, mystery at the bottom");
+  });
+
   /* ---- state & camera ---------------------------------------------------------
    * space: "bedroom" | "hall". The transition walks the camera through the real
    * doorway while the door swings; while it runs, busy() guards the pointer.
@@ -3563,6 +3836,12 @@ export function buildHallway(ctx) {
     kdoor2: new THREE.Vector3(-7.20, 1.63, -0.35),  // in the doorway
     kdoorL: new THREE.Vector3(-9.4, 1.25, -0.6),    // what you see through it
     klookB: new THREE.Vector3(-6.1, 1.28, -0.85),   // turned round: the doorway, the hall beyond
+    brest: new THREE.Vector3(-4.55, 1.28, 13.9),    // on the back lawn, pool-side of the line
+    blook: new THREE.Vector3(-1.20, -0.45, 17.1),   // the water
+    blookB: new THREE.Vector3(-5.60, 1.45, 9.4),    // turned round: the slider, the lit house
+    bdoor1: new THREE.Vector3(-5.34, 1.66, 7.85),   // squared up to the slider's clear pane
+    bdoor2: new THREE.Vector3(-5.34, 1.58, 9.35),   // in the opening
+    bdoorL: new THREE.Vector3(-3.20, 0.55, 14.6),   // what you see through it: the glow
     grest: new THREE.Vector3(-7.92, 1.64, 4.68),    // the corner the door swing keeps clear
     glook: new THREE.Vector3(-11.70, 1.30, 7.55),   // down the long diagonal: pegboard, bench, tarp
     glookB: new THREE.Vector3(-7.40, 1.15, 5.70),   // turned round: the door back to the hall
@@ -3629,6 +3908,19 @@ export function buildHallway(ctx) {
     mode = "garageOut"; tt = 0;
     c0.copy(camera.position); l0.copy(lookAt);
   }
+  function enterBack() {
+    if (mode !== "idle" || space !== "hall") return;
+    mode = "backIn"; tt = 0;
+    c0.copy(camera.position); l0.copy(lookAt);
+    AUDIO.ratchetSfx && AUDIO.ratchetSfx();   // the slider's latch has a voice too
+    if (turnBtn) turnBtn.style.display = "none";
+  }
+  function leaveBack() {
+    if (mode !== "idle" && mode !== "turning") return;
+    if (space !== "back") return;
+    mode = "backOut"; tt = 0;
+    c0.copy(camera.position); l0.copy(lookAt);
+  }
   // ⚠️ the front door's swing is driven by the SAME tt as the walk, exactly like
   // the bedroom door — so the slab is always open by the time the camera is in it
   function stepOut() {
@@ -3647,17 +3939,19 @@ export function buildHallway(ctx) {
   // which end of wherever you're standing you're looking at
   function restPos() {
     return space === "porch" ? P.porch : space === "kitchen" ? P.krest
-         : space === "garage" ? P.grest : P.rest;
+         : space === "garage" ? P.grest : space === "back" ? P.brest : P.rest;
   }
   function aimFor(f) {
     if (space === "porch") return f === "house" ? P.porchB : P.porchL;
     if (space === "kitchen") return f === "door" ? P.klookB : P.klook;
     if (space === "garage") return f === "door" ? P.glookB : P.glook;
+    if (space === "back") return f === "house" ? P.blookB : P.blook;
     return f === "south" ? P.lookS : P.look;
   }
   function flipOf(f) {
     if (space === "porch") return f === "street" ? "house" : "street";
     if (space === "kitchen" || space === "garage") return f === "door" ? "room" : "door";
+    if (space === "back") return f === "pool" ? "house" : "pool";
     return f === "north" ? "south" : "north";
   }
   function ease(x) { return x * x * (3 - 2 * x); }
@@ -3760,6 +4054,25 @@ export function buildHallway(ctx) {
       }
       return true;
     }
+    if (mode === "backIn" || mode === "backOut") {   // through the slider, onto the lawn
+      tt = Math.min(1, tt + dt / 2.4);
+      var bk = mode === "backIn" ? tt : 1 - tt;
+      // the pane is fully open by the time the camera reaches the opening —
+      // same contract as every hinged door in the house, translated not rotated
+      slideK(ease(Math.min(1, Math.max(0, (bk - 0.04) / 0.42))));
+      if (mode === "backIn") walk([c0, P.bdoor1, P.bdoor2, P.brest], [l0, P.bdoorL, P.blook, P.blook], tt);
+      else walk([c0, P.bdoor2, P.bdoor1], [l0, P.bdoorL, P.lookS], tt);
+      camera.position.copy(_v); lookAt.copy(_w); camera.lookAt(lookAt);
+      if (tt >= 1) {
+        if (mode === "backIn") { space = "back"; facing = turnTo = "pool"; slideK(1); }
+        else {
+          space = "hall"; facing = turnTo = "south"; slideK(0);
+          AUDIO.clickSfx && AUDIO.clickSfx(500);
+        }
+        turnK = 1; mode = "idle"; syncTurnBtn();
+      }
+      return true;
+    }
     if (mode === "out" || mode === "in") {           // through the front door, both ways
       tt = Math.min(1, tt + dt / 2.5);
       var k2 = mode === "out" ? tt : 1 - tt;
@@ -3804,7 +4117,7 @@ export function buildHallway(ctx) {
       }
       return true;
     }
-    if (space === "hall" || space === "porch" || space === "kitchen" || space === "garage") { // at rest: same parallax drift as the bedroom
+    if (space === "hall" || space === "porch" || space === "kitchen" || space === "garage" || space === "back") { // at rest: same parallax drift as the bedroom
       // ⚠️ the swing is driven by a SEPARATE eased term, not by lerping lookAt
       // straight from one end to the other. A direct lerp passes the target
       // through the camera's own position on the way past, and the view whips
@@ -3848,7 +4161,7 @@ export function buildHallway(ctx) {
   function turn(to) {
     if (space === "bedroom" || mode === "entering" || mode === "leaving" ||
         mode === "out" || mode === "in" || mode === "kitchenIn" || mode === "kitchenOut" ||
-        mode === "garageIn" || mode === "garageOut") return;
+        mode === "garageIn" || mode === "garageOut" || mode === "backIn" || mode === "backOut") return;
     to = to || flipOf(facing);
     if (to === facing && mode !== "turning") { syncTurnBtn(); return; }
     turnTo = to; turnK = 0; mode = "turning";
@@ -3877,12 +4190,12 @@ export function buildHallway(ctx) {
       document.body.appendChild(turnBtn);
     }
     var show = space === "hall" || space === "porch" || space === "kitchen" ||
-               space === "garage" || mode === "entering";
+               space === "garage" || space === "back" || mode === "entering";
     turnBtn.style.display = show ? "block" : "none";
     var next = flipOf(mode === "turning" ? turnTo : facing);
     // ⚠️ kitchen and garage share the room/door facing tokens, so "room" has to be
     // resolved per-space or the button in the garage offers you the kitchen
-    var LBL = { south: "the back of the house", north: "the front door",
+    var LBL = { south: "the back of the house", north: "the front door", pool: "the pool",
                 house: "the house", street: "the street",
                 door: "the way out", room: space === "garage" ? "the garage" : "the kitchen" };
     turnBtn.textContent = "⟲  turn around — " + (LBL[next] || "the other way");
@@ -3907,6 +4220,7 @@ export function buildHallway(ctx) {
     garLite.intensity = 1.7 * dim * gon * breathe;
     gBulb.material.emissiveIntensity = 1.6 * dim * gon;
     gSpill.material.opacity = 0.12 * dim * gon;
+    poolTick(t, dt);   // the water never stops, even seen through the glass
     // the porch light is OUTSIDE, so the pull chain doesn't touch it — that's the
     // point of it: turn the hall off and the yard is still faintly there
     porchLight.intensity = 1.5 * dim * backPorchOn;
@@ -4057,12 +4371,14 @@ export function buildHallway(ctx) {
       yardG.visible = false;   // camTick would do it next frame, but bfcache may not get one
       cloOpen = false; cloAnim = 0; cloDoorP.rotation.y = 0;
       gDoorPivot.rotation.y = 0; rollTarget = 0; rollA = 0; applyRoll(0);
+      slideK(0);
     },
     turn: turn, facing: function () { return facing; },
     stepOut: stepOut, stepIn: stepIn,
     kitchen: { enter: enterKitchen, leave: leaveKitchen },
     garage: { enter: enterGarage, leave: leaveGarage, roll: toggleRoll,
       rollA: function () { return rollA; } },
+    back: { enter: enterBack, leave: leaveBack },
     stashes: stashByKey, openStash: openStash, closeStash: closeStash,
     setPhase: setPhase, phase: function () { return porchPhase; },
     knock: knockCame,
