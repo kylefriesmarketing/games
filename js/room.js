@@ -1857,8 +1857,11 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
     // run is in progress, so it reads as "never played" the moment you finish one.
     // mapBests is the thing that persists — best wave per floor.
     "TOYBOX: LAST WATCH": { key: "lw-prefs", pick: function (m) {
+        /* ⚠️ these are {wave, won} OBJECTS. `obj > number` is a NaN comparison, so this
+         * loop never advanced and the badge read 'never played' for everybody. */
         var bst = m && m.mapBests, best = 0;
-        for (var k in bst) if (bst[k] > best) best = bst[k];
+        for (var k in bst) { var v = bst[k], w = (typeof v === 'number' ? v : (v && v.wave)) || 0;
+          if (w > best) best = w; }
         return best || null;
       }, noun: "furthest wave", attempts: true },
     "THE HAUNT":      { key: "haunt-save", pick: function (m) { return m.nights || null; }, noun: "nights run", attempts: true }
@@ -2945,7 +2948,7 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
   var armL = kidLimb(-0.15, 0.75, 0.28, 0.03, 0.027, vinylM, false);
   var armR = kidLimb(0.15, 0.75, 0.28, 0.03, 0.027, vinylM, false);
   kid.position.set(0.75, 0, 1.95); scene.add(kid);
-  kid.traverse(function (o) { if (o.isMesh) clickable(o, "the kid", null, "that's the kid — this is his room"); });
+  kid.traverse(function (o) { if (o.isMesh) { clickable(o, "the kid", null, "that's the kid — this is his room"); o.userData.roams = true; } });
 
   // If the rigged, walk-animated version exists, he upgrades himself in place.
   // The primitive stand-in above stays as the fallback when this load fails.
@@ -2981,7 +2984,7 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
     root.scale.setScalar(1.05 / 1.3);
     root.position.set(0, 0, 0);
     window.__kidRoot = root; // debug handle for scale/anchor checks
-    root.traverse(function (o) { if (o.isMesh) clickable(o, "the kid", null, "that's the kid — this is his room"); });
+    root.traverse(function (o) { if (o.isMesh) { clickable(o, "the kid", null, "that's the kid — this is his room"); o.userData.roams = true; } });
     kidMixer = new THREE.AnimationMixer(root);
     if (g.animations && g.animations[0]) { // the base file carries the walk cycle
       kidActions.walk = kidMixer.clipAction(g.animations[0]);
@@ -4610,7 +4613,14 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
     { key: "armyman", title: "the last sentry", from: "TOYBOX: LAST WATCH", icon: "🏰",
       earn: "hold a wave in TOYBOX: LAST WATCH", where: "on the shelf top, facing the door",
       have: function () { return anyOf("lw-prefs", function (m) {
-        var bst = m && m.mapBests; for (var k in bst) if (bst[k] > 0) return 1; return null; }); },
+        /* ⚠️ THE THIRD READER OF THE SAME BUG, and the most costly: this one gates a
+         * COLLECTIBLE. `{wave:7} > 0` is false, so 'the last sentry' never spawned, the
+         * treasure total was permanently one below its maximum, and the collector and
+         * curator awards could not be completed. */
+        var bst = m && m.mapBests;
+        for (var k in bst) { var v = bst[k], w = (typeof v === 'number' ? v : (v && v.wave)) || 0;
+          if (w > 0) return 1; }
+        return null; }); },
       home: { x: -0.45, y: 2.392, z: -2.32 }, build: COLL.buildArmyMan },
     { key: "fangs", title: "the plastic fangs", from: "THE HAUNT", icon: "👻",
       earn: "run a night in THE HAUNT", where: "on the desk, grinning at nothing",
@@ -6357,7 +6367,18 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
       var kdist = kidStep(dt, summoned ? 1.2 : 0.55);
       kidState.walkT += dt;
       var arrived = kdist <= 0.08, stuck = kidState.walkT > (summoned ? 3.2 : 10);
-      if (kid.position.y > 0.01) kid.position.y += (0 - kid.position.y) * Math.min(1, dt * 3); // hop down if a click pulled him off the bed
+      /* ⚠️⚠️ THIS DRAGGED THE KID TO y = 0 WHEREVER HE WAS, and the second storey's
+       * floor is at 3.45 — so the moment he followed you upstairs he sank through the
+       * landing and walked the whole floor inside the hall's ceiling. It was written
+       * for one job ('hop down if a click pulled him off the bed') and the house grew
+       * a storey underneath it.
+       * ⚠️ THE FLOOR COMES FROM THE DESTINATION, NOT THE DOORWAY: taking it from
+       * KID_ENTRY[kidSpace] gives 0 for the basement and the back yard, neither of
+       * which declares one, and would haul him UP through the den ceiling and off the
+       * lawn. And the pull stays ONE-WAY for the same reason. */
+      var kidFloorY = (kidState.station && kidState.station.y) || 0;
+      if (kid.position.y > kidFloorY + 0.01)
+        kid.position.y += (kidFloorY - kid.position.y) * Math.min(1, dt * 3); // hop down off the bed
       if (!arrived && !stuck) {
         kidFace(Math.atan2(kidState.faceX, kidState.faceZ), 9);
       } else if (arrived && kidState.via) { // reached the hub — press on to the real target
@@ -6440,8 +6461,10 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
     }
     if (kidMixer) kidMixer.update(dt); // clips always advance now (idle/sit/lie animate in place)
     updateKidBubble(); // keep his speech bubble over his head
-    kidShadow.position.x = kid.position.x; kidShadow.position.z = kid.position.z;
-    kidShadow.material.opacity = 0.5 * Math.max(0, 1 - Math.max(0, kid.position.y) * 3.2);
+    // his contact shadow has to sit on the same floor he does, not always on y 0.02
+    var ksY = (kidState.station && kidState.station.y) || 0;
+    kidShadow.position.set(kid.position.x, ksY + 0.02, kid.position.z);
+    kidShadow.material.opacity = 0.5 * Math.max(0, 1 - Math.max(0, kid.position.y - ksY) * 3.2);
     if ((frameCount % 120) === 0) applyPhase(); // the room checks the clock
     // five more minutes: while the bed has you, the whole room breathes lower
     nap += (((t < napUntil) ? 1 : 0) - nap) * Math.min(1, dt * 1.8);
@@ -6809,6 +6832,19 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
      * through a wall and the audit would still say ok. Every space is checked
      * against its own box now, and hallway.js exports those boxes from the very
      * constants that build the geometry so the two can never drift apart. */
+    /* ⚠️ A CLICKABLE WHOSE ACTION IS NOT A FUNCTION. clickable(m, name, action, hint)
+     * takes the action THIRD, and the landing ironing shipped with its hint in that
+     * slot — so clicking it called a string and threw. Nothing caught it because the
+     * failure only happens on click, in one room, on one prop. Two lines here catch
+     * the whole shape for every pickable in the house.
+     * A null action is fine and common (most props are hover-only); anything that is
+     * neither null nor a function is a bug by construction. */
+    pick.forEach(function (m) {
+      var a = m.userData && m.userData.action;
+      if (a != null && typeof a !== "function")
+        say("error", m.userData.name || "(unnamed)",
+            "its action is a " + typeof a + ", not a function — clicking it will throw");
+    });
     var seen = {}, told = {};
     var SP = (hall && hall.bounds) || {};
     var BEDROOM_BOX = { x: [-WALL_IN - 0.12, WALL_IN + 0.12], z: [-2.7, 3.6], y: [0.005, 3.4] };
@@ -6816,6 +6852,14 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
       var n = m.userData.name; if (!n) return;
       var sp = m.userData.space || "bedroom";
       if (sp === "both") return;                    // the door belongs to two rooms; neither box fits it
+      /* ⚠️ THE KID IS AN ACTOR, NOT A PLACED PROP. His meshes are tagged "bedroom"
+       * because that is where he is built, but he FOLLOWS YOU — into all twelve
+       * spaces. So the moment he walked out of the bedroom this audit reported him as
+       * "past the wall" and returned ok:false, which is a health check that fails
+       * during completely normal play. That is worse than no check: it trains you to
+       * ignore the one tool that catches real out-of-bounds props. Anything that
+       * legitimately roams is exempt from the bounds test and says so. */
+      if (m.userData.roams) return;
       var B = sp === "bedroom" ? BEDROOM_BOX : SP[sp];
       /* ⚠️⚠️ A MISSING BOX IS A FAILURE, NOT A SKIP. This started as a quiet
        * `if (!B) return;` and the very first run reported 0 errors across all

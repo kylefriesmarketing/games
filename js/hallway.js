@@ -407,8 +407,14 @@ export function buildHallway(ctx) {
     [-1, 1].forEach(function (sd2) {
       var arm = box(0.22, 0.30, 0.86, tweedM); arm.position.set(sd2 * 1.06, 0.50, 0); cg.add(arm);
       // the arm caps, worn shiny, which is the first thing that goes on a couch
-      var cap3 = new THREE.Mesh(new THREE.CylinderGeometry(0.11, 0.11, 0.86, 12, 1, false, 0, Math.PI), mat(0x60705a, 0.72));
-      cap3.rotation.set(Math.PI / 2, 0, Math.PI / 2); cap3.position.set(sd2 * 1.06, 0.65, 0); cg.add(cap3);
+      /* ⚠️ a half-cylinder shell has to lie ALONG the arm and open DOWNWARD. The old
+       * rotation put its axis on X — across the couch rather than along it — and the
+       * default thetaStart then aimed the shell sideways. rotation.x = π/2 alone puts
+       * the axis on +Z (along the arm); under that same rotation local -Z maps to +Y,
+       * so thetaStart must be +π/2 to keep the half that caps the arm from ABOVE.
+       * ⚠️ thetaStart -π/2 keeps the other half and buries the cap inside the arm. */
+      var cap3 = new THREE.Mesh(new THREE.CylinderGeometry(0.11, 0.11, 0.86, 12, 1, false, Math.PI / 2, Math.PI), mat(0x60705a, 0.72));
+      cap3.rotation.set(Math.PI / 2, 0, 0); cap3.position.set(sd2 * 1.06, 0.65, 0); cg.add(cap3);
     });
     [-0.58, 0.58].forEach(function (cx) {
       var cush = box(1.06, 0.14, 0.72, mat(0x7a8768, 0.92)); cush.position.set(cx, 0.44, 0.02); cg.add(cush); });
@@ -1434,7 +1440,10 @@ export function buildHallway(ctx) {
     grpU(lchG, 'the landing chair', 'nobody sits on it. it holds whatever is on its way up or down.');
     var lcPile = box(0.30, 0.09, 0.26, mat(0xd8d2c2, 0.95));
     lcPile.position.set(1.85, UPF.fl + 0.51, LAN.z0 + 0.42); lcPile.rotation.y = -0.72 + 0.24; add(lcPile);
-    utag(lcPile, 'the ironing', 'folded on Sunday, still on the chair on Thursday.');
+    // ⚠️ utag is (mesh, name, ACTION, hint) — this passed the hint as the action, so
+    // clicking the ironing called a string and threw a TypeError. The audit rule at
+    // the bottom of room.js now catches this shape for every pickable in the house.
+    utag(lcPile, 'the ironing', null, 'folded on Sunday, still on the chair on Thursday.');
     var upDownHit = new THREE.Mesh(new THREE.BoxGeometry(1.10, 2.0, 1.10),
       new THREE.MeshBasicMaterial({ transparent: true, opacity: 0, depthWrite: false }));
     upDownHit.position.set((STW.x0 + STW.x1) / 2, UPF.fl + 1.0, STW.z0 + 0.55); add(upDownHit);
@@ -2480,7 +2489,14 @@ export function buildHallway(ctx) {
   // ⚠️ and the west run STARTS past the far run's depth, not at the wall. An L of two
   // full-length runs double-fills the corner — another 0.62 x 0.62m coplanar pair at
   // y 0.93, plus the kick boards fighting at y 0.12 underneath it.
-  counterRun(KZ0 + CT_D + 0.02, KZ1 - 2.6, KX0 + CT_D / 2 + 0.05, "z");
+  /* ⚠️ THE SINK WAS HANGING IN MID-AIR. This run ended at KZ1 - 2.6 = -2.30 while the
+   * sink sits at z -2.225 and its basin covers -2.395..-2.055, so only 9.5 cm of a
+   * 34 cm basin had any worktop under it — rays cast straight down from the basin, the
+   * tap and the dish rack all missed every counter mesh and hit the lino 0.92 m below.
+   * KZ1 - 0.85 = -0.55 is exactly the splashback's span, which is what the run was
+   * always meant to match. Checked for collisions: the fridge, the table, the apron
+   * and the doorway are all clear of the extension. */
+  counterRun(KZ0 + CT_D + 0.02, KZ1 - 0.85, KX0 + CT_D / 2 + 0.05, "z");
 
   // wall cupboards over the far run — and they STOP at the hood. A cupboard run that
   // carries on over the cooker buries the extractor inside itself, which is both
@@ -2631,7 +2647,10 @@ export function buildHallway(ctx) {
     ktag(seat, "a kitchen chair", null, "somebody got up in a hurry and never pushed it back in.");
     return c;
   }
-  kChair(-0.72, 0, 0);                       // tucked in
+  // ⚠️ THE CHAIR WAS INSIDE THE FRIDGE. When KZ1 came north the fridge moved west to
+  // x -10.90 (AABB -11.29..-10.51) and this chair was left at -10.445: the seat, the
+  // full height of the backrest and one whole leg were all inside the fridge door.
+  kChair(-0.30, 0.10, 0);                    // tucked in, and clear of the fridge
   kChair(0.80, 0.26, Math.PI + 0.42);        // pulled out and turned, mid-conversation
   // ⚠️ an OPEN bowl, not a sphere-cap. The dome version rendered as a 30cm orange
   // ham sitting on the table, with the fruit sealed invisibly inside it.
@@ -3393,7 +3412,13 @@ export function buildHallway(ctx) {
   groundShade(-2.6, Z_WALK - 1.4, 0.28, 0.28, 0.5);              // the streetlight
 
   // --- the street: sidewalk, kerb, an 8.8m road (was 6.2 and read as a lane)
-  var road = box(78, 0.05, Z_ROADF - Z_KERB, roadM);
+  /* ⚠️⚠️ THIS WAS BUILT WITH A NEGATIVE DEPTH. Z_KERB is -18.8 and Z_ROADF is -27.6,
+   * so `Z_ROADF - Z_KERB` is -8.8 — the only degenerate dimension in all 2,724 meshes
+   * in this file. A negative extent flips the winding on every face, and roadM is a
+   * plain FrontSide material, so the whole box rendered inside-out: what you actually
+   * saw was its UNDERSIDE, 5 cm below the intended surface, carrying a downward normal
+   * — an unlit near-black band with the centre-line dashes floating above it. */
+  var road = box(78, 0.05, Z_KERB - Z_ROADF, roadM);
   road.position.set(-5.0, GROUND - 0.06, (Z_KERB + Z_ROADF) / 2); yadd(road);
   [[Z_WALK - 0.9, 1.8], [Z_FKERB + 0.9, 1.8]].forEach(function (sw) {
     var s3 = box(78, 0.06, sw[1], walkM); s3.position.set(-5.0, GROUND + 0.02, sw[0]); yadd(s3);
@@ -6563,7 +6588,12 @@ export function buildHallway(ctx) {
   var lwSave = (function () {
     try {
       var pr = JSON.parse(localStorage.getItem("lw-prefs") || "null"), best = 0, maps = 0;
-      if (pr && pr.mapBests) for (var k in pr.mapBests) { maps++; best = Math.max(best, pr.mapBests[k] || 0); }
+      /* ⚠️ lw-prefs.mapBests holds {wave, won} OBJECTS, not numbers. Math.max against
+       * an object yields NaN, and NaN poisons every later comparison — so the prop's
+       * hint reported a best of 0 no matter how far you had ever got. Tolerate a bare
+       * number too: this key has already changed shape once. */
+      if (pr && pr.mapBests) for (var k in pr.mapBests) { maps++;
+        var mv = pr.mapBests[k]; best = Math.max(best, (typeof mv === 'number' ? mv : (mv && mv.wave)) || 0); }
       return { best: best, maps: maps };
     } catch (e) { return { best: 0, maps: 0 }; }
   })();
