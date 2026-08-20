@@ -326,6 +326,13 @@ export function buildHallway(ctx) {
   var LIV = { x0: -17.15, x1: W_IN, z0: 0.45, z1: 4.10, ce: 2.62 };
   var livWallM = new THREE.MeshStandardMaterial({ map: hwallT, roughness: 0.94 });
   function ltag(m, name, action, hint) { clickable(m, name, action, hint); m.userData.space = 'living'; return m; }
+  /* ⚠️ THE HOUSE DIMMER STOPPED AT THE DOORWAY. Every light in this room was built
+   * inside the IIFE below and set exactly once, so the pull chain, the day/night
+   * cycle and the look grade all reached the hall and the kitchen and then simply
+   * stopped. Rather than hoist five variables out (and rename around the collisions
+   * that would cause), the room publishes its handles into one holder that glowTick
+   * can reach. A null guard keeps the tick honest if the room ever fails to build. */
+  var livLightH = null, livOn = true;
   (function () {
     var fl = new THREE.Mesh(new THREE.PlaneGeometry(LIV.x1 - LIV.x0, LIV.z1 - LIV.z0), plankM);
     fl.rotation.x = -Math.PI / 2; fl.position.set((LIV.x0 + LIV.x1) / 2, 0.005, (LIV.z0 + LIV.z1) / 2);
@@ -558,7 +565,23 @@ export function buildHallway(ctx) {
     var cfNut = new THREE.Mesh(new THREE.SphereGeometry(0.026, 10, 8), brassM);
     cfNut.position.y = -0.30; cfG.add(cfNut);
     cfG.children.forEach(function (m) { ltag(m, 'the ceiling light', null, 'two dead flies in the bowl. it will be taken down and washed one of these days.'); });
+    /* ⚠️ 21 NAMED PROPS AND ZERO ACTIONS — every ltag in this room passed null, the
+     * only interior space in the house with nothing to do in it. The wall beside the
+     * doorway was also the one stretch with no furniture on it at all, so the switch
+     * solves both at once. */
+    var lswP = box(0.02, 0.13, 0.09, mat(0xf0ece0, 0.6));
+    lswP.position.set(LIV.x1 - 0.02, 1.15, LDO.z1 + 0.42); add(lswP);
+    var lswT = box(0.018, 0.038, 0.022, mat(0xdad4c4, 0.5));
+    lswT.position.set(LIV.x1 - 0.035, 1.17, LDO.z1 + 0.42); lswT.rotation.z = 0.22; add(lswT);
+    [lswP, lswT].forEach(function (m) {
+      ltag(m, 'the light switch', function () {
+        livOn = !livOn;
+        lswT.rotation.z = livOn ? 0.22 : -0.22;
+        AUDIO.clickSfx && AUDIO.clickSfx(livOn ? 1750 : 1150);
+      }, 'painted over so many times the plate is part of the wall now.');
+    });
     var cfLite = new THREE.PointLight(0xffd2a0, 0.62, 7.5, 1.9);
+    livLightH = { lamp: lLite, tv: lTv, ceil: cfLite, shade: lshade.material, bowl: cfBowl.material, scr: scr.material };
     cfLite.position.set(-12.40, LIV.ce - 0.30, 2.30); add(cfLite);
 
     // ---- AND SOME THINGS ON THE FLOOR THAT ARE NOT FURNITURE ----
@@ -1063,6 +1086,17 @@ export function buildHallway(ctx) {
   var upWallM = new THREE.MeshStandardMaterial({ map: hwallT, roughness: 0.95 });
   var upFloorM = new THREE.MeshStandardMaterial({ map: plankT, roughness: 0.9 });
   function utag(m, name, action, hint) { clickable(m, name, action, hint); m.userData.space = 'upstairs'; return m; }
+  // ⚠️ and the same again upstairs: five light handles trapped in an IIFE, so the
+  // whole storey ignored the pull chain and the hour.
+  var upLightH = null, upOn = true;
+  /* the three rooms publish their own practicals here. Each entry is
+   *   { l: light, m: emissive material or null, i: base intensity, e: base emissive,
+   *     sw: does the landing switch own it, on: is this fixture itself switched on }
+   * `sw: false` is for the light coming through the gable window — that one is the
+   * SUN, so it follows the house dimmer and nothing else. Lumping it in with the
+   * bulbs would have let a light switch turn off the daylight. */
+  var roomLights = [];
+  function roomLite(l, m, i, e, sw) { var o = { l: l, m: m, i: i, e: e, sw: sw !== false, on: true }; roomLights.push(o); return o; }
   (function () {
     /* the floor, in four pieces around the stairwell — the sixth time this file has
      * had to say it, and the first time it was cheap because STW already exists. */
@@ -1309,8 +1343,17 @@ export function buildHallway(ctx) {
     swPlate.position.set(-6.20, UPF.fl + 1.32, LAN.z1 - 0.02); add(swPlate);
     var swTog = box(0.022, 0.038, 0.018, mat(0xdad4c4, 0.5));
     swTog.position.set(-6.20, UPF.fl + 1.34, LAN.z1 - 0.035); swTog.rotation.x = 0.22; add(swTog);
-    [swPlate, swTog].forEach(function (m) { utag(m, 'the landing switch', null,
-      'nobody has ever known which of the two switches does the stairs. you just try one.'); });
+    /* ⚠️ EVERY utag ON THIS FLOOR PASSED null AS ITS ACTION — seventeen of seventeen,
+     * against 23% across the rest of the module. A switch you cannot flick is a
+     * decal. This one owns the whole storey including the three rooms, which is why
+     * the hint's joke lands: you really do just try one. */
+    [swPlate, swTog].forEach(function (m) {
+      utag(m, 'the landing switch', function () {
+        upOn = !upOn;
+        swTog.rotation.x = upOn ? 0.22 : -0.22;
+        AUDIO.clickSfx && AUDIO.clickSfx(upOn ? 1750 : 1150);
+      }, 'nobody has ever known which of the two switches does the stairs. you just try one.');
+    });
     var therm = new THREE.Mesh(new THREE.CylinderGeometry(0.055, 0.055, 0.028, 16), mat(0xe8e4d8, 0.7));
     therm.rotation.x = Math.PI / 2; therm.position.set(-8.10, UPF.fl + 1.44, LAN.z1 - 0.025); add(therm);
     var thermDial = new THREE.Mesh(new THREE.RingGeometry(0.026, 0.042, 18), mat(0x8a8f96, 0.4));
@@ -1365,6 +1408,7 @@ export function buildHallway(ctx) {
     utag(upRun, 'the landing runner', null,
       'laid so the boards stop announcing everyone. it works everywhere except the third board from the stairs.');
     var upLite2 = new THREE.PointLight(0xffd2a0, 0.55, 8.0, 1.9);
+    upLightH = { a: upLite, b: upLite2, bulbA: bulb.material, bulbB: bulb2.material, led: alarmLed.material };
     upLite2.position.set(-13.20, UPF.ce - 0.45, (LAN.z0 + LAN.z1) / 2); add(upLite2);
   })();
   /* ---- BEHIND THE THREE DOORS -------------------------------------------------
@@ -1421,6 +1465,8 @@ export function buildHallway(ctx) {
             'set twenty minutes fast on purpose. they both know, and it still works.'); });
           var rl2 = new THREE.PointLight(0xff6a3a, 0.20, 1.7, 2.0);
           rl2.position.set(nx, fl + 0.63, nz + 0.10); add(rl2);
+          // a clock radio is never off. It dims with the house and ignores the switch.
+          roomLite(rl2, cf.material, 0.20, 0.85, false);
           var gls = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.03, 0.09, 12),
             new THREE.MeshStandardMaterial({ color: 0xcfe4ee, roughness: 0.15, transparent: true, opacity: 0.5 }));
           gls.position.set(nx - 0.11, fl + 0.60, nz - 0.05); add(gls);
@@ -1442,6 +1488,14 @@ export function buildHallway(ctx) {
           grp(0, lg, 'the reading lamp', 'left on most nights. the other one has learned to sleep through it.');
           var nl2 = new THREE.PointLight(0xffd2a0, 0.62, 3.6, 1.9);
           nl2.position.set(nx, fl + 0.88, nz); add(nl2);
+          var rlEnt = roomLite(nl2, sh2.material, 0.62, 0.45);
+          // ⚠️ the hint said it gets left on most nights, and there was no way to turn
+          // it off. A fixture whose own description is about being switched has to be.
+          lg.children.forEach(function (m) {
+            if (m.userData && m.userData.name) m.userData.action = function () {
+              rlEnt.on = !rlEnt.on; AUDIO.clickSfx && AUDIO.clickSfx(rlEnt.on ? 1650 : 1100);
+            };
+          });
         }
       });
       var wg = new THREE.Group(); wg.position.set(R.x0 + 0.80, fl, RZ1 - 0.45); wg.rotation.y = -0.05; add(wg);
@@ -1500,6 +1554,7 @@ export function buildHallway(ctx) {
       rtag(ovh, 0, 'their ceiling light', 'a paper globe. it has been meaning to be replaced since it went up.');
       var ol = new THREE.PointLight(0xffd2a0, 0.50, 7.5, 1.9);
       ol.position.set(cx, UPF.ce - 0.40, RZ0 + 1.9); add(ol);
+      roomLite(ol, ovh.material, 0.50, 0.34);
       var rug2 = new THREE.Mesh(new THREE.PlaneGeometry(2.1, 1.5), mat(0x7a5548, 0.96));
       rug2.rotation.x = -Math.PI / 2; rug2.rotation.z = 0.05;
       rug2.position.set(cx + 0.30, fl + 0.012, RZ0 + 2.55);
@@ -1558,6 +1613,12 @@ export function buildHallway(ctx) {
       grp(1, dl, 'the desk lamp', 'angled at the wall and not the desk, because that is how she likes it.');
       var dlite = new THREE.PointLight(0xffd2a0, 0.66, 3.6, 1.9);
       dlite.position.set(cx + 1.14, fl + 1.08, RZ0 + 0.68); add(dlite);
+      var dlEnt = roomLite(dlite, dh.material, 0.66, 0.55);
+      dl.children.forEach(function (m) {
+        if (m.userData && m.userData.name) m.userData.action = function () {
+          dlEnt.on = !dlEnt.on; AUDIO.clickSfx && AUDIO.clickSfx(dlEnt.on ? 1650 : 1100);
+        };
+      });
       [[-1.55, 0x8a4fd0, 'BAND'], [-0.55, 0x2fb6c8, 'HORSES'], [0.75, 0xd8443a, 'TOUR']].forEach(function (po, poi) {
         var pt = canvasTex(64, 88, function (c, w, h) {
           c.fillStyle = '#' + po[1].toString(16).padStart(6, '0'); c.fillRect(0, 0, w, h);
@@ -1604,6 +1665,7 @@ export function buildHallway(ctx) {
         }
         var fli = new THREE.PointLight(0xffa0d0, 0.26, 4.5, 2.0);
         fli.position.set(cx, fl + 1.85, RZ0 + 0.35); add(fli);
+        roomLite(fli, null, 0.26, 0);
       })();
       var bean = new THREE.Mesh(new THREE.SphereGeometry(0.44, 12, 9), mat(0x4f9a5e, 0.95));
       bean.scale.set(1, 0.60, 0.92); bean.position.set(cx - 1.55, fl + 0.26, RZ1 - 0.80); bean.rotation.y = 0.75; add(bean);
@@ -1626,6 +1688,7 @@ export function buildHallway(ctx) {
       rtag(hcl, 1, 'her ceiling light', 'the shade has a horse on it. it was chosen at six and defended ever since.');
       var hli = new THREE.PointLight(0xffd2a0, 0.44, 7.0, 1.9);
       hli.position.set(cx, UPF.ce - 0.40, RZ0 + 1.9); add(hli);
+      roomLite(hli, hcl.material, 0.44, 0.30);
     })();
 
     /* ============== THE ATTIC - warm, and it smells like old paper ============== */
@@ -1674,6 +1737,13 @@ export function buildHallway(ctx) {
         'you pull the flex, not a switch, and you do it by feel because the switch is at the bottom.'); });
       var alite = new THREE.PointLight(0xffd2a0, 0.80, 5.6, 1.9);
       alite.position.set(cx - 0.30, fl + 1.55, RZ1 - 0.55); add(alite);
+      var alEnt = roomLite(alite, abulb.material, 0.80, 0.95);
+      // the hint already says you pull the flex, not a switch. Now you can.
+      [abulb, aflex].forEach(function (m) {
+        m.userData.action = function () {
+          alEnt.on = !alEnt.on; AUDIO.clickSfx && AUDIO.clickSfx(alEnt.on ? 1500 : 980);
+        };
+      });
       var agl = new THREE.Mesh(new THREE.PlaneGeometry(0.54, 0.54),
         new THREE.MeshStandardMaterial({ color: 0x3a4a5e, emissive: 0x8fa6c8, emissiveIntensity: 0.40, roughness: 0.3 }));
       agl.position.set(UPF.x1 - 0.09, fl + 1.24, RZ0 + 1.70); agl.rotation.y = -Math.PI / 2; add(agl);
@@ -1688,6 +1758,7 @@ export function buildHallway(ctx) {
       beam.position.set(UPF.x1 - 1.05, fl + 0.80, RZ0 + 1.70); beam.rotation.set(0, -Math.PI / 2, 0.44); add(beam);
       var awl = new THREE.PointLight(0x9fc0e0, 0.22, 4.0, 2.0);
       awl.position.set(UPF.x1 - 0.60, fl + 1.20, RZ0 + 1.70); add(awl);
+      roomLite(awl, agl.material, 0.22, 0.40, false);   // this one is the sun
       var arug = new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.16, 1.70, 12), mat(0x7a5548, 0.96));
       arug.rotation.z = Math.PI / 2; arug.rotation.y = 0.26;
       arug.position.set(cx - 1.45, fl + 0.16, RZ1 - 0.42); add(arug);
@@ -3791,7 +3862,12 @@ export function buildHallway(ctx) {
     brace.position.set(0.55, 0.79, 0.03); brace.rotation.z = 0.66; gt.add(brace);
     var latch = box(0.09, 0.05, 0.03, mat(0x8a8f96, 0.4));
     latch.position.set(1.02, 1.00, 0.04); gt.add(latch);
-    btag(gt.children[0], "the side gate", null, "it has never latched properly. everyone just lifts it.");
+    // ⚠️ children[0] is the innermost board, 15 cm from the hinge — the least likely
+    // strip of a nine-mesh gate for a cursor to land on. Every other group out here
+    // (the bike, the car, the grill) tags all its children.
+    gt.children.forEach(function (m) {
+      if (m.isMesh) btag(m, "the side gate", null, "it has never latched properly. everyone just lifts it.");
+    });
   })();
 
   (function () {                                          // the tree that drops things on the deck
@@ -4525,7 +4601,7 @@ export function buildHallway(ctx) {
   // the sign, lettered by hand and pushed into the grass
   var zSignPost = box(0.010, 0.14, 0.010, stickM);
   zSignPost.position.set(-1.02, 0.07, -0.02); zooG.add(zpush(zSignPost));
-  var zSign = new THREE.Mesh(new THREE.PlaneGeometry(0.20, 0.085),
+  var zSign = new THREE.Mesh(new THREE.PlaneGeometry(0.30, 0.13),
     new THREE.MeshStandardMaterial({ roughness: 0.9, side: THREE.DoubleSide,
       map: canvasTex(128, 56, function (c, w, h) {
         c.fillStyle = "#f2ead6"; c.fillRect(0, 0, w, h);
@@ -4535,8 +4611,21 @@ export function buildHallway(ctx) {
         c.font = "italic 11px Georgia, serif"; c.fillStyle = "#6a5a38";
         c.fillText("please do not tap", w / 2, 42);
       }) }));
-  zSign.position.set(-1.02, 0.16, -0.02); zSign.rotation.y = 0.15; zooG.add(zpush(zSign));
-  zooParts.forEach(function (m) {
+  // ⚠️ at rotation.y 0.15 inside a group turned 0.28, the sign's normal was 65 degrees
+  // off the only camera in the house that looks at it — a hand-lettered sign rendering
+  // as an 8 px edge. 1.42 + the group's 0.28 puts it ~7 degrees off dead-on, which is
+  // square enough to read and crooked enough to look pushed into the grass by hand.
+  zSign.position.set(-1.02, 0.19, -0.02); zSign.rotation.y = 1.42; zooG.add(zSign);
+  zSignPost.scale.y = 1.5; zSignPost.position.y = 0.10;
+  /* ⚠️ 145 MESHES TAGGED AS ONE CLICKABLE — 88 fence sticks, 55 animal parts, the
+   * sign and its post. The highlight follows whichever mesh the ray hits first, so
+   * hovering the zoo usually lit up a single 8 mm fence stick rather than the zoo.
+   * One invisible hit box over the pens is both cheaper and honest about what you are
+   * pointing at. The parts stay in the scene; they just stop competing to BE it. */
+  var zooHit = new THREE.Mesh(new THREE.BoxGeometry(2.05, 0.45, 0.62),
+    new THREE.MeshBasicMaterial({ transparent: true, opacity: 0, depthWrite: false }));
+  zooHit.position.set(-0.02, 0.22, 0.02); zooG.add(zooHit);
+  [zooHit].forEach(function (m) {
     btag(m, "CLEAN THE ZOO", function () { window.location.href = "https://kylefriesmarketing.github.io/clean-the-zoo/"; },
       zooSave
         ? "CLEAN THE ZOO — " + zooSave + " animal" + (zooSave === 1 ? "" : "s") + " home so far · click for the rest"
@@ -4660,9 +4749,10 @@ export function buildHallway(ctx) {
   var kPad = box(1.90, 0.07, 1.70, padM); kPad.position.y = 0.035; kilnG.add(kPad);
   var kBody = new THREE.Mesh(new THREE.CylinderGeometry(0.46, 0.50, 1.02, 14), brickM);
   kBody.position.y = 0.58; kilnG.add(kBody);
+  var kilnExtra = [];
   [0.28, 0.62, 0.96].forEach(function (by) {          // the steel bands that hold it together
     var bd = new THREE.Mesh(new THREE.TorusGeometry(0.485, 0.022, 6, 20), bandM);
-    bd.rotation.x = Math.PI / 2; bd.position.y = by; kilnG.add(bd);
+    bd.rotation.x = Math.PI / 2; bd.position.y = by; kilnG.add(bd); kilnExtra.push(bd);
   });
   var kLid = new THREE.Mesh(new THREE.CylinderGeometry(0.40, 0.47, 0.16, 14), brickM);
   kLid.position.y = 1.15; kilnG.add(kLid);
@@ -4688,7 +4778,7 @@ export function buildHallway(ctx) {
    * no-op is gone. */
   var kShelf = box(0.92, 0.05, 0.34, shelfM); kShelf.position.set(-1.42, 0.52, 0.30); kilnG.add(kShelf);
   [[-1.80, -0.12], [-1.80, 0.12], [-1.04, -0.12], [-1.04, 0.12]].forEach(function (lg) {
-    var leg = box(0.06, 0.50, 0.06, shelfM); leg.position.set(lg[0], 0.25, 0.30 + lg[1]); kilnG.add(leg);
+    var leg = box(0.06, 0.50, 0.06, shelfM); leg.position.set(lg[0], 0.25, 0.30 + lg[1]); kilnG.add(leg); kilnExtra.push(leg);
   });
   /* the comment above says two of these have already been through, and for a while
    * the code built three identical pots at three identical roughnesses in a dead
@@ -4703,7 +4793,9 @@ export function buildHallway(ctx) {
   });
   var kBucket = new THREE.Mesh(new THREE.CylinderGeometry(0.13, 0.11, 0.24, 12), mat(0x4a5a68, 0.6));
   kBucket.position.set(0.62, 0.19, 0.66); kilnG.add(kBucket);   // 0.07 pad + half its own height
-  [kBody, kLid, kDoor, spy, flue, flueCap, kShelf, kBucket].forEach(function (m) {
+  // ⚠️ same stale-list problem: the kiln builds 17 meshes and this list named 8, so
+  // the steel bands and the shelf legs answered no hover at all.
+  [kBody, kLid, kDoor, spy, flue, flueCap, kShelf, kBucket].concat(kilnExtra).forEach(function (m) {
     btag(m, "THE KILN", function () { window.location.href = "https://kylefriesmarketing.github.io/the-kiln/"; },
       kilnSave.firings
         ? "THE KILN — " + kilnSave.firings + " firings, " + kilnSave.effects + " of 16 surfaces seen. click to load it again"
@@ -5505,7 +5597,12 @@ export function buildHallway(ctx) {
   biteParts.forEach(function (m) {
     gtag(m, "BITE", function () { window.location.href = "https://kylefriesmarketing.github.io/bite/"; },
       biteSave.sp
-        ? "BITE — " + biteSave.sp + " of 15 logged at Mud Lake. click to go back down"
+        /* ⚠️ biteSave parses `casts` and `mayor` and then reads only `sp`. The mayor is
+         * BITE's signature — the one fish nobody believes you caught — and it was sitting
+         * parsed in a variable, unspent, one ternary away from being the best line here. */
+        ? (biteSave.mayor
+            ? "BITE — the mayor came up once. nobody believed it · click to go back down"
+            : "BITE — " + biteSave.sp + " of 15 logged at Mud Lake. click to go back down")
         : "BITE — quiet fishing at Mud Lake. the water tells you everything. click to go");
   });
   // the bare bulb, and the clack it answers to
@@ -6086,9 +6183,21 @@ export function buildHallway(ctx) {
     lamp.position.set(-0.34 - t2 * 0.44, 0.44 - t2 * 0.40 + Math.sin(t2 * 3.1) * 0.05, 0.02 + t2 * 0.20);
     hxG.add(lamp);
   }
+  /* ⚠️ nine emissive bulbs and not one PointLight — the only emissive practical in
+   * the basement without one, against five of five everywhere else in the room. An
+   * emissive material lights nothing; it just looks bright. Parented to hxG so they
+   * ride the group, and kept to 1.1-1.5 m so they stay under the ping-pong table
+   * instead of washing the den. */
+  var hxLite = new THREE.PointLight(0xff8a2b, 0.9, 1.5, 2); hxLite.position.set(-0.55, 0.30, 0.12); hxG.add(hxLite);
+  var hxLite2 = new THREE.PointLight(0x8a4fd0, 0.5, 1.1, 2); hxLite2.position.set(-0.20, 0.42, 0.05); hxG.add(hxLite2);
   var bat = box(0.18, 0.01, 0.07, mat(0x211f26, 0.85));
   bat.position.set(-0.12, 0.455, -0.16); bat.rotation.set(0.1, 0.4, 0.16); hxG.add(bat);
-  [hxBody, hxLabel, skull, jaw, bat].forEach(function (m) {
+  /* ⚠️ this used to be a hand-written list of five meshes out of eighteen, so the two
+   * FLAPS — the pieces whose whole job is to say 'this box is open' — and the entire
+   * light string were invisible to the raycaster. A hand-written list goes stale the
+   * moment anybody adds a mesh; traverse the group, the way its neighbour already does. */
+  hxG.traverse(function (m) {
+    if (!m.isMesh) return;
     bstag(m, "THE HAUNT", function () { window.location.href = "https://kylefriesmarketing.github.io/the-haunt/"; },
       hauntSave.nights
         ? "THE HAUNT — " + hauntSave.nights + " nights run. click to open the gate again"
@@ -6227,7 +6336,12 @@ export function buildHallway(ctx) {
    * look two numbers. */
   var LOOK_MATS = [hwallM, plankM, runner.material, oakM, kWallM, lamM,
                    sidingM, grassM, deckM, bFenceM, pdeckM,
-                   garWallM, garFloorM, benchM, poolConcM, panelM];   // garage, pool deck, den paneling too
+                   garWallM, garFloorM, benchM, poolConcM, panelM,
+    // ⚠️ the reward retinted the whole house EXCEPT the two newest rooms: the living
+    // room's walls and the landing's were never in the list, so the paint stopped at
+    // two doorways. All three are declared at function scope, so LOOK_BASE captures
+    // their base hex on the next line with no other change.
+    livWallM, upWallM, upFloorM];   // garage, pool deck, den paneling too
   var LOOK_BASE = LOOK_MATS.map(function (m) { return m.color.getHex(); });
   // `need` = treasures required, the same currency the bedroom's ROOM_THEMES spend.
   // The bedroom ladder tops out at 9 of 21; the house goes all the way to 21, so the
@@ -7228,6 +7342,39 @@ export function buildHallway(ctx) {
       if (b.halo) b.halo.material.opacity = 0.34 * dim * on * breathe;
     });
     hallFill.intensity = 0.5 * dim * on;
+    /* the living room and the landing, which used to be outside every ticker in the
+     * file. Same `dim * on * breathe` term as the hall bulbs so they read as being on
+     * the same electrical supply, because they are. */
+    if (livLightH) {
+      var lon = livOn ? 1 : 0.05;
+      livLightH.lamp.intensity = 0.85 * dim * lon * breathe;
+      livLightH.ceil.intensity = 0.62 * dim * lon * breathe;
+      livLightH.shade.emissiveIntensity = 0.50 * dim * lon;
+      livLightH.bowl.emissiveIntensity = 0.42 * dim * lon;
+      // the set flickers on its own schedule — a CRT does not breathe with the house
+      var fl2 = 0.86 + 0.14 * Math.abs(Math.sin(t * 3.1) * Math.sin(t * 1.3));
+      livLightH.tv.intensity = 0.55 * dim * fl2;
+      livLightH.scr.emissiveIntensity = 0.70 * dim * fl2;
+    }
+    if (upLightH) {
+      var uon = upOn ? 1 : 0.05;
+      upLightH.a.intensity = 0.95 * dim * uon * breathe;
+      upLightH.b.intensity = 0.55 * dim * uon * breathe;
+      upLightH.bulbA.emissiveIntensity = 1.10 * dim * uon;
+      upLightH.bulbB.emissiveIntensity = 0.95 * dim * uon;
+      /* ⚠️ THE SMOKE ALARM'S LED WAS A CONSTANT. It is the cheapest possible ambient
+       * system and the most convincing: a 120 ms blink every 42 seconds, which is what
+       * the real ones do, and the only thing moving up here at 3 a.m. */
+      var blip = (t % 42) < 0.12 ? 2.0 : 0.22;
+      upLightH.led.emissiveIntensity = blip;
+    }
+    // and the three rooms behind the doors, on the same supply as everything else
+    for (var rli = 0; rli < roomLights.length; rli++) {
+      var e3 = roomLights[rli];
+      var k3 = e3.sw ? (upOn ? 1 : 0.05) * (e3.on ? 1 : 0.04) : 1;
+      e3.l.intensity = e3.i * dim * k3 * breathe;
+      if (e3.m) e3.m.emissiveIntensity = e3.e * dim * k3;
+    }
     // the garage bulb answers its own chain, not the hall switch
     var gon = garOn ? 1 : 0.03;
     garLite.intensity = 1.7 * dim * gon * breathe;
