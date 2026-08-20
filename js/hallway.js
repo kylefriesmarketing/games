@@ -1080,14 +1080,21 @@ export function buildHallway(ctx) {
    * to stack, and with a 3.45m total rise over a shared 2.1m run they end up 1.20m
    * apart where they cross. You cannot walk under that — measured, the camera came
    * out through the treads of the upper flight twice.
-   * The hall is 8m long, so a single straight run solves it: nineteen risers of 0.182
-   * climbing SOUTH from z -3.0, about 31 degrees, arriving at z 2.04 which is inside
-   * the upstairs corridor. It also means you arrive facing down the landing instead of
-   * at a wall. */
+   * The hall is 8m long, so a single straight run solves it, and you arrive facing
+   * down the landing instead of at a wall.
+   * ⚠️⚠️ THE NUMBERS THAT USED TO BE IN THIS PARAGRAPH DESCRIBED A FLIGHT THAT WAS
+   * NEVER BUILT — 'nineteen risers of 0.182 climbing SOUTH from z -3.0, about 31
+   * degrees, arriving at z 2.04'. What is four lines below is SIXTEEN risers of
+   * 3.45/16 = 0.2156 on a 0.275 going, which is 38.1 degrees, climbing NORTH from
+   * z 7.05 to a top tread at z 2.925. Every figure was wrong including the direction.
+   * A comment that lies is worse than no comment: the next session reads it, trusts
+   * it, and builds against geometry that does not exist. If you change the flight,
+   * change this paragraph in the same edit. */
   /* ⚠️ UP_Y is the FLOOR ABOVE and it is declared here, with the flight that reaches
-   * it, because that is the one number both have to agree on. It was 3.45 because the
-   * stairwell lid sat there; the flight is nineteen risers of exactly 3.45/19 so the
-   * top tread IS the floor rather than nearly it. */
+   * it, because that is the one number both have to agree on. It is 3.45 because the
+   * stairwell lid sat there, and the flight is sixteen risers of exactly 3.45/16 so
+   * the top tread IS the floor rather than nearly it. (This paragraph said NINETEEN
+   * for a while, three lines above sixteen. See the warning above.) */
   var UP_Y = 3.45;
   // sixteen risers of 0.216 on a 0.275 going: 38 degrees, which is steep and is what
   // a house of this age actually has when the hall is this full
@@ -1208,6 +1215,12 @@ export function buildHallway(ctx) {
   ];
   var RZ0 = UPF.z0 + 0.10, RZ1 = LAN.z0 - 0.10;
   var upRoom = 0, roomDoors = [];        // the door pivots, so they can swing
+  /* ⚠️ ALL THREE DOORS WERE IDENTICAL AND DEAD SHUT — same width, same colour, same
+   * roughness, rotation zero on every axis, knob at the same offset — while 'their
+   * room' hint says the door is ALWAYS HALF SHUT. The hint was right and the geometry
+   * disagreed with it. Each door has a resting angle now, and the swing animates from
+   * that angle rather than from zero, so a door that stands ajar goes back to ajar. */
+  var roomDoorRest = [0.34, 0.0, 0.12];
   var upWallM = new THREE.MeshStandardMaterial({ map: hwallT, roughness: 0.95 });
   /* ⚠️ plankT is ONE SHARED TEXTURE OBJECT and Box/Plane UVs run 0..1 per face
    * whatever the face's size, so `repeat` is effectively per-mesh — and the landing
@@ -1305,7 +1318,7 @@ export function buildHallway(ctx) {
        * free edge to -z) so it never sweeps through a camera coming up the corridor. */
       var piv = new THREE.Group();
       piv.position.set(d.x - d.w / 2, UPF.fl, LAN.z0 - 0.05); add(piv);
-      roomDoors[di] = piv;
+      roomDoors[di] = piv; piv.rotation.y = roomDoorRest[di];
       /* ⚠️ the opening in the wall runs to UPF.fl + 2.05 and the slab was 2.02 tall,
        * so every door had a 3 cm slot 0.92 m wide clean through a 0.10 m wall, into
        * the sealed void above the ceiling. Derive the slab from the opening. */
@@ -5031,7 +5044,11 @@ export function buildHallway(ctx) {
     try {
       var best = parseInt(localStorage.getItem("surf-best") || "0", 10) || 0;
       var car = JSON.parse(localStorage.getItem("surf-career") || "null");
-      return { best: best, rides: (car && (car.rides || car.waves)) || 0 };
+      /* ⚠️ THIS READ car.rides AND car.waves, AND SURF WRITES NEITHER. Its newCareer()
+       * returns { heats, stars, bestSet, lifetime: { waves, dist, barrel, ... } }, so
+       * the count was structurally always 0 — and it was never displayed anyway. The
+       * lifetime wave count is the number that means something. */
+      return { best: best, rides: (car && car.lifetime && car.lifetime.waves) || 0 };
     } catch (e) { return { best: 0, rides: 0 }; }
   })();
   var bbG = new THREE.Group();
@@ -6626,6 +6643,11 @@ export function buildHallway(ctx) {
     var lamp = new THREE.Mesh(new THREE.SphereGeometry(0.022, 8, 6),
       new THREE.MeshStandardMaterial({ color: lampC[lb % 3], emissive: lampC[lb % 3], emissiveIntensity: 0.55, roughness: 0.5 }));
     lamp.position.set(-0.34 - t2 * 0.44, 0.44 - t2 * 0.40 + Math.sin(t2 * 3.1) * 0.05, 0.02 + t2 * 0.20);
+    /* ⚠️ THE HALLOWEEN BOX IGNORED THE CALENDAR IT IS LITERALLY ABOUT. MONTH is
+     * declared at this function's top level and the module already uses it three
+     * times as a real prop swap — the closet's seasonal coats, the December wreath.
+     * In October the string is UP; the rest of the year it is a box of dark bulbs. */
+    lamp.material.emissiveIntensity = MONTH === 10 ? 1.15 : 0.22;
     hxG.add(lamp);
   }
   /* ⚠️ nine emissive bulbs and not one PointLight — the only emissive practical in
@@ -6633,8 +6655,9 @@ export function buildHallway(ctx) {
    * emissive material lights nothing; it just looks bright. Parented to hxG so they
    * ride the group, and kept to 1.1-1.5 m so they stay under the ping-pong table
    * instead of washing the den. */
-  var hxLite = new THREE.PointLight(0xff8a2b, 0.9, 1.5, 2); hxLite.position.set(-0.55, 0.30, 0.12); hxG.add(hxLite);
-  var hxLite2 = new THREE.PointLight(0x8a4fd0, 0.5, 1.1, 2); hxLite2.position.set(-0.20, 0.42, 0.05); hxG.add(hxLite2);
+  var hxOct = MONTH === 10 ? 1 : 0.28;   // the lights answer the month too, or they lie
+  var hxLite = new THREE.PointLight(0xff8a2b, 0.9 * hxOct, 1.5, 2); hxLite.position.set(-0.55, 0.30, 0.12); hxG.add(hxLite);
+  var hxLite2 = new THREE.PointLight(0x8a4fd0, 0.5 * hxOct, 1.1, 2); hxLite2.position.set(-0.20, 0.42, 0.05); hxG.add(hxLite2);
   var bat = box(0.18, 0.01, 0.07, mat(0x211f26, 0.85));
   bat.position.set(-0.12, 0.455, -0.16); bat.rotation.set(0.1, 0.4, 0.16); hxG.add(bat);
   /* ⚠️ this used to be a hand-written list of five meshes out of eighteen, so the two
@@ -7533,7 +7556,10 @@ export function buildHallway(ctx) {
       /* the door swings open ahead of the camera and shuts behind it - a door that
        * reacts to you is the entire reason it is a door and not a wall with a knob */
       var sw = mode === "roomIn" ? tt * 2.6 : 1 - (tt - 0.42) * 2.4;
-      if (roomDoors[upRoom]) roomDoors[upRoom].rotation.y = ease(Math.max(0, Math.min(1, sw))) * 1.92;
+      if (roomDoors[upRoom]) {
+        var rest = roomDoorRest[upRoom];
+        roomDoors[upRoom].rotation.y = rest + ease(Math.max(0, Math.min(1, sw))) * (1.92 - rest);
+      }
       if (mode === "roomIn") walk([c0, P.rd1, P.rd2, P.rmid, P.rrest],
                                   [l0, P.rlook, P.rlook, P.rlook, P.rlook], tt);
       else walk([c0, P.rmid, P.rd2, P.rd1, P.uprest], [l0, P.rlookB, P.uplook, P.uplook, P.uplook], tt);
