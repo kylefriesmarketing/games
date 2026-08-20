@@ -11,7 +11,7 @@
  *                          contents, and they effectively never change — so serve them
  *                          instantly and only hit the network on a miss.
  */
-var CACHE = "the-room-v40"; // v40: the shadow map stops redrawing a room that never moves
+var CACHE = "the-room-v41"; // v41: four rooms you could walk into and never walk out of
 var SHELL = ["./", "./index.html", "./manifest.webmanifest", "./icon.svg",
   // room.js imports these at parse time — miss one and the offline room won't boot
   "./js/room.js", "./js/util.js", "./js/stickers.js", "./js/collectibles.js",

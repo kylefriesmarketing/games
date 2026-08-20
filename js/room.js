@@ -3664,6 +3664,13 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
   }
   window.addEventListener("pointerdown", function (e) {
     if (hall.busy()) return; // mid-walk through the doorway: the feet are committed
+    /* ⚠️⚠️ THIS RAYCAST RAN FOR EVERY CLICK ANYWHERE ON THE PAGE. The listener is on
+     * window with no target test, so clicking the welcome dialog, the list view, the
+     * notebook or any overlay ALSO fired whatever 3D object happened to sit under the
+     * cursor — including game links. Requiring the canvas to be the actual target is
+     * the whole fix, and it makes the per-overlay guards below redundant rather than
+     * wrong (they are kept: decorPointerDown also owns drag initiation). */
+    if (e.target !== renderer.domElement) return;
     if (decorPointerDown(e)) return; // rearrange mode (and open panels) own the pointer
     setPointer(e);
     var o = pickAt();
@@ -3731,7 +3738,18 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
       var sto = document.getElementById("store-ov");
       if (sto && sto.classList.contains("open")) { closeStore(); return; }
       if (decorMode) { decorSet(false); return; }
-      if (hall.space() === "hall" && !hall.busy()) { hall.leave(); return; } // Esc walks you home
+      /* ⚠️ ESCAPE ONLY EVER WORKED IN THE HALL. hall.leave() is specifically the
+       * hall→bedroom walk and returns immediately anywhere else, so in the other ten
+       * spaces Esc silently did nothing — which is how four of them stayed one-way
+       * traps without anyone noticing. Dispatch per space instead: the export table
+       * is keyed by exactly the strings space() returns, and 'porch' is the one that
+       * wants stepIn rather than a leave. */
+      if (!hall.busy()) {
+        var sp = hall.space();
+        if (sp === "hall") { hall.leave(); return; }
+        if (sp === "porch") { hall.stepIn(); return; }
+        if (sp !== "bedroom" && hall[sp] && hall[sp].leave) { hall[sp].leave(); return; }
+      }
       document.getElementById("notebook").classList.remove("open");
       document.body.classList.remove("listing");
       return;
@@ -3739,6 +3757,18 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
     if (document.body.classList.contains("listing")) return; // the list has native tab order
     if (document.activeElement && document.activeElement.tagName === "INPUT") return; // typing your name in the drawer
     if (decorMode && decorKey(e)) return; // arrows nudge, [ ] spin, Del removes, ctrl+Z undoes
+    /* ⚠️⚠️ TAB WAS preventDefault()ED FOR EVERY CONTROL IN THE HOUSE. This listener is
+     * on window in the bubble phase, so a Tab pressed on a focused <button> reached it
+     * and had its default focus move cancelled — #list-toggle, the whole welcome
+     * dialog, the decorate drawer, the notebook, #tour-skip and the turn button were
+     * all keyboard-dead. The list view was the cruellest one: it has perfectly good
+     * native tab order, and the only control that reaches it could not be focused.
+     * Only cycle the 3D object list when focus is on the body — i.e. when the browser
+     * has nothing of its own to move to.
+     * ⚠️ Do NOT 'fix' this by making the canvas focusable: it lives inside
+     * <div id="room" aria-hidden="true">, and a focusable node inside an aria-hidden
+     * subtree is its own conformance failure. */
+    if (e.key === "Tab" && document.activeElement && document.activeElement !== document.body) return;
     if (e.key === "Tab") {
       e.preventDefault();
       var L = kbList();

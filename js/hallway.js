@@ -690,6 +690,26 @@ export function buildHallway(ctx) {
         d3.m.material.opacity = 0.24 * lampOn * (0.5 + 0.5 * Math.sin(t2 * 0.7 + d3.ph));
       }
     };
+    /* ⚠️⚠️ THE LIVING ROOM WAS A ONE-WAY TRAP. leaveLiving() existed, was exported,
+     * and was called by NOTHING — and the two things you would click to get out, the
+     * door slab and its hit box, are registered through tag(), which stamps
+     * userData.space = 'hall'. room.js's inSpace filter drops them from the pick list
+     * the instant space becomes 'living', so from inside the room they are not even
+     * candidates. Every other space has a back-hit (kBackHit, gBackHit, bBackHit,
+     * bsUpHit, upDownHit); this room never got one.
+     * ⚠️ MY OWN TESTS PASSED BECAUSE THEY CALLED hall.living.leave() THROUGH THE
+     * EXPORT. That tests the API, not the player. A space is only leavable if
+     * something a person can reach calls the function.
+     * ⚠️ It sits where P.llookB aims — the view you get after turning round — because
+     * the resting camera faces due WEST and anything by the door is ~160 degrees off
+     * axis. That is the house's established pattern (kBackHit and bsUpHit are behind
+     * their resting cameras too), and it is why the turn button MUST be enabled for
+     * this space in the same patch. */
+    var lOutHit = new THREE.Mesh(new THREE.BoxGeometry(0.24, 2.00, 0.98),
+      new THREE.MeshBasicMaterial({ transparent: true, opacity: 0, depthWrite: false }));
+    lOutHit.position.set(LIV.x1 - 0.16, 1.04, (LDO.z0 + LDO.z1) / 2); add(lOutHit);
+    ltag(lOutHit, 'the hallway', function () { leaveLiving(); },
+      'back out to the hall.');
     var lswP = box(0.02, 0.13, 0.09, mat(0xf0ece0, 0.6));
     lswP.position.set(LIV.x1 - 0.02, 1.15, LDO.z1 + 0.42); add(lswP);
     var lswT = box(0.018, 0.038, 0.022, mat(0xdad4c4, 0.5));
@@ -1615,6 +1635,21 @@ export function buildHallway(ctx) {
     function rtag(m, ri, name, hint) {
       clickable(m, name, null, hint); m.userData.space = UPR[ri].sp; return m;
     }
+    /* ⚠️⚠️ AND ALL THREE ROOMS BEHIND THE DOORS WERE ONE-WAY TRAPS TOO, for a second,
+     * worse reason: rtag() hard-codes null into clickable()'s action slot, so NOT ONE
+     * mesh in room0/room1/room2 could carry a click at all. leaveRoom() had no caller.
+     * Each room gets a hit box in its own doorway, tagged with its own space id so the
+     * pick filter keeps it, sitting where P.rlookB aims — the doorway you see after
+     * turning round, since the resting camera faces the far wall with the door ~4 m
+     * behind it. */
+    UPR.forEach(function (R2, ri) {
+      var oh = new THREE.Mesh(new THREE.BoxGeometry(0.98, 2.00, 0.30),
+        new THREE.MeshBasicMaterial({ transparent: true, opacity: 0, depthWrite: false }));
+      oh.position.set(R2.doorX, UPF.fl + 1.00, LAN.z0 - 0.22); add(oh);
+      clickable(oh, 'the landing', function () { leaveRoom(); },
+        'back out to the landing.');
+      oh.userData.space = R2.sp;
+    });
     function grp(ri, g2, name, hint) {
       g2.children.forEach(function (m) { if (m.isMesh) rtag(m, ri, name, hint); });
     }
@@ -7786,16 +7821,30 @@ export function buildHallway(ctx) {
       turnBtn.addEventListener("pointerdown", function (e) { e.stopPropagation(); });
       document.body.appendChild(turnBtn);
     }
+    /* ⚠️ THE TURN BUTTON WAS HIDDEN IN FIVE OF THE TWELVE SPACES — living, upstairs
+     * and the three rooms — even though flipOf(), aimFor() and the P.llookB/P.rlookB
+     * keyframes all support turning in them. So half the landing was unlookable, two
+     * of its three doors sat permanently behind the camera, and the way back out of
+     * every one of those rooms was off screen. This is the other half of the one-way
+     * trap fix: the back-hits above are only reachable once you can face them. */
     var show = space === "hall" || space === "porch" || space === "kitchen" ||
-               space === "garage" || space === "back" || space === "basement" || mode === "entering";
+               space === "garage" || space === "back" || space === "basement" ||
+               space === "living" || space === "upstairs" || isRoomSp(space) ||
+               mode === "entering";
     turnBtn.style.display = show ? "block" : "none";
     var next = flipOf(mode === "turning" ? turnTo : facing);
     // ⚠️ kitchen and garage share the room/door facing tokens, so "room" has to be
     // resolved per-space or the button in the garage offers you the kitchen
+    /* ⚠️ 'room' is shared by the kitchen, the garage AND now the living room, and
+     * 'door'/'far'/'west'/'east' had no entries at all for the new spaces — an enabled
+     * button with no label reads 'the other way', which is a button that lies. */
     var LBL = { south: "the back of the house", north: "the front door", pool: "the pool",
                 den: "the den", stairs: "the stairs up",
                 house: "the house", street: "the street",
-                door: "the way out", room: space === "garage" ? "the garage" : "the kitchen" };
+                west: "the far end", east: "the other end",
+                far: isRoomSp(space) ? "the rest of the room" : "the far wall",
+                door: isRoomSp(space) ? "the door" : space === "living" ? "the way back" : "the way out",
+                room: space === "garage" ? "the garage" : space === "living" ? "the living room" : "the kitchen" };
     turnBtn.textContent = "⟲  turn around — " + (LBL[next] || "the other way");
     turnBtn.setAttribute("aria-label", "Turn around to face " + (LBL[next] || "the other way"));
   }
