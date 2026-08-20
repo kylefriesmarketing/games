@@ -393,13 +393,68 @@ export function buildHallway(ctx) {
      * wall and showing the couch its back. Left unturned the screen looks north at the
      * sofa, which is the only direction a television has ever pointed. The small yaw is
      * deliberate: nothing else in here is square either. */
+    /* ⚠️ THIS IS WHAT THE RESTING CAMERA IS AIMED AT — the note on P.ldoorL says the
+     * seating group was moved specifically so 'what you see through the door' is the
+     * set — and it was THREE MESHES: a box, a box, and a flat plane. Thinner than the
+     * kitchen's background cooker. A 1990s television is a piece of furniture: it has
+     * a bulging glass face, a wood-veneer cabinet, a speaker grille, dial knobs you
+     * turned by hand, a standby light and a bent aerial. It has them now.
+     * ⚠️ THE FACE IS A SPHERE CAP, NOT A PLANE. A CRT bulges, and that curve is most
+     * of what says CRT rather than flatscreen. R 1.15 with a 0.38 rad sweep gives a
+     * 0.85 m face bulging 8 cm — geometry, not a texture trick. Its pole points -z
+     * (rotation.x -PI/2 maps +Y to -Z), which is the direction the couch is in. */
     var sg = new THREE.Group(); sg.position.set(-12.60, 0, 3.58); sg.rotation.y = 0.06; add(sg);
     var stand = box(1.30, 0.52, 0.46, woodM); stand.position.y = 0.26; sg.add(stand);
+    var shRail = box(1.22, 0.03, 0.40, woodM); shRail.position.set(0, 0.22, 0); sg.add(shRail);
     var tvb = box(1.02, 0.76, 0.58, mat(0x2b2e33, 0.6)); tvb.position.y = 0.90; sg.add(tvb);
-    var scr = new THREE.Mesh(new THREE.PlaneGeometry(0.84, 0.60), new THREE.MeshStandardMaterial({
-      color: 0x8fa6c8, emissive: 0x7f9dc4, emissiveIntensity: 0.7, roughness: 0.35 }));
-    scr.position.set(0, 0.92, -0.30); scr.rotation.y = Math.PI; sg.add(scr);
+    var venr = box(1.04, 0.10, 0.60, mat(0x5a4632, 0.7)); venr.position.y = 1.24; sg.add(venr);
+    var scr = new THREE.Mesh(
+      new THREE.SphereGeometry(1.15, 24, 16, 0, Math.PI * 2, 0, 0.38),
+      new THREE.MeshStandardMaterial({ color: 0x8fa6c8, emissive: 0x7f9dc4, emissiveIntensity: 0.7, roughness: 0.35 }));
+    scr.position.set(0, 0.92, 0.85); scr.rotation.x = -Math.PI / 2; sg.add(scr);
+    // the bezel, four boards round the glass, standing 2 cm proud of it
+    [[0.92, 0.05, 0, 0.335], [0.92, 0.05, 0, -0.335], [0.05, 0.72, 0.435, 0], [0.05, 0.72, -0.435, 0]]
+      .forEach(function (bz) {
+        var bm2 = box(bz[0], bz[1], 0.05, mat(0x33373d, 0.55));
+        bm2.position.set(bz[2], 0.92 + bz[3], -0.285); sg.add(bm2);
+      });
+    // the speaker grille down the right-hand side, and the two dials under it
+    var grl = box(0.14, 0.44, 0.02, mat(0x24272b, 0.85)); grl.position.set(0.43, 0.98, -0.30); sg.add(grl);
+    for (var gs = 0; gs < 7; gs++) {
+      var slat2 = box(0.12, 0.012, 0.012, mat(0x15171a, 0.9));
+      slat2.position.set(0.43, 1.16 - gs * 0.056, -0.312); sg.add(slat2);
+    }
+    [[0.43, 0.70], [0.43, 0.60]].forEach(function (kn2, ki) {
+      var dial = new THREE.Mesh(new THREE.CylinderGeometry(0.032, 0.036, 0.026, 14), mat(0x8a8f96, 0.4));
+      dial.rotation.x = Math.PI / 2; dial.position.set(kn2[0], kn2[1], -0.305);
+      dial.rotation.z = ki ? 0.6 : -1.1; sg.add(dial);
+      var nub = box(0.006, 0.024, 0.008, mat(0x2b2e33, 0.5));
+      nub.position.set(kn2[0] + (ki ? 0.012 : -0.018), kn2[1] + 0.016, -0.318); sg.add(nub);
+    });
+    var led2 = new THREE.Mesh(new THREE.SphereGeometry(0.011, 8, 6),
+      new THREE.MeshStandardMaterial({ color: 0xff5a4a, emissive: 0xff3a26, emissiveIntensity: 1.4, roughness: 0.4 }));
+    led2.position.set(0.43, 0.52, -0.30); sg.add(led2);
+    // the aerial, bent the way every aerial in the world ends up bent
+    [[-0.22, 1.0, 0.42], [0.22, -1.0, 0.30]].forEach(function (ae) {
+      var rod2 = new THREE.Mesh(new THREE.CylinderGeometry(0.006, 0.004, 0.62, 6), mat(0x9aa1a9, 0.35));
+      rod2.position.set(ae[0], 1.52, 0.10); rod2.rotation.z = ae[1] * ae[2]; sg.add(rod2);
+      var rod3 = new THREE.Mesh(new THREE.CylinderGeometry(0.004, 0.003, 0.34, 6), mat(0x9aa1a9, 0.35));
+      rod3.position.set(ae[0] + ae[1] * 0.30, 1.80, 0.10); rod3.rotation.z = ae[1] * (ae[2] + 0.22); sg.add(rod3);
+    });
+    var aBase = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.06, 0.03, 12), mat(0x2b2e33, 0.5));
+    aBase.position.set(0, 1.30, 0.10); sg.add(aBase);
     sg.children.forEach(function (m) { ltag(m, 'the big set', null, 'twenty-seven inches and it took two people to carry.'); });
+    // the video, because there was always a video under the television
+    var vcr = box(0.86, 0.11, 0.40, mat(0x3a3f46, 0.5)); vcr.position.set(-0.02, 0.60, 3.58); vcr.rotation.y = 0.06;
+    vcr.position.x += -12.60; add(vcr);
+    var vslot = box(0.52, 0.016, 0.02, mat(0x15171a, 0.9));
+    vslot.position.set(-12.64, 0.60, 3.38); vslot.rotation.y = 0.06; add(vslot);
+    var vclk = new THREE.Mesh(new THREE.PlaneGeometry(0.13, 0.035),
+      new THREE.MeshStandardMaterial({ color: 0x0c1a14, emissive: 0x2bd07a, emissiveIntensity: 0.9, roughness: 0.5 }));
+    vclk.position.set(-12.32, 0.605, 3.375); vclk.rotation.y = Math.PI + 0.06; add(vclk);
+    [vcr, vslot, vclk].forEach(function (m) {
+      ltag(m, 'the video', null, 'still blinking 12:00. it has been blinking 12:00 since it came out of the box.');
+    });
     var ct = box(1.20, 0.06, 0.56, woodM); ct.position.set(-12.60, 0.40, 2.30); add(ct);
     [[-0.53, -0.22], [0.53, -0.22], [-0.53, 0.22], [0.53, 0.22]].forEach(function (lp) {
       var lg2 = box(0.06, 0.40, 0.06, woodM); lg2.position.set(-12.60 + lp[0], 0.20, 2.30 + lp[1]); add(lg2); });
@@ -493,6 +548,24 @@ export function buildHallway(ctx) {
       ltag(mag, 'the magazines', null, 'nobody subscribes to any of these. they simply arrive.');
     });
 
+    /* ⚠️ THE ONE ROOM WITH NO SKIRTING. The hall builds three boards under a double
+     * warning about why they must be BOXES standing proud and not planes at +0.001
+     * ('the running boards flashing'), and the kitchen copies it with a comment saying
+     * so. This room got neither, so its walls met its floor at a bare seam.
+     * ⚠️ Boxes, 0.02 proud. Do not 'simplify' this to a plane. */
+    [[(LIV.x0 + LIV.x1) / 2, LIV.z0 + 0.01, LIV.x1 - LIV.x0, 0.02],
+     [(LIV.x0 + LIV.x1) / 2, LIV.z1 - 0.01, LIV.x1 - LIV.x0, 0.02],
+     [LIV.x0 + 0.01, (LIV.z0 + LIV.z1) / 2, 0.02, LIV.z1 - LIV.z0]].forEach(function (sk2) {
+      var skb = box(sk2[2], 0.14, sk2[3], mat(0x241b12, 0.85));
+      skb.position.set(sk2[0], 0.07, sk2[1]); add(skb);
+    });
+    // and the doorway gets the jambs and head every other doorway in the house has
+    [[LDO.z0 - 0.035], [LDO.z1 + 0.035]].forEach(function (jz) {
+      var jm2 = box(0.10, LDO.y1 + 0.06, 0.07, mat(0xd8d2c2, 0.8));
+      jm2.position.set(LIV.x1 - 0.03, (LDO.y1 + 0.06) / 2, jz[0]); add(jm2);
+    });
+    var jhd = box(0.10, 0.07, LDO.z1 - LDO.z0 + 0.14, mat(0xd8d2c2, 0.8));
+    jhd.position.set(LIV.x1 - 0.03, LDO.y1 + 0.035, (LDO.z0 + LDO.z1) / 2); add(jhd);
     // ---- ON THE WALLS ----
     var frameM = mat(0x4a3524, 0.7);
     function wallPic(px, pz, ry, w2, h2, tilt, draw, name, hint) {
@@ -604,7 +677,11 @@ export function buildHallway(ctx) {
   })();
   var lDoorPivot = new THREE.Group(); lDoorPivot.position.set(W_IN - 0.03, 0, LDO.z0); add(lDoorPivot);
   var lSlab = box(0.05, 2.05, 0.94, mat(0x4a3524, 0.72)); lSlab.position.set(0, 1.025, 0.47); lDoorPivot.add(lSlab);
-  var lKnob = new THREE.Mesh(new THREE.SphereGeometry(0.026, 12, 10), mat(0xc8b06a, 0.35));
+  // ⚠️ mat() sets colour and roughness only, so metalness stays 0 — this was a
+  // brass-COLOURED matte ball, while the kitchen's knob 120 lines away is real brass
+  // and the ceiling rose's nut in this very room uses a proper brass material.
+  var lKnob = new THREE.Mesh(new THREE.SphereGeometry(0.026, 12, 10),
+    new THREE.MeshStandardMaterial({ color: 0xc8b06a, roughness: 0.3, metalness: 0.65 }));
   lKnob.position.set(-0.05, 1.00, 0.84); lDoorPivot.add(lKnob);
   var lSpill = new THREE.Mesh(new THREE.PlaneGeometry(0.34, 0.96),
     new THREE.MeshBasicMaterial({ color: 0x9db8ff, transparent: true, opacity: 0.2,
@@ -1084,7 +1161,15 @@ export function buildHallway(ctx) {
   var RZ0 = UPF.z0 + 0.10, RZ1 = LAN.z0 - 0.10;
   var upRoom = 0, roomDoors = [];        // the door pivots, so they can swing
   var upWallM = new THREE.MeshStandardMaterial({ map: hwallT, roughness: 0.95 });
-  var upFloorM = new THREE.MeshStandardMaterial({ map: plankT, roughness: 0.9 });
+  /* ⚠️ plankT is ONE SHARED TEXTURE OBJECT and Box/Plane UVs run 0..1 per face
+   * whatever the face's size, so `repeat` is effectively per-mesh — and the landing
+   * borrowed the HALL's. The hall floor is 3.10 x 12.25 at repeat (1.2, 4), about
+   * 2.6 m per tile; the landing's biggest piece is 11.58 x 10.65, so the same repeat
+   * stretched the grain nearly four times. It gets its own clone at the hall's
+   * measured density (0.387 tiles/m in U, 0.327 in V) rather than the hall's numbers. */
+  var upFloorT = plankT.clone(); upFloorT.needsUpdate = true;
+  upFloorT.wrapS = upFloorT.wrapT = THREE.RepeatWrapping; upFloorT.repeat.set(4.5, 3.5);
+  var upFloorM = new THREE.MeshStandardMaterial({ map: upFloorT, roughness: 0.9 });
   function utag(m, name, action, hint) { clickable(m, name, action, hint); m.userData.space = 'upstairs'; return m; }
   // ⚠️ and the same again upstairs: five light handles trapped in an IIFE, so the
   // whole storey ignored the pull chain and the hour.
@@ -1394,13 +1479,20 @@ export function buildHallway(ctx) {
     // a runner down the middle, because bare boards up here is what you HEAR
     var runT2 = canvasTex(64, 256, function (c, w, h) {
       c.fillStyle = '#6a4a44'; c.fillRect(0, 0, w, h);
-      c.strokeStyle = 'rgba(214,198,166,0.5)'; c.lineWidth = 4; c.strokeRect(6, 6, w - 12, h - 12);
+      /* ⚠️ SIDE STRIPES, NOT A strokeRect. This canvas is 1:4 on a 1:10.67 plane, so
+       * it has to TILE along the run — and a rectangular border tiles into a fat bar
+       * laid across the carpet every 3.5 m. Two vertical stripes tile invisibly. */
+      c.fillStyle = 'rgba(214,198,166,0.5)'; c.fillRect(5, 0, 5, h); c.fillRect(w - 10, 0, 5, h);
       c.fillStyle = 'rgba(214,198,166,0.34)';
       for (var d2 = 0; d2 < 12; d2++) { c.save(); c.translate(w / 2, 18 + d2 * 21);
         c.rotate(Math.PI / 4); c.fillRect(-5, -5, 10, 10); c.restore(); }
       c.fillStyle = 'rgba(0,0,0,0.16)'; c.fillRect(w * 0.28, 0, w * 0.44, h);
     });
     runT2.colorSpace = THREE.SRGBColorSpace;
+    // 64x256 is 1:4; the plane is 0.90 x 9.6, which is 1:10.67. Tile it 2.7 times
+    // along the run and the 10 px diamonds land square instead of as long lozenges.
+    runT2.wrapS = THREE.ClampToEdgeWrapping; runT2.wrapT = THREE.RepeatWrapping;
+    runT2.repeat.set(1, 2.7);
     var upRun = new THREE.Mesh(new THREE.PlaneGeometry(0.90, 9.6), new THREE.MeshStandardMaterial({
       map: runT2, roughness: 0.97, polygonOffset: true, polygonOffsetFactor: -4, polygonOffsetUnits: -4 }));
     upRun.rotation.set(-Math.PI / 2, 0, Math.PI / 2);
@@ -1555,6 +1647,55 @@ export function buildHallway(ctx) {
       var ol = new THREE.PointLight(0xffd2a0, 0.50, 7.5, 1.9);
       ol.position.set(cx, UPF.ce - 0.40, RZ0 + 1.9); add(ol);
       roomLite(ol, ovh.material, 0.50, 0.34);
+      /* ⚠️ MEASURED 73% BoxGeometry and 3.47 meshes per prop, against the bedroom's
+       * 37.5% and 5.8. Boxes are the fast way to say 'furniture' and the reason a room
+       * reads as blocked-out rather than built. Everything below is deliberately round
+       * — a radio, a hatbox, a rod, knobs — because those are the shapes a bedroom of
+       * this vintage actually has, and each is built from parts rather than one lump. */
+      var wl = new THREE.Group();
+      wl.position.set(cx + 1.32, fl + 0.83, RZ1 - 0.52); wl.rotation.y = -0.34; add(wl);
+      var wlBody = box(0.30, 0.19, 0.16, mat(0x6a4630, 0.55)); wlBody.position.y = 0.095; wl.add(wlBody);
+      var wlTop = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.08, 0.30, 14, 1, false, 0, Math.PI), mat(0x6a4630, 0.55));
+      wlTop.rotation.z = Math.PI / 2; wlTop.position.y = 0.19; wl.add(wlTop);
+      var wlSpk = new THREE.Mesh(new THREE.CylinderGeometry(0.055, 0.055, 0.012, 16), mat(0xd8c9a8, 0.9));
+      wlSpk.rotation.x = Math.PI / 2; wlSpk.position.set(-0.06, 0.12, 0.082); wl.add(wlSpk);
+      [[0.07, 0.10], [0.07, 0.055]].forEach(function (dl2, di2) {
+        var kd = new THREE.Mesh(new THREE.CylinderGeometry(0.018, 0.02, 0.014, 12), mat(0x2b2419, 0.5));
+        kd.rotation.x = Math.PI / 2; kd.position.set(dl2[0], dl2[1], 0.084);
+        kd.rotation.z = di2 ? 0.8 : -0.4; wl.add(kd);
+      });
+      grp(0, wl, 'the wireless', 'older than both of them. it gets two stations and one of them is the shipping forecast.');
+      // a hatbox on the wardrobe, which is where hatboxes go and stay
+      var hb = new THREE.Group(); hb.position.set(R.x0 + 1.32, fl + 1.98, RZ1 - 0.50); hb.rotation.y = 0.42; add(hb);
+      var hbB = new THREE.Mesh(new THREE.CylinderGeometry(0.19, 0.20, 0.14, 20), mat(0xb8a898, 0.9));
+      hbB.position.y = 0.07; hb.add(hbB);
+      var hbL = new THREE.Mesh(new THREE.CylinderGeometry(0.205, 0.205, 0.035, 20), mat(0xa8968a, 0.9));
+      hbL.position.y = 0.155; hb.add(hbL);
+      var hbR = new THREE.Mesh(new THREE.TorusGeometry(0.20, 0.008, 6, 20), mat(0x8a5a5a, 0.8));
+      hbR.rotation.x = Math.PI / 2; hbR.position.y = 0.10; hb.add(hbR);
+      grp(0, hb, 'the hatbox', 'there is a hat in it. nobody has worn a hat since the wedding.');
+      // the rod the curtains actually hang from, with a finial on each end
+      var rodC = new THREE.Mesh(new THREE.CylinderGeometry(0.014, 0.014, 1.90, 10), mat(0x8a7a5a, 0.5));
+      rodC.rotation.z = Math.PI / 2; rodC.position.set(cx - 0.30, fl + 2.02, RZ0 + 0.11); add(rodC);
+      [-0.95, 0.95].forEach(function (fx) {
+        var fin = new THREE.Mesh(new THREE.SphereGeometry(0.028, 12, 10), mat(0xc8a24a, 0.4));
+        fin.position.set(cx - 0.30 + fx, fl + 2.02, RZ0 + 0.11); add(fin);
+        rtag(fin, 0, 'the curtain rod', 'one finial has been loose since it went up and is still loose.');
+      });
+      rtag(rodC, 0, 'the curtain rod', 'one finial has been loose since it went up and is still loose.');
+      // drawer knobs — brass, round, and the reason a dresser reads as a dresser
+      [[0.22, -0.36], [0.22, 0.36], [0.56, -0.36], [0.56, 0.36]].forEach(function (kk) {
+        var dk = new THREE.Mesh(new THREE.SphereGeometry(0.020, 10, 8), mat(0xc8a24a, 0.35));
+        dk.position.set(cx + 1.05 + kk[1], fl + kk[0], RZ1 - 0.42 + 0.26); add(dk);
+        rtag(dk, 0, 'the dresser', 'the mirror is angled for somebody a bit shorter than either of them.');
+      });
+      // his slippers, exactly where they are stepped out of
+      [[-0.09, 0.16], [0.09, -0.10]].forEach(function (sl) {
+        var sli = new THREE.Mesh(new THREE.CylinderGeometry(0.055, 0.062, 0.20, 12, 1, false, 0, Math.PI), mat(0x5a4a3a, 0.95));
+        sli.rotation.set(Math.PI / 2, 0, 0.2 + sl[0] * 2);
+        sli.position.set(cx - 0.75 + sl[0] * 3.2, fl + 0.055, RZ0 + 2.75 + sl[1]); add(sli);
+        rtag(sli, 0, 'his slippers', 'pointing two different directions, which is how they always end up.');
+      });
       var rug2 = new THREE.Mesh(new THREE.PlaneGeometry(2.1, 1.5), mat(0x7a5548, 0.96));
       rug2.rotation.x = -Math.PI / 2; rug2.rotation.z = 0.05;
       rug2.position.set(cx + 0.30, fl + 0.012, RZ0 + 2.55);
@@ -1681,6 +1822,38 @@ export function buildHallway(ctx) {
       var jb = box(0.16, 0.08, 0.12, mat(0xc4553f, 0.7));
       jb.position.set(cx + 0.86, fl + 1.36, RZ1 - 0.16); jb.rotation.y = 0.25; add(jb);
       rtag(jb, 1, 'the jewellery box', 'plays one bar and a half of something, then gives up.');
+      /* ⚠️ 2.93 meshes per prop — the lowest in the house — because most of what is
+       * in here is one object doing one job. These two are deliberately assemblies:
+       * a mobile is nothing BUT parts hanging off each other, and it is the only thing
+       * in the room that occupies the air between the ceiling and the bed. */
+      var mob = new THREE.Group();
+      mob.position.set(R.x0 + 1.30, UPF.ce - 0.30, RZ0 + 1.05); mob.rotation.y = 0.7; add(mob);
+      var mobRing = new THREE.Mesh(new THREE.TorusGeometry(0.16, 0.006, 6, 20), mat(0x8a7a5a, 0.6));
+      mobRing.rotation.x = Math.PI / 2; mob.add(mobRing);
+      var mobStr = new THREE.Mesh(new THREE.CylinderGeometry(0.003, 0.003, 0.22, 5), mat(0xd8d2c2, 0.8));
+      mobStr.position.y = 0.11; mob.add(mobStr);
+      [[0, 0.16, 0x2fb6c8, 'ico'], [2.1, 0.14, 0xff8a2b, 'sph'], [4.2, 0.19, 0xf0e2bc, 'cone']].forEach(function (mh) {
+        var hx2 = Math.cos(mh[0]) * 0.15, hz2 = Math.sin(mh[0]) * 0.15;
+        var thr = new THREE.Mesh(new THREE.CylinderGeometry(0.002, 0.002, mh[1], 4), mat(0xd8d2c2, 0.8));
+        thr.position.set(hx2, -mh[1] / 2, hz2); mob.add(thr);
+        var shp = mh[3] === 'ico' ? new THREE.Mesh(new THREE.IcosahedronGeometry(0.035, 0), mat(mh[2], 0.7))
+               : mh[3] === 'sph' ? new THREE.Mesh(new THREE.SphereGeometry(0.032, 10, 8), mat(mh[2], 0.7))
+               : new THREE.Mesh(new THREE.ConeGeometry(0.032, 0.06, 10), mat(mh[2], 0.7));
+        shp.position.set(hx2, -mh[1] - 0.03, hz2); shp.rotation.set(0.3, mh[0], 0.2); mob.add(shp);
+      });
+      grp(1, mob, 'the mobile', 'hung over the cot and never taken down. it still turns when the door opens.');
+      // the brush and the hand mirror, which live together and are never both found
+      var brsh = new THREE.Group();
+      brsh.position.set(cx + 1.94, fl + 0.775, RZ0 + 0.40); brsh.rotation.set(0, 0.9, 0); add(brsh);
+      var brB = new THREE.Mesh(new THREE.SphereGeometry(0.045, 12, 8), mat(0x8a4fd0, 0.6));
+      brB.scale.set(1, 0.32, 0.62); brsh.add(brB);
+      var brH = new THREE.Mesh(new THREE.CylinderGeometry(0.010, 0.013, 0.11, 8), mat(0x8a4fd0, 0.6));
+      brH.rotation.z = Math.PI / 2; brH.position.set(0.09, 0, 0); brsh.add(brH);
+      for (var bz2 = 0; bz2 < 5; bz2++) {
+        var bri = new THREE.Mesh(new THREE.CylinderGeometry(0.0016, 0.0016, 0.018, 4), mat(0x2b2e33, 0.7));
+        bri.position.set(-0.028 + bz2 * 0.014, 0.016, 0); brsh.add(bri);
+      }
+      grp(1, brsh, 'the hairbrush', 'and the hand mirror that goes with it, which is under the bed.');
       var hcl = new THREE.Mesh(new THREE.SphereGeometry(0.16, 14, 10),
         new THREE.MeshStandardMaterial({ color: 0xf2ead6, emissive: 0xffd9a0, emissiveIntensity: 0.30,
           roughness: 0.85, transparent: true, opacity: 0.9 }));
@@ -1766,9 +1939,64 @@ export function buildHallway(ctx) {
       var osh = new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.21, 0.22, 12, 1, true), mat(0xc4b48a, 0.92));
       osh.position.set(cx + 0.05, fl + 0.16, RZ1 - 0.34); osh.rotation.set(1.32, 0.4, 0); add(osh);
       rtag(osh, 2, 'the old lampshade', 'replaced, not thrown away, which is the entire principle of this room.');
+      /* ⚠️ MEASURED: 0 props resting on a surface, against the bedroom's 15 — an
+       * automatic fail on the rubric and obvious once written down. An attic is
+       * nothing BUT things put down on top of other things. These sit on the trunk
+       * and on the box stack, so the room finally has a middle layer. */
+      var album = box(0.30, 0.045, 0.24, mat(0x6a3f38, 0.85));
+      album.position.set(cx + 1.05, fl + 0.49, RZ1 - 1.00); album.rotation.y = -0.36 + 0.14; add(album);
+      var album2 = box(0.26, 0.035, 0.21, mat(0x3f5068, 0.85));
+      album2.position.set(cx + 1.12, fl + 0.53, RZ1 - 0.94); album2.rotation.y = -0.36 - 0.22; add(album2);
+      [album, album2].forEach(function (m) { rtag(m, 2, 'the albums',
+        'photographs of people nobody left can name, kept anyway.'); });
+      var tin = new THREE.Mesh(new THREE.CylinderGeometry(0.10, 0.10, 0.06, 16), mat(0xb8a05a, 0.4));
+      tin.position.set(cx + 0.86, fl + 0.50, RZ1 - 1.14); tin.rotation.y = 0.5; add(tin);
+      var tinL = new THREE.Mesh(new THREE.CylinderGeometry(0.104, 0.104, 0.012, 16), mat(0x9a8448, 0.4));
+      tinL.position.set(cx + 0.88, fl + 0.535, RZ1 - 1.05); tinL.rotation.set(0.24, 0.5, 0.1); add(tinL);
+      [tin, tinL].forEach(function (m) { rtag(m, 2, 'the biscuit tin',
+        'there have never been biscuits in it. there are buttons and a tape measure.'); });
+      var doll = new THREE.Group();
+      doll.position.set(cx - 1.22, fl + 0.99, RZ0 + 1.35); doll.rotation.set(0.2, 0.9, 0.34); add(doll);
+      var dBody = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.05, 0.16, 10), mat(0xd8b8a0, 0.85));
+      doll.add(dBody);
+      var dHead = new THREE.Mesh(new THREE.SphereGeometry(0.045, 10, 8), mat(0xe8ccb8, 0.8));
+      dHead.position.y = 0.11; doll.add(dHead);
+      var dHair = new THREE.Mesh(new THREE.SphereGeometry(0.048, 10, 8, 0, Math.PI * 2, 0, 1.4), mat(0x6a4a30, 0.9));
+      dHair.position.y = 0.118; doll.add(dHair);
+      doll.children.forEach(function (m) { rtag(m, 2, 'the doll',
+        'sat on top of the BABY box, facing out, which somebody did on purpose.'); });
+      var skates = box(0.22, 0.07, 0.09, mat(0xf0ece0, 0.7));
+      skates.position.set(cx + 0.62, fl + 1.02, RZ0 + 1.18); skates.rotation.set(0, 0.42, 0.08); add(skates);
+      var blade = box(0.20, 0.012, 0.012, new THREE.MeshStandardMaterial({ color: 0xc8cdd4, roughness: 0.25, metalness: 0.7 }));
+      blade.position.set(cx + 0.62, fl + 0.98, RZ0 + 1.18); blade.rotation.set(0, 0.42, 0.08); add(blade);
+      [skates, blade].forEach(function (m) { rtag(m, 2, 'the skates',
+        'one size too small the winter they were bought and never worn since.'); });
       var tbx = box(0.28, 1.20, 0.28, cardDk);
       tbx.position.set(R.x0 + 0.42, fl + 0.60, RZ0 + 0.60); tbx.rotation.set(0.14, 0.3, 0.16); add(tbx);
       rtag(tbx, 2, 'the tree', 'in its box, leaning in the corner, waiting for the one week it is famous.');
+      /* the birdcage: round, empty, and hung on a nail at an angle nobody chose —
+       * which is also the last of the off-axis the room was short of. */
+      var cage = new THREE.Group();
+      cage.position.set(cx - 1.62, fl + 1.05, RZ0 + 0.72); cage.rotation.set(0.16, 0.6, 0.22); add(cage);
+      var cgTop = new THREE.Mesh(new THREE.SphereGeometry(0.13, 12, 8, 0, Math.PI * 2, 0, 1.0), mat(0xb8b2a2, 0.5));
+      cgTop.position.y = 0.13; cage.add(cgTop);
+      var cgBase = new THREE.Mesh(new THREE.CylinderGeometry(0.125, 0.135, 0.03, 16), mat(0x8a7a5a, 0.6));
+      cgBase.position.y = -0.02; cage.add(cgBase);
+      for (var cb = 0; cb < 8; cb++) {
+        var ang = cb / 8 * Math.PI * 2;
+        var bar2 = new THREE.Mesh(new THREE.CylinderGeometry(0.0035, 0.0035, 0.16, 4), mat(0xb8b2a2, 0.5));
+        bar2.position.set(Math.cos(ang) * 0.118, 0.06, Math.sin(ang) * 0.118); cage.add(bar2);
+      }
+      var cgHook = new THREE.Mesh(new THREE.TorusGeometry(0.022, 0.004, 5, 12), mat(0xb8b2a2, 0.5));
+      cgHook.position.y = 0.26; cage.add(cgHook);
+      grp(2, cage, 'the birdcage', 'empty for as long as anyone can remember, and nobody will throw it out.');
+      var mags = new THREE.Group();
+      mags.position.set(cx - 0.55, fl + 0.03, RZ1 - 0.72); mags.rotation.y = 0.78; add(mags);
+      [[0x8a5a4a, 0, 0.06], [0x4a5a7a, 0.03, -0.14], [0xc4a04a, 0.06, 0.22]].forEach(function (mg) {
+        var mgm = box(0.21, 0.028, 0.28, mat(mg[0], 0.92));
+        mgm.position.set(0, mg[1], 0); mgm.rotation.y = mg[2]; mags.add(mgm);
+      });
+      grp(2, mags, 'the magazines', 'kept because of one article in one of them, and nobody remembers which.');
       var chr = new THREE.Mesh(new THREE.SphereGeometry(0.045, 10, 8),
         new THREE.MeshStandardMaterial({ color: 0xc8443a, roughness: 0.25, metalness: 0.5 }));
       chr.position.set(R.x0 + 0.72, fl + 0.045, RZ0 + 0.78); add(chr);
@@ -4332,9 +4560,15 @@ export function buildHallway(ctx) {
     w3.position.set(ex, upY, (UP.z0 + UP.z1) / 2); badd(w3);
   });
   var bwGlass = new THREE.Mesh(new THREE.PlaneGeometry(BW.x1 - BW.x0 - 0.10, BW.y1 - BW.y0 - 0.10),
-    new THREE.MeshStandardMaterial({ color: 0x1a2436, emissive: 0xffd9a0, emissiveIntensity: 0.55, roughness: 0.25 }));
+    new THREE.MeshStandardMaterial({ color: 0x1a2436, emissive: 0xffd9a0, emissiveIntensity: 1.1, roughness: 0.25 }));
   bwGlass.position.set((BW.x0 + BW.x1) / 2, (BW.y0 + BW.y1) / 2, UP.z0 + 0.17);
   bwGlass.rotation.y = Math.PI; badd(bwGlass);
+  /* ⚠️ EVERY WINDOW ON BOTH STREETS DIMS AND WARMS WITH THE HOUR through bWins —
+   * except this one, which is YOURS, seen from your own back yard. It sat at a flat
+   * 0.55 through every hour of the night. Registering it is one line; the base goes
+   * to 1.1 so the shared `1.1 * s.lamp` term lands where the author intended rather
+   * than doubling it. */
+  bWins.push(bwGlass.material);
   var bwFrame = box(BW.x1 - BW.x0 + 0.10, 0.07, 0.06, mat(0xe4e0d2, 0.8));
   bwFrame.position.set((BW.x0 + BW.x1) / 2, BW.y0 - 0.02, UP.z0 + 0.19); badd(bwFrame);
   var roofM2 = mat(0x3a2f26, 0.92);
@@ -4816,7 +5050,38 @@ export function buildHallway(ctx) {
    * between the grill and the zoo pens (which start at z 14.39), tested by sampling
    * the whole pad footprint for anything standing above the grass. */
   var kilnG = new THREE.Group(); kilnG.position.set(-9.00, GROUND, 13.30); kilnG.rotation.y = 0.24; badd(kilnG);
-  var padM = mat(0x8e8a80, 0.96), brickM = mat(0xa8674a, 0.92), bandM = mat(0x5d6169, 0.42);
+  var padM = mat(0x8e8a80, 0.96), bandM = mat(0x5d6169, 0.42);
+  /* ⚠️ THE KILN BODY WAS 244 PX OF ONE FLAT COLOUR, in a yard that draws a canvas
+   * texture for a BEACH BALL. Six canvases in this block and the game prop had none.
+   * Seven staggered courses of firebrick with a mortar grid, a soot plume climbing
+   * from the spyhole, and a paler calcined crown where the lid sits — about twenty
+   * draw ops, and the difference between a terracotta cylinder and a kiln. */
+  var brickT = canvasTex(256, 512, function (c, w, h) {
+    c.fillStyle = '#a8674a'; c.fillRect(0, 0, w, h);
+    var rows = 7, rh = h / rows;
+    for (var r5 = 0; r5 < rows; r5++) {
+      var off = (r5 % 2) * (w / 8);
+      for (var k5 = 0; k5 < 4; k5++) {
+        var bx5 = off + k5 * (w / 4);
+        c.fillStyle = ['#b06e4e', '#9e5f45', '#a86a4a', '#b47450'][(r5 + k5) % 4];
+        c.fillRect(bx5 + 2, r5 * rh + 2, w / 4 - 4, rh - 4);
+      }
+    }
+    c.strokeStyle = 'rgba(228,220,200,0.45)'; c.lineWidth = 3;
+    for (var g5 = 0; g5 <= rows; g5++) { c.beginPath(); c.moveTo(0, g5 * rh); c.lineTo(w, g5 * rh); c.stroke(); }
+    // the calcined crown, and the soot the spyhole has been throwing for years
+    var cr = c.createLinearGradient(0, 0, 0, h * 0.18);
+    cr.addColorStop(0, 'rgba(232,226,208,0.55)'); cr.addColorStop(1, 'rgba(232,226,208,0)');
+    c.fillStyle = cr; c.fillRect(0, 0, w, h * 0.18);
+    var so = c.createRadialGradient(w * 0.5, h * 0.46, 4, w * 0.5, h * 0.30, h * 0.26);
+    so.addColorStop(0, 'rgba(24,18,14,0.62)'); so.addColorStop(1, 'rgba(24,18,14,0)');
+    c.fillStyle = so; c.fillRect(w * 0.2, h * 0.05, w * 0.6, h * 0.5);
+  });
+  brickT.colorSpace = THREE.SRGBColorSpace;
+  brickT.wrapS = brickT.wrapT = THREE.RepeatWrapping; brickT.repeat.set(3, 1);
+  var brickM = new THREE.MeshStandardMaterial({ map: brickT, roughness: 0.92 });
+  var kbBump = bumpFrom(brickT, 1.8);
+  if (kbBump) { kbBump.repeat.copy(brickT.repeat); brickM.bumpMap = kbBump; brickM.bumpScale = 0.5; }
   var kPad = box(1.90, 0.07, 1.70, padM); kPad.position.y = 0.035; kilnG.add(kPad);
   var kBody = new THREE.Mesh(new THREE.CylinderGeometry(0.46, 0.50, 1.02, 14), brickM);
   kBody.position.y = 0.58; kilnG.add(kBody);
@@ -5622,7 +5887,12 @@ export function buildHallway(ctx) {
   var corkM = mat(0xc9a877, 0.9), rodM = mat(0x2b2f36, 0.55), lineM = mat(0xdfe6ee, 0.6);
   var grip = new THREE.Mesh(new THREE.CylinderGeometry(0.026, 0.024, 0.30, 10), corkM);
   grip.position.y = 0.15; rodG.add(grip);
-  var seat = new THREE.Mesh(new THREE.CylinderGeometry(0.021, 0.021, 0.09, 10), mat(0x8a8f96, 0.4));
+  // ⚠️ steelM (color 0x454b52, roughness 0.4, metalness 0.6) is declared in this same
+  // room and used at fourteen sites — the vice, the hammer, the saw, the brackets —
+  // and the one machined object in it, a fishing reel, was matte grey plastic. At the
+  // resting distance the reel is about 32 px, and the specular is the whole difference
+  // between a lump and a mechanism.
+  var seat = new THREE.Mesh(new THREE.CylinderGeometry(0.021, 0.021, 0.09, 10), steelM);
   seat.position.y = 0.345; rodG.add(seat);
   // the blank tapers — a rod that is the same width all the way up reads as a pole
   /* ⚠️ each segment is placed at sg[0] + 0.20 and is 0.50 long, so it spans
@@ -5633,14 +5903,14 @@ export function buildHallway(ctx) {
     var seg = new THREE.Mesh(new THREE.CylinderGeometry(sg[2], sg[1], 0.50, 8), rodM);
     seg.position.y = sg[0] + 0.20; rodG.add(seg);
   });
-  var reel = new THREE.Mesh(new THREE.CylinderGeometry(0.055, 0.055, 0.036, 14), mat(0x6d737b, 0.35));
+  var reel = new THREE.Mesh(new THREE.CylinderGeometry(0.055, 0.055, 0.036, 14), steelM);
   reel.rotation.z = Math.PI / 2; reel.position.set(0.055, 0.30, 0); rodG.add(reel);
-  var reelStem = new THREE.Mesh(new THREE.BoxGeometry(0.045, 0.012, 0.012), mat(0x6d737b, 0.35));
+  var reelStem = new THREE.Mesh(new THREE.BoxGeometry(0.045, 0.012, 0.012), steelM);
   reelStem.position.set(0.028, 0.30, 0); rodG.add(reelStem);
   var handle = new THREE.Mesh(new THREE.CylinderGeometry(0.007, 0.007, 0.05, 6), mat(0x2b2f36, 0.5));
   handle.rotation.x = Math.PI / 2; handle.position.set(0.088, 0.335, 0.03); rodG.add(handle);
   [0.62, 0.98, 1.34, 1.66].forEach(function (gy) {   // the guides
-    var gd = new THREE.Mesh(new THREE.TorusGeometry(0.013, 0.0022, 5, 10), mat(0x9aa1a9, 0.35));
+    var gd = new THREE.Mesh(new THREE.TorusGeometry(0.013, 0.0022, 5, 10), steelM);
     /* ⚠️ three.js builds a torus in the XY plane with its hole axis on +Z. A Y
      * rotation swings that axis to +X — perpendicular to the blank — so the guides
      * were little wheels bolted to the side of the rod. X puts the hole on Y, which
