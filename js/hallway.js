@@ -2776,7 +2776,12 @@ export function buildHallway(ctx) {
   // One plane meant a ray down the pool mouth hit GRASS at y GROUND before it ever
   // reached the water at -0.22: a pool painted over, the door-needs-a-hole lesson
   // in landscaping form. The apron's border slabs hide the seams.
-  var LAWN = { x0: XC - 15, x1: XC + 15, z0: Z_S + 0.9, z1: Z_S + 17.9 };
+  /* ⚠️ x0 was XC-15 (-20.9) and the west neighbours stand at x -21 to -28 — so they
+   * were floating on nothing, with bare grass running to a fog edge behind them
+   * (Kyle: "just empty green grass"). The lawn reaches past them now. It costs one
+   * plane's worth of triangles and it is what makes the west side read as a street
+   * of houses rather than a field with houses parked in it. */
+  var LAWN = { x0: XC - 28, x1: XC + 15, z0: Z_S + 0.9, z1: Z_S + 17.9 };
   var PHOLE = { x0: XC + 1.55, x1: XC + 7.65, z0: Z_S + 5.9, z1: Z_S + 10.5 };  // the apron footprint
   [[LAWN.x0, LAWN.x1, LAWN.z0, PHOLE.z0], [LAWN.x0, LAWN.x1, PHOLE.z1, LAWN.z1],
    [LAWN.x0, PHOLE.x0, PHOLE.z0, PHOLE.z1], [PHOLE.x1, LAWN.x1, PHOLE.z0, PHOLE.z1]]
@@ -2965,6 +2970,13 @@ export function buildHallway(ctx) {
    * room failed to boot. Hoisting moves the function, never the data it reads. */
   bHouse(XC + 17.9, Z_S + 1.4, 8.6, 3.5, 6.0, Math.PI / 2, [[-1.3, 1.5], [1.4, 2.5]]);
   bHouse(XC + 18.2, Z_S + 15.6, 8.2, 3.2, 5.8, Math.PI / 2 - 0.05, [[0.8, 1.4]]);
+  /* and the side you now turn to see: another row further out so there is depth
+   * behind the near neighbours, plus trees to break the line. */
+  bHouse(XC - 26.4, Z_S + 6.6, 8.4, 3.3, 6.0, -Math.PI / 2 + 0.04, [[-1.0, 1.5], [1.5, 2.4]]);
+  bHouse(XC - 26.8, Z_S + 14.4, 8.0, 3.5, 5.8, -Math.PI / 2, [[0.9, 1.4]]);
+  bHouse(XC - 26.6, Z_S + 22.2, 8.6, 3.2, 6.0, -Math.PI / 2 - 0.05, [[-1.2, 1.5]]);
+  bTree(XC - 19.4, Z_S + 8.8, 1.1); bTree(XC - 19.8, Z_S + 16.2, 0.95);
+  bTree(XC - 20.1, Z_S + 22.6, 1.05); bTree(XC - 15.2, Z_S + 20.8, 0.9);
   bTree(XC + 13.2, Z_S + 4.2, 1.0); bTree(XC + 13.6, Z_S + 15.9, 1.1);
   bTree(XC + 12.9, Z_S + 10.4, 0.85);
   bTree(XC + 13.4, Z_S + 12.0, 0.9);
@@ -4876,7 +4888,13 @@ export function buildHallway(ctx) {
       return m ? { nights: m.nights || 0, guests: m.seasonGuests || 0 } : { nights: 0, guests: 0 };
     } catch (e) { return { nights: 0, guests: 0 }; }
   })();
-  var hxG = new THREE.Group(); hxG.position.set(2.20, BSM.fl, 3.00); hxG.rotation.y = -0.5; add(hxG);
+  /* ⚠️ under the ping-pong table (Kyle) — which is where a box of decorations
+   * actually ends up, and it is the one bit of floor in the den that is permanently
+   * spoken for. The table top sits at y 0.76 with 2.45 x 1.36 of clearance under it,
+   * and the box is 0.44 tall with its flaps reaching 0.58, so it fits with room to
+   * spare. Nudged off the table's centre line so it reads as shoved under rather
+   * than placed. */
+  var hxG = new THREE.Group(); hxG.position.set(-2.38, BSM.fl, -0.62); hxG.rotation.y = -0.42; add(hxG);
   var cardM = mat(0xb99a6e, 0.95), cardDk = mat(0x9d8058, 0.95);
   var hxBody = box(0.60, 0.40, 0.44, cardM); hxBody.position.y = 0.20; hxG.add(hxBody);
   [[-0.31, 0.44, 0, 0.5], [0.31, 0.44, 0, -0.5]].forEach(function (fl) {   // flaps thrown open
@@ -5400,6 +5418,18 @@ export function buildHallway(ctx) {
     brest: new THREE.Vector3(-4.55, 1.28, 13.9),    // on the back lawn, pool-side of the line
     blook: new THREE.Vector3(-1.20, -0.45, 17.1),   // the water
     blookB: new THREE.Vector3(-5.60, 1.45, 9.4),    // turned round: the slider, the lit house
+    /* ⚠️⚠️ AND A THIRD WAY TO LOOK, because the back yard only ever had two and both
+     * of them face EAST-ish. Projecting each prop's centre from the resting eye at
+     * Kyle's aspect, facing "pool" and facing "house":
+     *     the pool, the tiki torches   IN frame on pool
+     *     the grill                    IN frame on house
+     *     THE KILN                     out on both (ndc x -0.71 and -2.34)
+     *     CLEAN THE ZOO                out on both (-1.94, -25.05)
+     *     the slip 'n slide            out on both
+     * The entire west half of the yard — the kiln, the zoo, the slide, the washing
+     * line — was content nobody could turn toward, which is why Kyle could see every
+     * other new game and not this one. The turn is a three-cycle now. */
+    blookW: new THREE.Vector3(-13.60, 0.80, 13.10),  // and west: the kiln, the zoo, the line
     bdoor1: new THREE.Vector3(-5.34, 1.66, 7.85),   // squared up to the slider's clear pane
     bdoor2: new THREE.Vector3(-5.34, 1.58, 9.35),   // in the opening
     bdoorL: new THREE.Vector3(-3.20, 0.55, 14.6),   // what you see through it: the glow
@@ -5563,14 +5593,16 @@ export function buildHallway(ctx) {
     if (space === "kitchen") return f === "door" ? P.klookB : P.klook;
     if (space === "garage") return f === "door" ? P.glookB : P.glook;
     if (space === "living") return f === "door" ? P.llookB : P.llook;
-    if (space === "back") return f === "house" ? P.blookB : P.blook;
+    if (space === "back") return f === "house" ? P.blookB : f === "yard" ? P.blookW : P.blook;
     if (space === "basement") return f === "stairs" ? P.bslookB : P.bslook;
     return f === "south" ? P.lookS : P.look;
   }
   function flipOf(f) {
     if (space === "porch") return f === "street" ? "house" : "street";
     if (space === "kitchen" || space === "garage" || space === "living") return f === "door" ? "room" : "door";
-    if (space === "back") return f === "pool" ? "house" : "pool";
+    // pool -> yard -> house -> pool: the only three-way turn in the house, because
+    // the back yard is the only space with content on three sides of you
+    if (space === "back") return f === "pool" ? "yard" : f === "yard" ? "house" : "pool";
     if (space === "basement") return f === "den" ? "stairs" : "den";
     return f === "north" ? "south" : "north";
   }
