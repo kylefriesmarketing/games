@@ -143,13 +143,166 @@ export function buildHallway(ctx) {
   // WALLPAPER, and had done since the day it was built. A ray fired east through the
   // closet reads: door @-4.40, WALL @-4.35, shelf @-4.04.
   var CLO_Z = 7.70, CDO = { z0: CLO_Z - 0.46, z1: CLO_Z + 0.46, y1: 2.16 };
-  [[BED_END, CDO.z0, 0, 3.4],           // north of the closet
-   [CDO.z1, Z_S + 0.1, 0, 3.4],         // south of it
+  /* ⚠️ AND CUT AGAIN FOR THE LIVING ROOM, for the same reason the closet is cut: the
+   * room is a real space on the other side of this wall and you walk through here to
+   * reach it. LDO sits north of the closet with a metre of wall between them. */
+  var LDO = { z0: 4.72, z1: 5.72, y1: 2.24 };
+  [[BED_END, LDO.z0, 0, 3.4],           // north of the living room door
+   [LDO.z1, CDO.z0, 0, 3.4],            // between it and the closet
+   [CDO.z1, Z_S + 0.1, 0, 3.4],         // south of the closet
+   [LDO.z0, LDO.z1, LDO.y1, 3.4],       // header over the living room door
    [CDO.z0, CDO.z1, CDO.y1, 3.4]]       // the header over it, opening-width only
     .forEach(function (p) {
       var seg = box(0.1, p[3] - p[2], p[1] - p[0], hwallM);
       seg.position.set(E_IN + 0.05, (p[2] + p[3]) / 2, (p[0] + p[1]) / 2); add(seg);
     });
+  /* ---- THE LIVING ROOM ---------------------------------------------------------
+   * ⚠️ WHY IT IS HERE AND NOT BEHIND THE DOOR THAT SAID "LIVING ROOM". That door was
+   * on the hall's WEST wall at z 1.9 — and the kitchen occupies that side from
+   * z -3.55 to 2.05, with the garage taking 4.25 to 8.55. The door opened into the
+   * kitchen's own footprint; the only free run on that wall is 2.2m, which is a
+   * corridor, not a room. Kyle's call was "ground floor, east of the hall". The
+   * bedroom's GEOMETRY is already there at y 0 (x -4.35..4.25, z -3.45..3.62) and
+   * cannot move — every collectible anchor, every drag-and-drop home and every saved
+   * layout in room.js is hardcoded to those coordinates — so the room goes in the
+   * free strip SOUTH of it, sharing the hall's east wall. The house becomes an L,
+   * which is what a house with a hall down one side actually is.
+   * ⚠️ this used to be back lawn: the lawn ground is still under it, which is fine
+   * (the floor sits on top), but the yard's north edge moved and the fence had to
+   * follow — see the east side return in the fence section. */
+  var LIV = { x0: E_IN, x1: 4.40, z0: BED_END + 0.30, z1: Z_S + 0.10, ce: 2.62 };
+  var livWallM = new THREE.MeshStandardMaterial({ map: hwallT, roughness: 0.94 });
+  /* ⚠️⚠️ THE WHOLE ROOM LIVES IN ITS OWN GROUP so it can be switched OFF, and it has
+   * to be. The bedroom camera rests at (0, 1.72, 5.25) — which is INSIDE this room:
+   * the bedroom is a three-sided set filmed from its open south side, and that side
+   * is here. The hall group goes visible the instant you click through to the
+   * hallway, so without this gate the living room materialised around the camera and
+   * the walk went straight out through its north wall. Exactly the bug the bedroom
+   * cladding had, measured the same way: bed>hall went from 0 crossings to 1.
+   * From the hall the door is shut anyway, so there is nothing to see in here until
+   * you are actually going in. */
+  var livG = new THREE.Group(); add(livG);
+  function ladd(m) { livG.add(m); return m; }
+  function ltag(m, name, action, hint) { clickable(m, name, action, hint); m.userData.space = "living"; return m; }
+  (function () {
+    var fl = new THREE.Mesh(new THREE.PlaneGeometry(LIV.x1 - LIV.x0, LIV.z1 - LIV.z0), plankM);
+    fl.rotation.x = -Math.PI / 2; fl.position.set((LIV.x0 + LIV.x1) / 2, 0.005, (LIV.z0 + LIV.z1) / 2);
+    fl.receiveShadow = true; ladd(fl);
+    ltag(fl, "the living room floor", null, "same boards as the hall. they ran out halfway and matched it as best they could.");
+    var ceil = box(LIV.x1 - LIV.x0, 0.10, LIV.z1 - LIV.z0, mat(0xe8e4d8, 0.95));
+    ceil.position.set((LIV.x0 + LIV.x1) / 2, LIV.ce + 0.05, (LIV.z0 + LIV.z1) / 2); ladd(ceil);
+    // north (the bedroom's back), east, south — the west side IS the hall wall
+    var walls = [
+      [LIV.x1 - LIV.x0, LIV.ce, 0.10, (LIV.x0 + LIV.x1) / 2, LIV.ce / 2, LIV.z0 - 0.05],
+      [0.10, LIV.ce, LIV.z1 - LIV.z0, LIV.x1 + 0.05, LIV.ce / 2, (LIV.z0 + LIV.z1) / 2],
+      [LIV.x1 - LIV.x0 + 0.2, LIV.ce, 0.10, (LIV.x0 + LIV.x1) / 2, LIV.ce / 2, LIV.z1 + 0.05]
+    ];
+    walls.forEach(function (w) {
+      var m2 = box(w[0], w[1], w[2], livWallM); m2.position.set(w[3], w[4], w[5]); ladd(m2);
+    });
+    // the window onto the back yard, because a living room without one is a cell
+    // ⚠️ the window went at x 1.60 and the television at 0.95, so the set stood
+    // squarely in front of it — the one thing nobody does with a window. The seating
+    // group has the west half of the room now and the window has the east half.
+    var LW = { x: 2.75, w: 1.70, y0: 0.95, y1: 2.10 };
+    var glass = new THREE.Mesh(new THREE.PlaneGeometry(LW.w, LW.y1 - LW.y0),
+      new THREE.MeshStandardMaterial({ color: 0x2a3a4e, emissive: 0x7f9dc4, emissiveIntensity: 0.35, roughness: 0.2 }));
+    glass.position.set(LW.x, (LW.y0 + LW.y1) / 2, LIV.z1 - 0.02); ladd(glass);
+    [[LW.w + 0.16, 0.08, LW.y0 - 0.04], [LW.w + 0.16, 0.08, LW.y1 + 0.04]].forEach(function (fr) {
+      var f2 = box(fr[0], fr[1], 0.07, mat(0xe4e0d2, 0.8)); f2.position.set(LW.x, fr[2], LIV.z1 - 0.06); ladd(f2);
+    });
+    [-1, 1].forEach(function (sd) {
+      var jm = box(0.08, LW.y1 - LW.y0 + 0.16, 0.07, mat(0xe4e0d2, 0.8));
+      jm.position.set(LW.x + sd * (LW.w / 2 + 0.04), (LW.y0 + LW.y1) / 2, LIV.z1 - 0.06); ladd(jm);
+    });
+    ltag(glass, "the back window", null, "the yard, the kiln, the fence. in summer this is the only window anyone opens.");
+  })();
+
+  /* what is actually in there. A 90s front room: the good couch nobody sits on, the
+   * big set on its stand, the coffee table with the remote lost down the side, a
+   * lamp in the corner and the rug that has been there longer than the kid. */
+  (function () {
+    var woodM = mat(0x6b4b30, 0.8), fabM = mat(0x6d7a5e, 0.92), fab2 = mat(0x5d6a50, 0.92);
+    var rugT = canvasTex(128, 128, function (c, w, h) {
+      c.fillStyle = "#7a5548"; c.fillRect(0, 0, w, h);
+      c.strokeStyle = "rgba(226,214,186,0.45)"; c.lineWidth = 5; c.strokeRect(11, 11, w - 22, h - 22);
+      c.strokeStyle = "rgba(226,214,186,0.25)"; c.lineWidth = 2; c.strokeRect(22, 22, w - 44, h - 44);
+      c.fillStyle = "rgba(120,80,66,0.5)"; c.fillRect(w * 0.3, h * 0.3, w * 0.4, h * 0.4);
+    });
+    rugT.colorSpace = THREE.SRGBColorSpace;
+    var rug = new THREE.Mesh(new THREE.PlaneGeometry(2.9, 2.1), new THREE.MeshStandardMaterial({
+      map: rugT, roughness: 0.97, polygonOffset: true, polygonOffsetFactor: -4, polygonOffsetUnits: -4 }));
+    rug.rotation.x = -Math.PI / 2; rug.position.set(-1.35, 0.011, 5.95); ladd(rug);
+    ltag(rug, "the good rug", null, "vacuumed in one direction only. everyone knows.");
+    // the couch, against the north wall, facing the set
+    var cg = new THREE.Group(); cg.position.set(-1.30, 0, 4.35); ladd(cg);
+    var cbase = box(2.25, 0.34, 0.86, fabM); cbase.position.y = 0.24; cg.add(cbase);
+    var cback = box(2.25, 0.62, 0.22, fab2); cback.position.set(0, 0.58, -0.32); cg.add(cback);
+    [-1, 1].forEach(function (sd) {
+      var arm = box(0.22, 0.30, 0.86, fab2); arm.position.set(sd * 1.015, 0.50, 0); cg.add(arm); });
+    [-0.55, 0.55].forEach(function (cx) {
+      var cush = box(1.02, 0.14, 0.72, mat(0x7a8768, 0.92)); cush.position.set(cx, 0.44, 0.02); cg.add(cush); });
+    cg.children.forEach(function (m) { ltag(m, "the good couch", null, "plastic came off it in 1994 and it has been downhill since."); });
+    // the set, on its stand
+    var sg = new THREE.Group(); sg.position.set(-1.30, 0, 8.10); sg.rotation.y = Math.PI; ladd(sg);
+    var stand = box(1.30, 0.52, 0.46, woodM); stand.position.y = 0.26; sg.add(stand);
+    var tvb = box(1.02, 0.76, 0.58, mat(0x2b2e33, 0.6)); tvb.position.y = 0.90; sg.add(tvb);
+    var scr = new THREE.Mesh(new THREE.PlaneGeometry(0.84, 0.60), new THREE.MeshStandardMaterial({
+      color: 0x8fa6c8, emissive: 0x7f9dc4, emissiveIntensity: 0.7, roughness: 0.35 }));
+    scr.position.set(0, 0.92, -0.30); scr.rotation.y = Math.PI; sg.add(scr);
+    sg.children.forEach(function (m) { ltag(m, "the big set", null, "twenty-seven inches and it took two people to carry."); });
+    // coffee table, remote, lamp
+    var ct = box(1.10, 0.06, 0.56, woodM); ct.position.set(-1.30, 0.40, 6.05); ladd(ct);
+    [[-0.48, -0.22], [0.48, -0.22], [-0.48, 0.22], [0.48, 0.22]].forEach(function (lp) {
+      var lg2 = box(0.06, 0.40, 0.06, woodM); lg2.position.set(-1.30 + lp[0], 0.20, 6.05 + lp[1]); ladd(lg2); });
+    ltag(ct, "the coffee table", null, "one ring you can still see, from before anyone used coasters.");
+    var rem = box(0.06, 0.025, 0.17, mat(0x2b2e33, 0.6)); rem.position.set(-0.98, 0.445, 6.16); rem.rotation.y = 0.4; ladd(rem);
+    ltag(rem, "the remote", null, "found. put it back where it was.");
+    var lampG = new THREE.Group(); lampG.position.set(3.55, 0, 4.55); ladd(lampG);
+    var lpole = new THREE.Mesh(new THREE.CylinderGeometry(0.022, 0.03, 1.42, 8), mat(0x8a7a5a, 0.5));
+    lpole.position.y = 0.71; lampG.add(lpole);
+    var lbase = new THREE.Mesh(new THREE.CylinderGeometry(0.17, 0.19, 0.04, 12), mat(0x6a5a42, 0.6));
+    lbase.position.y = 0.02; lampG.add(lbase);
+    var lshade = new THREE.Mesh(new THREE.CylinderGeometry(0.20, 0.26, 0.26, 14, 1, true),
+      new THREE.MeshStandardMaterial({ color: 0xf0e2bc, emissive: 0xffd9a0, emissiveIntensity: 0.5,
+        roughness: 0.9, side: THREE.DoubleSide }));
+    lshade.position.y = 1.52; lampG.add(lshade);
+    lampG.children.forEach(function (m) { ltag(m, "the corner lamp", null, "the only light anyone ever turns on in here."); });
+    var lLite = new THREE.PointLight(0xffd2a0, 0.85, 6.5, 1.9);
+    lLite.position.set(3.55, 1.52, 4.55); ladd(lLite);
+    var lTv = new THREE.PointLight(0x9db8ff, 0.55, 5.5, 2.0);
+    lTv.position.set(-1.30, 1.05, 7.70); ladd(lTv);
+  })();
+
+  /* the door itself: hinged on the NORTH jamb so it swings back against the living
+   * room's own north wall, clear of the line the camera walks in on. Same contract as
+   * the kitchen and garage slabs — the swing is driven by the walk's own t, so it is
+   * always open by the time the camera is in the opening. */
+  var lDoorPivot = new THREE.Group(); lDoorPivot.position.set(E_IN + 0.03, 0, LDO.z0); add(lDoorPivot);
+  var lSlab = box(0.05, 2.05, 0.94, mat(0x4a3524, 0.72)); lSlab.position.set(0, 1.025, 0.47); lDoorPivot.add(lSlab);
+  var lKnob = new THREE.Mesh(new THREE.SphereGeometry(0.026, 12, 10), mat(0xc8b06a, 0.35));
+  lKnob.position.set(0.05, 1.00, 0.84); lDoorPivot.add(lKnob);
+  [[2.09, 0.08, 1.08, LDO.z0 + 0.47], [1.05, 2.14, 0.08, LDO.z0 - 0.04], [1.05, 2.14, 0.08, LDO.z1 + 0.04]]
+    .forEach(function (jm) {
+      var j = box(0.09, jm[1], jm[2], mat(0xd8d2c2, 0.8));
+      j.position.set(E_IN + 0.02, jm[0] === 2.09 ? 2.09 : jm[0], jm[3]); add(j);
+    });
+  /* the flicker under the door — the set nobody turned off. It used to live on the
+   * placeholder door; now it belongs to the opening that actually has a room behind
+   * it, and the living room lamp is what it is spilling from. */
+  var lSpill = new THREE.Mesh(new THREE.PlaneGeometry(0.34, 0.96),
+    new THREE.MeshBasicMaterial({ color: 0x9db8ff, transparent: true, opacity: 0.2,
+      blending: THREE.AdditiveBlending, depthWrite: false }));
+  lSpill.rotation.x = -Math.PI / 2; lSpill.position.set(E_IN + 0.16, 0.012, (LDO.z0 + LDO.z1) / 2); add(lSpill);
+  var lSpillOp = 0.2;
+  var lHit = new THREE.Mesh(new THREE.BoxGeometry(0.22, 2.0, 0.98),
+    new THREE.MeshBasicMaterial({ transparent: true, opacity: 0, depthWrite: false }));
+  lHit.position.set(E_IN + 0.02, 1.02, (LDO.z0 + LDO.z1) / 2); add(lHit);
+  tag(lHit, "the living room", function () { enterLiving(); },
+    "the living room — the good couch, the big set, and the window onto the yard");
+  tag(lSlab, "the living room", function () { enterLiving(); },
+    "the living room — the good couch, the big set, and the window onto the yard");
+
   // the NORTH cap is cut too, now that the front door opens onto a real porch.
   // (Same lesson as capS: a door you can walk through needs a hole, not a slab.)
   var FDO = { x0: FRONT_X - 0.63, x1: FRONT_X + 0.63, y1: 2.30 };
@@ -276,11 +429,13 @@ export function buildHallway(ctx) {
     doorGrp.add(p);
   }
 
-  // THE LIVING ROOM — right across the hall from the bedroom, exactly where it
-  // should be. The flicker under the door is a television nobody turned off.
-  var livDoor = slabDoor(W_IN + 0.03,1.9, 0, 1.0, 0x4a3524, "the living room door",
-    "the living room — under renovation. someone left the TV on in there", 0x9db8ff, 0.2);
-  tapeX(livDoor, 1.0); plaque(livDoor, "LIVING ROOM", "opening soon");
+  /* ⚠️ THE "LIVING ROOM" DOOR USED TO BE HERE, on the west wall at z 1.9, taped shut
+   * and promising a room that could never be built behind it: the kitchen owns this
+   * side from z -3.55 to 2.05 and the garage from 4.25 to 8.55, so the slab opened
+   * straight into the kitchen's own floor. The room is real now and it is on the
+   * EAST wall (see THE LIVING ROOM), so the fake door is gone rather than relabelled
+   * — a door with nothing behind it is the thing we keep having to fix.
+   * The linen cupboard that was drawn beside it stays; it is only a shallow press. */
 
   // THE KITCHEN — across from the photo wall. Cold light, steady: that's the
   // fridge, humming to itself until 2027.
@@ -5248,6 +5403,18 @@ export function buildHallway(ctx) {
     bdoor1: new THREE.Vector3(-5.34, 1.66, 7.85),   // squared up to the slider's clear pane
     bdoor2: new THREE.Vector3(-5.34, 1.58, 9.35),   // in the opening
     bdoorL: new THREE.Vector3(-3.20, 0.55, 14.6),   // what you see through it: the glow
+    ldoor1: new THREE.Vector3(-5.15, 1.66, 5.22),   // squared up to the living room door, hall side
+    ldoor2: new THREE.Vector3(-4.05, 1.62, 5.22),   // in the doorway
+    // ⚠️ these AIM AT THE FURNITURE, which sounds obvious and was not: the seating
+    // group moved to the west half so the set would stop standing in front of the
+    // window, and the camera was left looking east at the empty half of the floor.
+    ldoorL: new THREE.Vector3(-1.00, 1.15, 6.60),   // what you see through it: the set
+    // ⚠️ look ALONG the room, not across it. The couch is on the north wall and the
+    // set on the south, so any camera standing between them frames one and puts the
+    // other behind its own head. From the east end looking west both are in shot.
+    lrest:  new THREE.Vector3(3.35, 1.62, 6.25),    // the east end of the room
+    llook:  new THREE.Vector3(-3.30, 1.08, 6.20),   // straight down it: couch, set, lamp
+    llookB: new THREE.Vector3(-4.10, 1.34, 5.25),   // turned round: the way back to the hall
     grest: new THREE.Vector3(-7.92, 1.64, 4.68),    // the corner the door swing keeps clear
     glook: new THREE.Vector3(-11.70, 1.30, 7.55),   // down the long diagonal: pegboard, bench, tarp
     glookB: new THREE.Vector3(-7.40, 1.15, 5.70),   // turned round: the door back to the hall
@@ -5317,6 +5484,19 @@ export function buildHallway(ctx) {
     mode = "kitchenOut"; tt = 0;
     c0.copy(camera.position); l0.copy(lookAt);
   }
+  function enterLiving() {
+    if (mode !== "idle" || space !== "hall") return;
+    mode = "livingIn"; tt = 0;
+    c0.copy(camera.position); l0.copy(lookAt);
+    AUDIO.ratchetSfx && AUDIO.ratchetSfx();
+    if (turnBtn) turnBtn.style.display = "none";
+  }
+  function leaveLiving() {
+    if (mode !== "idle" && mode !== "turning") return;
+    if (space !== "living") return;
+    mode = "livingOut"; tt = 0;
+    c0.copy(camera.position); l0.copy(lookAt);
+  }
   function enterGarage() {
     if (mode !== "idle" || space !== "hall") return;
     mode = "garageIn"; tt = 0;
@@ -5375,19 +5555,21 @@ export function buildHallway(ctx) {
   function restPos() {
     return space === "porch" ? P.porch : space === "kitchen" ? P.krest
          : space === "garage" ? P.grest : space === "back" ? P.brest
+         : space === "living" ? P.lrest
          : space === "basement" ? P.bsrest : P.rest;
   }
   function aimFor(f) {
     if (space === "porch") return f === "house" ? P.porchB : P.porchL;
     if (space === "kitchen") return f === "door" ? P.klookB : P.klook;
     if (space === "garage") return f === "door" ? P.glookB : P.glook;
+    if (space === "living") return f === "door" ? P.llookB : P.llook;
     if (space === "back") return f === "house" ? P.blookB : P.blook;
     if (space === "basement") return f === "stairs" ? P.bslookB : P.bslook;
     return f === "south" ? P.lookS : P.look;
   }
   function flipOf(f) {
     if (space === "porch") return f === "street" ? "house" : "street";
-    if (space === "kitchen" || space === "garage") return f === "door" ? "room" : "door";
+    if (space === "kitchen" || space === "garage" || space === "living") return f === "door" ? "room" : "door";
     if (space === "back") return f === "pool" ? "house" : "pool";
     if (space === "basement") return f === "den" ? "stairs" : "den";
     return f === "north" ? "south" : "north";
@@ -5496,6 +5678,8 @@ export function buildHallway(ctx) {
     // is up at any other time it is a wall across the walk to the hallway
     var claddingUp = space === "back" || mode === "backIn" || mode === "backOut";
     for (var bsV = 0; bsV < bedShell.length; bsV++) bedShell[bsV].visible = claddingUp;
+    // the living room sits where the bedroom camera stands — see livG
+    livG.visible = space === "living" || mode === "livingIn" || mode === "livingOut";
     if (stashOpenKey && mode !== "idle") closeStash();   // walking away shuts the box
     if (mode === "kitchenIn" || mode === "kitchenOut") {   // through the kitchen door
       tt = Math.min(1, tt + dt / 2.1);
@@ -5510,6 +5694,23 @@ export function buildHallway(ctx) {
         if (mode === "kitchenIn") { space = "kitchen"; facing = turnTo = "room"; kDoorPivot.rotation.y = -2.0; }
         else {
           space = "hall"; facing = turnTo = "north"; kDoorPivot.rotation.y = 0;
+          AUDIO.clickSfx && AUDIO.clickSfx(500);
+        }
+        turnK = 1; mode = "idle"; syncTurnBtn();
+      }
+      return true;
+    }
+    if (mode === "livingIn" || mode === "livingOut") {   // through to the living room
+      tt = Math.min(1, tt + dt / 2.1);
+      var lk = mode === "livingIn" ? tt : 1 - tt;
+      lDoorPivot.rotation.y = -2.05 * ease(Math.min(1, Math.max(0, (lk - 0.04) / 0.34)));
+      if (mode === "livingIn") walk([c0, P.ldoor1, P.ldoor2, P.lrest], [l0, P.ldoorL, P.llook, P.llook], tt);
+      else walk([c0, P.ldoor2, P.ldoor1], [l0, P.ldoorL, P.lookS], tt);
+      camera.position.copy(_v); lookAt.copy(_w); camera.lookAt(lookAt);
+      if (tt >= 1) {
+        if (mode === "livingIn") { space = "living"; facing = turnTo = "room"; lDoorPivot.rotation.y = -2.05; }
+        else {
+          space = "hall"; facing = turnTo = "south"; lDoorPivot.rotation.y = 0;
           AUDIO.clickSfx && AUDIO.clickSfx(500);
         }
         turnK = 1; mode = "idle"; syncTurnBtn();
@@ -5624,7 +5825,7 @@ export function buildHallway(ctx) {
       }
       return true;
     }
-    if (space === "hall" || space === "porch" || space === "kitchen" || space === "garage" || space === "back" || space === "basement") { // at rest: same parallax drift as the bedroom
+    if (space === "hall" || space === "porch" || space === "kitchen" || space === "garage" || space === "back" || space === "basement" || space === "living") { // at rest: same parallax drift as the bedroom
       // ⚠️ the swing is driven by a SEPARATE eased term, not by lerping lookAt
       // straight from one end to the other. A direct lerp passes the target
       // through the camera's own position on the way past, and the view whips
@@ -5669,6 +5870,7 @@ export function buildHallway(ctx) {
     if (space === "bedroom" || mode === "entering" || mode === "leaving" ||
         mode === "out" || mode === "in" || mode === "kitchenIn" || mode === "kitchenOut" ||
         mode === "garageIn" || mode === "garageOut" || mode === "backIn" || mode === "backOut" ||
+        mode === "livingIn" || mode === "livingOut" ||
         mode === "basementIn" || mode === "basementOut") return;
     to = to || flipOf(facing);
     if (to === facing && mode !== "turning") { syncTurnBtn(); return; }
@@ -5743,8 +5945,10 @@ export function buildHallway(ctx) {
                         Z_S + 0.3 + Math.sin(a) * mm.r * 0.5);
       mm.m.rotation.z = Math.sin(a * 9) * 0.5;
     }
-    if (livDoor.userData.spill) // somebody's shows are on in there
-      livDoor.userData.spill.material.opacity = livDoor.userData.spillOp * (0.55 + 0.45 * Math.abs(Math.sin(t * 3.1) * Math.sin(t * 1.3)));
+    // somebody's shows are on in there. ⚠️ this used to read livDoor.userData.spill —
+    // the placeholder door on the west wall — and that variable no longer exists, so
+    // it threw on the first tick and took the whole hall ticker with it.
+    lSpill.material.opacity = lSpillOp * (0.55 + 0.45 * Math.abs(Math.sin(t * 3.1) * Math.sin(t * 1.3)));
     if (kitDoor.userData.spill) kitDoor.userData.spill.material.opacity = kitDoor.userData.spillOp * (0.9 + 0.1 * Math.sin(t * 0.4));
     // the kitchen breathes with the house's dim, and the fridge glow flickers the
     // tiniest bit — that's the compressor cycling, which is the hum made visible
@@ -5893,6 +6097,7 @@ export function buildHallway(ctx) {
     turn: turn, facing: function () { return facing; },
     stepOut: stepOut, stepIn: stepIn,
     kitchen: { enter: enterKitchen, leave: leaveKitchen },
+    living: { enter: enterLiving, leave: leaveLiving },
     garage: { enter: enterGarage, leave: leaveGarage, roll: toggleRoll,
       rollA: function () { return rollA; } },
     back: { enter: enterBack, leave: leaveBack },
@@ -5914,6 +6119,7 @@ export function buildHallway(ctx) {
       hall:     { x: [W_IN - 0.15, -3.90], z: [Z_N - 0.20, Z_S + 0.20], y: [-0.15, CEIL + 0.60] },
       kitchen:  { x: [KX0 - 0.15, KX1 + 0.15], z: [KZ0 - 0.15, KZ1 + 0.15], y: [-0.15, KCEIL + 0.50] },
       garage:   { x: [-12.20, -7.40], z: [4.25, 8.55], y: [-0.15, 2.25] },
+      living:   { x: [E_IN - 0.20, LIV.x1 + 0.20], z: [LIV.z0 - 0.20, LIV.z1 + 0.20], y: [-0.15, LIV.ce + 0.30] },
       basement: { x: [BSM.x0 - 0.15, BSM.x1 + 0.15], z: [BSM.z0 - 0.15, BSM.z1 + 0.15],
                   y: [BSM.fl - 0.15, BSM.ce + 0.10] },
       porch:    { x: [-60, 60], z: [-62, HOUSE_F + 0.60], y: [GROUND - 0.20, GROUND + 14] },
