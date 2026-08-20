@@ -1029,6 +1029,18 @@ export function buildHallway(ctx) {
    * the wallpaper is what you see and the siding is what the street sees. */
   var UPF = { x0: -16.95, x1: 4.17, z0: -3.30, z1: 7.35, fl: UP_Y, ce: UP_Y + 2.25 };
   var LAN = { z0: 1.05, z1: 2.45 };                       // the corridor band
+  /* THE THREE ROOMS. The landing shipped with three doors and nothing behind them:
+   * north of the corridor wall was one undivided slab of floor, so all three doors
+   * opened into the same space, which is worse than a door that does not open at all.
+   * They split the band UPF.z0..LAN.z0 across the door positions that already existed,
+   * so each door lands roughly central in its own room and no corridor geometry moved. */
+  var UPR = [
+    { key: 'their', sp: 'room0', x0: UPF.x0, x1: -8.10, doorX: -12.20, name: 'their room' },
+    { key: 'hers',  sp: 'room1', x0: -7.90,  x1: -0.30, doorX: -3.60,  name: 'her room' },
+    { key: 'attic', sp: 'room2', x0: -0.10,  x1: UPF.x1, doorX: 1.90,  name: 'the attic' }
+  ];
+  var RZ0 = UPF.z0 + 0.10, RZ1 = LAN.z0 - 0.10;
+  var upRoom = 0, roomDoors = [];        // the door pivots, so they can swing
   var upWallM = new THREE.MeshStandardMaterial({ map: hwallT, roughness: 0.95 });
   var upFloorM = new THREE.MeshStandardMaterial({ map: plankT, roughness: 0.9 });
   function utag(m, name, action, hint) { clickable(m, name, action, hint); m.userData.space = 'upstairs'; return m; }
@@ -1081,11 +1093,22 @@ export function buildHallway(ctx) {
       seg.position.set(mid, (h0 + h1) / 2, LAN.z0 - 0.05); add(seg);
     }
     // the doors themselves, shut, each with its handle and its own light under it
-    DOORS.forEach(function (d) {
+    DOORS.forEach(function (d, di) {
+      /* EACH DOOR IS A PIVOT GROUP, not a slab at a position. The camera has to pass
+       * through this opening, and a shut 5cm board is as solid to the eye as a wall.
+       * Hinged at its left jamb, the slab swings into the ROOM (+y rotation carries the
+       * free edge to -z) so it never sweeps through a camera coming up the corridor. */
+      var piv = new THREE.Group();
+      piv.position.set(d.x - d.w / 2, UPF.fl, LAN.z0 - 0.05); add(piv);
+      roomDoors[di] = piv;
       var slab = box(d.w - 0.03, 2.02, 0.05, mat(0x4a3a2a, 0.72));
-      slab.position.set(d.x, UPF.fl + 1.01, LAN.z0 - 0.05); add(slab);
+      slab.position.set(d.w / 2, 1.01, 0); piv.add(slab);
+      var pnl2 = box(d.w - 0.26, 0.72, 0.012, mat(0x3f3122, 0.75));
+      pnl2.position.set(d.w / 2, 1.42, 0.032); piv.add(pnl2);
+      var pnl3 = box(d.w - 0.26, 0.52, 0.012, mat(0x3f3122, 0.75));
+      pnl3.position.set(d.w / 2, 0.52, 0.032); piv.add(pnl3);
       var kn = new THREE.Mesh(new THREE.SphereGeometry(0.026, 12, 10), mat(0xc8b06a, 0.35));
-      kn.position.set(d.x + d.w / 2 - 0.16, UPF.fl + 1.00, LAN.z0 + 0.01); add(kn);
+      kn.position.set(d.w - 0.16, 1.00, 0.06); piv.add(kn);
       [[-1, 0], [1, 0]].forEach(function (jj) {
         var jm = box(0.07, 2.14, 0.11, mat(0xd8d2c2, 0.8));
         jm.position.set(d.x + jj[0] * (d.w / 2 + 0.035), UPF.fl + 1.07, LAN.z0 - 0.05); add(jm);
@@ -1096,7 +1119,9 @@ export function buildHallway(ctx) {
         new THREE.MeshBasicMaterial({ color: 0xffd9a0, transparent: true, opacity: 0.13,
           blending: THREE.AdditiveBlending, depthWrite: false }));
       spill.rotation.x = -Math.PI / 2; spill.position.set(d.x, UPF.fl + 0.012, LAN.z0 + 0.14); add(spill);
-      [slab, kn].forEach(function (m) { utag(m, d.name, null, d.hint); });
+      [slab, pnl2, pnl3, kn].forEach(function (m) {
+        utag(m, d.name, (function (n) { return function () { enterRoom(n); }; })(di), d.hint);
+      });
     });
     // the rail around the stairwell, so the corridor has an edge and not a drop
     [[STW.x0 - 0.03, STW.z0, STW.x0 - 0.03, STW.z1], [STW.x1 + 0.03, STW.z0, STW.x1 + 0.03, STW.z1],
@@ -1283,6 +1308,351 @@ export function buildHallway(ctx) {
       'laid so the boards stop announcing everyone. it works everywhere except the third board from the stairs.');
     var upLite2 = new THREE.PointLight(0xffd2a0, 0.55, 8.0, 1.9);
     upLite2.position.set(-13.20, UPF.ce - 0.45, (LAN.z0 + LAN.z1) / 2); add(upLite2);
+  })();
+  /* ---- BEHIND THE THREE DOORS -------------------------------------------------
+   * Same rule as the rest of the house: four planes used (floor, surface, wall,
+   * ceiling), nothing perfectly square to the walls, and every light paired with a
+   * fixture you can actually see. Each room is one person's evidence. */
+  (function () {
+    [-8.00, -0.20].forEach(function (dx) {                 // the two dividing walls
+      var dw = box(0.10, UPF.ce - UPF.fl, RZ1 - RZ0 + 0.24, upWallM);
+      dw.position.set(dx, (UPF.fl + UPF.ce) / 2, (RZ0 + RZ1) / 2); add(dw);
+    });
+    function rtag(m, ri, name, hint) {
+      clickable(m, name, null, hint); m.userData.space = UPR[ri].sp; return m;
+    }
+    function grp(ri, g2, name, hint) {
+      g2.children.forEach(function (m) { if (m.isMesh) rtag(m, ri, name, hint); });
+    }
+    var fl = UPF.fl;
+
+    /* ============== THEIR ROOM - the radio is always on low ============== */
+    (function () {
+      var R = UPR[0], cx = (R.x0 + R.x1) / 2;
+      var woodM = mat(0x6b4b30, 0.8), sheetM = mat(0xe8e4d8, 0.95), quiltM = mat(0x7a6a8a, 0.94);
+      var bg = new THREE.Group(); bg.position.set(cx - 0.75, fl, RZ0 + 1.50); bg.rotation.y = 0.02; add(bg);
+      [[1.62, 0.30, 2.05, woodM, 0, 0.22, 0], [1.70, 0.86, 0.09, woodM, 0, 0.61, -1.02],
+       [1.54, 0.24, 1.96, sheetM, 0, 0.49, 0], [1.60, 0.14, 1.42, quiltM, 0, 0.62, 0.26],
+       [1.60, 0.07, 0.30, sheetM, 0, 0.68, -0.48]
+      ].forEach(function (q) { var m = box(q[0], q[1], q[2], q[3]); m.position.set(q[4], q[5], q[6]); bg.add(m); });
+      [-0.40, 0.40].forEach(function (px, pi) {
+        var pil = box(0.62, 0.15, 0.36, sheetM);
+        pil.position.set(px, 0.66, -0.76); pil.rotation.z = (pi ? -1 : 1) * 0.06; bg.add(pil);
+      });
+      grp(0, bg, 'their bed', 'made every morning before anyone else is up, and it shows.');
+      [[-1.66, 0.06], [1.62, -0.05]].forEach(function (ns, ni) {
+        var nx = cx - 0.75 + ns[0], nz = RZ0 + 0.70;
+        var ng = new THREE.Group(); ng.position.set(nx, fl, nz); ng.rotation.y = ns[1]; add(ng);
+        [[0.42, 0.04, 0.36, 0.54], [0.38, 0.46, 0.32, 0.29]].forEach(function (q) {
+          var m = box(q[0], q[1], q[2], woodM); m.position.y = q[3]; ng.add(m); });
+        var dr = box(0.34, 0.02, 0.01, mat(0xc8a24a, 0.4)); dr.position.set(0, 0.34, 0.165); ng.add(dr);
+        grp(0, ng, 'the nightstands', 'his has a glass of water on it. hers has everything else.');
+        if (ni === 0) {
+          var clkT = canvasTex(64, 32, function (c, w, h) {
+            c.fillStyle = '#160a06'; c.fillRect(0, 0, w, h);
+            c.fillStyle = '#ff4a2a'; c.font = 'bold 19px monospace'; c.textAlign = 'center';
+            c.fillText('6:12', w / 2, 24);
+          });
+          clkT.colorSpace = THREE.SRGBColorSpace;
+          var clk = box(0.17, 0.09, 0.11, mat(0x2b2e33, 0.5));
+          clk.position.set(nx, fl + 0.60, nz); clk.rotation.y = 0.42; add(clk);
+          var cf = new THREE.Mesh(new THREE.PlaneGeometry(0.13, 0.062),
+            new THREE.MeshStandardMaterial({ map: clkT, emissive: 0xff4a2a, emissiveIntensity: 0.85, roughness: 0.5 }));
+          cf.position.set(nx + 0.022, fl + 0.60, nz + 0.056); cf.rotation.y = 0.42; add(cf);
+          [clk, cf].forEach(function (m) { rtag(m, 0, 'the clock radio',
+            'set twenty minutes fast on purpose. they both know, and it still works.'); });
+          var rl2 = new THREE.PointLight(0xff6a3a, 0.20, 1.7, 2.0);
+          rl2.position.set(nx, fl + 0.63, nz + 0.10); add(rl2);
+          var gls = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.03, 0.09, 12),
+            new THREE.MeshStandardMaterial({ color: 0xcfe4ee, roughness: 0.15, transparent: true, opacity: 0.5 }));
+          gls.position.set(nx - 0.11, fl + 0.60, nz - 0.05); add(gls);
+          rtag(gls, 0, 'the glass of water', 'poured every night, drunk about a third of the time.');
+        } else {
+          var bk = box(0.14, 0.035, 0.20, mat(0x8a5a4a, 0.9));
+          bk.position.set(nx, fl + 0.575, nz); bk.rotation.y = -0.32; add(bk);
+          var bm = box(0.02, 0.003, 0.24, mat(0xc8443a, 0.8));
+          bm.position.set(nx + 0.03, fl + 0.594, nz + 0.02); bm.rotation.y = -0.32; add(bm);
+          [bk, bm].forEach(function (m) { rtag(m, 0, 'the book',
+            'the same page since spring. the receipt is still the bookmark.'); });
+          var lg = new THREE.Group(); lg.position.set(nx - 0.02, fl + 0.56, nz - 0.06); lg.rotation.y = 0.3; add(lg);
+          var st2 = new THREE.Mesh(new THREE.CylinderGeometry(0.012, 0.032, 0.24, 8), mat(0xc8a24a, 0.4));
+          st2.position.y = 0.12; lg.add(st2);
+          var sh2 = new THREE.Mesh(new THREE.CylinderGeometry(0.085, 0.12, 0.14, 14, 1, true),
+            new THREE.MeshStandardMaterial({ color: 0xf0e2bc, emissive: 0xffd9a0, emissiveIntensity: 0.45,
+              roughness: 0.9, side: THREE.DoubleSide }));
+          sh2.position.y = 0.30; lg.add(sh2);
+          grp(0, lg, 'the reading lamp', 'left on most nights. the other one has learned to sleep through it.');
+          var nl2 = new THREE.PointLight(0xffd2a0, 0.62, 3.6, 1.9);
+          nl2.position.set(nx, fl + 0.88, nz); add(nl2);
+        }
+      });
+      var wg = new THREE.Group(); wg.position.set(R.x0 + 0.80, fl, RZ1 - 0.45); wg.rotation.y = -0.05; add(wg);
+      [[1.24, 1.92, 0.58, 0.96], [1.32, 0.06, 0.64, 1.95]].forEach(function (q) {
+        var m = box(q[0], q[1], q[2], woodM); m.position.y = q[3]; wg.add(m); });
+      [-0.30, 0.30].forEach(function (dx2) {
+        var pnl = box(0.54, 1.62, 0.02, mat(0x5d3f28, 0.8)); pnl.position.set(dx2, 0.98, 0.30); wg.add(pnl);
+        var hn = new THREE.Mesh(new THREE.CylinderGeometry(0.012, 0.012, 0.11, 8), mat(0xc8a24a, 0.4));
+        hn.position.set(dx2 + (dx2 > 0 ? -0.20 : 0.20), 0.98, 0.32); wg.add(hn);
+      });
+      var cse = box(0.52, 0.16, 0.34, mat(0x6a5a4a, 0.9)); cse.position.set(-0.28, 2.06, 0.02); cse.rotation.y = 0.10; wg.add(cse);
+      grp(0, wg, 'the wardrobe', 'the left door does not stay shut. a folded coaster lives in the hinge.');
+      var chg = new THREE.Group(); chg.position.set(cx + 2.35, fl, RZ0 + 2.30); chg.rotation.y = -0.58; add(chg);
+      var cs = box(0.42, 0.05, 0.42, woodM); cs.position.y = 0.45; chg.add(cs);
+      var cb = box(0.42, 0.52, 0.05, woodM); cb.position.set(0, 0.71, -0.19); chg.add(cb);
+      [[-0.17, -0.17], [0.17, -0.17], [-0.17, 0.17], [0.17, 0.17]].forEach(function (lp) {
+        var l6 = box(0.04, 0.45, 0.04, woodM); l6.position.set(lp[0], 0.225, lp[1]); chg.add(l6); });
+      grp(0, chg, 'the chair', 'nobody has sat on it since 1991. it is where clothes go that are not dirty enough to wash.');
+      [[0x4a5a7a, 0.51, 0.10, 0.9], [0x8a6a5a, 0.57, -0.07, 0.3], [0x6a7a5a, 0.62, 0.03, 1.9]].forEach(function (gm) {
+        var gar = new THREE.Mesh(new THREE.SphereGeometry(0.23, 9, 6), mat(gm[0], 0.94));
+        gar.scale.set(1, 0.40, 0.88);
+        gar.position.set(cx + 2.35 + gm[2], fl + gm[1], RZ0 + 2.28); gar.rotation.y = gm[3]; add(gar);
+        rtag(gar, 0, 'the clothes on the chair', 'the third pile down is the one that actually gets worn.');
+      });
+      var dg = new THREE.Group(); dg.position.set(cx + 1.05, fl, RZ1 - 0.42); dg.rotation.y = 0.04; add(dg);
+      [[1.35, 0.78, 0.50, 0.39], [1.42, 0.05, 0.56, 0.80]].forEach(function (q) {
+        var m = box(q[0], q[1], q[2], woodM); m.position.y = q[3]; dg.add(m); });
+      [0.22, 0.56].forEach(function (dy) {
+        var fr2 = box(1.22, 0.02, 0.01, mat(0xc8a24a, 0.4)); fr2.position.set(0, dy, 0.255); dg.add(fr2); });
+      var mir = new THREE.Mesh(new THREE.PlaneGeometry(0.86, 0.72),
+        new THREE.MeshStandardMaterial({ color: 0xbfd0da, roughness: 0.08, metalness: 0.85 }));
+      mir.position.set(0, 1.28, -0.20); dg.add(mir);
+      var mfr = box(0.96, 0.82, 0.03, woodM); mfr.position.set(0, 1.28, -0.225); dg.add(mfr);
+      grp(0, dg, 'the dresser', 'the mirror is angled for somebody a bit shorter than either of them.');
+      [[0x2f4f8a, 0.05, -0.30, 0.05], [0xc8a24a, 0.03, 0.10, 0.04], [0x9a3a3a, 0.045, 0.34, 0.03]].forEach(function (tk, ti) {
+        var tr = new THREE.Mesh(new THREE.CylinderGeometry(tk[1], tk[1], tk[3], 10), mat(tk[0], 0.55));
+        tr.position.set(cx + 1.05 + tk[2], fl + 0.84, RZ1 - 0.50); tr.rotation.set(0.1 * ti, 0, 0.06 * ti); add(tr);
+        rtag(tr, 0, 'the things on the dresser', 'coins, a watch that stopped, and a button off something.');
+      });
+      var wgl = new THREE.Mesh(new THREE.PlaneGeometry(1.30, 1.05),
+        new THREE.MeshStandardMaterial({ color: 0x2a3a4e, emissive: 0x7f9dc4, emissiveIntensity: 0.30, roughness: 0.25 }));
+      wgl.position.set(cx - 0.30, fl + 1.42, RZ0 + 0.04); add(wgl);
+      rtag(wgl, 0, 'their window', 'faces the road. they can tell whose car it is before it has parked.');
+      [fl + 0.87, fl + 1.97].forEach(function (fy) {
+        var f7 = box(1.44, 0.07, 0.06, mat(0xe4e0d2, 0.8)); f7.position.set(cx - 0.30, fy, RZ0 + 0.06); add(f7);
+        rtag(f7, 0, 'their window', 'faces the road. they can tell whose car it is before it has parked.'); });
+      [-0.68, 0.68].forEach(function (cxo, cxi) {
+        var cur2 = box(0.30, 1.10, 0.05, mat(0x9a8a6a, 0.95));
+        cur2.position.set(cx - 0.30 + cxo, fl + 1.42, RZ0 + 0.09); cur2.rotation.z = (cxi ? -1 : 1) * 0.012; add(cur2);
+        rtag(cur2, 0, 'the curtains', 'they never quite meet in the middle. they have stopped trying.');
+      });
+      var ovh = new THREE.Mesh(new THREE.SphereGeometry(0.17, 14, 10),
+        new THREE.MeshStandardMaterial({ color: 0xf2ead6, emissive: 0xffd9a0, emissiveIntensity: 0.34,
+          roughness: 0.85, transparent: true, opacity: 0.9 }));
+      ovh.scale.y = 0.6; ovh.position.set(cx, UPF.ce - 0.20, RZ0 + 1.9); add(ovh);
+      rtag(ovh, 0, 'their ceiling light', 'a paper globe. it has been meaning to be replaced since it went up.');
+      var ol = new THREE.PointLight(0xffd2a0, 0.50, 7.5, 1.9);
+      ol.position.set(cx, UPF.ce - 0.40, RZ0 + 1.9); add(ol);
+      var rug2 = new THREE.Mesh(new THREE.PlaneGeometry(2.1, 1.5), mat(0x7a5548, 0.96));
+      rug2.rotation.x = -Math.PI / 2; rug2.rotation.z = 0.05;
+      rug2.position.set(cx + 0.30, fl + 0.012, RZ0 + 2.55);
+      rug2.material.polygonOffset = true; rug2.material.polygonOffsetFactor = -4; add(rug2);
+      rtag(rug2, 0, 'the rug', 'bought to cover a mark on the boards that is still there underneath.');
+    })();
+
+    /* ============== HER ROOM - KEEP OUT, in three colours ============== */
+    (function () {
+      var R = UPR[1], cx = (R.x0 + R.x1) / 2;
+      var pineM = mat(0xb99a6e, 0.85), duvetM = mat(0x8a5a8a, 0.94), sheetM = mat(0xe8e4d8, 0.95);
+      var bg2 = new THREE.Group(); bg2.position.set(R.x0 + 1.30, fl, RZ0 + 1.30); bg2.rotation.y = -0.04; add(bg2);
+      [[1.02, 0.28, 1.94, pineM, 0, 0.20, 0], [1.08, 0.66, 0.07, pineM, 0, 0.53, -0.97],
+       [0.96, 0.22, 1.86, sheetM, 0, 0.45, 0], [1.04, 0.17, 1.44, duvetM, 0.02, 0.60, 0.20]
+      ].forEach(function (q) { var m = box(q[0], q[1], q[2], q[3]); m.position.set(q[4], q[5], q[6]); bg2.add(m); });
+      var p2 = box(0.50, 0.14, 0.32, sheetM); p2.position.set(-0.10, 0.62, -0.72); p2.rotation.z = 0.08; bg2.add(p2);
+      grp(1, bg2, 'her bed', 'made by pulling the duvet up over everything, which counts.');
+      var ted = new THREE.Group(); ted.position.set(R.x0 + 1.12, fl + 0.72, RZ0 + 0.52); ted.rotation.y = 0.8; add(ted);
+      var tb = new THREE.Mesh(new THREE.SphereGeometry(0.10, 10, 8), mat(0xc9a06a, 0.96)); tb.scale.y = 1.2; ted.add(tb);
+      var th = new THREE.Mesh(new THREE.SphereGeometry(0.072, 10, 8), mat(0xc9a06a, 0.96)); th.position.y = 0.15; ted.add(th);
+      [-0.055, 0.055].forEach(function (ex) {
+        var er = new THREE.Mesh(new THREE.SphereGeometry(0.028, 8, 6), mat(0xc9a06a, 0.96));
+        er.position.set(ex, 0.20, 0); ted.add(er); });
+      var snt = new THREE.Mesh(new THREE.SphereGeometry(0.02, 8, 6), mat(0x3a2c22, 0.6));
+      snt.position.set(0, 0.14, 0.062); ted.add(snt);
+      grp(1, ted, 'the bear', 'officially retired. unofficially still on the bed every single night.');
+      var dg2 = new THREE.Group(); dg2.position.set(cx + 1.75, fl, RZ0 + 0.55); dg2.rotation.y = 0.06; add(dg2);
+      var dt = box(1.20, 0.05, 0.58, pineM); dt.position.y = 0.73; dg2.add(dt);
+      [-0.55, 0.55].forEach(function (lx) {
+        var sd = box(0.05, 0.73, 0.56, pineM); sd.position.set(lx, 0.365, 0); dg2.add(sd); });
+      var dd = box(0.46, 0.16, 0.52, pineM); dd.position.set(0.30, 0.60, 0); dg2.add(dd);
+      grp(1, dg2, 'her desk', 'homework happens here about a third of the time. the rest is drawing.');
+      var hw = box(0.21, 0.006, 0.29, mat(0xf0ece0, 0.95));
+      hw.position.set(cx + 1.52, fl + 0.762, RZ0 + 0.53); hw.rotation.y = 0.30; add(hw);
+      rtag(hw, 1, 'the homework', 'due tomorrow. it has been due tomorrow for a while now.');
+      var pen = new THREE.Mesh(new THREE.CylinderGeometry(0.006, 0.006, 0.15, 6), mat(0x3a68b0, 0.5));
+      pen.position.set(cx + 1.66, fl + 0.772, RZ0 + 0.44); pen.rotation.set(Math.PI / 2, 0, 0.55); add(pen);
+      rtag(pen, 1, 'the pen', 'chewed at the end, like every pen in this house.');
+      var potM = new THREE.Mesh(new THREE.CylinderGeometry(0.045, 0.04, 0.10, 12), mat(0x4f9a5e, 0.6));
+      potM.position.set(cx + 2.14, fl + 0.78, RZ0 + 0.64); add(potM);
+      rtag(potM, 1, 'the mug of pens', 'four that work, eleven that do not, and nobody ever sorts them.');
+      [[0x3a68b0, 0.05, 0.1], [0xc4553f, -0.03, -0.2], [0xe0b23a, 0.015, 0.3]].forEach(function (pc) {
+        var pn2 = new THREE.Mesh(new THREE.CylinderGeometry(0.005, 0.005, 0.17, 5), mat(pc[0], 0.5));
+        pn2.position.set(cx + 2.14 + pc[1], fl + 0.87, RZ0 + 0.64 + pc[1] * 0.5);
+        pn2.rotation.set(pc[2], 0, pc[1] * 2.6); add(pn2);
+        rtag(pn2, 1, 'the mug of pens', 'four that work, eleven that do not, and nobody ever sorts them.');
+      });
+      var dl = new THREE.Group(); dl.position.set(cx + 1.28, fl + 0.755, RZ0 + 0.68); dl.rotation.y = -0.45; add(dl);
+      var da = new THREE.Mesh(new THREE.CylinderGeometry(0.011, 0.011, 0.34, 8), mat(0xc4553f, 0.5));
+      da.position.set(0.04, 0.19, 0); da.rotation.z = 0.55; dl.add(da);
+      var dh = new THREE.Mesh(new THREE.ConeGeometry(0.09, 0.13, 12, 1, true),
+        new THREE.MeshStandardMaterial({ color: 0xc4553f, emissive: 0xffd9a0, emissiveIntensity: 0.55,
+          roughness: 0.7, side: THREE.DoubleSide }));
+      dh.position.set(-0.13, 0.36, 0); dh.rotation.z = 2.45; dl.add(dh);
+      var db = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.09, 0.02, 12), mat(0xc4553f, 0.5)); dl.add(db);
+      grp(1, dl, 'the desk lamp', 'angled at the wall and not the desk, because that is how she likes it.');
+      var dlite = new THREE.PointLight(0xffd2a0, 0.66, 3.6, 1.9);
+      dlite.position.set(cx + 1.14, fl + 1.08, RZ0 + 0.68); add(dlite);
+      [[-1.55, 0x8a4fd0, 'BAND'], [-0.55, 0x2fb6c8, 'HORSES'], [0.75, 0xd8443a, 'TOUR']].forEach(function (po, poi) {
+        var pt = canvasTex(64, 88, function (c, w, h) {
+          c.fillStyle = '#' + po[1].toString(16).padStart(6, '0'); c.fillRect(0, 0, w, h);
+          c.fillStyle = 'rgba(255,255,255,0.20)'; c.beginPath(); c.arc(w / 2, h * 0.36, 16, 0, 7); c.fill();
+          c.fillStyle = 'rgba(0,0,0,0.32)'; c.fillRect(0, h * 0.64, w, h * 0.36);
+          c.fillStyle = '#f2ece0'; c.font = 'bold 11px Georgia, serif'; c.textAlign = 'center';
+          c.fillText(po[2], w / 2, h * 0.82);
+        });
+        pt.colorSpace = THREE.SRGBColorSpace;
+        var pm = new THREE.Mesh(new THREE.PlaneGeometry(0.44, 0.60),
+          new THREE.MeshStandardMaterial({ map: pt, roughness: 0.94 }));
+        pm.position.set(cx + po[0], fl + 1.54 + poi * 0.04, RZ0 + 0.045);
+        pm.rotation.z = (poi - 1) * 0.026; add(pm);
+        rtag(pm, 1, 'her posters', 'taped at the corners. one corner always comes down in the night.');
+      });
+      var koT = canvasTex(96, 64, function (c, w, h) {
+        c.fillStyle = '#f2ecd8'; c.fillRect(0, 0, w, h);
+        c.font = 'bold 15px Georgia, serif'; c.textAlign = 'center';
+        c.fillStyle = '#c4553f'; c.fillText('KEEP', w / 2, 27);
+        c.fillStyle = '#3a68b0'; c.fillText('OUT', w / 2, 45);
+        c.strokeStyle = '#4f9a5e'; c.lineWidth = 3; c.strokeRect(5, 5, w - 10, h - 10);
+      });
+      koT.colorSpace = THREE.SRGBColorSpace;
+      var ko = new THREE.Mesh(new THREE.PlaneGeometry(0.24, 0.16),
+        new THREE.MeshStandardMaterial({ map: koT, roughness: 0.95 }));
+      ko.position.set(R.doorX, fl + 1.42, RZ1 + 0.055); ko.rotation.y = Math.PI; ko.rotation.z = 0.05; add(ko);
+      rtag(ko, 1, 'KEEP OUT', 'three colours, because one colour would not have been serious enough.');
+      (function () {
+        var pts = [];
+        for (var f8 = 0; f8 <= 8; f8++) {
+          var t7 = f8 / 8;
+          pts.push(new THREE.Vector3(R.x0 + 0.40 + t7 * (R.x1 - R.x0 - 0.8),
+                                     fl + 2.00 - Math.sin(t7 * Math.PI) * 0.15, RZ0 + 0.07));
+        }
+        var cur = new THREE.CatmullRomCurve3(pts, false, 'centripetal');
+        var wire = new THREE.Mesh(new THREE.TubeGeometry(cur, 32, 0.006, 5, false), mat(0x3a3f46, 0.7));
+        add(wire); rtag(wire, 1, 'the fairy lights', 'up since one christmas and never once taken down.');
+        for (var lb = 0; lb <= 8; lb++) {
+          var pp = cur.getPointAt(lb / 8), col = [0xff8a2b, 0x8a4fd0, 0x2bd07a, 0xff5aa8][lb % 4];
+          var lmp = new THREE.Mesh(new THREE.SphereGeometry(0.019, 8, 6),
+            new THREE.MeshStandardMaterial({ color: col, emissive: col, emissiveIntensity: 0.85, roughness: 0.5 }));
+          lmp.position.copy(pp); lmp.position.y -= 0.022; add(lmp);
+          rtag(lmp, 1, 'the fairy lights', 'up since one christmas and never once taken down.');
+        }
+        var fli = new THREE.PointLight(0xffa0d0, 0.26, 4.5, 2.0);
+        fli.position.set(cx, fl + 1.85, RZ0 + 0.35); add(fli);
+      })();
+      var bean = new THREE.Mesh(new THREE.SphereGeometry(0.44, 12, 9), mat(0x4f9a5e, 0.95));
+      bean.scale.set(1, 0.60, 0.92); bean.position.set(cx - 1.55, fl + 0.26, RZ1 - 0.80); bean.rotation.y = 0.75; add(bean);
+      rtag(bean, 1, 'the beanbag', 'has taken the shape of one specific way of sitting and will not take another.');
+      var shf = box(1.30, 0.04, 0.22, pineM);
+      shf.position.set(cx + 0.55, fl + 1.30, RZ1 - 0.16); shf.rotation.z = -0.008; add(shf);
+      rtag(shf, 1, 'her shelf', 'put up by somebody in a hurry. everything on it leans very slightly left.');
+      [[0xd8443a, -0.42, 0.9], [0x3a68b0, -0.18, 0.2], [0xe0b23a, 0.10, 1.4]].forEach(function (bo) {
+        var bk2 = box(0.035, 0.20, 0.15, mat(bo[0], 0.9));
+        bk2.position.set(cx + 0.55 + bo[1], fl + 1.42, RZ1 - 0.16); bk2.rotation.z = bo[2] * 0.05; add(bk2);
+        rtag(bk2, 1, 'her books', 'three she has read eleven times and one she has never opened.');
+      });
+      var jb = box(0.16, 0.08, 0.12, mat(0xc4553f, 0.7));
+      jb.position.set(cx + 0.86, fl + 1.36, RZ1 - 0.16); jb.rotation.y = 0.25; add(jb);
+      rtag(jb, 1, 'the jewellery box', 'plays one bar and a half of something, then gives up.');
+      var hcl = new THREE.Mesh(new THREE.SphereGeometry(0.16, 14, 10),
+        new THREE.MeshStandardMaterial({ color: 0xf2ead6, emissive: 0xffd9a0, emissiveIntensity: 0.30,
+          roughness: 0.85, transparent: true, opacity: 0.9 }));
+      hcl.scale.y = 0.62; hcl.position.set(cx, UPF.ce - 0.20, RZ0 + 1.9); add(hcl);
+      rtag(hcl, 1, 'her ceiling light', 'the shade has a horse on it. it was chosen at six and defended ever since.');
+      var hli = new THREE.PointLight(0xffd2a0, 0.44, 7.0, 1.9);
+      hli.position.set(cx, UPF.ce - 0.40, RZ0 + 1.9); add(hli);
+    })();
+
+    /* ============== THE ATTIC - warm, and it smells like old paper ============== */
+    (function () {
+      var R = UPR[2], cx = (R.x0 + R.x1) / 2;
+      var cardM = mat(0xb99a6e, 0.95), cardDk = mat(0x9d8058, 0.95);
+      /* the roof coming down is the ONLY thing that makes this read as an attic rather
+       * than a small bedroom - it has the same ceiling as every other room up here
+       * until something slopes. */
+      var slope = box(R.x1 - R.x0, 0.10, 3.1, mat(0x6a5a48, 0.95));
+      slope.position.set(cx, fl + 1.76, RZ0 + 1.15); slope.rotation.x = -0.40; add(slope);
+      rtag(slope, 2, 'the roof slope', 'you learn where you can stand up straight and you never forget it.');
+      [[-1.30, 0.30, 0.55, 0.62, 'XMAS'], [-1.22, 0.82, 0.05, 0.55, 'BABY'],
+       [0.55, 0.30, 0.42, 0.68, 'TAX'], [0.60, 0.78, -0.12, 0.42, 'KITCHEN'],
+       [1.58, 0.30, 0.70, 0.32, 'DAD'], [-0.30, 0.30, -0.35, 0.94, 'SCHOOL']].forEach(function (bx) {
+        var bg3 = new THREE.Group();
+        bg3.position.set(cx + bx[0], fl + bx[1] - 0.30, RZ0 + 1.30 + bx[2]); bg3.rotation.y = bx[3]; add(bg3);
+        var bd = box(0.56, 0.44, 0.46, cardM); bd.position.y = 0.22; bg3.add(bd);
+        var ld = box(0.58, 0.03, 0.48, cardDk); ld.position.y = 0.445; bg3.add(ld);
+        var lt = canvasTex(64, 32, function (c, w, h) {
+          c.fillStyle = '#e8e2cf'; c.fillRect(0, 0, w, h);
+          c.fillStyle = '#3a2f22'; c.font = 'bold 13px Georgia, serif'; c.textAlign = 'center';
+          c.fillText(bx[4], w / 2, 21);
+        });
+        lt.colorSpace = THREE.SRGBColorSpace;
+        var lbl = new THREE.Mesh(new THREE.PlaneGeometry(0.26, 0.13),
+          new THREE.MeshStandardMaterial({ map: lt, roughness: 0.95 }));
+        lbl.position.set(0, 0.24, 0.232); bg3.add(lbl);
+        grp(2, bg3, 'the boxes', 'labelled in marker by somebody who was very sure they would remember.');
+      });
+      var tg2 = new THREE.Group(); tg2.position.set(cx + 1.15, fl, RZ1 - 0.95); tg2.rotation.y = -0.36; add(tg2);
+      var trb = box(0.92, 0.44, 0.52, mat(0x5a4636, 0.9)); trb.position.y = 0.22; tg2.add(trb);
+      var trl = new THREE.Mesh(new THREE.CylinderGeometry(0.26, 0.26, 0.92, 14, 1, false, 0, Math.PI), mat(0x4a3a2c, 0.9));
+      trl.rotation.z = Math.PI / 2; trl.position.y = 0.44; tg2.add(trl);
+      [-0.30, 0.30].forEach(function (sx2) {
+        var stp = box(0.05, 0.46, 0.54, mat(0x3a2c1c, 0.6)); stp.position.set(sx2, 0.23, 0); tg2.add(stp); });
+      var ltc = box(0.10, 0.08, 0.03, new THREE.MeshStandardMaterial({ color: 0xc8a24a, roughness: 0.4, metalness: 0.55 }));
+      ltc.position.set(0, 0.30, 0.27); tg2.add(ltc);
+      grp(2, tg2, 'the trunk', 'came with the house. nobody living has ever had the key.');
+      var abulb = new THREE.Mesh(new THREE.SphereGeometry(0.06, 12, 10),
+        new THREE.MeshStandardMaterial({ color: 0xfff2d6, emissive: 0xffd9a0, emissiveIntensity: 0.95, roughness: 0.6 }));
+      abulb.position.set(cx - 0.30, fl + 1.60, RZ1 - 0.55); add(abulb);
+      var aflex = new THREE.Mesh(new THREE.CylinderGeometry(0.006, 0.006, 0.62, 5), mat(0x2b2e33, 0.6));
+      aflex.position.set(cx - 0.30, fl + 1.95, RZ1 - 0.55); add(aflex);
+      [abulb, aflex].forEach(function (m) { rtag(m, 2, 'the attic bulb',
+        'you pull the flex, not a switch, and you do it by feel because the switch is at the bottom.'); });
+      var alite = new THREE.PointLight(0xffd2a0, 0.80, 5.6, 1.9);
+      alite.position.set(cx - 0.30, fl + 1.55, RZ1 - 0.55); add(alite);
+      var agl = new THREE.Mesh(new THREE.PlaneGeometry(0.54, 0.54),
+        new THREE.MeshStandardMaterial({ color: 0x3a4a5e, emissive: 0x8fa6c8, emissiveIntensity: 0.40, roughness: 0.3 }));
+      agl.position.set(UPF.x1 - 0.09, fl + 1.24, RZ0 + 1.70); agl.rotation.y = -Math.PI / 2; add(agl);
+      rtag(agl, 2, 'the gable window',
+        'painted shut. the light through it is the best light in the house and nobody is ever up here to see it.');
+      var afr = box(0.04, 0.62, 0.62, mat(0xd8d2c2, 0.85));
+      afr.position.set(UPF.x1 - 0.11, fl + 1.24, RZ0 + 1.70); add(afr);
+      rtag(afr, 2, 'the gable window',
+        'painted shut. the light through it is the best light in the house and nobody is ever up here to see it.');
+      var beam = new THREE.Mesh(new THREE.PlaneGeometry(0.52, 2.3), new THREE.MeshBasicMaterial({
+        color: 0xfff0d0, transparent: true, opacity: 0.06, blending: THREE.AdditiveBlending, depthWrite: false }));
+      beam.position.set(UPF.x1 - 1.05, fl + 0.80, RZ0 + 1.70); beam.rotation.set(0, -Math.PI / 2, 0.44); add(beam);
+      var awl = new THREE.PointLight(0x9fc0e0, 0.22, 4.0, 2.0);
+      awl.position.set(UPF.x1 - 0.60, fl + 1.20, RZ0 + 1.70); add(awl);
+      var arug = new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.16, 1.70, 12), mat(0x7a5548, 0.96));
+      arug.rotation.z = Math.PI / 2; arug.rotation.y = 0.26;
+      arug.position.set(cx - 1.45, fl + 0.16, RZ1 - 0.42); add(arug);
+      rtag(arug, 2, 'the rolled rug', 'it will go somewhere someday. so far it has gone up here.');
+      var osh = new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.21, 0.22, 12, 1, true), mat(0xc4b48a, 0.92));
+      osh.position.set(cx + 0.05, fl + 0.16, RZ1 - 0.34); osh.rotation.set(1.32, 0.4, 0); add(osh);
+      rtag(osh, 2, 'the old lampshade', 'replaced, not thrown away, which is the entire principle of this room.');
+      var tbx = box(0.28, 1.20, 0.28, cardDk);
+      tbx.position.set(R.x0 + 0.42, fl + 0.60, RZ0 + 0.60); tbx.rotation.set(0.14, 0.3, 0.16); add(tbx);
+      rtag(tbx, 2, 'the tree', 'in its box, leaning in the corner, waiting for the one week it is famous.');
+      var chr = new THREE.Mesh(new THREE.SphereGeometry(0.045, 10, 8),
+        new THREE.MeshStandardMaterial({ color: 0xc8443a, roughness: 0.25, metalness: 0.5 }));
+      chr.position.set(R.x0 + 0.72, fl + 0.045, RZ0 + 0.78); add(chr);
+      rtag(chr, 2, 'the loose bauble', 'escaped a box some year and has been rolling around up here ever since.');
+      for (var dd2 = 0; dd2 < 26; dd2++) {
+        var a2 = dd2 * 2.399, r2 = 0.35 + (dd2 % 7) * 0.11;
+        var mo = new THREE.Mesh(new THREE.SphereGeometry(0.008, 5, 4),
+          new THREE.MeshBasicMaterial({ color: 0xfff0d0, transparent: true, opacity: 0.30 }));
+        mo.position.set(UPF.x1 - 0.45 - (dd2 % 5) * 0.16, fl + 0.55 + Math.sin(a2) * 0.55,
+                        RZ0 + 1.70 + Math.cos(a2) * r2);
+        add(mo);
+      }
+    })();
   })();
 
   /* ---- THE PHOTO WALL --------------------------------------------------------
@@ -6124,6 +6494,12 @@ export function buildHallway(ctx) {
     uplookB: new THREE.Vector3(2.60, 4.55, 1.60),   // and the other way, east
     upL1: new THREE.Vector3(-6.98, 2.20, -3.30),    // what you see on the way up
     upL2: new THREE.Vector3(-8.60, 4.70, 1.70),
+    /* the three rooms share ONE set of keyframes, rewritten on the way in - they
+     * differ only by x, so three fixed sets would be the same numbers typed out three
+     * times and wrong in one of them. */
+    rd1: new THREE.Vector3(0, 0, 0), rd2: new THREE.Vector3(0, 0, 0),
+    rrest: new THREE.Vector3(0, 0, 0), rlook: new THREE.Vector3(0, 0, 0),
+    rlookB: new THREE.Vector3(0, 0, 0), rmid: new THREE.Vector3(0, 0, 0),
     ldoor1: new THREE.Vector3(-6.30, 1.66, 1.91),   // squared up to the living room door, hall side
     ldoor2: new THREE.Vector3(-7.60, 1.62, 1.91),   // in the doorway
     // ⚠️ these AIM AT THE FURNITURE, which sounds obvious and was not: the seating
@@ -6203,6 +6579,28 @@ export function buildHallway(ctx) {
     if (mode !== "idle" && mode !== "turning") return;
     if (space !== "kitchen") return;
     mode = "kitchenOut"; tt = 0;
+    c0.copy(camera.position); l0.copy(lookAt);
+  }
+  function enterRoom(i) {
+    if (mode !== "idle" && mode !== "turning") return;
+    if (space !== "upstairs") return;
+    upRoom = i;
+    var R = UPR[i], cx = (R.x0 + R.x1) / 2, ey = UPF.fl + 1.62;
+    P.rd1.set(R.doorX, ey, LAN.z0 + 0.62);
+    P.rd2.set(R.doorX, ey, LAN.z0 - 0.24);
+    P.rmid.set((R.doorX + cx) / 2, ey, RZ1 - 0.90);
+    P.rrest.set(cx, ey, RZ0 + 2.85);
+    P.rlook.set(cx, ey - 0.30, RZ0 - 2.2);
+    P.rlookB.set(R.doorX, ey - 0.16, LAN.z0 + 0.55);
+    mode = "roomIn"; tt = 0;
+    c0.copy(camera.position); l0.copy(lookAt);
+    AUDIO.clickSfx && AUDIO.clickSfx(430);
+    if (turnBtn) turnBtn.style.display = "none";
+  }
+  function leaveRoom() {
+    if (mode !== "idle" && mode !== "turning") return;
+    if (!isRoomSp(space)) return;
+    mode = "roomOut"; tt = 0;
     c0.copy(camera.position); l0.copy(lookAt);
   }
   function enterUpstairs() {
@@ -6286,11 +6684,12 @@ export function buildHallway(ctx) {
     if (turnBtn) turnBtn.style.display = "none";
   }
   // which end of wherever you're standing you're looking at
+  function isRoomSp(sp) { return sp === 'room0' || sp === 'room1' || sp === 'room2'; }
   function restPos() {
     return space === "porch" ? P.porch : space === "kitchen" ? P.krest
          : space === "garage" ? P.grest : space === "back" ? P.brest
          : space === "living" ? P.lrest : space === "upstairs" ? P.uprest
-         : space === "basement" ? P.bsrest : P.rest;
+         : space === "basement" ? P.bsrest : isRoomSp(space) ? P.rrest : P.rest;
   }
   function aimFor(f) {
     if (space === "porch") return f === "house" ? P.porchB : P.porchL;
@@ -6298,6 +6697,7 @@ export function buildHallway(ctx) {
     if (space === "garage") return f === "door" ? P.glookB : P.glook;
     if (space === "living") return f === "door" ? P.llookB : P.llook;
     if (space === "upstairs") return f === "east" ? P.uplookB : P.uplook;
+    if (isRoomSp(space)) return f === "door" ? P.rlookB : P.rlook;
     if (space === "back") return f === "house" ? P.blookB : f === "yard" ? P.blookW : P.blook;
     if (space === "basement") return f === "stairs" ? P.bslookB : P.bslook;
     return f === "south" ? P.lookS : P.look;
@@ -6306,6 +6706,7 @@ export function buildHallway(ctx) {
     if (space === "porch") return f === "street" ? "house" : "street";
     if (space === "kitchen" || space === "garage" || space === "living") return f === "door" ? "room" : "door";
     if (space === "upstairs") return f === "west" ? "east" : "west";
+    if (isRoomSp(space)) return f === "door" ? "far" : "door";
     // pool -> yard -> house -> pool: the only three-way turn in the house, because
     // the back yard is the only space with content on three sides of you
     if (space === "back") return f === "pool" ? "yard" : f === "yard" ? "house" : "pool";
@@ -6434,6 +6835,23 @@ export function buildHallway(ctx) {
           space = "hall"; facing = turnTo = "north"; kDoorPivot.rotation.y = 0;
           AUDIO.clickSfx && AUDIO.clickSfx(500);
         }
+        turnK = 1; mode = "idle"; syncTurnBtn();
+      }
+      return true;
+    }
+    if (mode === "roomIn" || mode === "roomOut") {       // through one of the three doors
+      tt = Math.min(1, tt + dt / 2.1);
+      /* the door swings open ahead of the camera and shuts behind it - a door that
+       * reacts to you is the entire reason it is a door and not a wall with a knob */
+      var sw = mode === "roomIn" ? tt * 2.6 : 1 - (tt - 0.42) * 2.4;
+      if (roomDoors[upRoom]) roomDoors[upRoom].rotation.y = ease(Math.max(0, Math.min(1, sw))) * 1.92;
+      if (mode === "roomIn") walk([c0, P.rd1, P.rd2, P.rmid, P.rrest],
+                                  [l0, P.rlook, P.rlook, P.rlook, P.rlook], tt);
+      else walk([c0, P.rmid, P.rd2, P.rd1, P.uprest], [l0, P.rlookB, P.uplook, P.uplook, P.uplook], tt);
+      camera.position.copy(_v); lookAt.copy(_w); camera.lookAt(lookAt);
+      if (tt >= 1) {
+        if (mode === "roomIn") { space = UPR[upRoom].sp; facing = turnTo = "far"; }
+        else { space = "upstairs"; facing = turnTo = "west"; AUDIO.clickSfx && AUDIO.clickSfx(500); }
         turnK = 1; mode = "idle"; syncTurnBtn();
       }
       return true;
@@ -6577,7 +6995,7 @@ export function buildHallway(ctx) {
       }
       return true;
     }
-    if (space === "hall" || space === "porch" || space === "kitchen" || space === "garage" || space === "back" || space === "basement" || space === "living" || space === "upstairs") { // at rest: same parallax drift as the bedroom
+    if (space === "hall" || space === "porch" || space === "kitchen" || space === "garage" || space === "back" || space === "basement" || space === "living" || space === "upstairs" || isRoomSp(space)) { // at rest: same parallax drift as the bedroom
       // ⚠️ the swing is driven by a SEPARATE eased term, not by lerping lookAt
       // straight from one end to the other. A direct lerp passes the target
       // through the camera's own position on the way past, and the view whips
@@ -6623,6 +7041,7 @@ export function buildHallway(ctx) {
         mode === "out" || mode === "in" || mode === "kitchenIn" || mode === "kitchenOut" ||
         mode === "garageIn" || mode === "garageOut" || mode === "backIn" || mode === "backOut" ||
         mode === "livingIn" || mode === "livingOut" || mode === "upIn" || mode === "upOut" ||
+        mode === "roomIn" || mode === "roomOut" ||
         mode === "basementIn" || mode === "basementOut") return;
     to = to || flipOf(facing);
     if (to === facing && mode !== "turning") { syncTurnBtn(); return; }
@@ -6851,6 +7270,9 @@ export function buildHallway(ctx) {
     kitchen: { enter: enterKitchen, leave: leaveKitchen },
     living: { enter: enterLiving, leave: leaveLiving },
     upstairs: { enter: enterUpstairs, leave: leaveUpstairs },
+    room0: { enter: function () { enterRoom(0); }, leave: leaveRoom },
+    room1: { enter: function () { enterRoom(1); }, leave: leaveRoom },
+    room2: { enter: function () { enterRoom(2); }, leave: leaveRoom },
     garage: { enter: enterGarage, leave: leaveGarage, roll: toggleRoll,
       rollA: function () { return rollA; } },
     back: { enter: enterBack, leave: leaveBack },
@@ -6874,6 +7296,9 @@ export function buildHallway(ctx) {
       garage:   { x: [-12.20, -7.40], z: [4.25, 8.55], y: [-0.15, 2.25] },
       living:   { x: [LIV.x0 - 0.20, LIV.x1 + 0.20], z: [LIV.z0 - 0.20, LIV.z1 + 0.20], y: [-0.15, LIV.ce + 0.30] },
       upstairs: { x: [UPF.x0 - 0.20, UPF.x1 + 0.20], z: [UPF.z0 - 0.20, UPF.z1 + 0.20], y: [UPF.fl - 0.20, UPF.ce + 0.30] },
+      room0:    { x: [UPR[0].x0 - 0.20, UPR[0].x1 + 0.20], z: [UPF.z0 - 0.20, LAN.z0 + 0.25], y: [UPF.fl - 0.20, UPF.ce + 0.30] },
+      room1:    { x: [UPR[1].x0 - 0.20, UPR[1].x1 + 0.20], z: [UPF.z0 - 0.20, LAN.z0 + 0.25], y: [UPF.fl - 0.20, UPF.ce + 0.30] },
+      room2:    { x: [UPR[2].x0 - 0.20, UPR[2].x1 + 0.20], z: [UPF.z0 - 0.20, LAN.z0 + 0.25], y: [UPF.fl - 0.20, UPF.ce + 0.30] },
       basement: { x: [BSM.x0 - 0.15, BSM.x1 + 0.15], z: [BSM.z0 - 0.15, BSM.z1 + 0.15],
                   y: [BSM.fl - 0.15, BSM.ce + 0.10] },
       porch:    { x: [-60, 60], z: [-62, HOUSE_F + 0.60], y: [GROUND - 0.20, GROUND + 14] },
