@@ -176,6 +176,20 @@ a.game:focus-visible,#list-toggle:focus-visible,#nb-close:focus-visible,.foot a:
   background:rgba(8,12,18,.5);animation:breathe 2.6s ease-in-out infinite}
 @keyframes breathe{0%,100%{box-shadow:0 0 0 0 rgba(255,90,168,0)}50%{box-shadow:0 0 22px 2px rgba(255,90,168,.35)}}
 #enter.gone{opacity:0;pointer-events:none}
+/* the door stays shut until the room is really built: the prompt dims and the bar
+   is honest about what is left. Both fade the instant it is ready. */
+#enter .e-go{transition:opacity .45s ease}
+#enter.loading .e-go{opacity:.28}
+#e-load{margin-top:18px;transition:opacity .5s ease}
+#enter.ready #e-load{opacity:0;pointer-events:none}
+#e-load .e-bar{width:190px;height:2px;margin:0 auto;border-radius:2px;
+  background:rgba(242,226,196,.18);overflow:hidden}
+#e-load .e-bar i{display:block;height:100%;width:0%;border-radius:2px;
+  background:linear-gradient(90deg,#c9a86b,#f2e2c4);transition:width .35s ease}
+#e-load .e-load-txt{margin-top:9px;font-family:"Inter",system-ui,sans-serif;font-size:10px;
+  letter-spacing:.2em;text-transform:uppercase;color:#c9c4b6;opacity:.72;
+  text-shadow:0 1px 8px rgba(0,0,0,.9)}
+@media (prefers-reduced-motion: reduce){ #e-load .e-bar i{transition:none} }
 body.no3d #enter,body.listing #enter{display:none}
 @media (prefers-reduced-motion: reduce){ #enter .e-go{animation:none} }
 </style>
@@ -195,6 +209,10 @@ body.no3d #enter,body.listing #enter{display:none}
     <h2>THE ROOM</h2>
     <div class="e-sub">it's after bedtime · the rain has the street · the toys are awake</div>
     <div class="e-go">step inside</div>
+    <div id="e-load" aria-live="polite">
+      <div class="e-bar"><i></i></div>
+      <div class="e-load-txt">waking the room…</div>
+    </div>
   </div>
 </div>
 <div class="hud">
@@ -400,8 +418,43 @@ document.getElementById("list-toggle").addEventListener("click", function(){ doc
 document.getElementById("room-return").addEventListener("click", function(e){ e.preventDefault(); document.body.classList.remove("listing"); });
 (function(){
   var enterEl = document.getElementById("enter");
+  var bar = document.querySelector("#e-load .e-bar i");
+  var txt = document.querySelector("#e-load .e-load-txt");
+  var roomReady = false, wanted = false;
+  enterEl.classList.add("loading");
+  /* THE CARD IS THE LOADING SCREEN. It used to dismiss on click whatever was
+     loaded, which is how you got into a room that was still assembling itself:
+     5.5MB of props still arriving, models fading in around you, and every
+     material compiling its shader the first time it was drawn. Now the prompt
+     stays dim until room.js reports every model, texture AND shader done, and a
+     click made during the wait is remembered and honoured the instant it is.
+     Nobody clicks twice, and nobody gets in early. */
+  function ready(){
+    if (roomReady) return;
+    roomReady = true;
+    enterEl.classList.remove("loading");
+    enterEl.classList.add("ready");
+    if (txt) txt.textContent = "ready";
+    if (bar) bar.style.width = "100%";
+    if (wanted) stepInside();
+  }
+  (function poll(){
+    var boot = window.__roomBoot;
+    if (!boot) { setTimeout(poll, 60); return; }
+    boot.onReady(ready);
+    (function tick(){
+      if (roomReady) return;
+      var pr = boot.progress();
+      if (bar) bar.style.width = Math.round((pr.settled ? pr.frac : 0.04) * 100) + "%";
+      if (txt) txt.textContent = pr.settled
+        ? "unpacking the room · " + pr.done + " of " + pr.total
+        : "waking the room…";
+      setTimeout(tick, 120);
+    })();
+  })();
   function stepInside(){
     if (!enterEl || enterEl.classList.contains("gone")) return;
+    if (!roomReady) { wanted = true; if (txt) txt.textContent = "one moment — nearly there"; return; }
     enterEl.classList.add("gone");
     window.__entered = true;
     if (window.__roomEnter) window.__roomEnter();

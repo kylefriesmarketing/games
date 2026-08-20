@@ -72,6 +72,88 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
   /* ---- helpers ---------------------------------------------------------- */
   var texLoader = new THREE.TextureLoader();
 
+  /* ---- THE DOOR WAITS FOR THE ROOM ----------------------------------------------
+   * The entry card used to dismiss on click no matter what was loaded, so clicking
+   * it quickly dropped you into a half-built room: 5.5MB of props still streaming,
+   * models fading in around you, and — the real cause of the "glitchy" feel — every
+   * material compiling its shader the first time it was drawn, which stalls the
+   * frame it happens on. 13MB of assets across 44 requests is a real wait; the fix
+   * is to make it an HONEST one and use it.
+   *
+   * Everything counted here is counted where it is REQUESTED, not where it is
+   * declared, so the totals cannot drift as props are added.
+   * ⚠️ the total keeps growing while the module runs (props register as the file
+   * executes), so progress is only meaningful once `settled` is true — before that
+   * the bar would run backwards as the denominator grew. */
+  var boot = { glb: 0, glbDone: 0, tex: 0, texDone: 0, settled: false, ready: false,
+    t0: (performance && performance.now) ? performance.now() : 0, listeners: [] };
+  window.__roomBoot = boot;
+  boot.progress = function () {
+    var total = boot.glb + boot.tex, done = boot.glbDone + boot.texDone;
+    return { done: done, total: total, settled: boot.settled, ready: boot.ready,
+      frac: total ? Math.min(1, done / total) : 0 };
+  };
+  boot.onReady = function (fn) { boot.ready ? fn() : boot.listeners.push(fn); };
+  function bootNotify() { var l = boot.listeners; boot.listeners = []; l.forEach(function (f) { try { f(); } catch (e) { } }); }
+  function bootDone() {
+    if (boot.ready) return;
+    boot.ready = true;
+    /* ⚠️ THIS is the anti-glitch step, not the waiting. A material compiles its
+     * GPU program the first time it is rendered, and this room has hundreds — so
+     * the first seconds of walking around used to stutter as each new surface came
+     * into view. Compiling them all while the card is still up moves every one of
+     * those stalls behind the curtain. */
+    var _now = function () { return (performance && performance.now) ? performance.now() : 0; };
+    boot.loadMs = Math.round(_now() - boot.t0);
+    var _c0 = _now();
+    try { renderer.compile(scene, camera); } catch (e) { }
+    try { drawFrame(); drawFrame(); } catch (e) { }   // and warm the post chain
+    boot.compileMs = Math.round(_now() - _c0);
+    boot.tookMs = Math.round(((performance && performance.now) ? performance.now() : 0) - boot.t0);
+    bootNotify();
+  }
+  /* ?slowboot=2500 holds the door shut for that many ms after everything is in.
+   * The loading screen is otherwise almost impossible to test on a warm cache —
+   * the window between "not ready" and "ready" is shorter than a round trip — and
+   * the branch that matters most (a click made DURING the wait, remembered and
+   * honoured when it ends) would never be exercised. Same spirit as ?hour= and
+   * ?season=: a seam for looking at a state you cannot otherwise hold still. */
+  var SLOW_BOOT = (function () {
+    var m = /[?&]slowboot=([0-9]+)/.exec(location.search);
+    return m ? Math.min(20000, parseInt(m[1], 10) || 0) : 0;
+  })();
+  function bootTick() {
+    if (boot.ready || boot.holding || !boot.settled) return;
+    if (boot.glbDone >= boot.glb && boot.texDone >= boot.tex && !loadQ.length && !loadActive) {
+      if (SLOW_BOOT) { boot.holding = true; setTimeout(function () { boot.holding = false; bootDone(); }, SLOW_BOOT); }
+      else bootDone();
+    }
+  }
+  boot.tick = bootTick;
+  // the registration pass is over by the next macrotask; the totals are real from here
+  setTimeout(function () { boot.settled = true; bootTick(); }, 0);
+  /* ⚠️ A HUNG REQUEST MUST NOT TRAP ANYONE BEHIND THE DOOR. The GLB pump already
+   * survives a 404, but a socket that never answers would leave the card up for
+   * good. After 15s the room opens with whatever arrived. */
+  setTimeout(function () {
+    if (!boot.ready) {
+      boot.timedOut = true;
+      try { console.warn("[room] opening the door on a timeout — " +
+        (boot.glb - boot.glbDone) + " model(s) and " + (boot.tex - boot.texDone) + " texture(s) never arrived"); } catch (e) { }
+      bootDone();
+    }
+  }, 15000);
+  // count textures where they are asked for, whoever asks
+  (function (realLoad) {
+    texLoader.load = function (url, onLoad, onProg, onErr) {
+      boot.tex++;
+      return realLoad.call(texLoader, url,
+        function (t) { boot.texDone++; if (onLoad) onLoad(t); bootTick(); },
+        onProg,
+        function (e) { boot.texDone++; if (onErr) onErr(e); bootTick(); });
+    };
+  })(texLoader.load);
+
   /* SURFACE RELIEF. Every material in this room was a flat colour at a uniform
    * roughness — no bump, no normal, no roughness map anywhere — which is why the
    * carpet, the wallpaper and the wood all read as the same sheet of plastic under
@@ -303,6 +385,7 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
   }
   var pumpScheduled = false;
   function queueGLB(url, cb) {
+    boot.glb++;
     loadQ.push({ url: url, prio: prioFor(url), cb: cb });
     // Everything registers synchronously as this module runs, so hold the first
     // pump until that pass is done — otherwise whatever was declared earliest wins
@@ -315,8 +398,8 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
       var job = loadQ.shift();
       loadActive++;
       gltfL.load(job.url, (function (j) {
-        return function (g) { loadActive--; try { j.cb(g); } finally { pumpGLB(); } };
-      })(job), undefined, function () { loadActive--; pumpGLB(); }); // a missing prop must never stall the queue
+        return function (g) { loadActive--; boot.glbDone++; try { j.cb(g); } finally { pumpGLB(); bootTick(); } };
+      })(job), undefined, function () { loadActive--; boot.glbDone++; pumpGLB(); bootTick(); }); // a missing prop must never stall the queue
     }
   }
   // Generated props ease in instead of popping when their GLB finishes loading.
