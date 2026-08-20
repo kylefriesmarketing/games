@@ -435,14 +435,40 @@ export function buildHallway(ctx) {
      * 0.85 m face bulging 8 cm — geometry, not a texture trick. Its pole points -z
      * (rotation.x -PI/2 maps +Y to -Z), which is the direction the couch is in. */
     var sg = new THREE.Group(); sg.position.set(-12.60, 0, 3.58); sg.rotation.y = 0.06; add(sg);
-    var stand = box(1.30, 0.52, 0.46, woodM); stand.position.y = 0.26; sg.add(stand);
-    var shRail = box(1.22, 0.03, 0.40, woodM); shRail.position.set(0, 0.22, 0); sg.add(shRail);
+    /* ⚠️ THE STAND WAS A SOLID BLOCK, so 'the video' — all three of its meshes — was
+     * built inside it and rendered nowhere. A television stand of this era is an open
+     * bay with the video in it; that is the whole reason it is a stand and not a table. */
+    var stTop = box(1.30, 0.06, 0.46, woodM); stTop.position.y = 0.49; sg.add(stTop);
+    /* ⚠️ SOLID SIDE PANELS PUT THE VIDEO STRAIGHT BACK OUT OF SIGHT. The resting
+     * camera sits 71 degrees off this set is normal, so it looks almost ALONG the
+     * stand is face — and a 0.46-deep bay behind a side panel is sealed from that
+     * angle. Measured: 0 of 9 sample points on the video were visible. Four corner
+     * posts hold the same top and leave the bay open from every direction, which is
+     * what a stand of this era actually is. */
+    [[-0.62, -0.20], [0.62, -0.20], [-0.62, 0.20], [0.62, 0.20]].forEach(function (pp3) {
+      var post3 = box(0.06, 0.45, 0.06, woodM); post3.position.set(pp3[0], 0.235, pp3[1]); sg.add(post3); });
+    // ⚠️ THE BACK PANEL WAS ACROSS THE OPENING. The screen is built on this group is
+    // local -z face, so -z is the FRONT — and a back panel at -0.215 walls the bay off
+    // from the only direction anyone looks at it. It goes at +0.215.
+    var stBack = box(1.18, 0.42, 0.03, woodM); stBack.position.set(0, 0.25, 0.215); sg.add(stBack);
+    var stFoot = box(1.30, 0.04, 0.46, woodM); stFoot.position.y = 0.02; sg.add(stFoot);
     var tvb = box(1.02, 0.76, 0.58, mat(0x2b2e33, 0.6)); tvb.position.y = 0.90; sg.add(tvb);
     var venr = box(1.04, 0.10, 0.60, mat(0x5a4632, 0.7)); venr.position.y = 1.24; sg.add(venr);
+    /* ⚠️⚠️ I GOT THIS CAP 7.2 cm TOO DEEP AND BURIED THE PICTURE. At R 1.15 swept
+     * 0.38 rad the sag is 1.15·(1-cos 0.38) = 0.082, and placing the sphere centre at
+     * z 0.85 put the rim at -0.218 — INSIDE a cabinet whose front face is at -0.29. Only
+     * the 12.6% of the glass past -0.29 escaped: a 30 cm glowing disc in the middle of
+     * a dark 0.82 × 0.62 bezel opening seven times its size.
+     * ⚠️ Pushing the same cap forward does not fix it — it would stand the tube 8.5 cm
+     * out of a 0.58-deep cabinet and leave the bezel floating in front of the glass.
+     * FLATTEN it instead: a much larger radius swept through a much smaller angle keeps
+     * the same 0.854 m face (2·2.6·sin 0.165) but drops the sag to 0.035, so the rim
+     * lands exactly on the cabinet face and the pole stands 3.5 cm proud — which is
+     * what a CRT actually does. The bezel stays where it is and reads correctly. */
     var scr = new THREE.Mesh(
-      new THREE.SphereGeometry(1.15, 24, 16, 0, Math.PI * 2, 0, 0.38),
+      new THREE.SphereGeometry(2.6, 24, 16, 0, Math.PI * 2, 0, 0.165),
       new THREE.MeshStandardMaterial({ color: 0x8fa6c8, emissive: 0x7f9dc4, emissiveIntensity: 0.7, roughness: 0.35 }));
-    scr.position.set(0, 0.92, 0.85); scr.rotation.x = -Math.PI / 2; sg.add(scr);
+    scr.position.set(0, 0.92, 2.2747); scr.rotation.x = -Math.PI / 2; sg.add(scr);
     // the bezel, four boards round the glass, standing 2 cm proud of it
     [[0.92, 0.05, 0, 0.335], [0.92, 0.05, 0, -0.335], [0.05, 0.72, 0.435, 0], [0.05, 0.72, -0.435, 0]]
       .forEach(function (bz) {
@@ -476,13 +502,18 @@ export function buildHallway(ctx) {
     aBase.position.set(0, 1.30, 0.10); sg.add(aBase);
     sg.children.forEach(function (m) { ltag(m, 'the big set', null, 'twenty-seven inches and it took two people to carry.'); });
     // the video, because there was always a video under the television
-    var vcr = box(0.86, 0.11, 0.40, mat(0x3a3f46, 0.5)); vcr.position.set(-0.02, 0.60, 3.58); vcr.rotation.y = 0.06;
-    vcr.position.x += -12.60; add(vcr);
+    // ⚠️ y 0.60 was inside the cabinet body (0.52..1.28). The bay's clear height runs
+    // 0.04..0.46, so the video sits at 0.115 with its face at the bay's front edge.
+    var vcr = box(0.86, 0.11, 0.40, mat(0x3a3f46, 0.5));
+    vcr.position.set(-12.62, 0.115, 3.58); vcr.rotation.y = 0.06; add(vcr);
     var vslot = box(0.52, 0.016, 0.02, mat(0x15171a, 0.9));
-    vslot.position.set(-12.64, 0.60, 3.38); vslot.rotation.y = 0.06; add(vslot);
+    vslot.position.set(-12.63, 0.115, 3.375); vslot.rotation.y = 0.06; add(vslot);
     var vclk = new THREE.Mesh(new THREE.PlaneGeometry(0.13, 0.035),
       new THREE.MeshStandardMaterial({ color: 0x0c1a14, emissive: 0x2bd07a, emissiveIntensity: 0.9, roughness: 0.5 }));
-    vclk.position.set(-12.32, 0.605, 3.375); vclk.rotation.y = Math.PI + 0.06; add(vclk);
+    // ⚠️ the cabinet is yawed, so the front face is at a DIFFERENT z at every x — my
+    // arithmetic put this 7 mm inside the body. 3.351 is measured off the real surface
+    // at this exact x (3.361), not derived.
+    vclk.position.set(-12.33, 0.120, 3.351); vclk.rotation.y = Math.PI + 0.06; add(vclk);
     [vcr, vslot, vclk].forEach(function (m) {
       ltag(m, 'the video', null, 'still blinking 12:00. it has been blinking 12:00 since it came out of the box.');
     });
@@ -609,7 +640,13 @@ export function buildHallway(ctx) {
        * angles to its own picture, tilted about the wrong axis on top of that. The
        * picture is a plane in XY; its frame has to be too. */
       var fr = box(w2, h2, 0.03, frameM);
-      fr.position.set(px - Math.sin(ry) * 0.014, 1.62, pz - Math.cos(ry) * 0.014);
+      /* ⚠️ 0.014 WAS NOT ENOUGH AND THE FRAME COVERED THE ART. The frame is 0.03 deep,
+       * so half of it (0.015) reaches back toward the viewer — at an offset of 0.014
+       * its near face ended up 1 mm PROUD of the picture plane, and since the frame is
+       * a solid box the full size of the art, it hid all of it. 0.020 puts the near
+       * face 5 mm behind the picture. Three pictures here, and the same arithmetic
+       * caught six more elsewhere on the landing. */
+      fr.position.set(px - Math.sin(ry) * 0.020, 1.62, pz - Math.cos(ry) * 0.020);
       fr.rotation.y = ry; fr.rotation.z = tilt; add(fr);
       [pic, fr].forEach(function (m) { ltag(m, name, null, hint); });
     }
@@ -1525,7 +1562,13 @@ export function buildHallway(ctx) {
       new THREE.MeshStandardMaterial({ map: famT, roughness: 0.9 }));
     famPic.position.set(-10.02, UPF.fl + 0.86, LAN.z1 - 0.36); famPic.rotation.set(-0.16, 0.13, 0); add(famPic);
     var famFrame = box(0.23, 0.19, 0.02, upWoodM);
-    famFrame.position.set(-10.02, UPF.fl + 0.86, LAN.z1 - 0.35); famFrame.rotation.set(-0.16, 0.13, 0); add(famFrame);
+    /* ⚠️ THIS ONE WAS FULLY BURIED. Both meshes carry the same tilt, so transforming
+     * the 0.01 world offset into the frame's own basis put the picture at local z
+     * -0.0098 against a half-depth of 0.010 — inside the box, 0.2 mm off its back
+     * face. ⚠️ AND THE FIRST PROPOSED FIX MOVED IT THE WRONG WAY: the camera rests at
+     * z 2.15 and the picture is at LAN.z1 - 0.36 = 2.09, so cameraward is -z and the
+     * frame has to go to a SMALLER z, not a larger one. */
+    famFrame.position.set(-10.02, UPF.fl + 0.86, LAN.z1 - 0.375); famFrame.rotation.set(-0.16, 0.13, 0); add(famFrame);
     var famProp = box(0.02, 0.10, 0.02, upWoodM);
     famProp.position.set(-10.02, UPF.fl + 0.80, LAN.z1 - 0.31); famProp.rotation.x = 0.42; add(famProp);
     [famPic, famFrame, famProp].forEach(function (m) { utag(m, 'the four of them', null, 'taken at the lake. one of them is blinking and it is always the same one.'); });
@@ -1548,7 +1591,10 @@ export function buildHallway(ctx) {
         new THREE.MeshStandardMaterial({ map: t6, roughness: 0.9 }));
       ph2.position.set(sp2[0], UPF.fl + 1.58, LAN.z1 - 0.03); ph2.rotation.y = Math.PI; ph2.rotation.z = sp2[2]; add(ph2);
       var fr2 = box(sp2[1], sp2[1] * 1.22, 0.022, upWoodM);
-      fr2.position.set(sp2[0], UPF.fl + 1.58, LAN.z1 - 0.02); fr2.rotation.z = sp2[2]; add(fr2);
+      // ⚠️ the photo faces -Z (rotation.y = PI) and the camera is on the -Z side, so
+      // the frame has to sit at a LARGER z than the photo, not a smaller one. At
+      // -0.02 against the photo's -0.03 it stood 1 mm in front and hid all five.
+      fr2.position.set(sp2[0], UPF.fl + 1.58, LAN.z1 - 0.012); fr2.rotation.z = sp2[2]; add(fr2);
       [ph2, fr2].forEach(function (m) { utag(m, 'the school photos', null,
         'one a year, all the way down the landing. you can watch the fringe get worse and then get better.'); });
     });
