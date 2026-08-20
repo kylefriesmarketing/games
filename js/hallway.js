@@ -3108,10 +3108,9 @@ export function buildHallway(ctx) {
         : "CLEAN THE ZOO — 1,500 animals, ten habitats, one very long morning");
   });
 
-  /* ---- SURF: the boogie board against the pool coping ----------------------------
-   * A pool is where a kid practises for the ocean. Propped on the near coping so
-   * it stands in the arrival frame without blocking the water, nose up, tail on
-   * the deck, leash coiled where it was dropped. */
+  /* ---- SURF: the boogie board dropped on the pool deck ---------------------------
+   * A pool is where a kid practises for the ocean. Laid flat on the west apron
+   * where you'd actually drop it, deck up, leash coiled beside the tail. */
   var surfSave = (function () {
     try {
       var best = parseInt(localStorage.getItem("surf-best") || "0", 10) || 0;
@@ -3120,8 +3119,17 @@ export function buildHallway(ctx) {
     } catch (e) { return { best: 0, rides: 0 }; }
   })();
   var bbG = new THREE.Group();
-  bbG.position.set(POOL.x0 - 0.30, GROUND + 0.06, POOL.z0 + 0.95);
-  bbG.rotation.set(-0.26, 0.55, 0.06);          // leaning back against the coping
+  /* the west apron is 0.95 deep and 2.9 long, and the coping eats the inner 0.18 —
+   * so a 0.95 x 0.52 board only lies flat here along Z. Sat 2mm proud of the slab
+   * (top GROUND+0.035) so it never z-fights the concrete. */
+  /* ⚠️ NOT the middle of that apron — the diving board base sits at (POOL.x0-0.55,
+   * PCZ) with its plank reaching out over the water, and the first placement put the
+   * board directly under it: half the outline hidden behind a concrete block. The
+   * NORTH half of the west apron is the clear stretch. Rotated 0.18, the footprint
+   * is 0.34 x 0.51 from centre, which clears the coping at POOL.x0-0.09 and the
+   * apron edge at POOL.x0-0.95 by 9cm each side. */
+  bbG.position.set(POOL.x0 - 0.50, GROUND + 0.037, POOL.z0 + 0.60);
+  bbG.rotation.y = 0.18;
   badd(bbG);
   var bbDeckT = canvasTex(128, 256, function (c, w, h) {
     c.fillStyle = "#f2d43a"; c.fillRect(0, 0, w, h);                 // that yellow
@@ -3130,34 +3138,66 @@ export function buildHallway(ctx) {
     c.fillStyle = "rgba(255,255,255,0.5)";                           // a sun-bleached logo
     c.font = "bold 21px Georgia, serif"; c.textAlign = "center";
     c.save(); c.translate(w / 2, h * 0.24); c.fillText("SURF", 0, 0); c.restore();
+    c.fillStyle = "#f6f2e4";                                         // the nose panel
+    c.fillRect(0, 0, w, h * 0.09);
+    c.fillStyle = "#e0483a"; c.fillRect(0, h * 0.09, w, h * 0.016);
     c.fillStyle = "rgba(40,34,20,0.10)";                             // wax, never fully scraped
     for (var i = 0; i < 90; i++) c.fillRect((i * 37) % w, (i * 53) % h, 3, 3);
   });
   var bbDeck = new THREE.MeshStandardMaterial({ map: bbDeckT, roughness: 0.55 });
-  /* ⚠⚠ THE BOARD IS TALL IN Y, THIN IN Z. The first build made it long in Z —
-   * box(0.50, 0.05, 0.98) — which is a board lying FLAT, and leaning that back by
-   * 0.3rad produced a 1m slab jutting out over the water like a diving platform.
-   * A board propped against a wall is tall in the axis it leans along.
-   * The nose is a half-disc in the SAME plane as the deck, so its cylinder axis
-   * runs along the thickness (z) and it needs one rotation, not two: the first
-   * attempt stacked rotation.x and rotation.z and stood the cap up as a fin. */
-  var bbBody = box(0.50, 0.98, 0.05, bbDeck); bbBody.position.y = 0.49; bbG.add(bbBody);
-  var bbNose = new THREE.Mesh(new THREE.CylinderGeometry(0.25, 0.25, 0.05, 18, 1, false, 0, Math.PI), bbDeck);
-  bbNose.rotation.x = Math.PI / 2;                 // axis along z = the board's thickness
-  bbNose.position.set(0, 0.98, 0); bbG.add(bbNose);
-  var bbSlick = box(0.505, 0.985, 0.012, mat(0x22252b, 0.35));       // the slick bottom
-  bbSlick.position.set(0, 0.49, -0.031); bbG.add(bbSlick);
-  [-0.17, 0.17].forEach(function (cx4) {                              // the channels
-    var ch3 = box(0.05, 0.42, 0.014, mat(0x1a1d22, 0.4));
-    ch3.position.set(cx4, 0.20, -0.034); bbG.add(ch3);
-  });
+  /* ⚠⚠ A BOOGIE BOARD IS AN OUTLINE, NOT A BOX. Two builds got this wrong.
+   * First it was box(0.50, 0.05, 0.98) — flat, which is right — then it was stood
+   * on end against the coping, and box(0.50, 0.98, 0.05) with a half-disc nose.
+   * Standing it up turned its SLICK BOTTOM to the camera, so the whole prop read
+   * as a black rectangle folded against the wall (Kyle's words, and the photo
+   * agrees). A box plus a half-disc was never the shape either: a real board has a
+   * rounded nose, parallel rails and a CRESCENT tail, and the crescent is the part
+   * your eye names the object by.
+   * So: a real Shape, extruded. The bevel does the soft rails for free.
+   * ⚠️ ExtrudeGeometry builds in XY and pushes along +Z, so rotateX(-PI/2) lays it
+   * down: the shape's y becomes world -z (nose at -L) and the extrusion becomes
+   * world +y (thickness up). Rotate the GEOMETRY, not the mesh — the mesh still
+   * needs its own free rotation.y for the angle it was dropped at. */
+  var bbW = 0.26, bbL = 0.95;
+  var bbShape = new THREE.Shape();
+  bbShape.moveTo(-bbW, 0.20);
+  bbShape.lineTo(-bbW, bbL - 0.30);
+  bbShape.bezierCurveTo(-bbW, bbL - 0.04, -bbW * 0.60, bbL, 0, bbL);          // the nose
+  bbShape.bezierCurveTo(bbW * 0.60, bbL, bbW, bbL - 0.04, bbW, bbL - 0.30);
+  bbShape.lineTo(bbW, 0.20);
+  /* the crescent is a BROAD SHALLOW SCOOP, not a slot. Cut at 0.17 deep between
+   * lobes at 0.72W it read as a tooth — two narrow prongs with a notch between. */
+  bbShape.bezierCurveTo(bbW, 0.04, bbW * 0.99, 0, bbW * 0.86, 0);             // right tail lobe
+  bbShape.bezierCurveTo(bbW * 0.56, 0, bbW * 0.46, 0.105, 0, 0.105);          // the crescent
+  bbShape.bezierCurveTo(-bbW * 0.46, 0.105, -bbW * 0.56, 0, -bbW * 0.86, 0);
+  bbShape.bezierCurveTo(-bbW * 0.99, 0, -bbW, 0.04, -bbW, 0.20);              // left tail lobe
+  var bbGeo = new THREE.ExtrudeGeometry(bbShape, {
+    depth: 0.036, bevelEnabled: true, bevelThickness: 0.007, bevelSize: 0.011,
+    bevelSegments: 2, curveSegments: 14 });
+  bbGeo.rotateX(-Math.PI / 2);
+  /* ⚠️ Extrude's own UVs are in WORLD UNITS (0..0.95), so the deck art would tile
+   * itself to confetti. Reproject the caps as a plain planar map from the bounding
+   * box, and flip v — canvasTex leaves flipY on, so v=1 is the TOP of the canvas,
+   * which is where the nose panel and the logo are painted. */
+  bbGeo.computeBoundingBox();
+  var bbBox = bbGeo.boundingBox, bbPos = bbGeo.attributes.position;
+  var bbUV = new Float32Array(bbPos.count * 2);
+  var bbSX = bbBox.max.x - bbBox.min.x, bbSZ = bbBox.max.z - bbBox.min.z;
+  for (var vi = 0; vi < bbPos.count; vi++) {
+    bbUV[vi * 2] = (bbPos.getX(vi) - bbBox.min.x) / bbSX;
+    bbUV[vi * 2 + 1] = (bbBox.max.z - bbPos.getZ(vi)) / bbSZ;
+  }
+  bbGeo.setAttribute("uv", new THREE.BufferAttribute(bbUV, 2));
+  var bbBody = new THREE.Mesh(bbGeo, [bbDeck, mat(0x1f2329, 0.45)]);  // caps, then rails
+  bbBody.position.z = bbL * 0.5;              // centre the board on its own group
+  bbG.add(bbBody);
   var bbLeash = new THREE.Mesh(new THREE.TorusGeometry(0.055, 0.011, 6, 14), mat(0x2b2e33, 0.6));
   bbLeash.rotation.x = -Math.PI / 2;
-  bbLeash.position.set(POOL.x0 - 0.10, GROUND + 0.075, POOL.z0 + 0.55); badd(bbLeash);
+  bbLeash.position.set(POOL.x0 - 0.86, GROUND + 0.05, POOL.z0 + 1.24); badd(bbLeash);
   var bbCord = new THREE.Mesh(new THREE.CylinderGeometry(0.008, 0.008, 0.46, 6), mat(0x2b2e33, 0.6));
-  bbCord.rotation.set(Math.PI / 2, 0, 0.7);
-  bbCord.position.set(POOL.x0 - 0.20, GROUND + 0.08, POOL.z0 + 0.76); badd(bbCord);
-  [bbBody, bbNose, bbSlick, bbLeash, bbCord].forEach(function (m) {
+  bbCord.rotation.set(Math.PI / 2, 0, -0.62);
+  bbCord.position.set(POOL.x0 - 0.72, GROUND + 0.055, POOL.z0 + 1.06); badd(bbCord);
+  [bbBody, bbLeash, bbCord].forEach(function (m) {
     btag(m, "SURF", function () { window.location.href = "https://kylefriesmarketing.github.io/surf/"; },
       surfSave.best
         ? "SURF — best ride " + surfSave.best + " · the pool is practice. click for the ocean"
