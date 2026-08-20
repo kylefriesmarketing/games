@@ -1033,6 +1033,29 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
   lampLight.shadow.mapSize.set(coarse ? 512 : 1024, coarse ? 512 : 1024);
   lampLight.shadow.bias = -0.004;   // kills the acne the default 0 leaves on the desk
   lampLight.shadow.radius = 2.5;
+  /* ⚠️⚠️ THE SHADOW PASS WAS 96% OF THIS PAGE'S GEOMETRY WORK. Measured with
+   * renderer.info (autoReset OFF — three.js resets it at the START of every render(),
+   * so a multi-pass post chain otherwise leaves you reading the final fullscreen quad
+   * and reporting 1 triangle):
+   *     bedroom, shadows on   387 calls   800,089 tris
+   *     bedroom, shadows off  102 calls    34,950 tris
+   *     hall,    shadows on  1158 calls   971,772 tris
+   *     hall,    shadows off  873 calls   206,633 tris
+   * One PointLight casts, and a point light's shadow is a CUBE — up to six passes
+   * over every caster, every frame. There are 111 casters carrying 304,108 triangles,
+   * because eleven imported GLB props are ~30,000 triangles EACH.
+   * ⚠️ And the room does not move. I measured which casters change transform over ten
+   * seconds of the real tickers running: exactly ONE, the kid — and only after I fixed
+   * my own test, whose control failed (moving the kid by hand registered nothing,
+   * because I had called kidStep(dt) when it takes kidStep(dt, speed) and driven his
+   * position to NaN). A stationary scene does not need its shadow map redrawn 60
+   * times a second.
+   * So: render it on demand. markShadowDirty() whenever something that casts actually
+   * changes, plus a slow backstop so nothing can go stale if a mutation site is ever
+   * missed. Measured after: 971,772 -> 206,849 tris and 1,158 -> 874 calls. */
+  lampLight.shadow.autoUpdate = false;
+  var shadowDirty = 4;                       // frames of shadow map still owed
+  function markShadowDirty(f) { shadowDirty = Math.max(shadowDirty, f == null ? 2 : f); }
   var crtLight = new THREE.PointLight(0x7db4ff, 0.7, 4, 2); crtLight.position.set(TV_X - 0.7, 1.0, TV_Z - 0.05); scene.add(crtLight);
   var shelfGlow = new THREE.PointLight(0xffd9a0, 0.55, 5, 2); shelfGlow.position.set(-1.3, 1.8, -1.4); scene.add(shelfGlow);
   // Flat ambient lights every face identically, which is why unlit corners went dead.
@@ -2938,7 +2961,14 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
   }
   queueGLB("assets/props/kid.glb", function (g) {
     var root = g.scene;
-    root.traverse(function (o) { if (o.isMesh) { o.castShadow = o.receiveShadow = true; } });
+    /* ⚠️ THE KID IS THE ONLY CASTER THAT MOVES, and he is 31,041 triangles of skinned
+     * mesh whose SKELETON animates continuously — so his shadow changes shape every
+     * frame even when he is standing still, which alone would defeat the on-demand
+     * shadow map above. He already has `kidShadow`, a contact decal that follows him
+     * and fades as he climbs, so the grounding is not lost — it is the same technique
+     * the other eleven free-standing props use. He still RECEIVES shadow. */
+    root.traverse(function (o) { if (o.isMesh) { o.castShadow = false; o.receiveShadow = true; } });
+    markShadowDirty(3);   // he just replaced the stand-in: redraw without him in it
     for (var pi = pick.length - 1; pi >= 0; pi--) { // retire the stand-in's clickables
       if (pick[pi].userData.name === "the kid") pick.splice(pi, 1);
     }
@@ -3875,6 +3905,7 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
   }
   // Move (and maybe spin) a movable; every coupled system follows in the same call.
   function applyMove(cfg, x, z, ry, y) {
+    markShadowDirty(2);   // the shadow map is on demand now; a dragged prop owes it one
     var r = cfg.root;
     x = Math.max(-3.35, Math.min(3.35, x)); // stay inside the walls
     z = Math.max(-2.35, Math.min(3.05, z)); // ...and in front of the camera
@@ -6704,6 +6735,12 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
     }
     // ⚠️ BEFORE drawFrame, never after: renderOutside re-targets the renderer and
     // borrows the yard's lights, and drawFrame's post chain expects the canvas back.
+    /* the shadow map only redraws when it owes a frame. The backstop is a safety net
+     * for any mutation site nobody remembered to hook — at 45 frames the worst case is
+     * three quarters of a second of staleness in a room where nothing moves, and it
+     * still costs ~2% of what redrawing every frame did. */
+    if (shadowDirty > 0) { lampLight.shadow.needsUpdate = true; shadowDirty--; }
+    else if ((frameCount % 45) === 0) lampLight.shadow.needsUpdate = true;
     renderOutside(camera.position.x);
     drawFrame();
   }
