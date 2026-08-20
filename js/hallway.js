@@ -2530,12 +2530,24 @@ export function buildHallway(ctx) {
    * the night beside the house: neon sign, bookshelf, beanbag, no walls. Three
    * siding panels and a roof slab, in backG so they gate with everything else
    * out here. (sidingM is the front porch's own cladding — one house, one skin.) */
+  /* ⚠️⚠️ AND IT MUST NOT EXIST WHILE YOU ARE INSIDE THE HOUSE. The bedroom camera
+   * rests at z 5.25, which is SOUTH of this south face at z 3.62 — outside the
+   * set, looking in through the open side. At rest that is invisible because the
+   * whole hall group is hidden from the bedroom. But the walk to the hallway sets
+   * mode away from idle, the group snaps visible on frame one, and this panel
+   * appears THREE QUARTERS OF A METRE IN FRONT OF THE LENS and is then flown
+   * through (Kyle: "it glitches into the wall"). Measured: the flight passes
+   * within 0.044m of it, and the near plane is 0.1, so it is sliced open.
+   * It is exterior cladding. It exists to be seen from the back lawn and nowhere
+   * else, so that is the only time it is up. */
+  var bedShell = [];
   [[8.0, 3.3, 0.14, -0.35, 1.2, 3.62],     // south face, sealing the hall-bedroom gap too
    [0.14, 3.3, 7.3, 3.62, 1.2, 0.05],      // east face
    [8.3, 0.12, 7.5, -0.35, 3.02, 0.05]]    // the lid
     .forEach(function (bs) {
       var shell = box(bs[0], bs[1], bs[2], sidingM);
       shell.position.set(bs[3], bs[4], bs[5]); badd(shell);
+      bedShell.push(shell);
     });
   var backSkyT = canvasTex(256, 128, function (c, w, h) {
     var sky = c.createLinearGradient(0, 0, 0, h);
@@ -4871,6 +4883,16 @@ export function buildHallway(ctx) {
     grest: new THREE.Vector3(-7.92, 1.64, 4.68),    // the corner the door swing keeps clear
     glook: new THREE.Vector3(-11.70, 1.30, 7.55),   // down the long diagonal: pegboard, bench, tarp
     glookB: new THREE.Vector3(-7.40, 1.15, 5.70),   // turned round: the door back to the hall
+    /* ⚠️ CORNER-CUTTING IS WHAT PUTS A CAMERA IN A WALL. Going straight from the
+     * doorway to grest crosses the jamb (a solid slab at x -7.75..-7.55, z 4.2..5.08)
+     * and the door beside it, because the turn south starts before the camera is
+     * actually through the opening. gmid holds it on the doorway's own line until
+     * it is inside, and only then does it swing round to the resting corner. */
+    gmid: new THREE.Vector3(-7.95, 1.63, 5.52),     // through first, THEN turn
+    /* the same mistake one floor down: the flight drops from y 1.25 to y -0.60 over
+     * z 0.45..1.40, which passes clean through the top tread (y 0..0.6, z 0.35..1.3).
+     * cellarT keeps the camera above the treads until it is past them. */
+    cellarT: new THREE.Vector3(-6.97, 0.78, 1.36),  // over the top step, not through it
     gdoor1: new THREE.Vector3(-5.98, 1.66, 5.60),   // squared up to the garage door, hall side
     gdoor2: new THREE.Vector3(-7.25, 1.62, 5.60),   // in the doorway
     gdoorL: new THREE.Vector3(-10.6, 0.90, 6.90),   // what you see through it
@@ -4998,10 +5020,49 @@ export function buildHallway(ctx) {
   }
   function ease(x) { return x * x * (3 - 2 * x); }
   var _v = new THREE.Vector3(), _w = new THREE.Vector3();
-  function walk(pts, lks, t) { // piecewise keyframe path, eased per leg
-    var n = pts.length - 1, x = Math.min(0.9999, Math.max(0, t)) * n, i = x | 0, f = ease(x - i);
-    _v.lerpVectors(pts[i], pts[i + 1], f);
-    _w.lerpVectors(lks[i], lks[i + 1], f);
+  /* ---- THE WIRE ----------------------------------------------------------------
+   * ⚠️⚠️ THIS USED TO BE PIECEWISE-LINEAR WITH THE EASE APPLIED PER LEG, which is
+   * two separate stutters wearing one coat:
+   *   - ease(x - i) runs 0..1 INSIDE EVERY LEG, so the camera decelerated to a
+   *     standstill at each waypoint and accelerated away again. Three legs, two
+   *     dead stops in the middle of one 2.3s move.
+   *   - every leg got the same SLICE OF TIME regardless of its LENGTH. The walk
+   *     into the hallway is 4.46m, then 1.70m, then 1.93m, all in 0.77s each.
+   * Measured on that path: speed ranged 0.05 to 8.72 m/s and the worst single
+   * lurch was 44.3 m/s^2. That is Kyle's "not smooth" exactly, and no amount of
+   * moving the waypoints would have fixed it.
+   * Now it is ONE curve through the same waypoints, sampled by ARC LENGTH
+   * (getPointAt, not getPoint) so the speed is constant along it, with ONE ease
+   * over the whole move so it accelerates away once and settles once. A wire.
+   * ⚠️ 'centripetal' is not a detail. Uniform Catmull-Rom loops and overshoots
+   * when the waypoint spacing is uneven — and it is very uneven here, 4.46m
+   * against 1.70m — which would swing the camera out through a wall on the bend.
+   * Centripetal parameterisation is the variant that provably cannot self-
+   * intersect or cusp.
+   * ⚠️ The curve is rebuilt only when the WAYPOINTS change, not per frame: the
+   * arc-length lookup table behind getPointAt costs ~200 samples to build. c0 is
+   * captured once when a walk starts, so the signature is stable for its whole
+   * duration. */
+  var _wPos = null, _wLook = null, _wSig = "";
+  function walk(pts, lks, t) {
+    var sig = pts.length + "/" + lks.length;
+    for (var i = 0; i < pts.length; i++) sig += "|" + pts[i].x.toFixed(3) + "," + pts[i].y.toFixed(3) + "," + pts[i].z.toFixed(3);
+    for (var j = 0; j < lks.length; j++) sig += "!" + lks[j].x.toFixed(3) + "," + lks[j].y.toFixed(3) + "," + lks[j].z.toFixed(3);
+    if (sig !== _wSig) {
+      _wSig = sig;
+      _wPos = new THREE.CatmullRomCurve3(pts.map(function (q) { return q.clone(); }), false, "centripetal");
+      _wLook = new THREE.CatmullRomCurve3(lks.map(function (q) { return q.clone(); }), false, "centripetal");
+      /* ⚠️ getPointAt walks a LOOKUP TABLE of arc lengths, and the default is 200
+       * entries. A 2.3s move at 60fps asks for 138 samples, so consecutive frames
+       * kept landing in the same bucket and the camera micro-stuttered along the
+       * wire — measured as a 56 m/s^2 spike that was pure table quantisation, not
+       * motion. 600 entries puts four frames between buckets. Set it BEFORE the
+       * first getPointAt or the stale table is already cached. */
+      _wPos.arcLengthDivisions = 600; _wLook.arcLengthDivisions = 600;
+    }
+    var k = ease(Math.min(1, Math.max(0, t)));
+    _wPos.getPointAt(k, _v);
+    _wLook.getPointAt(k, _w);
   }
   /* ---- THE VIEW FROM THE BOY'S WINDOW ------------------------------------------
    * The bedroom window used to be three painted canvas layers of a street that did
@@ -5057,6 +5118,10 @@ export function buildHallway(ctx) {
     // the door is open and you really are looking down it.
     g.visible = space !== "bedroom" || mode !== "idle";
     yardG.visible = space !== "bedroom";
+    // the bedroom's OUTSIDE is only ever looked at from the back lawn — and if it
+    // is up at any other time it is a wall across the walk to the hallway
+    var claddingUp = space === "back" || mode === "backIn" || mode === "backOut";
+    for (var bsV = 0; bsV < bedShell.length; bsV++) bedShell[bsV].visible = claddingUp;
     if (stashOpenKey && mode !== "idle") closeStash();   // walking away shuts the box
     if (mode === "kitchenIn" || mode === "kitchenOut") {   // through the kitchen door
       tt = Math.min(1, tt + dt / 2.1);
@@ -5083,8 +5148,8 @@ export function buildHallway(ctx) {
       // -2.0 rad: the slab swings INTO the garage, toward the cleared corner by the
       // roll door — the fridge and the newspapers live at the OTHER end for this
       gDoorPivot.rotation.y = 2.0 * ease(Math.min(1, Math.max(0, (gk - 0.04) / 0.42)));
-      if (mode === "garageIn") walk([c0, P.gdoor1, P.gdoor2, P.grest], [l0, P.gdoorL, P.glook, P.glook], tt);
-      else walk([c0, P.gdoor2, P.gdoor1], [l0, P.gdoorL, P.lookS], tt);
+      if (mode === "garageIn") walk([c0, P.gdoor1, P.gdoor2, P.gmid, P.grest], [l0, P.gdoorL, P.glook, P.glook, P.glook], tt);
+      else walk([c0, P.gmid, P.gdoor2, P.gdoor1], [l0, P.gdoorL, P.gdoorL, P.lookS], tt);
       camera.position.copy(_v); lookAt.copy(_w); camera.lookAt(lookAt);
       if (tt >= 1) {
         if (mode === "garageIn") { space = "garage"; facing = turnTo = "room"; gDoorPivot.rotation.y = 2.0; }
@@ -5099,11 +5164,11 @@ export function buildHallway(ctx) {
     if (mode === "basementIn" || mode === "basementOut") {   // down the hole, into the den
       tt = Math.min(1, tt + dt / 2.7);
       if (mode === "basementIn")
-        walk([c0, P.cellar1, P.cellar2, P.cellar3, P.cellar4, P.bsrest],
-             [l0, new THREE.Vector3(-6.97, -1.2, 2.1), new THREE.Vector3(-6.8, -1.5, 2.5), P.bslook, P.bslook, P.bslook], tt);
+        walk([c0, P.cellar1, P.cellar2, P.cellarT, P.cellar3, P.cellar4, P.bsrest],
+             [l0, new THREE.Vector3(-6.97, -1.2, 2.1), new THREE.Vector3(-6.9, -1.35, 2.3), new THREE.Vector3(-6.8, -1.5, 2.5), P.bslook, P.bslook, P.bslook], tt);
       else
-        walk([c0, P.cellar4, P.cellar3, P.cellar2, P.cellar1],
-             [l0, new THREE.Vector3(-6.97, 0.4, 0.9), new THREE.Vector3(-6.97, 1.2, 0.4), P.look, P.look], tt);
+        walk([c0, P.cellar4, P.cellar3, P.cellarT, P.cellar2, P.cellar1],
+             [l0, new THREE.Vector3(-6.97, 0.4, 0.9), new THREE.Vector3(-6.97, 0.9, 0.6), new THREE.Vector3(-6.97, 1.2, 0.4), P.look, P.look], tt);
       camera.position.copy(_v); lookAt.copy(_w); camera.lookAt(lookAt);
       if (tt >= 1) {
         if (mode === "basementIn") { space = "basement"; facing = turnTo = "den"; }
@@ -5115,9 +5180,19 @@ export function buildHallway(ctx) {
     if (mode === "backIn" || mode === "backOut") {   // through the slider, onto the lawn
       tt = Math.min(1, tt + dt / 2.4);
       var bk = mode === "backIn" ? tt : 1 - tt;
-      // the pane is fully open by the time the camera reaches the opening —
-      // same contract as every hinged door in the house, translated not rotated
-      slideK(ease(Math.min(1, Math.max(0, (bk - 0.04) / 0.42))));
+      /* the pane is fully open by the time the camera reaches the opening — same
+       * contract as every hinged door in the house, translated not rotated.
+       * ⚠️ THE WINDOW HAD TO NARROW WHEN THE WALK BECAME A CURVE. The old walk gave
+       * each leg an equal SLICE OF TIME, so the camera crossed the threshold at
+       * t 0.68 on the way in. Arc-length pacing spends time in proportion to
+       * DISTANCE instead, and the leg out to the lawn is much the longer one, so
+       * the crossing moved to t 0.75 — by which point this pane had slid a third of
+       * the way back and the camera clipped its edge (measured: the camera at
+       * x -5.36 inside a pane spanning -6.34..-5.30). Closing later and faster puts
+       * the pane clear of the opening for the whole crossing again.
+       * Any door schedule tuned against the OLD pacing has this hazard; this was
+       * the only one whose margin was thin enough to actually fail. */
+      slideK(ease(Math.min(1, Math.max(0, (bk - 0.02) / 0.18))));
       if (mode === "backIn") walk([c0, P.bdoor1, P.bdoor2, P.brest], [l0, P.bdoorL, P.blook, P.blook], tt);
       else walk([c0, P.bdoor2, P.bdoor1], [l0, P.bdoorL, P.lookS], tt);
       camera.position.copy(_v); lookAt.copy(_w); camera.lookAt(lookAt);
