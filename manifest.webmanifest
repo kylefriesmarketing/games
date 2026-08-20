@@ -1,7 +1,7 @@
 {
-  "name": "THE ROOM — games by Kyle Fries",
-  "short_name": "THE ROOM",
-  "description": "A 90s bedroom you can click. Every object is a doorway: stories on the shelf, an RTS in the toy chest, and a room you can make your own.",
+  "name": "THE HOUSE — games by Kyle Fries",
+  "short_name": "THE HOUSE",
+  "description": "A 90s house you can walk through. Every object is a doorway: stories on the shelf, an RTS in the toy chest, an arcade in the basement, and a pool out back.",
   "start_url": "./index.html",
   "scope": "./",
   "display": "standalone",

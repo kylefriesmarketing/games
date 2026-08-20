@@ -1,4 +1,4 @@
-/* THE ROOM — everything you can hear.
+/* THE HOUSE — everything you can hear.
  *
  * All of it is synthesised: the lofi tape is eight bars rendered offline once and
  * looped forever, the rain is shaped white noise, and every click, snore, knock and

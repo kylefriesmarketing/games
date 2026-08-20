@@ -1,4 +1,4 @@
-/* THE ROOM — the cross-game layer.
+/* THE HOUSE — the cross-game layer.
  *
  * Every game on this shelf writes its save to the same origin, which means the room
  * is the only place that can see all of them at once. None of these can be awarded
@@ -69,6 +69,10 @@ export var ACHIEVEMENTS = [
     check: function (c) { return c.issueRuns > 0; } },
   { id: "hunter", icon: "🦷", name: "First trophy", hint: "take a trophy in QUARRY",
     check: function (c) { return c.quarryTrophies > 0; } },
+  { id: "keeper", icon: "🦓", name: "Zookeeper", hint: "get an animal home in CLEAN THE ZOO",
+    check: function (c) { return c.zooAnimals > 0; } },
+  { id: "surfer", icon: "🌊", name: "First ride", hint: "catch a ride in SURF",
+    check: function (c) { return c.surfBest > 0; } },
   // the hidden one: the truck only runs the street 15s in every 300, so this award
   // is really "you were outside at the right moment" — earned before you ever play it
   { id: "truck", icon: "🍦", name: "Heard the song", hint: "be out front when the ice cream truck goes by",
@@ -119,7 +123,7 @@ export function markSeen() {
 /* A title that grows with the shelf — the card's one-line summary of you. */
 export function rankFor(c) {
   var n = c.totalEndings;
-  if (c.gamesStarted >= c.gamesTotal && n >= 30) return "Keeper of the Room";
+  if (c.gamesStarted >= c.gamesTotal && n >= 30) return "Keeper of the House";
   if (n >= 30) return "Long-time reader";
   if (n >= 20) return "Deep in the shelf";
   if (n >= 10) return "Getting comfortable";

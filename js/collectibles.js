@@ -1,4 +1,4 @@
-/* THE ROOM — the little treasures the games leave behind.
+/* THE HOUSE — the little treasures the games leave behind.
  * One builder per collectible, each returning a THREE.Group sized in metres for a
  * shelf or a desktop (they end up ~4-12cm across). Shared toy materials live here
  * too so the whole set stays visually consistent.
@@ -440,5 +440,50 @@ export function buildIceCream() { // HERE COMES THE TRUCK — you caught it once
   // one drip, already committed
   var drip = new THREE.Mesh(new THREE.SphereGeometry(0.0042, 8, 6), mat(0xf6d9b0, 0.6));
   drip.position.set(-0.017, 0.068, 0.002); drip.scale.y = 1.8; g.add(drip);
+  return g;
+}
+
+export function buildWaxComb() { // SURF — the comb that lives in every board bag
+  var g = new THREE.Group();
+  var body = new THREE.Mesh(new THREE.BoxGeometry(0.062, 0.012, 0.042), mat(0xf2d43a, 0.5));
+  body.position.y = 0.006; g.add(body);
+  // the notched edge, which is the entire point of a comb
+  for (var i = 0; i < 6; i++) {
+    var tooth = new THREE.Mesh(new THREE.BoxGeometry(0.004, 0.012, 0.007), mat(0xf2d43a, 0.5));
+    tooth.position.set(-0.024 + i * 0.0096, 0.006, 0.0245); g.add(tooth);
+  }
+  var bevel = new THREE.Mesh(new THREE.BoxGeometry(0.062, 0.006, 0.010), mat(0xe8c62e, 0.5));
+  bevel.position.set(0, 0.010, -0.019); g.add(bevel);
+  // a nub of old wax stuck to it, sandy and going nowhere
+  var wax = new THREE.Mesh(new THREE.SphereGeometry(0.009, 8, 6), mat(0xefe6cf, 0.95));
+  wax.scale.set(1, 0.55, 1); wax.position.set(0.019, 0.014, 0.006); g.add(wax);
+  return g;
+}
+
+export function buildZebra() { // CLEAN THE ZOO — one that made it back to its habitat
+  var g = new THREE.Group();
+  var cream = mat(0xece8dc, 0.85), ink = mat(0x2b2e33, 0.85);
+  var torso = new THREE.Mesh(new THREE.BoxGeometry(0.072, 0.040, 0.032), cream);
+  torso.position.y = 0.052; g.add(torso);
+  for (var i = 0; i < 4; i++) {   // the stripes are the whole silhouette
+    var band = new THREE.Mesh(new THREE.BoxGeometry(0.007, 0.041, 0.033), ink);
+    band.position.set(-0.024 + i * 0.017, 0.052, 0); g.add(band);
+  }
+  [[-0.026, -0.011], [0.026, -0.011], [-0.026, 0.011], [0.026, 0.011]].forEach(function (p) {
+    var leg = new THREE.Mesh(new THREE.BoxGeometry(0.009, 0.034, 0.009), cream);
+    leg.position.set(p[0], 0.017, p[1]); g.add(leg);
+    var hoof = new THREE.Mesh(new THREE.BoxGeometry(0.010, 0.007, 0.010), ink);
+    hoof.position.set(p[0], 0.004, p[1]); g.add(hoof);
+  });
+  var neck = new THREE.Mesh(new THREE.BoxGeometry(0.014, 0.030, 0.016), cream);
+  neck.position.set(0.030, 0.080, 0); neck.rotation.z = -0.30; g.add(neck);
+  var head = new THREE.Mesh(new THREE.BoxGeometry(0.030, 0.017, 0.017), cream);
+  head.position.set(0.045, 0.094, 0); g.add(head);
+  var muzzle = new THREE.Mesh(new THREE.BoxGeometry(0.010, 0.012, 0.014), ink);
+  muzzle.position.set(0.058, 0.091, 0); g.add(muzzle);
+  var mane = new THREE.Mesh(new THREE.BoxGeometry(0.006, 0.030, 0.014), ink);
+  mane.position.set(0.026, 0.086, 0); mane.rotation.z = -0.30; g.add(mane);
+  var tail = new THREE.Mesh(new THREE.BoxGeometry(0.016, 0.006, 0.006), ink);
+  tail.position.set(-0.042, 0.062, 0); g.add(tail);
   return g;
 }

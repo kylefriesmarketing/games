@@ -2203,17 +2203,20 @@ export function buildHallway(ctx) {
      * section repaints it the moment it does. */
     if (typeof backSkyT !== "undefined" && backSkyT) {
       var bc = backSkyT.image.getContext("2d"), BW = 256, BH = 128;
+      /* ⚠️ hold the top colour across the first fifth: on a dome, v=0 is a single
+       * POINT, so a gradient that starts changing immediately funnels into a dark
+       * bullseye right overhead. A flat cap reads as open sky. */
       var bgr = bc.createLinearGradient(0, 0, 0, BH);
-      bgr.addColorStop(0, s.top); bgr.addColorStop(1, s.bot);
+      bgr.addColorStop(0, s.top); bgr.addColorStop(0.20, s.top); bgr.addColorStop(1, s.bot);
       bc.fillStyle = bgr; bc.fillRect(0, 0, BW, BH);
       if (night) {
         for (var bst = 0; bst < 150; bst++) {
-          var bsy = Math.random() * BH * 0.72;
+          var bsy = BH * 0.06 + Math.random() * BH * 0.70;   // off the pole: see CLOUDS
           bc.fillStyle = "rgba(255,255,255," + (0.15 + Math.random() * 0.5 * (1 - bsy / BH)).toFixed(2) + ")";
           bc.fillRect(Math.random() * BW, bsy, 1.3, 1.3);
         }
         // the same moon, squashed for THIS plane's stretch (90/34 vs 256/128 = 1.32)
-        var bmx = BW * 0.62, bmy = 26, AR2 = 1.32;
+        var bmx = BW * 0.62, bmy = 36, AR2 = 1.32;   // ⚠️ not higher — see CLOUDS below
         var bhalo = bc.createRadialGradient(bmx, bmy, 2, bmx, bmy, 26);
         bhalo.addColorStop(0, "rgba(226,234,255,0.4)"); bhalo.addColorStop(1, "rgba(226,234,255,0)");
         bc.save(); bc.translate(bmx, bmy); bc.scale(1 / AR2, 1); bc.translate(-bmx, -bmy);
@@ -2222,11 +2225,32 @@ export function buildHallway(ctx) {
         bc.fillStyle = "#e8edff";
         bc.beginPath(); bc.ellipse(bmx, bmy, 7.5 / AR2, 7.5, 0, 0, 7); bc.fill();
       }
-      for (var bcb = 0; bcb < 7; bcb++) {
-        var bcy = 14 + bcb * 12, bcw = 56 + (bcb * 41 % 110);
-        bc.fillStyle = cl;
-        bc.beginPath(); bc.ellipse((bcb * 77) % BW, bcy, bcw, 2.4 + (bcb % 3), 0, 0, 7); bc.fill();
-      }
+      /* ⚠⚠ CLOUDS ON A DOME ARE NOT CLOUDS ON A BILLBOARD. These were seven ellipses
+       * up to 166px wide on a 256px canvas, drawn from y=14 down. On the old flat
+       * plane they read as long soft streaks. Wrapped on the hemisphere, u IS the
+       * compass and v IS the altitude — so every one of them became a complete RING
+       * around the sky, all of them concentric on the zenith. Look straight up and
+       * you got a bullseye (photographed).
+       * Two rules keep them honest:
+       *   1. compact in u — a puff is ~7% of the horizon, not 65%, so it reads as a
+       *      cloud from any direction instead of a band that follows you round;
+       *   2. nothing above v 0.30 — u collapses to a point at the pole, so anything
+       *      painted up there is smeared into a disc no matter how small it is.
+       * Each puff is drawn three times (x, x±BW) so one straddling the seam behind
+       * you doesn't get sliced in half. */
+      var CLOUDS = [[0.06, 0.40, 26], [0.19, 0.63, 19], [0.31, 0.36, 22],
+                    [0.44, 0.71, 30], [0.55, 0.45, 17], [0.67, 0.58, 25],
+                    [0.78, 0.34, 20], [0.88, 0.66, 28], [0.97, 0.50, 16]];
+      bc.fillStyle = cl;
+      CLOUDS.forEach(function (cd, ci) {
+        var cx = cd[0] * BW, cy = cd[1] * BH, cw = cd[2] * 0.62, ch = 2.6 + (ci % 3) * 0.9;
+        for (var wrap = -1; wrap <= 1; wrap++) {
+          var wx = cx + wrap * BW;
+          bc.beginPath(); bc.ellipse(wx, cy, cw, ch, 0, 0, 7); bc.fill();
+          bc.beginPath(); bc.ellipse(wx - cw * 0.42, cy + ch * 0.5, cw * 0.55, ch * 0.72, 0, 0, 7); bc.fill();
+          bc.beginPath(); bc.ellipse(wx + cw * 0.48, cy + ch * 0.4, cw * 0.48, ch * 0.66, 0, 0, 7); bc.fill();
+        }
+      });
       backSkyT.needsUpdate = true;
       backMoon.intensity = night ? 1.15 : name === "dusk" ? 0.55 : 0.2;
       if (typeof bWins !== "undefined" && bWins) bWins.forEach(function (bw2) { bw2.emissiveIntensity = 1.1 * s.lamp; });
@@ -2257,12 +2281,38 @@ export function buildHallway(ctx) {
    * Both fields are THREE.Points — one draw call each, and a square point carrying a
    * streak texture reads as a drop at this distance. Both live in yardG, so they are
    * skipped from indoors exactly like everything else out here. */
+  /* ⚠️⚠️ WEATHER DOES NOT FALL THROUGH A ROOF. The fall fields are one big box
+   * over the whole lot, and the HOUSE STANDS INSIDE IT — so rain and snow came
+   * down through the roof and fell in the hallway, the kitchen, the garage and
+   * onto the porch you are standing on (Kyle: "it needs to not rain inside").
+   * The yard group is visible from every indoor space except the bedroom, so it
+   * was visible almost everywhere. These are the rectangles that have something
+   * over them; a drop inside one is recycled instead of drawn.
+   * The porch numbers come from the deck and its roof, the house from the shell
+   * constants, so neither can drift from the geometry it is protecting. */
+  var COVERED = [
+    { x0: KX0 - 0.2, x1: 4.4, z0: Z_N - 0.25, z1: Z_S + 0.25, top: GROUND + 4.2 },   // kitchen + hall + garage + bedroom
+    { x0: PX0 - 0.3, x1: PX1 + 0.3, z0: PZ1 - 0.2, z1: HOUSE_F + 0.1, top: 3.10 },   // the porch, under its roof
+  ];
+  function underCover(x, y, z) {
+    for (var ci = 0; ci < COVERED.length; ci++) {
+      var c2 = COVERED[ci];
+      if (y < c2.top && x > c2.x0 && x < c2.x1 && z > c2.z0 && z < c2.z1) return true;
+    }
+    return false;
+  }
   function fallField(n, box, tex, size, color, op) {
     var geo = new THREE.BufferGeometry(), pos = new Float32Array(n * 3);
     for (var i = 0; i < n; i++) {
-      pos[i * 3]     = box[0] + Math.random() * (box[1] - box[0]);
-      pos[i * 3 + 1] = box[2] + Math.random() * (box[3] - box[2]);
-      pos[i * 3 + 2] = box[4] + Math.random() * (box[5] - box[4]);
+      // ⚠️ the SEED has to dodge the roofs as well. Seeding blind and relying on
+      // the tick to clean up means the first frame after "rain" is switched on
+      // has drops hanging inside the hall — brief, but exactly when you look.
+      for (var tries = 0; tries < 6; tries++) {
+        pos[i * 3]     = box[0] + Math.random() * (box[1] - box[0]);
+        pos[i * 3 + 1] = box[2] + Math.random() * (box[3] - box[2]);
+        pos[i * 3 + 2] = box[4] + Math.random() * (box[5] - box[4]);
+        if (!underCover(pos[i * 3], pos[i * 3 + 1], pos[i * 3 + 2])) break;
+      }
     }
     geo.setAttribute("position", new THREE.BufferAttribute(pos, 3));
     var m = new THREE.PointsMaterial({ map: tex, color: color, size: size, transparent: true,
@@ -2317,16 +2367,24 @@ export function buildHallway(ctx) {
   // ⚠️ `fall` is METRES PER SECOND, plainly. The first version multiplied by dt*60*0.06
   // as well, which made 11 mean 39.6 — the rain crossed the whole 13m field in a third
   // of a second and read as tracer fire rather than weather.
+  function reseed(p, i, b) {                     // back to the top, somewhere new
+    p[i + 1] = b[3];
+    // ⚠️ up to 6 tries, then give up and place it anyway. An unbounded "keep
+    // rolling until it misses the house" loop is a hang waiting for a day when
+    // someone makes the covered area bigger than the field.
+    for (var n = 0; n < 6; n++) {
+      p[i]     = b[0] + Math.random() * (b[1] - b[0]);
+      p[i + 2] = b[4] + Math.random() * (b[5] - b[4]);
+      if (!underCover(p[i], b[3], p[i + 2])) return;
+    }
+  }
   function tickFall(f, dt, t, fall, sway) {
     var a = f.geo.attributes.position, p = a.array, b = f.box;
     for (var i = 0; i < p.length; i += 3) {
       p[i + 1] -= fall * dt;
       if (sway) p[i] += Math.sin(t * 0.8 + i) * sway * dt * 0.35;
-      if (p[i + 1] < b[2]) {                       // back to the top, somewhere new
-        p[i + 1] = b[3];
-        p[i]     = b[0] + Math.random() * (b[1] - b[0]);
-        p[i + 2] = b[4] + Math.random() * (b[5] - b[4]);
-      }
+      // fell below the field, or drifted in under a roof — either way, start again
+      if (p[i + 1] < b[2] || underCover(p[i], p[i + 1], p[i + 2])) reseed(p, i, b);
     }
     a.needsUpdate = true;
   }
@@ -2490,9 +2548,18 @@ export function buildHallway(ctx) {
     }
   });
   backSkyT.colorSpace = THREE.SRGBColorSpace;   // ⚠️ canvasTex leaves it LINEAR otherwise
-  var backSky = new THREE.Mesh(new THREE.PlaneGeometry(90, 34),
-    new THREE.MeshBasicMaterial({ map: backSkyT }));
-  backSky.position.set(XC, GROUND + 12, Z_S + 34); backSky.rotation.y = Math.PI; badd(backSky);
+  /* ⚠⚠ A DOME, NOT A BILLBOARD. This was a 90x34 PLANE standing behind the fence,
+   * so the sky was a band: black above it, black past both its edges, and nothing
+   * at all if you turned your head (Kyle: "the sky isn't complete"). A hemisphere
+   * covers every direction you can look, including straight up, and the gradient
+   * maps the right way round by construction — SphereGeometry's v runs from the
+   * top down, which is how the texture is painted.
+   * Radius 90 so the FRONT yard's own backdrop (a plane at z -74) still sits
+   * inside it and keeps rendering in front; the dome only closes the gaps. */
+  var backSky = new THREE.Mesh(
+    new THREE.SphereGeometry(90, 28, 14, 0, Math.PI * 2, 0, Math.PI / 2),
+    new THREE.MeshBasicMaterial({ map: backSkyT, side: THREE.BackSide, fog: false }));
+  backSky.position.set(XC, GROUND - 1.2, Z_S + 6); badd(backSky);
 
   // ⚠️ the lawn is FOUR planes around a hole, not one — the pool is dug through it.
   // One plane meant a ray down the pool mouth hit GRASS at y GROUND before it ever
@@ -2555,10 +2622,22 @@ export function buildHallway(ctx) {
    * along the back easement, and trees between the roofs. bWins collects every lit
    * window so setPhase can drive them all with one loop, same as nbWin out front. */
   var bWins = [];
+  /* ⚠⚠ THESE WERE PAINTED NAVY, NOT LIT NAVY. The street was built when the back
+   * yard was always night, so every neighbour's siding was hardcoded 0x2a3242 and
+   * its roof 0x222a36 — colours that ARE dusk. Then time-of-day shipped: at noon
+   * the lawn is bright green, the sky is blue, and the houses over the fence are
+   * still black cut-outs (photographed). A painted-in shadow cannot brighten.
+   * They wear ordinary daylight siding now and let the yard's own hemisphere and
+   * sun do the darkening — which is what already makes the fence and the lawn read
+   * correctly at every hour. Four bodies so the street isn't one repeated house. */
+  var BHOUSE = [[0x8f99a8, 0x585f6b], [0x9c9184, 0x5e564c],
+                [0x849aa0, 0x515f63], [0xa0928f, 0x635857]];
+  var bhN = 0;
   function bHouse(hx, hz, hw, hh, hd, ry2, wins) {
     var hg = new THREE.Group(); hg.position.set(hx, GROUND, hz); hg.rotation.y = ry2; badd(hg);
-    var bod = box(hw, hh, hd, mat(0x2a3242, 0.95)); bod.position.y = hh / 2; hg.add(bod);
-    var rf = new THREE.Mesh(new THREE.ConeGeometry(hw * 0.74, hh * 0.62, 4), mat(0x222a36, 0.95));
+    var pal = BHOUSE[bhN++ % BHOUSE.length];
+    var bod = box(hw, hh, hd, mat(pal[0], 0.95)); bod.position.y = hh / 2; hg.add(bod);
+    var rf = new THREE.Mesh(new THREE.ConeGeometry(hw * 0.74, hh * 0.62, 4), mat(pal[1], 0.95));
     rf.rotation.y = Math.PI / 4; rf.position.y = hh + hh * 0.31; hg.add(rf);
     (wins || []).forEach(function (wn) {
       var win = new THREE.Mesh(new THREE.PlaneGeometry(0.95, 0.75),
@@ -2583,19 +2662,34 @@ export function buildHallway(ctx) {
   bHouse(XC + 17.6, Z_S + 8.0, 8.8, 3.4, 6.0, Math.PI / 2, [[-1.0, 1.5]]);      // east over the side fence
   bHouse(XC - 17.9, Z_S + 5.6, 8.2, 3.2, 5.6, -Math.PI / 2, [[0.8, 1.4]]);      // west, across the drive
   bTree(XC - 7.4, Z_S + 18.9, 1.15); bTree(XC + 14.4, Z_S + 19.7, 0.9); bTree(XC + 3.1, Z_S + 19.9, 0.8);
+  /* ⚠⚠ THE LEFT SIDE WAS EMPTY. Turn and face the back door and everything west of
+   * the house fell away to bare lawn and then nothing (Kyle: "the left side has no
+   * neighborhood") — there was ONE house over that fence and it sat too far back to
+   * read. Two more along the west line, closer and staggered, plus trees to break
+   * the roofline, so the yard is enclosed on the side you actually look at. */
+  bHouse(XC - 18.3, Z_S + 12.6, 8.4, 3.3, 5.8, -Math.PI / 2, [[-1.1, 1.5], [1.5, 2.5]]);
+  bHouse(XC - 18.1, Z_S + 20.4, 8.0, 3.1, 5.6, -Math.PI / 2 + 0.05, [[0.9, 1.4]]);
+  bTree(XC - 13.6, Z_S + 11.2, 1.05); bTree(XC - 13.9, Z_S + 17.4, 0.95);
+  bTree(XC + 13.4, Z_S + 12.0, 0.9);
   // side fences: the lot actually closes now. Boards run along z, mirrored pair.
+  /* ⚠⚠ THE SIDE RUNS NOW REACH THE HOUSE. They began at Z_S+1.1 and stopped short
+   * of the back line, leaving a metre of open air at the house end and a hole at
+   * each back corner — a fence with two gaps you could walk through (Kyle: "the
+   * fence doesn't fully wrap around"). They run from the back wall of the house to
+   * past the back fence now, so the lot is closed and both corners overlap. */
+  var SIDE_Z0 = Z_S + 0.15, SIDE_N = 33;
   [[XC - 11.55, 1], [XC + 11.55, -1]].forEach(function (sf) {
-    for (var sb2 = 0; sb2 < 30; sb2++) {
+    for (var sb2 = 0; sb2 < SIDE_N; sb2++) {
       var bd2 = box(0.04, 1.65, 0.17, bFenceM);
-      bd2.position.set(sf[0], GROUND + 0.82, Z_S + 1.1 + sb2 * 0.51); badd(bd2);
+      bd2.position.set(sf[0], GROUND + 0.82, SIDE_Z0 + sb2 * 0.51); badd(bd2);
     }
-    [Z_S + 2.4, Z_S + 8.1, Z_S + 13.8].forEach(function (pz2) {
+    [SIDE_Z0 + 0.4, SIDE_Z0 + 5.2, SIDE_Z0 + 10.4, SIDE_Z0 + 15.6].forEach(function (pz2) {
       var po2 = box(0.13, 1.85, 0.13, mat(0x51402f, 0.95));
       po2.position.set(sf[0] + sf[1] * 0.04, GROUND + 0.92, pz2); badd(po2);
     });
     [GROUND + 0.35, GROUND + 1.42].forEach(function (ry3) {
-      var rl2 = box(0.05, 0.09, 15.3, mat(0x5e4a37, 0.95));
-      rl2.position.set(sf[0] + sf[1] * 0.045, ry3, Z_S + 8.75); badd(rl2);
+      var rl2 = box(0.05, 0.09, SIDE_N * 0.51, mat(0x5e4a37, 0.95));
+      rl2.position.set(sf[0] + sf[1] * 0.045, ry3, SIDE_Z0 + SIDE_N * 0.255); badd(rl2);
     });
   });
   // telephone poles on the back easement, lines sagging between them
@@ -2628,6 +2722,81 @@ export function buildHallway(ctx) {
       gp2.rotation.x = -Math.PI / 2;
       gp2.position.set((gf[0] + gf[1]) / 2, GROUND, (gf[2] + gf[3]) / 2); badd(gp2);
     });
+
+  /* ---- THE SECOND STOREY ---------------------------------------------------------
+   * ⚠⚠ THE HOUSE READ AS A BUNGALOW WITH A STAIRCASE IN IT. From the back yard it
+   * was a single flat-lidded box, which made the hall's UP staircase nonsense —
+   * Kyle: "you can tell the upstairs door doesn't make sense, it would open to the
+   * front lawn". There IS an upstairs: the bedroom is up there and its window
+   * portal already looks out from GROUND+5.2. The volume was simply never built.
+   * A two-storey core over the hall and bedroom, with the kitchen and garage
+   * staying single-storey, is the ordinary shape of this house — and it is what
+   * makes the staircase, the porch roof and the bedroom window agree with each
+   * other. The window opening is cut where the portal camera actually stands. */
+  // the upper floor stops at the bedroom back wall (z 3.70), it does NOT run to
+  // the back of the hall. Carried to Z_S it overhung five metres of open lawn on
+  // the east side, where the ground floor is only the bedroom — a second storey
+  // floating on nothing. The hall rear stays single-storey, which is what a rear
+  // extension looks like anyway.
+  var UP = { x0: -7.62, x1: 4.42, z0: Z_N - 0.10, z1: 3.70, y0: 3.02, y1: 5.95 };
+  var upH = UP.y1 - UP.y0, upY = (UP.y0 + UP.y1) / 2;
+  var BW = { x0: -5.05, x1: -3.75, y0: 4.28, y1: 5.24 };
+  [[UP.x0, BW.x0, UP.y0, UP.y1], [BW.x1, UP.x1, UP.y0, UP.y1],
+   [BW.x0, BW.x1, UP.y0, BW.y0], [BW.x0, BW.x1, BW.y1, UP.y1]].forEach(function (seg) {
+    var w2 = box(seg[1] - seg[0], seg[3] - seg[2], 0.16, sidingM);
+    w2.position.set((seg[0] + seg[1]) / 2, (seg[2] + seg[3]) / 2, UP.z0 + 0.08); badd(w2);
+  });
+  var upS = box(UP.x1 - UP.x0, upH, 0.16, sidingM);
+  upS.position.set((UP.x0 + UP.x1) / 2, upY, UP.z1 - 0.08); badd(upS);
+  [UP.x0 + 0.08, UP.x1 - 0.08].forEach(function (ex) {
+    var w3 = box(0.16, upH, UP.z1 - UP.z0, sidingM);
+    w3.position.set(ex, upY, (UP.z0 + UP.z1) / 2); badd(w3);
+  });
+  var bwGlass = new THREE.Mesh(new THREE.PlaneGeometry(BW.x1 - BW.x0 - 0.10, BW.y1 - BW.y0 - 0.10),
+    new THREE.MeshStandardMaterial({ color: 0x1a2436, emissive: 0xffd9a0, emissiveIntensity: 0.55, roughness: 0.25 }));
+  bwGlass.position.set((BW.x0 + BW.x1) / 2, (BW.y0 + BW.y1) / 2, UP.z0 + 0.17);
+  bwGlass.rotation.y = Math.PI; badd(bwGlass);
+  var bwFrame = box(BW.x1 - BW.x0 + 0.10, 0.07, 0.06, mat(0xe4e0d2, 0.8));
+  bwFrame.position.set((BW.x0 + BW.x1) / 2, BW.y0 - 0.02, UP.z0 + 0.19); badd(bwFrame);
+  var roofM2 = mat(0x3a2f26, 0.92);
+  /* ⚠⚠ A CONE IS A SQUARE ROOF. This was ConeGeometry(width*0.78) on a footprint
+   * that is 12.0 wide and 7.3 deep, so the radius sized for the WIDTH stuck out
+   * three metres past the front and back walls — a flat dark plate hanging over
+   * the yard (photographed). The pitch was wrong too: 1.5 over a 9.4 radius is 9
+   * degrees, against roughly 31 on every neighbour, so it read as a modern flat
+   * lid on a 90s house.
+   * Fix both by making the cone unit-sized and scaling it to the footprint. The
+   * 45-degree turn is baked into the GEOMETRY, not the mesh — a rotated mesh
+   * applies scale first and then spins the result, which would shear the roof off
+   * its walls. With the turn in the geometry the four base corners lie on the
+   * diagonals, so the eave EDGES run parallel to the walls (that is what makes it
+   * a hip roof and not a diamond), and each axis scales independently.
+   * Corner distance is half-extent x sqrt2, so +0.35 of overhang costs +0.49 here. */
+  var upHW = (UP.x1 - UP.x0) / 2, upHD = (UP.z1 - UP.z0) / 2, upCX = (UP.x0 + UP.x1) / 2, upCZ = (UP.z0 + UP.z1) / 2;
+  var eaves = box(upHW * 2 + 0.7, 0.14, upHD * 2 + 0.7, roofM2);
+  eaves.position.set(upCX, UP.y1 + 0.07, upCZ); badd(eaves);
+  var hipG = new THREE.ConeGeometry(1, 1, 4); hipG.rotateY(Math.PI / 4);
+  var hip = new THREE.Mesh(hipG, roofM2);
+  hip.scale.set((upHW + 0.35) * 1.41421, 2.4, (upHD + 0.35) * 1.41421);
+  hip.position.set(upCX, UP.y1 + 1.34, upCZ); badd(hip);
+  /* the back of the upstairs was one blank sheet of siding — the giveaway that a
+   * storey is scenery rather than rooms. Two lit windows, registered in bWins so
+   * they dim and warm with the hour like every other window on the street. */
+  [UP.x0 + 3.1, UP.x0 + 8.6].forEach(function (wx2) {
+    var uw = new THREE.Mesh(new THREE.PlaneGeometry(1.05, 0.85),
+      new THREE.MeshStandardMaterial({ color: 0xfff0cc, emissive: 0xffd9a0, emissiveIntensity: 1.1, roughness: 0.6 }));
+    // ⚠️ UP.z1 is the wall SURFACE and upS is centred at UP.z1-0.08 with 0.16 of
+    // thickness, so it occupies z [UP.z1-0.16, UP.z1]. At UP.z1-0.07 these panes sat
+    // INSIDE the slab and rendered as nothing (photographed as a blank back wall).
+    uw.position.set(wx2, 4.62, UP.z1 + 0.02); badd(uw);
+    bWins.push(uw.material);
+    var uf = box(1.18, 0.06, 0.05, mat(0xe4e0d2, 0.8));
+    uf.position.set(wx2, 4.16, UP.z1 + 0.04); badd(uf);
+  });
+  var chim = box(0.55, 1.15, 0.55, mat(0x8a5a4a, 0.95));
+  chim.position.set(UP.x0 + 1.9, UP.y1 + 0.6, UP.z1 - 1.6); badd(chim);
+  var chimCap = box(0.66, 0.09, 0.66, mat(0x6a4a3a, 0.95));
+  chimCap.position.set(UP.x0 + 1.9, UP.y1 + 1.2, UP.z1 - 1.6); badd(chimCap);
 
   var backMoon = new THREE.PointLight(0x9fb4d8, 1.15, 15, 1.7);
   backMoon.position.set(XC, GROUND + 7.5, Z_S + 8.0); badd(backMoon);
@@ -2841,6 +3010,160 @@ export function buildHallway(ctx) {
     });
     lgG.children.forEach(function (m) { btag(m, "the loungers", null, "one for reading, one for the towels. it rotates."); });
   });
+  /* ---- CLEAN THE ZOO: the toy zoo laid out on the lawn ---------------------------
+   * Somebody carried the whole box outside and built a zoo on the grass: three
+   * pens fenced with lolly sticks, a hand-lettered sign, and the animals sorted
+   * into them — which is the game, in miniature, before you have played it.
+   * West of the pool on open lawn, clear of the slip 'n slide and the grill. */
+  var zooSave = (function () {
+    try { var M = JSON.parse(localStorage.getItem("ctz-meta-v1") || "null");
+      return (M && M.lifetime) || 0; } catch (e) { return 0; }
+  })();
+  var zooG = new THREE.Group(); zooG.position.set(XC - 2.35, GROUND, Z_S + 6.05);
+  zooG.rotation.y = 0.28; badd(zooG);
+  var zooParts = [];
+  function zpush(m) { zooParts.push(m); return m; }
+  // the pens: little stick fences, three of them in a row
+  var stickM = mat(0xd8bc86, 0.9);
+  [[-0.62, 0, 0.52, 0.46], [0, 0, 0.46, 0.46], [0.58, 0, 0.50, 0.46]].forEach(function (pen) {
+    var px5 = pen[0], pz5 = pen[1], pw = pen[2], pd = pen[3];
+    for (var sdi = 0; sdi < 4; sdi++) {
+      var along = sdi < 2 ? pw : pd, horiz = sdi < 2;
+      var n2 = Math.max(2, Math.round(along / 0.075));
+      for (var k2 = 0; k2 <= n2; k2++) {
+        var t2 = -0.5 + k2 / n2;
+        var sx = horiz ? px5 + t2 * pw : px5 + (sdi === 2 ? -pw / 2 : pw / 2);
+        var sz = horiz ? pz5 + (sdi === 0 ? -pd / 2 : pd / 2) : pz5 + t2 * pd;
+        var stick = box(0.008, 0.075, 0.008, stickM);
+        stick.position.set(sx, 0.037, sz); stick.rotation.y = (k2 % 3) * 0.12;
+        zooG.add(zpush(stick));
+      }
+    }
+  });
+  // the animals. Each is a body, a head and legs — at 8cm tall the silhouette is
+  // the whole read, so the giraffe gets a neck and the elephant gets a trunk.
+  function toyAnimal(x, z, ry5, body, accent, kind) {
+    var a = new THREE.Group(); a.position.set(x, 0, z); a.rotation.y = ry5; zooG.add(a);
+    var bodyM2 = mat(body, 0.8), accM = mat(accent, 0.8);
+    var tall = kind === "giraffe" ? 0.055 : 0.040;
+    var torso = box(0.075, 0.042, 0.034, bodyM2); torso.position.y = tall; a.add(torso);
+    [[-0.028, -0.012], [0.028, -0.012], [-0.028, 0.012], [0.028, 0.012]].forEach(function (lp5) {
+      var leg = box(0.010, tall, 0.010, bodyM2); leg.position.set(lp5[0], tall / 2, lp5[1]); a.add(leg);
+    });
+    if (kind === "giraffe") {
+      var neck = box(0.013, 0.062, 0.013, bodyM2);
+      neck.position.set(0.030, tall + 0.048, 0); neck.rotation.z = -0.2; a.add(neck);
+      var gh = box(0.024, 0.016, 0.018, bodyM2); gh.position.set(0.042, tall + 0.084, 0); a.add(gh);
+      for (var sp5 = 0; sp5 < 4; sp5++) {
+        var spot = box(0.016, 0.011, 0.036, accM);
+        spot.position.set(-0.024 + sp5 * 0.018, tall + 0.012, 0); a.add(spot);
+      }
+    } else {
+      var head = box(0.030, 0.028, 0.028, bodyM2); head.position.set(0.046, tall + 0.014, 0); a.add(head);
+      if (kind === "elephant") {
+        var trunk = box(0.010, 0.034, 0.010, bodyM2);
+        trunk.position.set(0.062, tall - 0.004, 0); trunk.rotation.z = 0.35; a.add(trunk);
+        [-0.014, 0.014].forEach(function (ez) {
+          var ear = box(0.006, 0.026, 0.024, bodyM2); ear.position.set(0.040, tall + 0.018, ez); a.add(ear);
+        });
+      } else if (kind === "lion") {
+        var mane = box(0.036, 0.038, 0.038, accM); mane.position.set(0.042, tall + 0.014, 0); a.add(mane);
+      } else if (kind === "zebra") {
+        for (var st5 = 0; st5 < 4; st5++) {
+          var band = box(0.007, 0.043, 0.035, accM);
+          band.position.set(-0.026 + st5 * 0.018, tall, 0); a.add(band);
+        }
+      } else if (kind === "penguin") {
+        var bib = box(0.012, 0.030, 0.026, accM); bib.position.set(-0.034, tall, 0); a.add(bib);
+      }
+      var tail = box(0.018, 0.007, 0.007, bodyM2); tail.position.set(-0.044, tall + 0.014, 0); a.add(tail);
+    }
+    a.children.forEach(zpush);
+    return a;
+  }
+  toyAnimal(-0.70, -0.09, 0.5, 0x9aa0a6, 0x7d8288, "elephant");
+  toyAnimal(-0.52, 0.10, -0.9, 0xe0b03a, 0x8a5a24, "giraffe");
+  toyAnimal(0.04, -0.08, 1.9, 0xd8912e, 0x8a4a20, "lion");
+  toyAnimal(-0.06, 0.11, -0.4, 0xece8dc, 0x2b2e33, "zebra");
+  toyAnimal(0.50, -0.06, 2.6, 0x2b2e33, 0xf2efe4, "penguin");
+  toyAnimal(0.68, 0.12, -1.5, 0x8a7a6a, 0x6a5a4a, "hippo");
+  // the sign, lettered by hand and pushed into the grass
+  var zSignPost = box(0.010, 0.14, 0.010, stickM);
+  zSignPost.position.set(-1.02, 0.07, -0.02); zooG.add(zpush(zSignPost));
+  var zSign = new THREE.Mesh(new THREE.PlaneGeometry(0.20, 0.085),
+    new THREE.MeshStandardMaterial({ roughness: 0.9, side: THREE.DoubleSide,
+      map: canvasTex(128, 56, function (c, w, h) {
+        c.fillStyle = "#f2ead6"; c.fillRect(0, 0, w, h);
+        c.strokeStyle = "#8a6f3c"; c.lineWidth = 4; c.strokeRect(3, 3, w - 6, h - 6);
+        c.fillStyle = "#3a5e3a"; c.font = "bold 19px Georgia, serif"; c.textAlign = "center";
+        c.fillText("THE ZOO", w / 2, 25);
+        c.font = "italic 11px Georgia, serif"; c.fillStyle = "#6a5a38";
+        c.fillText("please do not tap", w / 2, 42);
+      }) }));
+  zSign.position.set(-1.02, 0.16, -0.02); zSign.rotation.y = 0.15; zooG.add(zpush(zSign));
+  zooParts.forEach(function (m) {
+    btag(m, "CLEAN THE ZOO", function () { window.location.href = "https://kylefriesmarketing.github.io/clean-the-zoo/"; },
+      zooSave
+        ? "CLEAN THE ZOO — " + zooSave + " animal" + (zooSave === 1 ? "" : "s") + " home so far · click for the rest"
+        : "CLEAN THE ZOO — 1,500 animals, ten habitats, one very long morning");
+  });
+
+  /* ---- SURF: the boogie board against the pool coping ----------------------------
+   * A pool is where a kid practises for the ocean. Propped on the near coping so
+   * it stands in the arrival frame without blocking the water, nose up, tail on
+   * the deck, leash coiled where it was dropped. */
+  var surfSave = (function () {
+    try {
+      var best = parseInt(localStorage.getItem("surf-best") || "0", 10) || 0;
+      var car = JSON.parse(localStorage.getItem("surf-career") || "null");
+      return { best: best, rides: (car && (car.rides || car.waves)) || 0 };
+    } catch (e) { return { best: 0, rides: 0 }; }
+  })();
+  var bbG = new THREE.Group();
+  bbG.position.set(POOL.x0 - 0.30, GROUND + 0.06, POOL.z0 + 0.95);
+  bbG.rotation.set(-0.26, 0.55, 0.06);          // leaning back against the coping
+  badd(bbG);
+  var bbDeckT = canvasTex(128, 256, function (c, w, h) {
+    c.fillStyle = "#f2d43a"; c.fillRect(0, 0, w, h);                 // that yellow
+    c.fillStyle = "#e0483a"; c.fillRect(0, h * 0.42, w, h * 0.10);   // the stripes
+    c.fillStyle = "#2fb6c8"; c.fillRect(0, h * 0.54, w, h * 0.06);
+    c.fillStyle = "rgba(255,255,255,0.5)";                           // a sun-bleached logo
+    c.font = "bold 21px Georgia, serif"; c.textAlign = "center";
+    c.save(); c.translate(w / 2, h * 0.24); c.fillText("SURF", 0, 0); c.restore();
+    c.fillStyle = "rgba(40,34,20,0.10)";                             // wax, never fully scraped
+    for (var i = 0; i < 90; i++) c.fillRect((i * 37) % w, (i * 53) % h, 3, 3);
+  });
+  var bbDeck = new THREE.MeshStandardMaterial({ map: bbDeckT, roughness: 0.55 });
+  /* ⚠⚠ THE BOARD IS TALL IN Y, THIN IN Z. The first build made it long in Z —
+   * box(0.50, 0.05, 0.98) — which is a board lying FLAT, and leaning that back by
+   * 0.3rad produced a 1m slab jutting out over the water like a diving platform.
+   * A board propped against a wall is tall in the axis it leans along.
+   * The nose is a half-disc in the SAME plane as the deck, so its cylinder axis
+   * runs along the thickness (z) and it needs one rotation, not two: the first
+   * attempt stacked rotation.x and rotation.z and stood the cap up as a fin. */
+  var bbBody = box(0.50, 0.98, 0.05, bbDeck); bbBody.position.y = 0.49; bbG.add(bbBody);
+  var bbNose = new THREE.Mesh(new THREE.CylinderGeometry(0.25, 0.25, 0.05, 18, 1, false, 0, Math.PI), bbDeck);
+  bbNose.rotation.x = Math.PI / 2;                 // axis along z = the board's thickness
+  bbNose.position.set(0, 0.98, 0); bbG.add(bbNose);
+  var bbSlick = box(0.505, 0.985, 0.012, mat(0x22252b, 0.35));       // the slick bottom
+  bbSlick.position.set(0, 0.49, -0.031); bbG.add(bbSlick);
+  [-0.17, 0.17].forEach(function (cx4) {                              // the channels
+    var ch3 = box(0.05, 0.42, 0.014, mat(0x1a1d22, 0.4));
+    ch3.position.set(cx4, 0.20, -0.034); bbG.add(ch3);
+  });
+  var bbLeash = new THREE.Mesh(new THREE.TorusGeometry(0.055, 0.011, 6, 14), mat(0x2b2e33, 0.6));
+  bbLeash.rotation.x = -Math.PI / 2;
+  bbLeash.position.set(POOL.x0 - 0.10, GROUND + 0.075, POOL.z0 + 0.55); badd(bbLeash);
+  var bbCord = new THREE.Mesh(new THREE.CylinderGeometry(0.008, 0.008, 0.46, 6), mat(0x2b2e33, 0.6));
+  bbCord.rotation.set(Math.PI / 2, 0, 0.7);
+  bbCord.position.set(POOL.x0 - 0.20, GROUND + 0.08, POOL.z0 + 0.76); badd(bbCord);
+  [bbBody, bbNose, bbSlick, bbLeash, bbCord].forEach(function (m) {
+    btag(m, "SURF", function () { window.location.href = "https://kylefriesmarketing.github.io/surf/"; },
+      surfSave.best
+        ? "SURF — best ride " + surfSave.best + " · the pool is practice. click for the ocean"
+        : "SURF — the wave carries you because the water moves. click for the ocean");
+  });
+
   // 🧊 THE COOLER — the back yard's stash
   var coolG = new THREE.Group(); coolG.position.set(PCX + 1.35, GROUND, POOL.z1 + 0.58); coolG.rotation.y = -0.3; badd(coolG);
   var coolBody = box(0.52, 0.34, 0.34, mat(0xb03a2e, 0.6)); coolBody.position.y = 0.17; coolG.add(coolBody);

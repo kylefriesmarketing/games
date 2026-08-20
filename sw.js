@@ -1,4 +1,4 @@
-/* THE ROOM — service worker.
+/* THE HOUSE — service worker.
  *
  * Two strategies on purpose, because this room is ~11MB of props but its code
  * changes several times a day:
@@ -11,7 +11,7 @@
  *                          contents, and they effectively never change — so serve them
  *                          instantly and only hit the network on a miss.
  */
-var CACHE = "the-room-v20"; // v20: the entry card is a real loading screen — shaders compiled behind it
+var CACHE = "the-room-v21"; // v21: THE HOUSE — SURF + CLEAN THE ZOO, dry hallway, two-storey yard
 var SHELL = ["./", "./index.html", "./manifest.webmanifest", "./icon.svg",
   // room.js imports these at parse time — miss one and the offline room won't boot
   "./js/room.js", "./js/util.js", "./js/stickers.js", "./js/collectibles.js",

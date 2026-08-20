@@ -1,4 +1,4 @@
-/* THE ROOM — the lens.
+/* THE HOUSE — the lens.
  *
  * The room was drawn flat: every light source faked its halo with an additive
  * sprite, because a real glow needs the frame itself to spill. This is that pass —

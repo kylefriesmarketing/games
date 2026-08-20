@@ -1,5 +1,5 @@
 /* ============================================================================
- * THE ROOM — a 90s bedroom you can click. Every object is a doorway:
+ * THE HOUSE — a 90s house you can walk through. Every object is a doorway:
  * the bookshelf holds the stories (spines out, like a real shelf), the toy
  * chest holds the RTS, the brain on the desk opens Dumb Tony's BRAINROT
  * (live in the shared GameRepos), the beige PC is waiting on its next game,
@@ -1535,16 +1535,53 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
   /* ---- THE NEON SIGN (generated) above the bookshelf ------------------------ */
   var neonLight = new THREE.PointLight(0xff5aa8, 0.0, 6, 1.8);
   neonLight.position.set(-1.3, 2.85, -2.2); scene.add(neonLight);
-  var neonMesh = null;
-  texLoader.load("assets/tex/neon.png", function (t) {
-    t.anisotropy = 8;
-    neonMesh = new THREE.Mesh(new THREE.PlaneGeometry(1.9, 1.07),
-      new THREE.MeshBasicMaterial({ map: t, blending: THREE.AdditiveBlending, transparent: true, depthWrite: false }));
-    neonMesh.position.set(-1.3, 2.9, -2.5);
-    scene.add(neonMesh);
-    neonLight.intensity = 1.1;
-    applyNeonPaint(); // a saved sign color waits for the texture
-  });
+  /* ⚠️ DRAWN, not loaded. It used to be assets/tex/neon.png — 0.4MB, the second
+   * heaviest file in the whole room, and it had the old name BAKED INTO IT, which
+   * made "THE ROOM -> THE HOUSE" impossible to do properly in code. Drawing the
+   * tube on a canvas fixes all three: the sign says whatever it should, the
+   * download disappears, and recolouring is EXACT (the PNG could only be
+   * hue-rotated, so gold and violet were always approximations of a pink sign). */
+  var NEON_TEXT = "THE HOUSE";
+  function neonTex(hex) {
+    var col = "#" + ("00000" + hex.toString(16)).slice(-6);
+    return canvasTex(1024, 576, function (g, w, h) {
+      g.clearRect(0, 0, w, h);                       // additive: black is transparent
+      g.textAlign = "center"; g.textBaseline = "middle";
+      /* ⚠️ FIT THE TEXT, do not assume a size. At a hardcoded 168px "THE ROOM"
+       * fitted and "THE HOUSE" — two letters longer — ran off the end of the
+       * plane with the last E sliced in half. Measure and shrink to 84% of the
+       * canvas so any future name still lands inside its own sign. */
+      var cx = w / 2, cy = h * 0.44, size = 168;
+      g.font = "700 " + size + "px Georgia, serif";
+      var fit = w * 0.84 / Math.max(1, g.measureText(NEON_TEXT).width);
+      if (fit < 1) { size = Math.floor(size * fit); g.font = "700 " + size + "px Georgia, serif"; }
+      // a neon tube is built from the outside in: wide dim haze, then the glass,
+      // then a near-white core where the gas is brightest
+      [[46, 0.30, 26], [24, 0.55, 14], [10, 0.95, 7]].forEach(function (pass) {
+        g.shadowColor = col; g.shadowBlur = pass[0];
+        g.globalAlpha = pass[1]; g.strokeStyle = col; g.lineWidth = pass[2];
+        g.lineJoin = "round"; g.strokeText(NEON_TEXT, cx, cy);
+      });
+      g.globalAlpha = 1; g.shadowBlur = 18; g.shadowColor = col;
+      g.fillStyle = "#fff6fb"; g.fillText(NEON_TEXT, cx, cy);
+      // the swoosh under the word, the way a real sign is bent
+      g.shadowBlur = 34; g.strokeStyle = col; g.globalAlpha = 0.85;
+      g.lineWidth = 11; g.lineCap = "round";
+      g.beginPath();
+      g.moveTo(w * 0.20, h * 0.70);
+      g.bezierCurveTo(w * 0.38, h * 0.80, w * 0.62, h * 0.62, w * 0.82, h * 0.71);
+      g.stroke();
+      g.globalAlpha = 1; g.lineWidth = 4; g.strokeStyle = "#fff6fb";
+      g.shadowBlur = 14; g.stroke();
+      g.shadowBlur = 0;
+    });
+  }
+  var neonMesh = new THREE.Mesh(new THREE.PlaneGeometry(1.9, 1.07),
+    new THREE.MeshBasicMaterial({ map: neonTex(0xff5aa8), blending: THREE.AdditiveBlending,
+      transparent: true, depthWrite: false }));
+  neonMesh.position.set(-1.3, 2.9, -2.5);
+  scene.add(neonMesh);
+  neonLight.intensity = 1.1;
 
   /* ---- soft bloom halos on the bright sources (billboards, additive) ---------- */
   var gNeon = glow(0xff5aa8, -1.3, 2.86, -2.46, 1.7, 0.95, 0.34);  // the neon sign (recolorable)
@@ -1787,7 +1824,10 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
     "FRESH CUT":      { key: "fc-save",         pick: function (m) { return countOf(m.done); }, total: 44, noun: "lawns", attempts: true },
     "THE LAST ISSUE": { key: "tli-runs",        pick: function (m) { return Array.isArray(m) ? m.length : null; }, noun: "runs", attempts: true },
     "QUARRY":         { key: "quarry-universe", pick: function (m) { return m && m.hunter ? countOf(m.hunter.trophies) : null; }, noun: "trophies", attempts: true },
-    "HERE COMES THE TRUCK": { key: "truck-save", pick: function (m) { return m.days || null; }, noun: "days", attempts: true }
+    "HERE COMES THE TRUCK": { key: "truck-save", pick: function (m) { return m.days || null; }, noun: "days", attempts: true },
+    // ⚠️ surf-best is a bare NUMBER, not JSON, so it needs `raw` like SHORT STAFFED's name
+    "SURF":           { key: "surf-best", raw: true, pick: function (v) { return parseInt(v, 10) || null; }, noun: "best ride", attempts: true },
+    "CLEAN THE ZOO":  { key: "ctz-meta-v1", pick: function (m) { return m.lifetime || null; }, total: 1500, noun: "animals home" }
   };
   function gameProgress(title) {
     var g = GAME_SAVES[title]; if (!g) return null;
@@ -3330,6 +3370,8 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
       lawnsDone: gameProgress("FRESH CUT").done,
       issueRuns: gameProgress("THE LAST ISSUE").done,
       quarryTrophies: gameProgress("QUARRY").done,
+      surfBest: gameProgress("SURF").done,
+      zooAnimals: gameProgress("CLEAN THE ZOO").done,
       truckHeard: (function () { try { return !!localStorage.getItem("room-truck-seen"); } catch (e) { return false; } })(),
       hoodRuns: hr ? (hr.lifetime && hr.lifetime.runs) || (hr.bestDist > 0 ? 1 : 0) : 0,
       hoodBest: hr ? Math.round(hr.bestDist || 0) : 0,
@@ -4331,6 +4373,14 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
         });
       },
       home: { x: -0.72, y: 2.392, z: -2.32 }, build: COLL.buildFang },
+    { key: "zebra", title: "the toy zebra", from: "CLEAN THE ZOO", icon: "🦓",
+      earn: "get an animal home in CLEAN THE ZOO", where: "on the shelf top, mid-stride",
+      have: function () { return anyOf("ctz-meta-v1", function (m) { return m.lifetime || null; }); },
+      home: { x: -1.25, y: 2.392, z: -2.32 }, build: COLL.buildZebra },
+    { key: "waxcomb", title: "the wax comb", from: "SURF", icon: "🌊",
+      earn: "catch a ride in SURF", where: "on the desk, still gritty",
+      have: function () { try { return (parseInt(localStorage.getItem("surf-best") || "0", 10) || 0) > 0; } catch (e) { return false; } },
+      anchor: "desk", home: { x: 0.34, y: 0.851, z: 0.31 }, build: COLL.buildWaxComb },
     { key: "icecream", title: "the cone you caught", from: "HERE COMES THE TRUCK", icon: "🍦",
       earn: "serve a day in HERE COMES THE TRUCK", where: "on the desk, on its little stand",
       have: function () { return anyOf("truck-save", function (m) { return m.days || null; }); },
@@ -5339,27 +5389,18 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
     n = String(n).replace(/[^\w '\-\.]/g, "").trim().slice(0, 14);
     return n || null;
   }
-  var neonImg = null, nameMesh = null;
+  var nameMesh = null;
   function applyNeonPaint() {
     var opt = NEON_OPTS[paintState.neon || 0] || NEON_OPTS[0];
     neonLight.color.set(opt[2]);
     gNeon.material.color.set(opt[2]);
-    if (!neonMesh) return; // the texture-load callback re-calls us
-    if (!opt[1]) return;   // pink is the sign as manufactured
-    if (!neonImg) {
-      neonImg = new Image();
-      neonImg.onload = applyNeonPaint;
-      neonImg.src = "assets/tex/neon.png";
-      return;
-    }
-    if (!neonImg.complete || !neonImg.naturalWidth) return;
-    var c = document.createElement("canvas");
-    c.width = neonImg.naturalWidth; c.height = neonImg.naturalHeight;
-    var g = c.getContext("2d");
-    if (typeof g.filter === "string") { g.filter = "hue-rotate(" + opt[1] + "deg)"; g.drawImage(neonImg, 0, 0); }
-    else { g.drawImage(neonImg, 0, 0); neonMesh.material.color.set(opt[2]); } // old browsers: tint instead
-    var t = new THREE.CanvasTexture(c); t.anisotropy = 8;
-    neonMesh.material.map = t; neonMesh.material.needsUpdate = true;
+    if (!neonMesh) return;
+    // redrawn in the chosen colour — no hue-rotate, so every option is a real
+    // neon colour rather than pink pushed around the wheel
+    if (neonMesh.material.map) neonMesh.material.map.dispose();
+    neonMesh.material.map = neonTex(opt[2]);
+    neonMesh.material.color.set(0xffffff);
+    neonMesh.material.needsUpdate = true;
   }
   function applyNameBanner() {
     if (nameMesh) { scene.remove(nameMesh); nameMesh = null; }
@@ -5537,7 +5578,7 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
     saveJSON("room-paint", paintState);
     [wallM, wallMSide, floorM, rug.material, woodM, woodMSide].forEach(function (m) { m.userData.tint = null; m.color.set(0xffffff); });
     doorM.userData.tint = null; if (doorM.userData.base != null) doorM.color.set(doorM.userData.base);
-    if (neonMesh && neonImg && neonImg.complete) { var t = new THREE.Texture(neonImg); t.needsUpdate = true; t.anisotropy = 8; neonMesh.material.map = t; neonMesh.material.color.set(0xffffff); neonMesh.material.needsUpdate = true; }
+    if (neonMesh) { if (neonMesh.material.map) neonMesh.material.map.dispose(); neonMesh.material.map = neonTex(0xff5aa8); neonMesh.material.color.set(0xffffff); neonMesh.material.needsUpdate = true; }
     applyPaint();
   }
   function pbOpen() { decorSet(true); dwTab("paint"); }
@@ -5876,7 +5917,7 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
     "#tour-skip:focus-visible{outline:2px solid #ff5aa8;outline-offset:3px}";
   document.head.appendChild(tourStyle);
   /* ============================================================================
-   * WELCOME TO THE ROOM — the front page. The kid's tour walks the FLOOR; this
+   * WELCOME TO THE HOUSE — the front page. The kid's tour walks the FLOOR; this
    * explains the OFFER: which style of game lives in which corner (the books are
    * stories you steer, the chest is the strategy game, the duffel is the runner…).
    * Opens once for everyone, then lives under the ❔ button forever. Each row's
@@ -5920,7 +5961,7 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
   document.body.insertAdjacentHTML("beforeend",
     '<div id="wel-ov" role="dialog" aria-modal="true" aria-label="welcome to the room"><div class="wel-card">' +
     '<div class="wel-kick">a guide to</div>' +
-    '<div class="wel-title">THE ROOM</div>' +
+    '<div class="wel-title">THE HOUSE</div>' +
     '<div class="wel-sub">every toy in here opens a game.<br>different corners, different kinds of night:</div>' +
     '<div class="wel-row"><span class="wel-ic">📚</span><div><b>the bookshelf</b> — eleven story games. ' +
     "books you read and <i>steer</i>: shipwrecks and mountains, a shop that remembers you, Sherlock, Wonderland, " +

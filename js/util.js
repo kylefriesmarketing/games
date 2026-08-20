@@ -1,4 +1,4 @@
-/* THE ROOM — small shared helpers.
+/* THE HOUSE — small shared helpers.
  * Pure functions only: nothing in here reads or writes the room's state, which is
  * what makes them safe to hand around. Imported by room.js and its sibling modules.
  * (Native ES modules, no build step — "three" resolves via the importmap in index.html.)
