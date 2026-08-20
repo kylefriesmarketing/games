@@ -197,16 +197,31 @@ export function buildHallway(ctx) {
   // trick as the floor being three pieces around the basement hole. The opening is
   // z -3.6..-1.45 over the west side, so you can look up the flight to the landing.
   var ceilM = mat(0x2a2f3d, 0.98);
-  var STW = { x0: W_IN - 0.15, x1: W_IN + 1.10, z0: -3.6, z1: -1.45 }; // the stairwell void
+  /* ⚠️ z1 WAS -1.45 AND IT IS 1.60 NOW. The void only ever had to clear the FIRST
+   * flight, which stops at a half-landing 1.475 up. The second flight — the one that
+   * actually reaches the floor above — switches back and climbs south, so the hole in
+   * the ceiling has to run with it or the stairs go through the slab. */
+  var STW = { x0: E_IN - 1.02, x1: E_IN + 0.02, z0: 2.45, z1: 7.30 }; // the stairwell void
   var CZ_S = Z_S + 0.15, CX_E = XC + (HW + 0.3) / 2;      // the ceiling's south + east edges
   var ceilA = box(HW + 0.3, 0.1, CZ_S - STW.z1, ceilM);   // everything south of the void
   ceilA.position.set(XC, CEIL + 0.05, (STW.z1 + CZ_S) / 2); add(ceilA);
-  var ceilB = box(CX_E - STW.x1, 0.1, STW.z1 - STW.z0, ceilM); // the strip beside it
+  var ceilB = box(CX_E - STW.x1, 0.1, STW.z1 - STW.z0, ceilM); // the strip east of it
   ceilB.position.set((STW.x1 + CX_E) / 2, CEIL + 0.05, (STW.z0 + STW.z1) / 2); add(ceilB);
+  // ⚠️ and a strip WEST of it, which never existed because the void used to be hard
+  // against the west wall and had no west side. Without this the ceiling has a 1.03m
+  // slot running the length of the stairwell.
+  var CX_W = XC - (HW + 0.3) / 2;
+  var ceilC = box(STW.x0 - CX_W, 0.1, STW.z1 - STW.z0, ceilM);
+  ceilC.position.set((CX_W + STW.x0) / 2, CEIL + 0.05, (STW.z0 + STW.z1) / 2); add(ceilC);
+  // and the ceiling north of the void, which is now inboard of the north wall
+  var ceilD = box(HW + 0.3, 0.1, STW.z0 - (Z_N - 0.15), ceilM);
+  ceilD.position.set(XC, CEIL + 0.05, ((Z_N - 0.15) + STW.z0) / 2); add(ceilD);
   // the stairwell's own lid + the two faces that close it, so the void is a shaft
   // and not a hole into nothing
-  var stwLid = box(STW.x1 - STW.x0, 0.1, STW.z1 - STW.z0, ceilM);
-  stwLid.position.set((STW.x0 + STW.x1) / 2, 3.45, (STW.z0 + STW.z1) / 2); add(stwLid);
+  /* ⚠️ THE LID IS GONE. It capped the shaft at y 3.45 because there was nothing above
+   * it — "the upstairs is real; it just isn't YOURS yet". It is yours now, and 3.45 is
+   * exactly where the floor went, so the cap would have been the floor you stand on
+   * with a staircase arriving underneath it. */
   // ⚠️ these sit ENTIRELY ON THE VOID SIDE of the ceiling's cut edge (x1-0.05, z1-0.05),
   // not centred on it. Centred, each one straddled the edge: half the shaft wall lay
   // inside the ceiling slab sharing its BOTTOM face at y 2.95 — 0.108m² and 0.062m² of
@@ -716,45 +731,69 @@ export function buildHallway(ctx) {
   // UP: eight steps against the west wall, climbing north into the dark, a rope
   // of tape across the second one. The upstairs is real; it just isn't YOURS yet.
   var stairM = new THREE.MeshStandardMaterial({ map: plankT, roughness: 0.88 });
-  var STAIR_X = W_IN + 0.47, RAIL_X = STAIR_X + 0.44; // hard against the west wall
-  for (var st = 0; st < 8; st++) {
-    var step = new THREE.Mesh(new THREE.BoxGeometry(0.92, 0.18, 0.3), stairM);
-    step.position.set(STAIR_X,0.09 + st * 0.185, -0.9 - st * 0.3); step.castShadow = step.receiveShadow = true; add(step);
-    if (st === 2) tag(step, "the stairs up", null, "upstairs — her room, their room, the attic. 2027.");
+  /* ⚠️⚠️ THE FLIGHT MOVED OFF THE WEST WALL AND INTO THE MIDDLE OF THE HALL. Hard
+   * against the wall is right for an eight-step stub that stops at z -3.0. A full
+   * nineteen-riser run has to reach z 2.04, and along the west wall that is straight
+   * across the kitchen doorway (z -0.90..0.20) AND the living room doorway (1.44..2.38)
+   * — measured, the walk to the kitchen came out through the treads in both directions.
+   * The hall is 3.10 wide, so a 0.92 flight down the centre leaves 1.03m each side,
+   * which is a real landing strip past a real staircase. */
+  /* ⚠️⚠️ AND NOT THE MIDDLE EITHER. Centred, the flight blocks the hall along its
+   * LENGTH — every walk north (kitchen, porch) went straight through the treads.
+   * The hall is full: the west wall has the kitchen (z -0.90..0.20), the living room
+   * (1.44..2.38) and the garage (5.08..6.12); the east wall has the photo wall
+   * (-2.85..1.15), the bedroom door (1.65..2.55) and the closet (7.24..8.16). The one
+   * clear run long enough for a staircase is the EAST wall between the bedroom door
+   * and the closet — 4.7m — so that is where it goes, climbing north. */
+  var STAIR_X = E_IN - 0.50, RAIL_X = STAIR_X - 0.44;
+  /* ⚠️⚠️ ONE STRAIGHT FLIGHT, AND THE SWITCHBACK IS WHY. The old stub was eight
+   * risers climbing NORTH — 1.48m, which is half a storey, ending at a landing with a
+   * taped door on it. My first attempt at the rest was a switchback turning on that
+   * landing and climbing back south above itself, which is what you would build in a
+   * real house. It does not fit HERE: the well is 1.25m wide so the two flights have
+   * to stack, and with a 3.45m total rise over a shared 2.1m run they end up 1.20m
+   * apart where they cross. You cannot walk under that — measured, the camera came
+   * out through the treads of the upper flight twice.
+   * The hall is 8m long, so a single straight run solves it: nineteen risers of 0.182
+   * climbing SOUTH from z -3.0, about 31 degrees, arriving at z 2.04 which is inside
+   * the upstairs corridor. It also means you arrive facing down the landing instead of
+   * at a wall. */
+  /* ⚠️ UP_Y is the FLOOR ABOVE and it is declared here, with the flight that reaches
+   * it, because that is the one number both have to agree on. It was 3.45 because the
+   * stairwell lid sat there; the flight is nineteen risers of exactly 3.45/19 so the
+   * top tread IS the floor rather than nearly it. */
+  var UP_Y = 3.45;
+  // sixteen risers of 0.216 on a 0.275 going: 38 degrees, which is steep and is what
+  // a house of this age actually has when the hall is this full
+  var UP_RISE = UP_Y / 16, UP_GO = 0.275, UP_Z0 = 7.05;
+  for (var st = 0; st < 16; st++) {
+    var step = new THREE.Mesh(new THREE.BoxGeometry(0.92, 0.18, UP_GO + 0.05), stairM);
+    step.position.set(STAIR_X, (st + 1) * UP_RISE - 0.09, UP_Z0 - st * UP_GO);
+    step.castShadow = step.receiveShadow = true; add(step);
+    if (st === 3) tag(step, "the stairs up", function () { enterUpstairs(); },
+      "her room, their room, and the attic. mind the third step.");
   }
+  // the rail up the open side
+  (function () {
+    var rz0 = UP_Z0, rz1 = UP_Z0 - 15 * UP_GO, ry0 = UP_RISE + 0.86, ry1 = 16 * UP_RISE + 0.86;
+    var rail = box(0.05, 0.05, Math.hypot(rz1 - rz0, ry1 - ry0), mat(0x3a2c1c, 0.7));
+    rail.position.set(STAIR_X - 0.50, (ry0 + ry1) / 2, (rz0 + rz1) / 2);
+    rail.rotation.x = -Math.atan2(ry1 - ry0, rz1 - rz0); add(rail);
+    for (var rp = 0; rp <= 5; rp++) {
+      var t2 = rp / 5;
+      var po = box(0.045, 0.90, 0.045, mat(0x3a2c1c, 0.7));
+      po.position.set(STAIR_X - 0.50, ry0 + t2 * (ry1 - ry0) - 0.45, rz0 + t2 * (rz1 - rz0)); add(po);
+    }
+  })();
   // The flight lands on a real landing and meets a real door — taped like every
   // other room in this house, because upstairs isn't yours yet either. (It used to
   // end in a flat black plane, which read as an unfinished wall rather than a way
   // up.) Top step surface is y 1.475, so everything up here is measured off that.
-  var LAND_Y = 1.475;
-  var landing = box(1.0, 0.1, 0.62, stairM);
-  landing.position.set(STAIR_X,LAND_Y - 0.05, -3.14); landing.receiveShadow = true; add(landing);
-  var upDoor = slabDoor(STAIR_X, -3.38, -Math.PI / 2, 0.92, 0x4a3a2a, "the stairs up",
-    "upstairs — her room, their room, the attic. 2027.", 0xffd9a0, 0.13);
-  upDoor.position.y = LAND_Y;
-  // ⚠️ squashed to 0.88 ON PURPOSE: at full height the jamb tops out at y 3.60 and
-  // the stairwell lid is at 3.40. Measured, not guessed — 1.475 + 2.12*0.88 = 3.34.
-  upDoor.scale.set(1, 0.88, 0.95);
-  tapeX(upDoor, 0.92);
-  var rail = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.05, 2.35), mat(0x3a2c1c, 0.7));
-  rail.position.set(RAIL_X, 1.5, -1.95); rail.rotation.x = 0.55; add(rail);
-  [[1.0, -0.95], [1.35, -1.9], [1.7, -2.85]].forEach(function (p, i) {
-    var post = new THREE.Mesh(new THREE.BoxGeometry(0.045, p[0], 0.045), mat(0x3a2c1c, 0.7));
-    post.position.set(RAIL_X, p[0] / 2 + i * 0.37, p[1]); add(post);
-  });
-  var upTape = new THREE.Mesh(new THREE.BoxGeometry(0.9, 0.07, 0.012), new THREE.MeshStandardMaterial({ color: 0xd9c04a, roughness: 0.6 }));
-  upTape.position.set(STAIR_X,0.72, -1.42); upTape.rotation.z = 0.06; add(upTape);
-  tag(upTape, "the stairs up", null, "upstairs — her room, their room, the attic. 2027.");
-  var upSign = canvasTex(256, 128, function (c, w, h) {
-    c.fillStyle = "#e8dcc0"; c.fillRect(0, 0, w, h);
-    c.strokeStyle = "#8a6f3c"; c.lineWidth = 5; c.strokeRect(5, 5, w - 10, h - 10);
-    c.fillStyle = "#3a3020"; c.font = "bold 34px Georgia, serif"; c.textAlign = "center";
-    c.fillText("UPSTAIRS", w / 2, 52);
-    c.font = "italic 22px Georgia, serif"; c.fillStyle = "#6a5a38"; c.fillText("pardon our dust — 2027", w / 2, 92);
-  });
-  var upSignM = new THREE.Mesh(new THREE.PlaneGeometry(0.5, 0.25), new THREE.MeshStandardMaterial({ map: upSign, roughness: 0.85 }));
-  upSignM.rotation.y = Math.PI / 2; upSignM.position.set(W_IN + 0.02, 1.85, -0.72); upSignM.rotation.z = -0.02; add(upSignM);
-
+  /* ⚠️ THE HALF-LANDING AND ITS TAPED DOOR ARE GONE. They existed because the
+   * flight stopped halfway and had to stop AT something — the door was the promise
+   * that upstairs was real. The flight runs the whole way now, so a landing in the
+   * middle of it would be a step 62cm deep and the door would open into thin air. */
+  var LAND_Y = 1.475;   // kept: the UPSTAIRS sign and the wall art still hang off it
   // DOWN: a real hole in the floor, steps descending into a cold green glow.
   // ⚠️ THE CHAIN CAME OFF. It hung across the top since the hall was built —
   // "opening soon" — and the basement is open now, so it hangs coiled on the
@@ -801,6 +840,130 @@ export function buildHallway(ctx) {
   tag(downHit, "the stairs down", function () { enterBasement(); },
     "the basement — the light's on down there. click to go down");
   tag(chain, "the chain", null, "unhooked. it only ever said 'not yet', and it isn't 'not yet' anymore.");
+
+  /* ---- UPSTAIRS -----------------------------------------------------------------
+   * The floor is at UP_Y 3.45, which is not a number I chose: it is where the
+   * stairwell lid sat, and the exterior second storey runs y 3.02..5.95, so a floor
+   * there and a ceiling at 5.70 gives 2.25m of head height inside a shell that was
+   * already built. The footprint follows the house as it now stands — the west wing
+   * (the living room, x -17.15..-7.45) got built downstairs, so the storey covers it
+   * too rather than stopping where the old bedroom box used to end.
+   * ⚠️ THE LANDING IS A SPINE, not a room with doors off its corners. Three rooms
+   * hanging off one corridor is the only arrangement where all three are ADJACENT to
+   * the space you arrive in — every layout where the rooms chain off each other
+   * leaves the last one unreachable without walking through somebody's bedroom. */
+  /* ⚠️ z1 REACHES 7.45, not 3.60. The storey has to cover its own staircase: the
+   * flight climbs the east wall from z 7.05, and with the floor stopping at 3.60 the
+   * south wall stood straight across the top third of it — the climb came out through
+   * the wall at y 4.35 in both directions. A floor with a hole in it is not enough;
+   * the WALLS have to clear the flight too. */
+  /* ⚠️ INSET 0.25 FROM THE SHELL, ON EVERY SIDE. At -17.05 against a shell at -17.20
+   * the interior wall landed 2cm from the exterior one, and from the landing you were
+   * looking at LAPPED SIDING — the outside of your own house, indoors. The shell is
+   * boxes with siding on every face; the interior has to sit clearly inboard of it so
+   * the wallpaper is what you see and the siding is what the street sees. */
+  var UPF = { x0: -16.95, x1: 4.17, z0: -3.30, z1: 7.35, fl: UP_Y, ce: UP_Y + 2.25 };
+  var LAN = { z0: 1.05, z1: 2.45 };                       // the corridor band
+  var upWallM = new THREE.MeshStandardMaterial({ map: hwallT, roughness: 0.95 });
+  var upFloorM = new THREE.MeshStandardMaterial({ map: plankT, roughness: 0.9 });
+  function utag(m, name, action, hint) { clickable(m, name, action, hint); m.userData.space = 'upstairs'; return m; }
+  (function () {
+    /* the floor, in four pieces around the stairwell — the sixth time this file has
+     * had to say it, and the first time it was cheap because STW already exists. */
+    var SH = { x0: STW.x0, x1: STW.x1, z0: STW.z0, z1: STW.z1 };
+    [[UPF.x0, SH.x0, UPF.z0, UPF.z1],
+     [SH.x1, UPF.x1, UPF.z0, UPF.z1],
+     [SH.x0, SH.x1, SH.z1, UPF.z1],
+     [SH.x0, SH.x1, UPF.z0, SH.z0]].forEach(function (r) {
+      if (r[1] - r[0] < 0.02 || r[3] - r[2] < 0.02) return;
+      var fl = new THREE.Mesh(new THREE.PlaneGeometry(r[1] - r[0], r[3] - r[2]), upFloorM);
+      fl.rotation.x = -Math.PI / 2; fl.position.set((r[0] + r[1]) / 2, UPF.fl + 0.005, (r[2] + r[3]) / 2);
+      fl.receiveShadow = true; add(fl);
+      utag(fl, 'the landing', null, 'the boards up here were never carpeted. you can hear everyone.');
+    });
+    var ceil = box(UPF.x1 - UPF.x0, 0.10, UPF.z1 - UPF.z0, mat(0xe8e4d8, 0.95));
+    ceil.position.set((UPF.x0 + UPF.x1) / 2, UPF.ce + 0.05, (UPF.z0 + UPF.z1) / 2); add(ceil);
+    // the outer walls of the storey
+    [[UPF.x1 - UPF.x0 + 0.2, 0.10, (UPF.x0 + UPF.x1) / 2, UPF.z0 - 0.05],
+     [UPF.x1 - UPF.x0 + 0.2, 0.10, (UPF.x0 + UPF.x1) / 2, UPF.z1 + 0.05]].forEach(function (w) {
+      var m2 = box(w[0], UPF.ce - UPF.fl, w[1], upWallM);
+      m2.position.set(w[2], (UPF.fl + UPF.ce) / 2, w[3]); add(m2);
+    });
+    [UPF.x0 - 0.05, UPF.x1 + 0.05].forEach(function (wx) {
+      var m3 = box(0.10, UPF.ce - UPF.fl, UPF.z1 - UPF.z0, upWallM);
+      m3.position.set(wx, (UPF.fl + UPF.ce) / 2, (UPF.z0 + UPF.z1) / 2); add(m3);
+    });
+    /* the corridor's north wall, with the three doorways cut into it. The stairwell
+     * bay breaks it, which is why it is built as a list of runs rather than one slab. */
+    var DOORS = [
+      { x: -12.20, w: 0.95, name: 'their room', hint: 'their room. the door is always half shut and the radio is always on low.' },
+      { x: -3.60,  w: 0.95, name: 'her room',   hint: 'her room. KEEP OUT is written on a card in three colours.' },
+      { x: 1.90,   w: 0.95, name: 'the attic',  hint: 'the attic. it is warm in there and it smells like old paper.' }
+    ];
+    var edges = [UPF.x0];
+    DOORS.forEach(function (d) { edges.push(d.x - d.w / 2, d.x + d.w / 2); });
+    edges.push(STW.x0, STW.x1, UPF.x1);
+    edges.sort(function (m, n) { return m - n; });
+    for (var e = 0; e < edges.length - 1; e++) {
+      var a0 = edges[e], a1 = edges[e + 1];
+      if (a1 - a0 < 0.02) continue;
+      var mid = (a0 + a1) / 2, isDoor = false, inShaft = (mid > STW.x0 && mid < STW.x1);
+      DOORS.forEach(function (d) { if (Math.abs(mid - d.x) < d.w / 2) isDoor = true; });
+      if (inShaft) continue;                       // the stairwell bay is open to the corridor
+      var h0 = isDoor ? UPF.fl + 2.05 : UPF.fl, h1 = UPF.ce;
+      if (h1 - h0 < 0.02) continue;
+      var seg = box(a1 - a0, h1 - h0, 0.10, upWallM);
+      seg.position.set(mid, (h0 + h1) / 2, LAN.z0 - 0.05); add(seg);
+    }
+    // the doors themselves, shut, each with its handle and its own light under it
+    DOORS.forEach(function (d) {
+      var slab = box(d.w - 0.03, 2.02, 0.05, mat(0x4a3a2a, 0.72));
+      slab.position.set(d.x, UPF.fl + 1.01, LAN.z0 - 0.05); add(slab);
+      var kn = new THREE.Mesh(new THREE.SphereGeometry(0.026, 12, 10), mat(0xc8b06a, 0.35));
+      kn.position.set(d.x + d.w / 2 - 0.16, UPF.fl + 1.00, LAN.z0 + 0.01); add(kn);
+      [[-1, 0], [1, 0]].forEach(function (jj) {
+        var jm = box(0.07, 2.14, 0.11, mat(0xd8d2c2, 0.8));
+        jm.position.set(d.x + jj[0] * (d.w / 2 + 0.035), UPF.fl + 1.07, LAN.z0 - 0.05); add(jm);
+      });
+      var hd = box(d.w + 0.14, 0.08, 0.11, mat(0xd8d2c2, 0.8));
+      hd.position.set(d.x, UPF.fl + 2.14, LAN.z0 - 0.05); add(hd);
+      var spill = new THREE.Mesh(new THREE.PlaneGeometry(d.w - 0.08, 0.30),
+        new THREE.MeshBasicMaterial({ color: 0xffd9a0, transparent: true, opacity: 0.13,
+          blending: THREE.AdditiveBlending, depthWrite: false }));
+      spill.rotation.x = -Math.PI / 2; spill.position.set(d.x, UPF.fl + 0.012, LAN.z0 + 0.14); add(spill);
+      [slab, kn].forEach(function (m) { utag(m, d.name, null, d.hint); });
+    });
+    // the rail around the stairwell, so the corridor has an edge and not a drop
+    [[STW.x0 - 0.03, STW.z0, STW.x0 - 0.03, STW.z1], [STW.x1 + 0.03, STW.z0, STW.x1 + 0.03, STW.z1],
+     [STW.x0, STW.z1 + 0.03, STW.x1, STW.z1 + 0.03]].forEach(function (rl) {
+      var len = Math.max(Math.abs(rl[2] - rl[0]), Math.abs(rl[3] - rl[1]));
+      var along = Math.abs(rl[2] - rl[0]) > Math.abs(rl[3] - rl[1]);
+      var top = box(along ? len : 0.05, 0.05, along ? 0.05 : len, mat(0x3a2c1c, 0.7));
+      top.position.set((rl[0] + rl[2]) / 2, UPF.fl + 0.94, (rl[1] + rl[3]) / 2); add(top);
+      for (var pz = 0; pz <= 3; pz++) {
+        var t3 = pz / 3;
+        var po = box(0.045, 0.92, 0.045, mat(0x3a2c1c, 0.7));
+        po.position.set(rl[0] + t3 * (rl[2] - rl[0]), UPF.fl + 0.47, rl[1] + t3 * (rl[3] - rl[1])); add(po);
+      }
+    });
+    // a window at each end of the corridor, and the bulb that is always left on
+    [[UPF.x0 + 0.04, -Math.PI / 2], [UPF.x1 - 0.04, Math.PI / 2]].forEach(function (wn) {
+      var gl = new THREE.Mesh(new THREE.PlaneGeometry(1.20, 1.00),
+        new THREE.MeshStandardMaterial({ color: 0x2a3a4e, emissive: 0x7f9dc4, emissiveIntensity: 0.32, roughness: 0.25 }));
+      gl.position.set(wn[0], UPF.fl + 1.45, (LAN.z0 + LAN.z1) / 2); gl.rotation.y = wn[1]; add(gl);
+      utag(gl, 'the landing window', null, 'the street one way, the yard the other. whoever is up first opens both.');
+    });
+    var bulb = new THREE.Mesh(new THREE.SphereGeometry(0.075, 12, 10),
+      new THREE.MeshStandardMaterial({ color: 0xfff2d6, emissive: 0xffd9a0, emissiveIntensity: 1.1, roughness: 0.6 }));
+    bulb.position.set(-6.10, UPF.ce - 0.30, (LAN.z0 + LAN.z1) / 2); add(bulb);
+    var cord = new THREE.Mesh(new THREE.CylinderGeometry(0.008, 0.008, 0.30, 5), mat(0x2b2e33, 0.6));
+    cord.position.set(-6.10, UPF.ce - 0.13, (LAN.z0 + LAN.z1) / 2); add(cord);
+    utag(bulb, 'the landing light', null, 'no shade. there was going to be a shade.');
+    var upLite = new THREE.PointLight(0xffd2a0, 0.95, 9.5, 1.9);
+    upLite.position.set(-6.10, UPF.ce - 0.45, (LAN.z0 + LAN.z1) / 2); add(upLite);
+    var upLite2 = new THREE.PointLight(0xffd2a0, 0.55, 8.0, 1.9);
+    upLite2.position.set(-13.20, UPF.ce - 0.45, (LAN.z0 + LAN.z1) / 2); add(upLite2);
+  })();
 
   /* ---- THE PHOTO WALL --------------------------------------------------------
    * Twenty frames on the east wall, one per achievement, two staggered rows.
@@ -3232,7 +3395,15 @@ export function buildHallway(ctx) {
   // the east side, where the ground floor is only the bedroom — a second storey
   // floating on nothing. The hall rear stays single-storey, which is what a rear
   // extension looks like anyway.
-  var UP = { x0: -7.62, x1: 4.42, z0: Z_N - 0.10, z1: 3.70, y0: 3.02, y1: 5.95 };
+  /* ⚠️ and the SHELL follows the floor: the storey now runs back over the hall to
+   * z 7.60, which is also what the house looks like from the yard once there is a
+   * staircase inside it. */
+  /* ⚠️ x0 REACHES -17.20 TOO. The shell was drawn when the house stopped at the old
+   * bedroom box; the ground floor has since grown a whole west wing (the living room
+   * runs to x -17.15), and the upstairs floor with it. Left at -7.62 the shell WALL
+   * stood inside the upstairs corridor — from the landing you looked straight at the
+   * outside of your own house, 2m away, lapped siding and all. */
+  var UP = { x0: -17.20, x1: 4.42, z0: Z_N - 0.10, z1: 7.60, y0: 3.02, y1: 5.95 };
   var upH = UP.y1 - UP.y0, upY = (UP.y0 + UP.y1) / 2;
   var BW = { x0: -5.05, x1: -3.75, y0: 4.28, y1: 5.24 };
   [[UP.x0, BW.x0, UP.y0, UP.y1], [BW.x1, UP.x1, UP.y0, UP.y1],
@@ -5618,6 +5789,21 @@ export function buildHallway(ctx) {
     bdoor1: new THREE.Vector3(-5.34, 1.66, 7.85),   // squared up to the slider's clear pane
     bdoor2: new THREE.Vector3(-5.34, 1.58, 9.35),   // in the opening
     bdoorL: new THREE.Vector3(-3.20, 0.55, 14.6),   // what you see through it: the glow
+    /* ---- up ---- the climb needs waypoints ON the treads, not a straight line from
+     * the bottom of the hall to the top of the house: a two-point lerp cuts the corner
+     * of the switchback and goes through the ceiling slab beside the void. */
+    /* ⚠️ you walk PAST the flight and board it at the bottom, which is at the NORTH
+     * end because it climbs south. A path straight from the hall to the foot goes
+     * through every tread on the way. */
+    up1: new THREE.Vector3(-6.30, 1.70, 6.10),      // down the west side to the foot
+    up2: new THREE.Vector3(-5.20, 1.70, 7.00),      // squared onto the bottom tread
+    up3: new THREE.Vector3(-4.85, 2.55, 5.95),      // a few treads up
+    up4: new THREE.Vector3(-4.85, 3.95, 4.35),      // halfway
+    uprest: new THREE.Vector3(-4.85, 5.07, 2.15),   // off the top, standing on the landing
+    uplook: new THREE.Vector3(-15.60, 4.55, 1.60),  // down the corridor, west
+    uplookB: new THREE.Vector3(2.60, 4.55, 1.60),   // and the other way, east
+    upL1: new THREE.Vector3(-6.98, 2.20, -3.30),    // what you see on the way up
+    upL2: new THREE.Vector3(-8.60, 4.70, 1.70),
     ldoor1: new THREE.Vector3(-6.30, 1.66, 1.91),   // squared up to the living room door, hall side
     ldoor2: new THREE.Vector3(-7.60, 1.62, 1.91),   // in the doorway
     // ⚠️ these AIM AT THE FURNITURE, which sounds obvious and was not: the seating
@@ -5699,6 +5885,19 @@ export function buildHallway(ctx) {
     mode = "kitchenOut"; tt = 0;
     c0.copy(camera.position); l0.copy(lookAt);
   }
+  function enterUpstairs() {
+    if (mode !== "idle" || space !== "hall") return;
+    mode = "upIn"; tt = 0;
+    c0.copy(camera.position); l0.copy(lookAt);
+    AUDIO.ratchetSfx && AUDIO.ratchetSfx();
+    if (turnBtn) turnBtn.style.display = "none";
+  }
+  function leaveUpstairs() {
+    if (mode !== "idle" && mode !== "turning") return;
+    if (space !== "upstairs") return;
+    mode = "upOut"; tt = 0;
+    c0.copy(camera.position); l0.copy(lookAt);
+  }
   function enterLiving() {
     if (mode !== "idle" || space !== "hall") return;
     mode = "livingIn"; tt = 0;
@@ -5770,7 +5969,7 @@ export function buildHallway(ctx) {
   function restPos() {
     return space === "porch" ? P.porch : space === "kitchen" ? P.krest
          : space === "garage" ? P.grest : space === "back" ? P.brest
-         : space === "living" ? P.lrest
+         : space === "living" ? P.lrest : space === "upstairs" ? P.uprest
          : space === "basement" ? P.bsrest : P.rest;
   }
   function aimFor(f) {
@@ -5778,6 +5977,7 @@ export function buildHallway(ctx) {
     if (space === "kitchen") return f === "door" ? P.klookB : P.klook;
     if (space === "garage") return f === "door" ? P.glookB : P.glook;
     if (space === "living") return f === "door" ? P.llookB : P.llook;
+    if (space === "upstairs") return f === "east" ? P.uplookB : P.uplook;
     if (space === "back") return f === "house" ? P.blookB : f === "yard" ? P.blookW : P.blook;
     if (space === "basement") return f === "stairs" ? P.bslookB : P.bslook;
     return f === "south" ? P.lookS : P.look;
@@ -5785,6 +5985,7 @@ export function buildHallway(ctx) {
   function flipOf(f) {
     if (space === "porch") return f === "street" ? "house" : "street";
     if (space === "kitchen" || space === "garage" || space === "living") return f === "door" ? "room" : "door";
+    if (space === "upstairs") return f === "west" ? "east" : "west";
     // pool -> yard -> house -> pool: the only three-way turn in the house, because
     // the back yard is the only space with content on three sides of you
     if (space === "back") return f === "pool" ? "yard" : f === "yard" ? "house" : "pool";
@@ -5917,6 +6118,20 @@ export function buildHallway(ctx) {
       }
       return true;
     }
+    if (mode === "upIn" || mode === "upOut") {           // up the stairs, or back down
+      // 3.2s: it is two flights and a turn, and rushing it reads as a lift
+      tt = Math.min(1, tt + dt / 3.2);
+      if (mode === "upIn") walk([c0, P.up1, P.up2, P.up3, P.up4, P.uprest],
+                                [l0, P.upL1, P.upL1, P.upL2, P.uplook, P.uplook], tt);
+      else walk([c0, P.up4, P.up3, P.up2, P.up1], [l0, P.upL2, P.upL1, P.look, P.look], tt);
+      camera.position.copy(_v); lookAt.copy(_w); camera.lookAt(lookAt);
+      if (tt >= 1) {
+        if (mode === "upIn") { space = "upstairs"; facing = turnTo = "west"; }
+        else { space = "hall"; facing = turnTo = "north"; AUDIO.clickSfx && AUDIO.clickSfx(500); }
+        turnK = 1; mode = "idle"; syncTurnBtn();
+      }
+      return true;
+    }
     if (mode === "livingIn" || mode === "livingOut") {   // through to the living room
       tt = Math.min(1, tt + dt / 2.1);
       var lk = mode === "livingIn" ? tt : 1 - tt;
@@ -6042,7 +6257,7 @@ export function buildHallway(ctx) {
       }
       return true;
     }
-    if (space === "hall" || space === "porch" || space === "kitchen" || space === "garage" || space === "back" || space === "basement" || space === "living") { // at rest: same parallax drift as the bedroom
+    if (space === "hall" || space === "porch" || space === "kitchen" || space === "garage" || space === "back" || space === "basement" || space === "living" || space === "upstairs") { // at rest: same parallax drift as the bedroom
       // ⚠️ the swing is driven by a SEPARATE eased term, not by lerping lookAt
       // straight from one end to the other. A direct lerp passes the target
       // through the camera's own position on the way past, and the view whips
@@ -6087,7 +6302,7 @@ export function buildHallway(ctx) {
     if (space === "bedroom" || mode === "entering" || mode === "leaving" ||
         mode === "out" || mode === "in" || mode === "kitchenIn" || mode === "kitchenOut" ||
         mode === "garageIn" || mode === "garageOut" || mode === "backIn" || mode === "backOut" ||
-        mode === "livingIn" || mode === "livingOut" ||
+        mode === "livingIn" || mode === "livingOut" || mode === "upIn" || mode === "upOut" ||
         mode === "basementIn" || mode === "basementOut") return;
     to = to || flipOf(facing);
     if (to === facing && mode !== "turning") { syncTurnBtn(); return; }
@@ -6315,6 +6530,7 @@ export function buildHallway(ctx) {
     stepOut: stepOut, stepIn: stepIn,
     kitchen: { enter: enterKitchen, leave: leaveKitchen },
     living: { enter: enterLiving, leave: leaveLiving },
+    upstairs: { enter: enterUpstairs, leave: leaveUpstairs },
     garage: { enter: enterGarage, leave: leaveGarage, roll: toggleRoll,
       rollA: function () { return rollA; } },
     back: { enter: enterBack, leave: leaveBack },
@@ -6337,6 +6553,7 @@ export function buildHallway(ctx) {
       kitchen:  { x: [KX0 - 0.15, KX1 + 0.15], z: [KZ0 - 0.15, KZ1 + 0.15], y: [-0.15, KCEIL + 0.50] },
       garage:   { x: [-12.20, -7.40], z: [4.25, 8.55], y: [-0.15, 2.25] },
       living:   { x: [LIV.x0 - 0.20, LIV.x1 + 0.20], z: [LIV.z0 - 0.20, LIV.z1 + 0.20], y: [-0.15, LIV.ce + 0.30] },
+      upstairs: { x: [UPF.x0 - 0.20, UPF.x1 + 0.20], z: [UPF.z0 - 0.20, UPF.z1 + 0.20], y: [UPF.fl - 0.20, UPF.ce + 0.30] },
       basement: { x: [BSM.x0 - 0.15, BSM.x1 + 0.15], z: [BSM.z0 - 0.15, BSM.z1 + 0.15],
                   y: [BSM.fl - 0.15, BSM.ce + 0.10] },
       porch:    { x: [-60, 60], z: [-62, HOUSE_F + 0.60], y: [GROUND - 0.20, GROUND + 14] },
