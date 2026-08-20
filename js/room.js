@@ -30,8 +30,21 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
   renderer.setSize(window.innerWidth, window.innerHeight);
   // phones render fewer pixels; nobody can tell on a 6" screen and the fans thank us
   var coarse = window.matchMedia && window.matchMedia("(pointer: coarse)").matches;
+  var photoRd = null;   // the photo button reuses one renderer; see takePhoto
   renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, coarse ? 1.5 : 2));
   renderer.shadowMap.enabled = true;
+  /* ⚠️ THERE WAS NO CONTEXT-LOST HANDLER ANYWHERE IN THE PROJECT. A lost context is
+   * not exotic — a GPU driver reset, a laptop waking from sleep, or simply opening too
+   * many WebGL pages will do it — and the default behaviour is a permanently black
+   * canvas with no explanation. preventDefault() at least allows a restore, and the
+   * list view is a working way to reach every game meanwhile. */
+  renderer.domElement.addEventListener("webglcontextlost", function (ev) {
+    ev.preventDefault();
+    try {
+      document.body.classList.add("listing");
+      console.error("[house] WebGL context lost — falling back to the list");
+    } catch (e) { }
+  }, false);
   renderer.shadowMap.type = THREE.PCFSoftShadowMap;
   // Film response instead of a straight clamp: the lamp and the neon roll off into
   // colour instead of clipping to flat white, and the darks keep their detail.
@@ -1827,8 +1840,13 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
     "STILL BREATHING":{ key: "sb_persist",      pick: function (m) { return countOf(m.endings); }, noun: "endings" },
     "SOUTH":          { key: "south_persist",   pick: function (m) { return countOf(m.endings); }, noun: "endings" },
     "NOBODY":         { key: "nobody_persist",  pick: function (m) { return countOf(m.endings); }, noun: "endings" },
-    "CURIOUSER":      { key: "alice_persist",   pick: function (m) { return countOf(m.wakings); }, total: 8, noun: "wakings" },
-    "DRACULA":        { key: "dracula_persist", pick: function (m) { return countOf(m.endings); }, total: 6, noun: "endings" },
+    /* ⚠️ THESE TOTALS ARE THE DENOMINATOR THE HUB PRINTS AT YOU, and four of them did
+     * not match the games they describe. Too LOW is the bad direction: the fraction can
+     * read 11/8, and the completion branch fires early, so the hub congratulates you on
+     * finishing something you are two thirds of the way through. Counted in each game:
+     * CURIOUSER ships 11 wakings, DRACULA 15 endings, FRESH CUT 48 jobs. */
+    "CURIOUSER":      { key: "alice_persist",   pick: function (m) { return countOf(m.wakings); }, total: 11, noun: "wakings" },
+    "DRACULA":        { key: "dracula_persist", pick: function (m) { return countOf(m.endings); }, total: 15, noun: "endings" },
     "ELEMENTARY":     { key: "sherlock_persist",pick: function (m) { return m && m.solved ? countOf(m.solved) : null; }, total: 11, noun: "cases" },
     "G FOR GEORGE":   { key: "gg_persist",      pick: function (m) { return countOf(m.endings); }, total: 14, noun: "tellings" },
     // these two count attempts rather than endings — the roster you've actually
@@ -1844,13 +1862,17 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
     // JSON.parses and would throw on "Cook" and report the game as never started.
     "SHORT STAFFED":  { key: "ss-name", raw: true, pick: function (v) { return v ? 1 : null; }, total: 1, noun: "shifts", attempts: true },
     "HOME BREW":      { key: "mybrew-save-v1",  pick: function (m) { return countOf(m.G && m.G.discovered); }, noun: "recipes", attempts: true },
-    "FRESH CUT":      { key: "fc-save",         pick: function (m) { return countOf(m.done); }, total: 44, noun: "lawns", attempts: true },
+    "FRESH CUT":      { key: "fc-save",         pick: function (m) { return countOf(m.done); }, total: 48, noun: "lawns", attempts: true },
     "THE LAST ISSUE": { key: "tli-runs",        pick: function (m) { return Array.isArray(m) ? m.length : null; }, noun: "runs", attempts: true },
     "QUARRY":         { key: "quarry-universe", pick: function (m) { return m && m.hunter ? countOf(m.hunter.trophies) : null; }, noun: "trophies", attempts: true },
     "HERE COMES THE TRUCK": { key: "truck-save", pick: function (m) { return m.days || null; }, noun: "days", attempts: true },
     // ⚠️ surf-best is a bare NUMBER, not JSON, so it needs `raw` like SHORT STAFFED's name
     "SURF":           { key: "surf-best", raw: true, pick: function (v) { return parseInt(v, 10) || null; }, noun: "best ride", attempts: true },
-    "CLEAN THE ZOO":  { key: "ctz-meta-v1", pick: function (m) { return m.lifetime || null; }, total: 1500, noun: "animals home" },
+    /* ⚠️ MISSING `attempts: true`, so a LIFETIME COUNTER was being summed into the
+     * house-wide "endings found" tally. Twenty animals carried home — a few minutes of
+     * play — won the Twenty Endings award outright, and thirty made you a Long-time
+     * Reader. It is a grind counter, not a set of endings. */
+    "CLEAN THE ZOO":  { key: "ctz-meta-v1", pick: function (m) { return m.lifetime || null; }, total: 1500, noun: "animals home", attempts: true },
     "BITE":           { key: "bite-save", pick: function (m) { return countOf(m.journal); }, total: 15, noun: "species logged", attempts: true },
     "THE KILN":       { key: "kiln-save", pick: function (m) { return m.firings || null; }, noun: "firings", attempts: true },
     // ⚠️ lw-prefs, not lw-save: lw-save is a mid-night snapshot that only exists while a
@@ -3542,7 +3564,7 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
       ["Still Breathing", readSave("sb_persist", function (m) { return countOf(m.endings); }), null],
       ["SOUTH", readSave("south_persist", function (m) { return countOf(m.endings); }), null],
       ["NOBODY", readSave("nobody_persist", function (m) { return countOf(m.endings); }), null],
-      ["CURIOUSER", readSave("alice_persist", function (m) { return countOf(m.wakings); }), 8],
+      ["CURIOUSER", readSave("alice_persist", function (m) { return countOf(m.wakings); }), 11],
       ["DRACULA", readSave("dracula_persist", function (m) { return countOf(m.endings); }), 6],
       ["G for George", readSave("gg_persist", function (m) { return countOf(m.endings); }), 14],
     ];
@@ -5044,7 +5066,14 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
   /* ---- the snapshot (a real photo of your room, downloaded) ---------------------- */
   function shareRoom() {
     scene.updateMatrixWorld(true);
-    var W = 1600, H = 1000, rd = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
+    /* ⚠️⚠️ THIS BUILT A WHOLE SECOND WebGL CONTEXT ON EVERY PRESS AND NEVER RELEASED
+     * IT. dispose() frees three.js's own objects but does NOT drop the underlying
+     * context — browsers cap those at around 16 per page, so the sixteenth photo takes
+     * the ROOM's context down with it and the screen goes black. Every press also
+     * re-uploaded every texture and geometry in the house to the new context.
+     * One renderer, kept and reused. */
+    var W = 1600, H = 1000;
+    var rd = photoRd || (photoRd = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true }));
     rd.setPixelRatio(1); rd.setSize(W, H);
     rd.shadowMap.enabled = true; rd.shadowMap.type = THREE.PCFSoftShadowMap;
     // the photo has to match what you're looking at — a fresh renderer starts with no
@@ -5056,12 +5085,13 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
     cam.position.set(0, 1.72, 4.8); cam.lookAt(new THREE.Vector3(0, 1.28, -0.5));
     rd.render(scene, cam);
     var url;
-    try { url = rd.domElement.toDataURL("image/png"); } catch (e) { rd.dispose(); return; }
+    try { url = rd.domElement.toDataURL("image/png"); } catch (e) { return; }
     var nm = roomOwnerName();
     var a = document.createElement("a");
     a.href = url; a.download = (nm ? nm.replace(/\s+/g, "-").toLowerCase() + "s-room" : "my-room") + ".png";
     document.body.appendChild(a); a.click(); a.remove();
-    rd.dispose();
+    // ⚠️ deliberately NOT disposed — it is reused. Disposing here and rebuilding on the
+    // next press is exactly what leaked the contexts.
     try { kidSay("say cheese! it's in your downloads.", 4); } catch (e2) { }
   }
 
