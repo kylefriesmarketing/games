@@ -332,7 +332,7 @@ export function buildHallway(ctx) {
    * stopped. Rather than hoist five variables out (and rename around the collisions
    * that would cause), the room publishes its handles into one holder that glowTick
    * can reach. A null guard keeps the tick honest if the room ever fails to build. */
-  var livLightH = null, livOn = true;
+  var livLightH = null, livOn = true, livingLife = null;
   (function () {
     var fl = new THREE.Mesh(new THREE.PlaneGeometry(LIV.x1 - LIV.x0, LIV.z1 - LIV.z0), plankM);
     fl.rotation.x = -Math.PI / 2; fl.position.set((LIV.x0 + LIV.x1) / 2, 0.005, (LIV.z0 + LIV.z1) / 2);
@@ -380,11 +380,36 @@ export function buildHallway(ctx) {
       map: rugT, roughness: 0.97, polygonOffset: true, polygonOffsetFactor: -4, polygonOffsetUnits: -4 }));
     rug.rotation.x = -Math.PI / 2; rug.position.set(-12.60, 0.011, 2.28); add(rug);
     ltag(rug, 'the good rug', null, 'vacuumed in one direction only. everyone knows.');
+    /* ⚠️ THREE CANVAS TEXTURES FOR THE WHOLE ROOM, against fourteen in the kitchen —
+     * which is a SMALLER room — and the biggest object in it was five flat-coloured
+     * boxes. A weave is the cheapest possible canvas and the one that pays best: at
+     * this distance the eye reads nub and seam long before it reads shape. */
+    var twT = canvasTex(256, 256, function (c, w, h) {
+      c.fillStyle = '#6d7a5e'; c.fillRect(0, 0, w, h);
+      for (var q = 0; q < 900; q++) {
+        var qx = (q * 71) % w, qy = (q * 137) % h;
+        c.fillStyle = q % 2 ? 'rgba(122,135,104,0.55)' : 'rgba(88,99,74,0.5)';
+        c.fillRect(qx, qy, 3, 2);
+      }
+      c.strokeStyle = 'rgba(60,68,50,0.35)'; c.lineWidth = 1;
+      for (var gx = 0; gx < w; gx += 6) { c.beginPath(); c.moveTo(gx, 0); c.lineTo(gx, h); c.stroke(); }
+      c.strokeStyle = 'rgba(52,60,44,0.55)'; c.lineWidth = 3;
+      c.beginPath(); c.moveTo(w / 2, 0); c.lineTo(w / 2, h); c.stroke();   // the cushion split
+    });
+    twT.colorSpace = THREE.SRGBColorSpace;
+    twT.wrapS = twT.wrapT = THREE.RepeatWrapping; twT.repeat.set(2, 1);
+    var tweedM = new THREE.MeshStandardMaterial({ map: twT, roughness: 0.94 });
+    var twB = bumpFrom(twT, 1.5);
+    if (twB) { twB.repeat.copy(twT.repeat); tweedM.bumpMap = twB; tweedM.bumpScale = 0.35; }
     var cg = new THREE.Group(); cg.position.set(-12.60, 0, 1.02); add(cg);
-    var cbase = box(2.35, 0.34, 0.86, fabM); cbase.position.y = 0.24; cg.add(cbase);
-    var cback = box(2.35, 0.62, 0.22, fab2); cback.position.set(0, 0.58, -0.32); cg.add(cback);
+    var cbase = box(2.35, 0.34, 0.86, tweedM); cbase.position.y = 0.24; cg.add(cbase);
+    var cback = box(2.35, 0.62, 0.22, tweedM); cback.position.set(0, 0.58, -0.32); cg.add(cback);
     [-1, 1].forEach(function (sd2) {
-      var arm = box(0.22, 0.30, 0.86, fab2); arm.position.set(sd2 * 1.06, 0.50, 0); cg.add(arm); });
+      var arm = box(0.22, 0.30, 0.86, tweedM); arm.position.set(sd2 * 1.06, 0.50, 0); cg.add(arm);
+      // the arm caps, worn shiny, which is the first thing that goes on a couch
+      var cap3 = new THREE.Mesh(new THREE.CylinderGeometry(0.11, 0.11, 0.86, 12, 1, false, 0, Math.PI), mat(0x60705a, 0.72));
+      cap3.rotation.set(Math.PI / 2, 0, Math.PI / 2); cap3.position.set(sd2 * 1.06, 0.65, 0); cg.add(cap3);
+    });
     [-0.58, 0.58].forEach(function (cx) {
       var cush = box(1.06, 0.14, 0.72, mat(0x7a8768, 0.92)); cush.position.set(cx, 0.44, 0.02); cg.add(cush); });
     cg.children.forEach(function (m) { ltag(m, 'the good couch', null, 'plastic came off it in 1994 and it has been downhill since.'); });
@@ -642,6 +667,29 @@ export function buildHallway(ctx) {
      * only interior space in the house with nothing to do in it. The wall beside the
      * doorway was also the one stretch with no furniture on it at all, so the switch
      * solves both at once. */
+    /* ⚠️ NOTHING IN THIS ROOM MOVED — the only interior space in the file with no
+     * per-frame life, while the hall has dust, the kitchen has steam and a dripping
+     * tap, and the basement has static and fish. The corner lamp throws the one hard
+     * beam in here, so that is where the dust goes, exactly as the hall does it. */
+    var lDust = [];
+    for (var ld2 = 0; ld2 < 16; ld2++) {
+      var dm2 = new THREE.Mesh(new THREE.SphereGeometry(0.007, 5, 4),
+        new THREE.MeshBasicMaterial({ color: 0xfff0d0, transparent: true, opacity: 0.24, depthWrite: false }));
+      dm2.position.set(-16.35 + (ld2 % 5 - 2) * 0.12, 0.5 + (ld2 % 7) * 0.18, 3.50 + (ld2 % 3 - 1) * 0.14);
+      add(dm2);
+      lDust.push({ m: dm2, x: dm2.position.x, z: dm2.position.z, y: dm2.position.y,
+                   sp: 0.4 + (ld2 % 5) * 0.13, ph: ld2 * 1.7 });
+    }
+    livingLife = function (dt2, t2, lampOn) {
+      for (var i2 = 0; i2 < lDust.length; i2++) {
+        var d3 = lDust[i2];
+        d3.y += dt2 * d3.sp * 0.08;
+        if (d3.y > 1.72) d3.y = 0.42;
+        d3.m.position.set(d3.x + Math.sin(t2 * 0.31 + d3.ph) * 0.10, d3.y,
+                          d3.z + Math.cos(t2 * 0.24 + d3.ph * 1.3) * 0.09);
+        d3.m.material.opacity = 0.24 * lampOn * (0.5 + 0.5 * Math.sin(t2 * 0.7 + d3.ph));
+      }
+    };
     var lswP = box(0.02, 0.13, 0.09, mat(0xf0ece0, 0.6));
     lswP.position.set(LIV.x1 - 0.02, 1.15, LDO.z1 + 0.42); add(lswP);
     var lswT = box(0.018, 0.038, 0.022, mat(0xdad4c4, 0.5));
@@ -1171,6 +1219,7 @@ export function buildHallway(ctx) {
   upFloorT.wrapS = upFloorT.wrapT = THREE.RepeatWrapping; upFloorT.repeat.set(4.5, 3.5);
   var upFloorM = new THREE.MeshStandardMaterial({ map: upFloorT, roughness: 0.9 });
   function utag(m, name, action, hint) { clickable(m, name, action, hint); m.userData.space = 'upstairs'; return m; }
+  function grpU(g4, name, hint) { g4.children.forEach(function (m) { if (m.isMesh) utag(m, name, null, hint); }); }
   // ⚠️ and the same again upstairs: five light handles trapped in an IIFE, so the
   // whole storey ignored the pull chain and the hour.
   var upLightH = null, upOn = true;
@@ -1315,6 +1364,44 @@ export function buildHallway(ctx) {
     /* ⚠️ leaveUpstairs() existed, was exported, and was called by NOTHING — you could
      * walk up and never walk down. Every other space in the house has a way back
      * (bsUpHit does exactly this for the basement); the landing simply never got one. */
+    /* ⚠️ HALF THIS FLOOR WAS EMPTY AND UNLIT. Re-projected from the resting eye, the
+     * 'facing east' view held two props and one window — and that window was
+     * backface-culled at the time, so it held two props. Everything the landing had
+     * was crammed into its west half. The airing cupboard is what is actually at the
+     * east end of a landing like this, and it brings its own practical with it. */
+    var acX = -0.60;
+    var acDoor = box(0.86, 1.95, 0.05, mat(0x6a5744, 0.7));
+    acDoor.position.set(acX, UPF.fl + 0.98, LAN.z1 - 0.03); add(acDoor);
+    var acPnl = box(0.62, 0.68, 0.012, mat(0x5b4a39, 0.72));
+    acPnl.position.set(acX, UPF.fl + 1.34, LAN.z1 - 0.06); add(acPnl);
+    var acKnob = new THREE.Mesh(new THREE.SphereGeometry(0.026, 12, 10),
+      new THREE.MeshStandardMaterial({ color: 0xc8b06a, roughness: 0.3, metalness: 0.65 }));
+    acKnob.position.set(acX + 0.31, UPF.fl + 0.98, LAN.z1 - 0.09); add(acKnob);
+    [acDoor, acPnl, acKnob].forEach(function (m) {
+      utag(m, 'the airing cupboard', null,
+        'the warmest door in the house. towels, the immersion heater, and a cat if you leave it open.');
+    });
+    // the slice of warm light under it, because that cupboard is never actually cold
+    var acSpill = new THREE.Mesh(new THREE.PlaneGeometry(0.80, 0.22),
+      new THREE.MeshBasicMaterial({ color: 0xffb877, transparent: true, opacity: 0.10,
+        blending: THREE.AdditiveBlending, depthWrite: false }));
+    acSpill.rotation.x = -Math.PI / 2;
+    acSpill.position.set(acX, UPF.fl + 0.014, LAN.z1 - 0.16); add(acSpill);
+    var acLite = new THREE.PointLight(0xffb877, 0.30, 3.4, 2.0);
+    acLite.position.set(acX, UPF.fl + 0.55, LAN.z1 - 0.30); add(acLite);
+    // a chair on the landing that is not for sitting on, which every house has
+    var lchG = new THREE.Group();
+    lchG.position.set(1.85, UPF.fl, LAN.z0 + 0.42); lchG.rotation.y = -0.72; add(lchG);
+    var lcS = box(0.40, 0.045, 0.40, mat(0x7a6248, 0.8)); lcS.position.y = 0.44; lchG.add(lcS);
+    var lcB = box(0.40, 0.50, 0.045, mat(0x7a6248, 0.8)); lcB.position.set(0, 0.70, -0.18); lchG.add(lcB);
+    [[-0.16, -0.16], [0.16, -0.16], [-0.16, 0.16], [0.16, 0.16]].forEach(function (lp3) {
+      var lgl = new THREE.Mesh(new THREE.CylinderGeometry(0.018, 0.022, 0.44, 8), mat(0x7a6248, 0.8));
+      lgl.position.set(lp3[0], 0.22, lp3[1]); lchG.add(lgl);
+    });
+    grpU(lchG, 'the landing chair', 'nobody sits on it. it holds whatever is on its way up or down.');
+    var lcPile = box(0.30, 0.09, 0.26, mat(0xd8d2c2, 0.95));
+    lcPile.position.set(1.85, UPF.fl + 0.51, LAN.z0 + 0.42); lcPile.rotation.y = -0.72 + 0.24; add(lcPile);
+    utag(lcPile, 'the ironing', 'folded on Sunday, still on the chair on Thursday.');
     var upDownHit = new THREE.Mesh(new THREE.BoxGeometry(1.10, 2.0, 1.10),
       new THREE.MeshBasicMaterial({ transparent: true, opacity: 0, depthWrite: false }));
     upDownHit.position.set((STW.x0 + STW.x1) / 2, UPF.fl + 1.0, STW.z0 + 0.55); add(upDownHit);
@@ -4957,7 +5044,12 @@ export function buildHallway(ctx) {
    * NORTH half of the west apron is the clear stretch. Rotated 0.18, the footprint
    * is 0.34 x 0.51 from centre, which clears the coping at POOL.x0-0.09 and the
    * apron edge at POOL.x0-0.95 by 9cm each side. */
-  bbG.position.set(POOL.x0 - 0.50, GROUND + 0.037, POOL.z0 + 0.60);
+  // ⚠️ the true east extent of this outline is +0.339 from its origin — the worst
+  // point is out on the tail-lobe bezier, not on the straight rail — so at -0.50 the
+  // board overhung the pool coping by 19 mm. -0.58 leaves it 61 mm clear of the
+  // coping face and 60 mm clear of the apron edge, measured off the real bounding
+  // box rather than off the comment, which measured to the coping's centreline.
+  bbG.position.set(POOL.x0 - 0.58, GROUND + 0.037, POOL.z0 + 0.60);
   bbG.rotation.y = 0.18;
   badd(bbG);
   var bbDeckT = canvasTex(128, 256, function (c, w, h) {
@@ -5022,10 +5114,12 @@ export function buildHallway(ctx) {
   bbG.add(bbBody);
   var bbLeash = new THREE.Mesh(new THREE.TorusGeometry(0.055, 0.011, 6, 14), mat(0x2b2e33, 0.6));
   bbLeash.rotation.x = -Math.PI / 2;
-  bbLeash.position.set(POOL.x0 - 0.86, GROUND + 0.05, POOL.z0 + 1.24); badd(bbLeash);
+  bbLeash.position.set(POOL.x0 - 0.94, GROUND + 0.0445, POOL.z0 + 1.24); badd(bbLeash);
   var bbCord = new THREE.Mesh(new THREE.CylinderGeometry(0.008, 0.008, 0.46, 6), mat(0x2b2e33, 0.6));
   bbCord.rotation.set(Math.PI / 2, 0, -0.62);
-  bbCord.position.set(POOL.x0 - 0.72, GROUND + 0.055, POOL.z0 + 1.06); badd(bbCord);
+  // the apron's top face is GROUND + 0.035. At 0.055 the cord floated 12 mm over it —
+  // three quarters of its own diameter — which reads as a wire, not a leash lying down.
+  bbCord.position.set(POOL.x0 - 0.80, GROUND + 0.043, POOL.z0 + 1.06); badd(bbCord);
   [bbBody, bbLeash, bbCord].forEach(function (m) {
     btag(m, "SURF", function () { window.location.href = "https://kylefriesmarketing.github.io/surf/"; },
       surfSave.best
@@ -6421,7 +6515,17 @@ export function buildHallway(ctx) {
       return { best: best, maps: maps };
     } catch (e) { return { best: 0, maps: 0 }; }
   })();
-  var lwG = new THREE.Group(); lwG.position.set(-1.40, BSM.fl, 1.80); lwG.rotation.y = -0.22; add(lwG);
+  /* ⚠️⚠️ THE LALLY COLUMN STOOD DEAD IN FRONT OF THIS. Measured from the resting eye
+   * at (-5.30, -0.82, 3.30): the bearing to the pole is -20.8 degrees and the bearing
+   * to the diorama was -21.0 — two tenths of a degree apart — so 15 of its 37 meshes,
+   * the playmat and soldiers and towers among them, sat behind a 5.5 cm post.
+   * ⚠️ THE OBVIOUS FIX DOES NOTHING: sliding it along that line (to -0.75, 1.55, say)
+   * leaves the bearing IDENTICAL, because both points share the same slope from the
+   * eye — the move has to be ACROSS the sightline, not along it. The diorama subtends
+   * about 8.5 degrees at this range and the pole about 1, so it needs roughly 9.5 to
+   * clear; this spot gives 9.2 at 4.24 m, which is the same distance as before so it
+   * still reads the same size. */
+  var lwG = new THREE.Group(); lwG.position.set(-1.15, BSM.fl, 2.45); lwG.rotation.y = -0.30; add(lwG);
   var lwMatT = canvasTex(128, 128, function (c, w, h) {
     c.fillStyle = "#4a6a4e"; c.fillRect(0, 0, w, h);
     c.strokeStyle = "rgba(230,225,205,0.5)"; c.lineWidth = 3;
@@ -7686,6 +7790,7 @@ export function buildHallway(ctx) {
     /* the living room and the landing, which used to be outside every ticker in the
      * file. Same `dim * on * breathe` term as the hall bulbs so they read as being on
      * the same electrical supply, because they are. */
+    if (livingLife) livingLife(dt, t, livOn ? dim : dim * 0.15);
     if (livLightH) {
       var lon = livOn ? 1 : 0.05;
       livLightH.lamp.intensity = 0.85 * dim * lon * breathe;
