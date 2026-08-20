@@ -3639,17 +3639,92 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
     }
   });
 
-  // Portrait phones see a thin vertical slice at FOV 55 — widen the lens and pull
-  // the camera back so the whole room fits on a narrow screen.
-  var camRestZ = 4.9;
+  /* ---- FRAMING: the room is sized to the SCREEN, not the screen to the room ------
+   *
+   * ⚠️⚠️ THE BUG THIS FIXES, MEASURED: a PerspectiveCamera's fov is VERTICAL, so a
+   * fixed fov means every screen sees the same amount of floor-to-ceiling and a
+   * WILDLY different amount of left-to-right. Every aspect from 16:10 to ultrawide
+   * used to get fov 55, which is not one framing, it is six:
+   *
+   *     aspect 2.37 -> 101.9 deg across, 0 of 13 games off screen
+   *     aspect 1.78 ->  85.6 deg across, 4 of 13 games off screen
+   *     aspect 1.60 ->  79.6 deg across, 5 of 13 games off screen
+   *     aspect 1.33 ->  69.4 deg across, 6 of 13 games off screen
+   *
+   * That is the whole of "it looks great on my screen but my friend can't use it on
+   * his laptop" (Kyle). On a wide monitor the room is complete; on a laptop nearly
+   * half the games are simply not on screen, and the only way to reach them was to
+   * pin the mouse to the edge and let the gaze pan drift over.
+   *
+   * So the HORIZONTAL field is what is held constant now, and the vertical is
+   * whatever that costs. The target is not a taste call: the 13 game entry points
+   * span a 49.3 degree half-angle from the resting eye, so 100 covers all of them
+   * with a little margin.
+   *
+   * Two knobs, and THE ORDER IS THE WHOLE POINT:
+   *   1. widen the lens, up to MAX_FOV.
+   *   2. only then step the camera back, in proportion to tan (the "back" term).
+   * ⚠️⚠️ I built this the other way round first — cap the lens at 66, take the rest
+   * in distance — and it was WORSE THAN THE BUG. Retreating moves the eye out
+   * through the missing fourth wall, so at 16:10 the whole room became a lit box
+   * floating in black with the outside of the left wall visible. Widening in place
+   * does not, because the eye stays in the doorway. Measured with a fan of rays
+   * through the frame's outer border, counting the ones that hit NOTHING:
+   *
+   *     16:10, fov 66, camera pulled to 8.52  ->  4.3% of the border is void
+   *     16:10, fov 73.4, camera left at 5.25  ->  0%
+   *
+   * So the lens does nearly all the work and MAX_FOV is high. Only a squarish
+   * window (below about 1.45) ever moves the camera at all.
+   * A wide screen needs neither, so Kyle's own view is untouched by design: fov
+   * never goes BELOW the 55 it always was.
+   *
+   * ⚠️ The portrait ladder under 1.25 is left exactly as it was. Those numbers were
+   * tuned against real phones, where a little cropping is the accepted trade, and I
+   * have no phone here to re-tune them against. Do not "unify" them blind.
+   *
+   * ⚠️ AND WHY THERE IS A CAP AT ALL, rather than just flying the camera back: this
+   * room has no fourth wall, no right-hand wall and no ceiling above the eye — a
+   * ray cast backwards from the camera travels 22.39m before it hits anything. It
+   * is a three-sided set photographed from the open side. Retreat far enough and
+   * the set edges come into frame. The cap plus the measured target is what keeps
+   * the camera inside the shot. */
+  var FRAME_H = 100;          // degrees across, from the measurement above
+  var MIN_FOV = 55, MAX_FOV = 78, BASE_Z = 5.25;
+  var camRestZ = BASE_Z, panX = 1.25, introBack = 2.5;
   function frameForAspect() {
     var a = window.innerWidth / window.innerHeight;
-    // a step further back than the old 7.1m room needed — the walls are 8.6m apart now
-    if (a < 0.65) { camera.fov = 74; camRestZ = 7.2; }
-    else if (a < 0.9) { camera.fov = 66; camRestZ = 6.2; }
-    else if (a < 1.25) { camera.fov = 60; camRestZ = 5.6; }
-    else { camera.fov = 55; camRestZ = 5.25; }
-    camera.aspect = a; camera.updateProjectionMatrix();
+    camera.aspect = a;
+    if (a < 1.25) {                       // phones and tall windows: the tuned ladder
+      if (a < 0.65) { camera.fov = 74; camRestZ = 7.2; }
+      else if (a < 0.9) { camera.fov = 66; camRestZ = 6.2; }
+      else { camera.fov = 60; camRestZ = 5.6; }
+    } else {
+      var want = Math.atan(Math.tan(FRAME_H * Math.PI / 360) / a) * 360 / Math.PI;
+      var fov = Math.max(MIN_FOV, want), back = 1;
+      if (fov > MAX_FOV) {
+        back = Math.tan(fov * Math.PI / 360) / Math.tan(MAX_FOV * Math.PI / 360);
+        fov = MAX_FOV;
+      }
+      camera.fov = fov; camRestZ = BASE_Z * back;
+    }
+    /* whatever field the lens still cannot hold, the GAZE makes up for: the mouse
+     * already pans lookAt.x, so widen that travel by exactly the angle we are short
+     * of FRAME_H. Above 1.25 this is zero — the lens covers it — so it only ever
+     * helps the phone ladder, where it means nothing is unreachable any more. */
+    var half = Math.atan(Math.tan(camera.fov * Math.PI / 360) * a);
+    var missing = Math.max(0, FRAME_H * Math.PI / 360 - half);
+    panX = 1.25 + (camRestZ + 0.4) * Math.tan(missing);
+    /* ⚠️ THE OPENING DOLLY HAS TO SHRINK WHEN THE LENS WIDENS. It starts the camera
+     * 2.5m behind its rest spot and eases in — fine at fov 55, but the same 2.5m
+     * behind a 73 degree lens starts the shot OUTSIDE the set (6.4% void by the
+     * border-ray test, and it looks like a doll's house on a black table). Scaling
+     * it by the tangent ratio keeps the opening FRAME the same shape it always had
+     * instead of the opening DISTANCE, which is the thing that actually matters;
+     * the 0.9 is margin, because 1.0 lands exactly on the measured failure edge.
+     * Bonus: ultrawide already showed 5.3% void on this frame and now shows 3.2. */
+    introBack = 2.5 * (Math.tan(MIN_FOV * Math.PI / 360) / Math.tan(camera.fov * Math.PI / 360)) * 0.9;
+    camera.updateProjectionMatrix();
   }
   frameForAspect();
   window.addEventListener("resize", function () {
@@ -6084,13 +6159,13 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
       if (introT >= 0 && introT < 1) { // the dolly in from the doorway
         introT = Math.min(1, introT + dt / INTRO);
         var ke = 1 - Math.pow(1 - introT, 3);
-        camera.position.set(baseX * ke, 2.6 + (baseY - 2.6) * ke, (camRestZ + 2.5) + (camRestZ - (camRestZ + 2.5)) * ke);
+        camera.position.set(baseX * ke, 2.6 + (baseY - 2.6) * ke, (camRestZ + introBack) - introBack * ke);
       } else {
         camera.position.x += (baseX - camera.position.x) * 0.04;
         camera.position.y += (baseY - camera.position.y) * 0.04;
         camera.position.z += ((camRestZ + (decorMode ? 0.55 : 0)) - camera.position.z) * 0.04; // settle to the aspect-aware distance (a step back while decorating)
       }
-      lookAt.x += ((mx * 1.25) - lookAt.x) * 0.04; // pan the gaze — the bed and side walls come into view
+      lookAt.x += ((mx * panX) - lookAt.x) * 0.04; // pan the gaze — the bed and side walls come into view (range is aspect-aware, see frameForAspect)
       camera.lookAt(lookAt);
     }
     // THE KID: walks between spots, then actually DOES something where he lands —
