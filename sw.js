@@ -11,11 +11,23 @@
  *                          contents, and they effectively never change — so serve them
  *                          instantly and only hit the network on a miss.
  */
-var CACHE = "the-room-v43"; // v43: nine blank pictures, a buried television, and a video sealed in a box
+/* ⚠️⚠️ TWO BUCKETS, ON PURPOSE. These used to share one, so every version bump —
+ * several a day — deleted 13 MB of props along with the code and every visitor
+ * re-downloaded the entire house. The shell is bumped freely; the asset bucket is
+ * bumped only when a prop is re-exported under a name it already had. */
+var SHELL_CACHE = "the-room-shell-v44"; // v44: the page can no longer brick itself on a bad boot
+var ASSET_CACHE = "the-room-assets-v1"; // bump ONLY when an existing asset changes
+var CACHE = SHELL_CACHE;                // kept: older code in this file reads it
 var SHELL = ["./", "./index.html", "./manifest.webmanifest", "./icon.svg",
   // room.js imports these at parse time — miss one and the offline room won't boot
   "./js/room.js", "./js/util.js", "./js/stickers.js", "./js/collectibles.js",
-  "./js/profile.js", "./js/audio.js", "./js/post.js", "./js/hallway.js"];
+  "./js/profile.js", "./js/audio.js", "./js/post.js", "./js/hallway.js",
+  // ⚠️ and these, which the importmap resolves at parse time too. The comment above
+  // was already right about the consequence and the list was missing the biggest one.
+  "./assets/lib/three.module.min.js",
+  "./assets/lib/jsm/loaders/GLTFLoader.js",
+  "./assets/lib/jsm/loaders/DRACOLoader.js",
+  "./assets/lib/jsm/utils/BufferGeometryUtils.js"];
 
 // heavy, effectively-immutable things worth keeping on disk
 function isAsset(url) {
@@ -31,8 +43,14 @@ self.addEventListener("install", function (e) {
 });
 
 self.addEventListener("activate", function (e) {
+  // ⚠️ delete only STALE SHELLS. The old line deleted every cache that was not the
+  // current one, which took the asset bucket with it on every single deploy.
   e.waitUntil(caches.keys().then(function (keys) {
-    return Promise.all(keys.map(function (k) { return k === CACHE ? null : caches.delete(k); }));
+    return Promise.all(keys.map(function (k) {
+      if (k === SHELL_CACHE || k === ASSET_CACHE) return null;
+      if (k.indexOf("the-room-assets-") === 0) return null;   // a future asset bucket
+      return caches.delete(k);
+    }));
   }).then(function () { return self.clients.claim(); }));
 });
 
@@ -51,9 +69,9 @@ self.addEventListener("fetch", function (e) {
     // exactly what happened when the textures were shrunk.
     e.respondWith(caches.match(req).then(function (hit) {
       var net = fetch(req).then(function (res) {
-        if (res.ok) { var copy = res.clone(); caches.open(CACHE).then(function (c) { c.put(req, copy); }); }
+        if (res.ok) { var copy = res.clone(); caches.open(ASSET_CACHE).then(function (c) { c.put(req, copy); }); }
         return res;
-      }).catch(function () { return hit; });
+      }).catch(function () { return hit || Response.error(); });
       return hit || net;
     }));
     return;
@@ -67,11 +85,19 @@ self.addEventListener("fetch", function (e) {
     // conditional request instead: a changed file arrives at once, an unchanged one
     // costs a cheap 304.
     fetch(req, { cache: "no-cache" }).then(function (res) {
-      if (res.ok) { var copy = res.clone(); caches.open(CACHE).then(function (c) { c.put(req, copy); }); }
+      if (res.ok) { var copy = res.clone(); caches.open(SHELL_CACHE).then(function (c) { c.put(req, copy); }); }
       return res;
     }).catch(function () {
       return caches.match(req).then(function (hit) {
-        return hit || caches.match("./index.html");   // offline deep-link still opens the room
+        if (hit) return hit;
+        /* ⚠️⚠️ THIS USED TO HAND index.html TO ANY UNCACHED REQUEST — INCLUDING A
+         * JAVASCRIPT MODULE. An offline visitor whose room.js was not in the cache
+         * got HTML with a JS content type, the module failed to parse, __roomBoot was
+         * never set, and the entry card sat there polling forever over the only route
+         * to the games. Falling back to the document is only ever correct for a
+         * NAVIGATION. */
+        if (req.mode === "navigate") return caches.match("./index.html");
+        return Response.error();
       });
     })
   );

@@ -480,9 +480,42 @@ document.getElementById("room-return").addEventListener("click", function(e){ e.
     if (bar) bar.style.width = "100%";
     if (wanted) stepInside();
   }
+  /* ⚠️⚠️ THIS POLLED FOREVER AND THE PROJECT HAD NO FAILURE PATH AT ALL. If room.js
+   * never evaluates — a parse error, a failed module fetch, a service worker handing
+   * back HTML for a script — __roomBoot is never set, and the entry card stays up
+   * covering the ONLY route to the games. The whole hub becomes a dead loading
+   * screen with a moving bar. There is a perfectly good list view behind it. */
+  var bootT0 = Date.now();
+  function fallBackToList(why){
+    if (document.body.classList.contains("listing")) return;
+    document.body.classList.add("listing");
+    if (enterEl) enterEl.classList.add("gone");
+    if (txt) txt.textContent = why;
+    try { console.error("[house] falling back to the list: " + why); } catch (e) {}
+  }
+  /* ⚠️ CAPTURE PHASE, and no filename test. A <script> that 404s fires its error on
+   * the ELEMENT, and error events do not bubble — a plain window listener never sees
+   * it, and ev.filename is empty for a resource failure. Capture is the only way to
+   * hear it, and the target tells you it was a script. */
+  window.addEventListener("error", function (ev) {
+    if (window.__roomBoot) return;
+    var t = ev && ev.target;
+    if (t && (t.tagName === "SCRIPT" || (ev.filename || "").indexOf(".js") >= 0))
+      fallBackToList("the room didn't load — here's the list");
+  }, true);
+  window.addEventListener("unhandledrejection", function () {
+    if (!window.__roomBoot) fallBackToList("the room didn't load — here's the list");
+  });
   (function poll(){
     var boot = window.__roomBoot;
-    if (!boot) { setTimeout(poll, 60); return; }
+    if (!boot) {
+      /* ⚠️ A WALL CLOCK, NOT A TRY COUNT. Browsers throttle chained timers hard in a
+       * background tab — a 150-try budget at 60 ms can take many minutes there, so the
+       * count-based version I wrote first simply never fired. A deadline fires on the
+       * first tick after it passes, however slow the ticks are. */
+      if (Date.now() - bootT0 > 9000) { fallBackToList("the room didn't load — here's the list"); return; }
+      setTimeout(poll, 60); return;
+    }
     boot.onReady(ready);
     (function tick(){
       if (roomReady) return;
