@@ -375,7 +375,12 @@ export function buildHallway(ctx) {
     [-0.58, 0.58].forEach(function (cx) {
       var cush = box(1.06, 0.14, 0.72, mat(0x7a8768, 0.92)); cush.position.set(cx, 0.44, 0.02); cg.add(cush); });
     cg.children.forEach(function (m) { ltag(m, 'the good couch', null, 'plastic came off it in 1994 and it has been downhill since.'); });
-    var sg = new THREE.Group(); sg.position.set(-12.60, 0, 3.58); sg.rotation.y = Math.PI; add(sg);
+    /* ⚠️ NO PI TURN ON THE GROUP. The screen is built on the cabinet's local -z face, so
+     * turning the whole group put it on the SOUTH side — the television was facing the
+     * wall and showing the couch its back. Left unturned the screen looks north at the
+     * sofa, which is the only direction a television has ever pointed. The small yaw is
+     * deliberate: nothing else in here is square either. */
+    var sg = new THREE.Group(); sg.position.set(-12.60, 0, 3.58); sg.rotation.y = 0.06; add(sg);
     var stand = box(1.30, 0.52, 0.46, woodM); stand.position.y = 0.26; sg.add(stand);
     var tvb = box(1.02, 0.76, 0.58, mat(0x2b2e33, 0.6)); tvb.position.y = 0.90; sg.add(tvb);
     var scr = new THREE.Mesh(new THREE.PlaneGeometry(0.84, 0.60), new THREE.MeshStandardMaterial({
@@ -400,6 +405,166 @@ export function buildHallway(ctx) {
     lampG.children.forEach(function (m) { ltag(m, 'the corner lamp', null, 'the only light anyone ever turns on in here.'); });
     var lLite = new THREE.PointLight(0xffd2a0, 0.85, 6.5, 1.9); lLite.position.set(-16.35, 1.52, 3.50); add(lLite);
     var lTv = new THREE.PointLight(0x9db8ff, 0.55, 5.5, 2.0); lTv.position.set(-12.60, 1.05, 3.30); add(lTv);
+    /* ---- THE THINGS THAT MAKE IT LIVED IN --------------------------------------
+     * ⚠️ MEASURED AGAINST THE BEDROOM, this room failed three of its tests outright.
+     * The bedroom spreads 56 named props across four planes — 15 floor, 15 surface,
+     * 25 wall, 1 ceiling. This room had 5 floor, 3 wall, and ZERO on surfaces or the
+     * ceiling, which is an automatic fail: a room where nothing sits on anything and
+     * nothing hangs overhead reads as furniture delivered, not a room used. It was
+     * also 94% axis-aligned against the bedroom's 67%, so everything sat square to
+     * the walls like a showroom. Everything below is on a surface, a wall or the
+     * ceiling, and almost none of it is square. */
+    var paperM = mat(0xe4dcc4, 0.95), brassM = new THREE.MeshStandardMaterial({ color: 0xc8a24a, roughness: 0.35, metalness: 0.6 });
+
+    // ---- ON THE COFFEE TABLE ----
+    var guideT = canvasTex(96, 128, function (c, w, h) {
+      c.fillStyle = '#d8cdb4'; c.fillRect(0, 0, w, h);
+      c.fillStyle = '#8a2f2a'; c.fillRect(0, 0, w, 26);
+      c.fillStyle = '#f2ece0'; c.font = 'bold 15px Georgia, serif'; c.textAlign = 'center';
+      c.fillText('TV GUIDE', w / 2, 18);
+      c.fillStyle = 'rgba(60,50,36,0.45)';
+      for (var g = 0; g < 7; g++) c.fillRect(9, 40 + g * 11, w - 18 - (g % 3) * 12, 4);
+      c.strokeStyle = 'rgba(60,50,36,0.5)'; c.lineWidth = 2; c.strokeRect(8, 34, w - 16, 84);
+    });
+    guideT.colorSpace = THREE.SRGBColorSpace;
+    var guide = new THREE.Mesh(new THREE.BoxGeometry(0.17, 0.012, 0.23),
+      [mat(0xd8cdb4, 0.95), mat(0xd8cdb4, 0.95), new THREE.MeshStandardMaterial({ map: guideT, roughness: 0.95 }),
+       mat(0xcdc2a8, 0.95), mat(0xd8cdb4, 0.95), mat(0xd8cdb4, 0.95)]);
+    guide.position.set(-12.94, 0.436, 2.21); guide.rotation.y = 0.34; add(guide);
+    ltag(guide, 'the TV guide', null, 'this week is circled. so is a week from 1996 that nobody has thrown out.');
+    var mug = new THREE.Mesh(new THREE.CylinderGeometry(0.042, 0.036, 0.09, 14), mat(0xdfe6ea, 0.5));
+    mug.position.set(-12.02, 0.475, 2.38); add(mug);
+    var mugH = new THREE.Mesh(new THREE.TorusGeometry(0.028, 0.008, 6, 12), mat(0xdfe6ea, 0.5));
+    mugH.rotation.y = Math.PI / 2; mugH.position.set(-11.97, 0.478, 2.38); add(mugH);
+    var mugTea = new THREE.Mesh(new THREE.CylinderGeometry(0.036, 0.036, 0.004, 14), mat(0x53341c, 0.4));
+    mugTea.position.set(-12.02, 0.515, 2.38); add(mugTea);
+    [mug, mugH, mugTea].forEach(function (m) { ltag(m, 'the mug', null, 'gone cold an hour ago. it will be reheated and go cold again.'); });
+    var ring = new THREE.Mesh(new THREE.RingGeometry(0.037, 0.046, 16), new THREE.MeshStandardMaterial({
+      color: 0x6a4a30, transparent: true, opacity: 0.30, roughness: 0.95,
+      polygonOffset: true, polygonOffsetFactor: -4, polygonOffsetUnits: -4 }));
+    ring.rotation.x = -Math.PI / 2; ring.position.set(-12.55, 0.432, 2.15); add(ring);
+    ltag(ring, 'the ring', null, 'from before anyone in this house used a coaster. it is part of the table now.');
+    var coasters = new THREE.Mesh(new THREE.CylinderGeometry(0.048, 0.048, 0.014, 14), mat(0x7a6a4a, 0.9));
+    coasters.position.set(-11.72, 0.437, 2.14); coasters.rotation.y = 0.5; add(coasters);
+    ltag(coasters, 'the coasters', null, 'bought after the ring. never once used before a drink went down.');
+
+    // ---- A SIDE TABLE, AND WHAT LIVES ON IT ----
+    var stG = new THREE.Group(); stG.position.set(-10.42, 0, 1.16); stG.rotation.y = -0.17; add(stG);
+    var stTop = box(0.52, 0.05, 0.52, woodM); stTop.position.y = 0.60; stG.add(stTop);
+    var stShelf = box(0.46, 0.03, 0.46, woodM); stShelf.position.y = 0.28; stG.add(stShelf);
+    [[-0.22, -0.22], [0.22, -0.22], [-0.22, 0.22], [0.22, 0.22]].forEach(function (lp) {
+      var lg3 = box(0.05, 0.60, 0.05, woodM); lg3.position.set(lp[0], 0.30, lp[1]); stG.add(lg3); });
+    stG.children.forEach(function (m) { ltag(m, 'the side table', null, 'wobbles. there is a folded envelope under one leg and it has been there for years.'); });
+    // the telephone, cord and all
+    var phG = new THREE.Group(); phG.position.set(-10.42, 0.625, 1.16); phG.rotation.y = 0.28; add(phG);
+    var phBody = box(0.20, 0.055, 0.15, mat(0x2b2e33, 0.55)); phBody.position.y = 0.028; phG.add(phBody);
+    var phCradle = box(0.21, 0.045, 0.06, mat(0x22252a, 0.55)); phCradle.position.set(0, 0.075, -0.04); phG.add(phCradle);
+    var phHand = box(0.055, 0.04, 0.19, mat(0x22252a, 0.5)); phHand.position.set(0, 0.10, 0.01); phHand.rotation.z = 0.04; phG.add(phHand);
+    for (var kd = 0; kd < 12; kd++) {
+      var key = box(0.028, 0.008, 0.022, mat(0xdad4c4, 0.6));
+      key.position.set(-0.05 + (kd % 3) * 0.05, 0.058, 0.005 + Math.floor(kd / 3) * 0.028); phG.add(key);
+    }
+    var cordC = new THREE.CatmullRomCurve3([
+      new THREE.Vector3(0.02, 0.09, 0.09), new THREE.Vector3(0.16, 0.02, 0.16),
+      new THREE.Vector3(0.26, -0.30, 0.10), new THREE.Vector3(0.20, -0.58, 0.02)], false, 'centripetal');
+    var cord = new THREE.Mesh(new THREE.TubeGeometry(cordC, 18, 0.009, 5, false), mat(0x22252a, 0.6));
+    phG.add(cord);
+    phG.children.forEach(function (m) { ltag(m, 'the telephone', null, 'the cord reaches exactly as far as the doorway and no further. everyone knows the spot.'); });
+    var pad2 = box(0.11, 0.01, 0.15, paperM); pad2.position.set(-10.16, 0.632, 1.34); pad2.rotation.y = 0.62; add(pad2);
+    ltag(pad2, 'the message pad', null, 'a number, no name, and CALL BACK underlined twice.');
+    // magazines on the lower shelf
+    [[0x8a5a4a, 0.0, 0.22], [0x4a6a8a, 0.014, -0.14], [0x6a7a4a, 0.028, 0.35]].forEach(function (mg) {
+      var mag = box(0.20, 0.012, 0.26, mat(mg[0], 0.92));
+      mag.position.set(-10.42 + Math.sin(mg[2]) * 0.05, 0.30 + mg[1], 1.16 + Math.cos(mg[2]) * 0.04);
+      mag.rotation.y = mg[2]; add(mag);
+      ltag(mag, 'the magazines', null, 'nobody subscribes to any of these. they simply arrive.');
+    });
+
+    // ---- ON THE WALLS ----
+    var frameM = mat(0x4a3524, 0.7);
+    function wallPic(px, pz, ry, w2, h2, tilt, draw, name, hint) {
+      var t4 = canvasTex(96, 96, draw); t4.colorSpace = THREE.SRGBColorSpace;
+      var pic = new THREE.Mesh(new THREE.PlaneGeometry(w2 - 0.06, h2 - 0.06),
+        new THREE.MeshStandardMaterial({ map: t4, roughness: 0.9 }));
+      pic.position.set(px, 1.62, pz); pic.rotation.y = ry; pic.rotation.z = tilt; add(pic);
+      var fr = box(0.03, h2, w2, frameM);
+      fr.position.set(px - Math.cos(ry) * 0.012, 1.62, pz + Math.sin(ry) * 0.012);
+      fr.rotation.y = ry; fr.rotation.x = tilt; add(fr);
+      [pic, fr].forEach(function (m) { ltag(m, name, null, hint); });
+    }
+    // three on the north wall, each hung a different amount of crooked
+    wallPic(-14.30, LIV.z0 + 0.09, 0, 0.42, 0.34, 0.021, function (c, w, h) {
+      c.fillStyle = '#cfd8c4'; c.fillRect(0, 0, w, h);
+      c.fillStyle = '#8aa07a'; c.fillRect(0, h * 0.58, w, h * 0.42);
+      c.fillStyle = '#6a8a5a'; for (var t5 = 0; t5 < 6; t5++) { c.beginPath();
+        c.moveTo(10 + t5 * 15, h * 0.60); c.lineTo(16 + t5 * 15, h * 0.34); c.lineTo(22 + t5 * 15, h * 0.60); c.fill(); }
+      c.fillStyle = 'rgba(240,236,224,0.75)'; c.beginPath(); c.arc(w * 0.74, h * 0.24, 9, 0, 7); c.fill();
+    }, 'the pines', 'bought at a yard sale because the frame was good. the picture stayed anyway.');
+    wallPic(-13.10, LIV.z0 + 0.09, 0, 0.30, 0.36, -0.016, function (c, w, h) {
+      c.fillStyle = '#e8e2d0'; c.fillRect(0, 0, w, h);
+      c.fillStyle = '#b8ae96'; c.fillRect(8, 8, w - 16, h - 16);
+      c.fillStyle = '#6a5a44'; c.beginPath(); c.arc(w / 2, h * 0.42, 15, 0, 7); c.fill();
+      c.fillRect(w / 2 - 17, h * 0.56, 34, 26);
+      c.fillStyle = '#3a2f22'; c.font = 'italic 11px Georgia, serif'; c.textAlign = 'center';
+      c.fillText('1994', w / 2, h - 12);
+    }, 'the school photo', 'the year of the bowl cut. it is never coming down and everybody knows why.');
+    wallPic(-11.95, LIV.z0 + 0.09, 0, 0.36, 0.28, 0.013, function (c, w, h) {
+      c.fillStyle = '#dfe6ea'; c.fillRect(0, 0, w, h);
+      c.strokeStyle = '#4a6a8a'; c.lineWidth = 3;
+      c.beginPath(); c.moveTo(6, h * 0.72); c.bezierCurveTo(w * 0.3, h * 0.5, w * 0.6, h * 0.86, w - 6, h * 0.6); c.stroke();
+      c.fillStyle = '#8a9aa8'; c.fillRect(0, h * 0.78, w, h * 0.22);
+      c.fillStyle = 'rgba(90,120,150,0.5)'; c.beginPath(); c.arc(w * 0.22, h * 0.26, 12, 0, 7); c.fill();
+    }, 'the lake picture', 'somebody was told it was worth something. nobody has ever checked.');
+    // the wall clock, with real hands
+    var clkG = new THREE.Group(); clkG.position.set(-15.85, 1.98, LIV.z0 + 0.10); clkG.rotation.z = -0.012; add(clkG);
+    var clkFace = new THREE.Mesh(new THREE.CircleGeometry(0.135, 24), mat(0xf0ece0, 0.85));
+    clkFace.position.z = 0.012; clkG.add(clkFace);
+    var clkRim = new THREE.Mesh(new THREE.TorusGeometry(0.14, 0.018, 8, 24), mat(0x6a4a30, 0.7));
+    clkG.add(clkRim);
+    for (var tk = 0; tk < 12; tk++) {
+      var big = tk % 3 === 0;
+      var tick = box(big ? 0.014 : 0.007, big ? 0.028 : 0.018, 0.004, mat(0x2b2e33, 0.7));
+      var ang = tk / 12 * Math.PI * 2;
+      tick.position.set(Math.sin(ang) * 0.112, Math.cos(ang) * 0.112, 0.016);
+      tick.rotation.z = -ang; clkG.add(tick);
+    }
+    var hrH = box(0.010, 0.070, 0.004, mat(0x2b2e33, 0.7));
+    hrH.position.set(0.019, 0.030, 0.019); hrH.rotation.z = -0.9; clkG.add(hrH);
+    var mnH = box(0.008, 0.104, 0.004, mat(0x2b2e33, 0.7));
+    mnH.position.set(-0.030, 0.038, 0.019); mnH.rotation.z = 0.62; clkG.add(mnH);
+    clkG.children.forEach(function (m) { ltag(m, 'the clock', null, 'eleven minutes fast, like the one in the kitchen. the whole house runs early.'); });
+
+    // ---- ON THE CEILING ----
+    var cfG = new THREE.Group(); cfG.position.set(-12.40, LIV.ce - 0.02, 2.30); add(cfG);
+    var cfPlate = new THREE.Mesh(new THREE.CylinderGeometry(0.10, 0.13, 0.05, 14), mat(0xdad4c4, 0.6));
+    cfPlate.position.y = -0.03; cfG.add(cfPlate);
+    var cfBowl = new THREE.Mesh(new THREE.SphereGeometry(0.22, 16, 10, 0, Math.PI * 2, Math.PI * 0.52, Math.PI * 0.48),
+      new THREE.MeshStandardMaterial({ color: 0xf2ead2, emissive: 0xffd9a0, emissiveIntensity: 0.42,
+        roughness: 0.85, side: THREE.DoubleSide }));
+    cfBowl.position.y = -0.16; cfG.add(cfBowl);
+    var cfNut = new THREE.Mesh(new THREE.SphereGeometry(0.026, 10, 8), brassM);
+    cfNut.position.y = -0.30; cfG.add(cfNut);
+    cfG.children.forEach(function (m) { ltag(m, 'the ceiling light', null, 'two dead flies in the bowl. it will be taken down and washed one of these days.'); });
+    var cfLite = new THREE.PointLight(0xffd2a0, 0.62, 7.5, 1.9);
+    cfLite.position.set(-12.40, LIV.ce - 0.30, 2.30); add(cfLite);
+
+    // ---- AND SOME THINGS ON THE FLOOR THAT ARE NOT FURNITURE ----
+    var slipA = box(0.11, 0.055, 0.26, mat(0x6a5a4a, 0.95));
+    slipA.position.set(-11.10, 0.028, 1.06); slipA.rotation.y = 0.42; add(slipA);
+    var slipB = box(0.11, 0.055, 0.26, mat(0x6a5a4a, 0.95));
+    slipB.position.set(-11.24, 0.028, 0.92); slipB.rotation.y = 0.86; add(slipB);
+    [slipA, slipB].forEach(function (m) { ltag(m, 'the slippers', null, 'kicked off pointing in two different directions, which is how they always end up.'); });
+    var basket = new THREE.Mesh(new THREE.CylinderGeometry(0.20, 0.17, 0.30, 12, 1, true), mat(0x8a6a3a, 0.95));
+    basket.position.set(-16.05, 0.15, 1.05); basket.rotation.y = 0.3; add(basket);
+    var basketR = new THREE.Mesh(new THREE.TorusGeometry(0.20, 0.016, 6, 14), mat(0x7a5a30, 0.95));
+    basketR.rotation.x = Math.PI / 2; basketR.position.set(-16.05, 0.30, 1.05); add(basketR);
+    [[0x9a5f4a, 0.06, 0.35], [0x4a6a8a, 0.10, -0.4], [0x8a8a4a, 0.02, 1.1]].forEach(function (rl) {
+      var roll = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.03, 0.34, 8), mat(rl[0], 0.92));
+      roll.position.set(-16.05 + Math.sin(rl[2]) * 0.07, 0.19 + rl[1], 1.05 + Math.cos(rl[2]) * 0.06);
+      roll.rotation.set(0.22, rl[2], 0.12); add(roll);
+    });
+    [basket, basketR].forEach(function (m) { ltag(m, 'the magazine basket', null, 'wicker, going soft at the rim. holds three newspapers and a catalogue from last spring.'); });
+
   })();
   var lDoorPivot = new THREE.Group(); lDoorPivot.position.set(W_IN - 0.03, 0, LDO.z0); add(lDoorPivot);
   var lSlab = box(0.05, 2.05, 0.94, mat(0x4a3524, 0.72)); lSlab.position.set(0, 1.025, 0.47); lDoorPivot.add(lSlab);
@@ -961,6 +1126,161 @@ export function buildHallway(ctx) {
     utag(bulb, 'the landing light', null, 'no shade. there was going to be a shade.');
     var upLite = new THREE.PointLight(0xffd2a0, 0.95, 9.5, 1.9);
     upLite.position.set(-6.10, UPF.ce - 0.45, (LAN.z0 + LAN.z1) / 2); add(upLite);
+    /* ---- WHAT MAKES A LANDING A LANDING -----------------------------------------
+     * ⚠️ MEASURED: this floor had 4 props on the floor, 1 on a wall, 1 on the ceiling
+     * and ZERO on any surface, against the bedroom's 15/25/1/15 — and it was 100%
+     * axis-aligned, which is the most rigid space in the house. A landing is not a
+     * corridor with doors; it is where the airing cupboard is, where the hoover lives,
+     * and where things get put down on the way past and stay there.
+     * ⚠️ AND THE SECOND POINT LIGHT HAD NO FIXTURE. The bedroom pairs every one of its
+     * seven point lights with something emissive you can see; this one lit the west end
+     * of the corridor from nothing at all. It has a bulb now, on its own cord. */
+    var upWoodM = mat(0x6b4b30, 0.8), upLinenM = mat(0xe0dccb, 0.95);
+
+    // the second bulb, so the light at the west end comes from somewhere
+    var bulb2 = new THREE.Mesh(new THREE.SphereGeometry(0.068, 12, 10),
+      new THREE.MeshStandardMaterial({ color: 0xfff2d6, emissive: 0xffd9a0, emissiveIntensity: 0.95, roughness: 0.6 }));
+    bulb2.position.set(-13.20, UPF.ce - 0.34, (LAN.z0 + LAN.z1) / 2); add(bulb2);
+    var cord2 = new THREE.Mesh(new THREE.CylinderGeometry(0.007, 0.007, 0.34, 5), mat(0x2b2e33, 0.6));
+    cord2.position.set(-13.20, UPF.ce - 0.15, (LAN.z0 + LAN.z1) / 2); add(cord2);
+    var rose2 = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.06, 0.03, 12), mat(0xe8e4d8, 0.8));
+    rose2.position.set(-13.20, UPF.ce - 0.015, (LAN.z0 + LAN.z1) / 2); add(rose2);
+    [bulb2, cord2, rose2].forEach(function (m) { utag(m, 'the far bulb', null, 'this one buzzes. it has buzzed since it was put in and nobody minds any more.'); });
+    // a smoke alarm, because every ceiling in a house like this has one
+    var alarm = new THREE.Mesh(new THREE.CylinderGeometry(0.085, 0.085, 0.035, 14), mat(0xf0ece0, 0.85));
+    alarm.position.set(-9.30, UPF.ce - 0.02, 1.72); add(alarm);
+    var alarmLed = new THREE.Mesh(new THREE.SphereGeometry(0.008, 8, 6),
+      new THREE.MeshStandardMaterial({ color: 0xff5a4a, emissive: 0xff3a2a, emissiveIntensity: 1.2, roughness: 0.5 }));
+    alarmLed.position.set(-9.24, UPF.ce - 0.038, 1.78); add(alarmLed);
+    [alarm, alarmLed].forEach(function (m) { utag(m, 'the smoke alarm', null, 'it chirped for a fortnight in 1998 before anyone worked out which one it was.'); });
+
+    // ---- THE HALL TABLE, and everything that got put down on it ----
+    var htG = new THREE.Group(); htG.position.set(-10.65, UPF.fl, LAN.z1 - 0.30); htG.rotation.y = 0.13; add(htG);
+    var htTop = box(0.86, 0.045, 0.34, upWoodM); htTop.position.y = 0.74; htG.add(htTop);
+    var htRail = box(0.80, 0.03, 0.03, upWoodM); htRail.position.set(0, 0.22, 0); htG.add(htRail);
+    [[-0.38, -0.13], [0.38, -0.13], [-0.38, 0.13], [0.38, 0.13]].forEach(function (lp) {
+      var lg4 = box(0.045, 0.74, 0.045, upWoodM); lg4.position.set(lp[0], 0.37, lp[1]); htG.add(lg4); });
+    htG.children.forEach(function (m) { utag(m, 'the hall table', null, 'too narrow to be useful and too useful to move. everything lands here first.'); });
+    // folded towels, because the airing cupboard is always full
+    [[0xe0dccb, 0.00, 0.0], [0xd4cfe0, 0.055, 0.06], [0xe0d4c8, 0.108, -0.04]].forEach(function (tw, ti) {
+      var tl = box(0.30, 0.05, 0.22, mat(tw[0], 0.95));
+      tl.position.set(-10.92 + tw[2], UPF.fl + 0.79 + tw[1], LAN.z1 - 0.30);
+      tl.rotation.y = 0.13 + (ti - 1) * 0.055; add(tl);
+      utag(tl, 'the folded towels', null, 'folded in thirds, which is the only correct way, and everyone has been told.');
+    });
+    // a dish of things with nowhere else to go
+    var dish = new THREE.Mesh(new THREE.CylinderGeometry(0.085, 0.065, 0.035, 14), mat(0x7a8a9a, 0.55));
+    dish.position.set(-10.36, UPF.fl + 0.775, LAN.z1 - 0.26); add(dish);
+    utag(dish, 'the dish', null, 'two buttons, a watch battery and a key that opens nothing in this house.');
+    [[0.02, 0.03, 0xc8a24a], [-0.03, -0.02, 0xb8b2a4], [0.01, -0.03, 0xc8a24a]].forEach(function (kb) {
+      var kk = box(0.022, 0.006, 0.045, new THREE.MeshStandardMaterial({ color: kb[2], roughness: 0.4, metalness: 0.55 }));
+      kk.position.set(-10.36 + kb[0], UPF.fl + 0.792, LAN.z1 - 0.26 + kb[1]);
+      kk.rotation.y = kb[0] * 9; add(kk);
+      utag(kk, 'the dish', null, 'two buttons, a watch battery and a key that opens nothing in this house.');
+    });
+    // a photo of the four of them, propped rather than hung
+    var famT = canvasTex(96, 80, function (c, w, h) {
+      c.fillStyle = '#e8e2d0'; c.fillRect(0, 0, w, h);
+      c.fillStyle = '#9aa89a'; c.fillRect(6, 6, w - 12, h - 12);
+      ['#6a5a44', '#7a6a52', '#5a4a38', '#8a7a62'].forEach(function (col, fi) {
+        c.fillStyle = col;
+        var fx = 18 + fi * 16, fy = h - 16 - (fi % 2) * 5;
+        c.beginPath(); c.arc(fx, fy - 20, 6, 0, 7); c.fill();
+        c.fillRect(fx - 7, fy - 14, 14, 16);
+      });
+    });
+    famT.colorSpace = THREE.SRGBColorSpace;
+    var famPic = new THREE.Mesh(new THREE.PlaneGeometry(0.20, 0.16),
+      new THREE.MeshStandardMaterial({ map: famT, roughness: 0.9 }));
+    famPic.position.set(-10.02, UPF.fl + 0.86, LAN.z1 - 0.36); famPic.rotation.set(-0.16, 0.13, 0); add(famPic);
+    var famFrame = box(0.23, 0.19, 0.02, upWoodM);
+    famFrame.position.set(-10.02, UPF.fl + 0.86, LAN.z1 - 0.35); famFrame.rotation.set(-0.16, 0.13, 0); add(famFrame);
+    var famProp = box(0.02, 0.10, 0.02, upWoodM);
+    famProp.position.set(-10.02, UPF.fl + 0.80, LAN.z1 - 0.31); famProp.rotation.x = 0.42; add(famProp);
+    [famPic, famFrame, famProp].forEach(function (m) { utag(m, 'the four of them', null, 'taken at the lake. one of them is blinking and it is always the same one.'); });
+
+    // ---- ON THE WALLS ----
+    // the school photos, one per year, marching down the corridor and getting older
+    [[-15.30, 0.30, 0.019], [-14.35, 0.34, -0.014], [-13.40, 0.30, 0.024],
+     [-12.45, 0.36, -0.011], [-11.50, 0.30, 0.016]].forEach(function (sp2, si) {
+      var t6 = canvasTex(64, 80, function (c, w, h) {
+        c.fillStyle = '#e8e2d0'; c.fillRect(0, 0, w, h);
+        c.fillStyle = ['#7a9ab0', '#9a8a70', '#8a9a7a', '#a08a90', '#7a8a9a'][si];
+        c.fillRect(5, 5, w - 10, h - 10);
+        c.fillStyle = '#5a4a38'; c.beginPath(); c.arc(w / 2, h * 0.40, 12 + si, 0, 7); c.fill();
+        c.fillRect(w / 2 - 14 - si, h * 0.55, 28 + si * 2, h * 0.34);
+        c.fillStyle = '#3a2f22'; c.font = 'italic 9px Georgia, serif'; c.textAlign = 'center';
+        c.fillText(String(1992 + si), w / 2, h - 5);
+      });
+      t6.colorSpace = THREE.SRGBColorSpace;
+      var ph2 = new THREE.Mesh(new THREE.PlaneGeometry(sp2[1] - 0.05, sp2[1] * 1.22 - 0.05),
+        new THREE.MeshStandardMaterial({ map: t6, roughness: 0.9 }));
+      ph2.position.set(sp2[0], UPF.fl + 1.58, LAN.z1 - 0.03); ph2.rotation.y = Math.PI; ph2.rotation.z = sp2[2]; add(ph2);
+      var fr2 = box(sp2[1], sp2[1] * 1.22, 0.022, upWoodM);
+      fr2.position.set(sp2[0], UPF.fl + 1.58, LAN.z1 - 0.02); fr2.rotation.z = sp2[2]; add(fr2);
+      [ph2, fr2].forEach(function (m) { utag(m, 'the school photos', null,
+        'one a year, all the way down the landing. you can watch the fringe get worse and then get better.'); });
+    });
+    // the airing cupboard door, and the switch nobody labels
+    var swPlate = box(0.09, 0.13, 0.02, mat(0xf0ece0, 0.6));
+    swPlate.position.set(-6.20, UPF.fl + 1.32, LAN.z1 - 0.02); add(swPlate);
+    var swTog = box(0.022, 0.038, 0.018, mat(0xdad4c4, 0.5));
+    swTog.position.set(-6.20, UPF.fl + 1.34, LAN.z1 - 0.035); swTog.rotation.x = 0.22; add(swTog);
+    [swPlate, swTog].forEach(function (m) { utag(m, 'the landing switch', null,
+      'nobody has ever known which of the two switches does the stairs. you just try one.'); });
+    var therm = new THREE.Mesh(new THREE.CylinderGeometry(0.055, 0.055, 0.028, 16), mat(0xe8e4d8, 0.7));
+    therm.rotation.x = Math.PI / 2; therm.position.set(-8.10, UPF.fl + 1.44, LAN.z1 - 0.025); add(therm);
+    var thermDial = new THREE.Mesh(new THREE.RingGeometry(0.026, 0.042, 18), mat(0x8a8f96, 0.4));
+    thermDial.position.set(-8.10, UPF.fl + 1.44, LAN.z1 - 0.041); add(thermDial);
+    [therm, thermDial].forEach(function (m) { utag(m, 'the thermostat', null,
+      'set to nineteen. moved to twenty-one by one person and back to nineteen by another, forever.'); });
+
+    // ---- AND THE FLOOR, WHICH IS WHERE THINGS ACTUALLY END UP ----
+    var hampG = new THREE.Group(); hampG.position.set(-16.10, UPF.fl, LAN.z0 + 0.42); hampG.rotation.y = -0.28; add(hampG);
+    var hamp = new THREE.Mesh(new THREE.CylinderGeometry(0.24, 0.20, 0.46, 12, 1, true), mat(0xc4b48a, 0.95));
+    hamp.position.y = 0.23; hampG.add(hamp);
+    var hampR = new THREE.Mesh(new THREE.TorusGeometry(0.24, 0.018, 6, 14), mat(0xb4a47a, 0.95));
+    hampR.rotation.x = Math.PI / 2; hampR.position.y = 0.46; hampG.add(hampR);
+    [[0xdfe6ea, 0.12, 0.4], [0x8a9ab0, 0.05, -0.7], [0xe0d4c8, 0.16, 1.2]].forEach(function (cl) {
+      var lump = new THREE.Mesh(new THREE.SphereGeometry(0.10, 8, 6), mat(cl[0], 0.95));
+      lump.scale.set(1, 0.55, 1);
+      lump.position.set(Math.sin(cl[2]) * 0.08, 0.44 + cl[1] * 0.3, Math.cos(cl[2]) * 0.07);
+      lump.rotation.y = cl[2]; hampG.add(lump);
+    });
+    hampG.children.forEach(function (m) { utag(m, 'the laundry hamper', null,
+      'the lid went missing years ago. it has been overfull ever since and nobody connects the two.'); });
+    // the hoover, parked where it will be tripped over
+    var hvG = new THREE.Group(); hvG.position.set(-3.15, UPF.fl, LAN.z0 + 0.34); hvG.rotation.y = 0.62; add(hvG);
+    var hvBody = box(0.30, 0.22, 0.42, mat(0x9a4a3a, 0.6)); hvBody.position.y = 0.13; hvG.add(hvBody);
+    var hvWheel = new THREE.Mesh(new THREE.CylinderGeometry(0.055, 0.055, 0.04, 10), mat(0x2b2e33, 0.6));
+    hvWheel.rotation.z = Math.PI / 2; hvWheel.position.set(0, 0.055, -0.15); hvG.add(hvWheel);
+    var hvPole = new THREE.Mesh(new THREE.CylinderGeometry(0.022, 0.022, 0.86, 8), mat(0x8a8f96, 0.4));
+    hvPole.position.set(0, 0.60, 0.10); hvPole.rotation.x = -0.16; hvG.add(hvPole);
+    var hvHandle = new THREE.Mesh(new THREE.TorusGeometry(0.06, 0.016, 6, 12, Math.PI), mat(0x9a4a3a, 0.6));
+    hvHandle.position.set(0, 1.02, 0.05); hvG.add(hvHandle);
+    var hoseC = new THREE.CatmullRomCurve3([
+      new THREE.Vector3(0.14, 0.20, 0.14), new THREE.Vector3(0.34, 0.34, 0.02),
+      new THREE.Vector3(0.28, 0.62, -0.14), new THREE.Vector3(0.06, 0.74, -0.06)], false, 'centripetal');
+    var hose = new THREE.Mesh(new THREE.TubeGeometry(hoseC, 20, 0.026, 6, false), mat(0x3a3f46, 0.7));
+    hvG.add(hose);
+    hvG.children.forEach(function (m) { utag(m, 'the hoover', null,
+      'brought up two weekends ago for a job that took ten minutes. it lives here now.'); });
+    // a runner down the middle, because bare boards up here is what you HEAR
+    var runT2 = canvasTex(64, 256, function (c, w, h) {
+      c.fillStyle = '#6a4a44'; c.fillRect(0, 0, w, h);
+      c.strokeStyle = 'rgba(214,198,166,0.5)'; c.lineWidth = 4; c.strokeRect(6, 6, w - 12, h - 12);
+      c.fillStyle = 'rgba(214,198,166,0.34)';
+      for (var d2 = 0; d2 < 12; d2++) { c.save(); c.translate(w / 2, 18 + d2 * 21);
+        c.rotate(Math.PI / 4); c.fillRect(-5, -5, 10, 10); c.restore(); }
+      c.fillStyle = 'rgba(0,0,0,0.16)'; c.fillRect(w * 0.28, 0, w * 0.44, h);
+    });
+    runT2.colorSpace = THREE.SRGBColorSpace;
+    var upRun = new THREE.Mesh(new THREE.PlaneGeometry(0.90, 9.6), new THREE.MeshStandardMaterial({
+      map: runT2, roughness: 0.97, polygonOffset: true, polygonOffsetFactor: -4, polygonOffsetUnits: -4 }));
+    upRun.rotation.set(-Math.PI / 2, 0, Math.PI / 2);
+    upRun.position.set(-9.60, UPF.fl + 0.008, (LAN.z0 + LAN.z1) / 2 - 0.06); add(upRun);
+    utag(upRun, 'the landing runner', null,
+      'laid so the boards stop announcing everyone. it works everywhere except the third board from the stairs.');
     var upLite2 = new THREE.PointLight(0xffd2a0, 0.55, 8.0, 1.9);
     upLite2.position.set(-13.20, UPF.ce - 0.45, (LAN.z0 + LAN.z1) / 2); add(upLite2);
   })();
