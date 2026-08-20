@@ -146,7 +146,13 @@ export function buildHallway(ctx) {
   /* ⚠️ AND CUT AGAIN FOR THE LIVING ROOM, for the same reason the closet is cut: the
    * room is a real space on the other side of this wall and you walk through here to
    * reach it. LDO sits north of the closet with a metre of wall between them. */
-  var LDO = { z0: 4.72, z1: 5.72, y1: 2.24 };
+  /* ⚠️⚠️ z 6.20, NOT 4.72. The washer and dryer stand against this wall at
+   * x -5.03..-4.39, z 4.80..6.10 — dead centre of where the opening first went, so
+   * the doorway was behind the laundry and you would have walked through the machines
+   * to reach it (Kyle: "the living room is blocked by the washer"). The wall is only
+   * free from z 6.2, where the laundry ends, to the closet header at 7.24 — 1.04m,
+   * which takes a 0.94 door and nothing wider. Measured, not eyeballed. */
+  var LDO = { z0: 6.20, z1: 7.14, y1: 2.24 };
   [[BED_END, LDO.z0, 0, 3.4],           // north of the living room door
    [LDO.z1, CDO.z0, 0, 3.4],            // between it and the closet
    [CDO.z1, Z_S + 0.1, 0, 3.4],         // south of the closet
@@ -2781,7 +2787,12 @@ export function buildHallway(ctx) {
    * (Kyle: "just empty green grass"). The lawn reaches past them now. It costs one
    * plane's worth of triangles and it is what makes the west side read as a street
    * of houses rather than a field with houses parked in it. */
-  var LAWN = { x0: XC - 28, x1: XC + 15, z0: Z_S + 0.9, z1: Z_S + 17.9 };
+  /* ⚠️ THIS PLANE IS THE NEIGHBOURHOOD'S GROUND, not just our lawn, and it kept
+   * being the thing that ran out. It was XC-15 wide and stopped at Z_S+17.9 while
+   * houses stood at z 27 to 34, so most of the street was floating over a fog edge.
+   * It reaches well past every building now. The fence still marks OUR lot; the
+   * grass simply carries on behind it the way grass does. */
+  var LAWN = { x0: XC - 36, x1: XC + 26, z0: Z_S + 0.9, z1: Z_S + 52 };
   var PHOLE = { x0: XC + 1.55, x1: XC + 7.65, z0: Z_S + 5.9, z1: Z_S + 10.5 };  // the apron footprint
   [[LAWN.x0, LAWN.x1, LAWN.z0, PHOLE.z0], [LAWN.x0, LAWN.x1, PHOLE.z1, LAWN.z1],
    [LAWN.x0, PHOLE.x0, PHOLE.z0, PHOLE.z1], [PHOLE.x1, LAWN.x1, PHOLE.z0, PHOLE.z1]]
@@ -2953,16 +2964,218 @@ export function buildHallway(ctx) {
   bHouse(XC - 4.1, Z_S + 21.9, 7.8, 3.2, 5.6, 0.06, [[0.9, 1.4]]);              // the one behind the tree line
   bHouse(XC - 14.2, Z_S + 19.4, 8.6, 3.4, 5.8, -0.09, [[-1.2, 1.5], [1.6, 2.4]]); // the corner lot
   bHouse(XC + 17.6, Z_S + 8.0, 8.8, 3.4, 6.0, Math.PI / 2, [[-1.0, 1.5]]);      // east over the side fence
-  bHouse(XC - 17.9, Z_S + 5.6, 8.2, 3.2, 5.6, -Math.PI / 2, [[0.8, 1.4]]);      // west, across the drive
+  /* ---- THE WEST STREET ---------------------------------------------------------
+   * ⚠️⚠️ THE OLD ONES OVERLAPPED EACH OTHER. Three houses 8.2m long on a 7.0m
+   * pitch: measured spans z 10.3..18.5, 17.2..25.6 and 25.2..33.2, so each one had
+   * its neighbour's back wall inside it. That is what "way too close together"
+   * looks like from the yard — one continuous smear of roof rather than houses.
+   * A 13.6m pitch on an 8.2m house leaves a 5.4m gap, which is a side yard.
+   * The row also runs the whole width the camera can see. Facing west from the
+   * resting eye at Kyle's aspect the frame covers roughly z -10 to 38 out at the
+   * house line, so anything inside that has to be filled or it reads as a field. */
+  var WEST_X = XC - 18.0, WEST_X2 = XC - 27.4;
+  [[Z_S - 7.2, 8.2, 3.2, [[-1.0, 1.5], [1.5, 2.4]]],
+   [Z_S + 6.4, 8.6, 3.5, [[0.9, 1.4]]],
+   [Z_S + 20.0, 8.0, 3.1, [[-1.2, 1.5], [1.4, 2.5]]],
+   [Z_S + 33.6, 8.4, 3.4, [[1.0, 1.5]]],
+   [Z_S + 47.2, 8.2, 3.3, [[-0.9, 1.4]]]].forEach(function (hs, hi) {
+    bHouse(WEST_X + (hi % 2 ? 0.35 : -0.3), hs[0], hs[1], hs[2], 5.8,
+           -Math.PI / 2 + (hi % 2 ? 0.04 : -0.03), hs[3]);
+  });
+  // the row behind it, offset half a pitch so the gaps are never lined up
+  [[Z_S - 0.4, 8.4, 3.3, [[-1.0, 1.5]]],
+   [Z_S + 13.2, 8.0, 3.6, [[0.9, 1.4], [-1.3, 2.4]]],
+   [Z_S + 26.8, 8.6, 3.2, [[-1.1, 1.5]]],
+   [Z_S + 40.4, 8.2, 3.4, [[1.0, 1.4]]]].forEach(function (hs, hi) {
+    bHouse(WEST_X2 + (hi % 2 ? -0.4 : 0.3), hs[0], hs[1], hs[2], 5.6,
+           -Math.PI / 2 + (hi % 2 ? -0.05 : 0.03), hs[3]);
+  });
+  /* ---- THE NEIGHBOURHOOD ---------------------------------------------------------
+   * ⚠️ The front yard has a road, kerbs, a path, parked cars, hedges, nine layers of
+   * overlap and fog to close it off. The back had houses on grass. Kyle: "the back
+   * needs to look as good as the front yard", and the difference was never the
+   * houses — it was that nobody else out there had a LOT. A house on a lawn reads as
+   * a model; a house with a fence, a shed, a line of washing and a bin reads as
+   * somewhere people live.
+   * Everything below is boxes and it is all deterministic — no rng out here, because
+   * the yard has to look the same every night. */
+  var lotFenceM = mat(0x6a5540, 0.95), lotPostM = mat(0x51402f, 0.95);
+  var shedM = mat(0x7e8a7a, 0.92), shedRoofM = mat(0x3f4a44, 0.9);
+  var laneM = ground(asphT, 18, 3, 0xb0b4bc, 0.98, 0.9);
+  var kerbM = mat(0xa8a49a, 0.96), benchM2 = mat(0x6d5636, 0.85);
+
+  /* the back lane — every street of houses like this has one running behind it, and
+   * it is what stops the far row from being the edge of the world */
+  (function () {
+    var LANE_X = XC - 33.0;
+    var lane = box(3.6, 0.06, 62, laneM);
+    lane.position.set(LANE_X, GROUND - 0.02, Z_S + 22); badd(lane);
+    [-1.95, 1.95].forEach(function (kx) {
+      var kb = box(0.22, 0.11, 62, kerbM);
+      kb.position.set(LANE_X + kx, GROUND + 0.03, Z_S + 22); badd(kb);
+    });
+    // lamps down it, and the pool of light each one throws
+    [Z_S - 4, Z_S + 14, Z_S + 32, Z_S + 50].forEach(function (lz) {
+      var pole = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.09, 4.6, 8), mat(0x4a4f57, 0.5));
+      pole.position.set(LANE_X + 2.3, GROUND + 2.3, lz); badd(pole);
+      var arm = box(0.7, 0.07, 0.07, mat(0x4a4f57, 0.5));
+      arm.position.set(LANE_X + 1.98, GROUND + 4.55, lz); badd(arm);
+      var head = box(0.34, 0.12, 0.20, new THREE.MeshStandardMaterial({
+        color: 0xf0e2bc, emissive: 0xffd9a0, emissiveIntensity: 0.9, roughness: 0.6 }));
+      head.position.set(LANE_X + 1.66, GROUND + 4.48, lz); badd(head);
+      bWins.push(head.material);   // dims and warms with the hour like every other light out here
+    });
+  })();
+
+  /* the lot lines: a fence between every pair of neighbours, running back from the
+   * house to the lane. This is the single biggest thing — it turns one field with
+   * buildings on it into a row of gardens. */
+  [[XC - 18.0, Z_S - 14.0], [XC - 18.0, Z_S - 0.4], [XC - 18.0, Z_S + 13.2],
+   [XC - 18.0, Z_S + 26.8], [XC - 18.0, Z_S + 40.4], [XC - 18.0, Z_S + 54.0]].forEach(function (lt) {
+    for (var lf = 0; lf < 18; lf++) {
+      var pk = box(0.16, 1.42, 0.04, lotFenceM);
+      pk.position.set(lt[0] - 0.6 - lf * 0.48, GROUND + 0.71, lt[1]); badd(pk);
+    }
+    [GROUND + 0.30, GROUND + 1.22].forEach(function (ry) {
+      var rl = box(8.7, 0.07, 0.045, mat(0x5e4a37, 0.95));
+      rl.position.set(lt[0] - 4.9, ry, lt[1] + 0.03); badd(rl);
+    });
+    var po = box(0.11, 1.62, 0.11, lotPostM);
+    po.position.set(lt[0] - 0.55, GROUND + 0.81, lt[1]); badd(po);
+  });
+
+  /* what people keep in a back garden. One shed, one line, one bin per lot, walked
+   * along the row so no two are identical and none of it is random. */
+  [[Z_S - 7.2, 0], [Z_S + 6.4, 1], [Z_S + 20.0, 2], [Z_S + 33.6, 0], [Z_S + 47.2, 1]].forEach(function (lot) {
+    var lz = lot[0], k = lot[1], bx = XC - 22.6;
+    // the shed
+    var sg2 = new THREE.Group();
+    sg2.position.set(bx + (k === 1 ? 0.9 : -0.7), GROUND, lz + (k === 2 ? 3.2 : -3.0));
+    sg2.rotation.y = -Math.PI / 2 + (k - 1) * 0.12; badd(sg2);
+    var sb = box(1.9, 1.75, 1.45, shedM); sb.position.y = 0.88; sg2.add(sb);
+    var sr = box(2.1, 0.10, 1.65, shedRoofM); sr.position.y = 1.82; sr.rotation.z = 0.07; sg2.add(sr);
+    var sd = box(0.05, 1.35, 0.62, mat(0x5e6a5e, 0.85)); sd.position.set(0.96, 0.68, -0.3); sg2.add(sd);
+    // the washing line
+    var lp1 = box(0.07, 1.55, 0.07, lotPostM), lp2 = box(0.07, 1.55, 0.07, lotPostM);
+    lp1.position.set(bx + 2.2, GROUND + 0.78, lz - 2.2); badd(lp1);
+    lp2.position.set(bx + 2.2, GROUND + 0.78, lz + 2.6); badd(lp2);
+    var lin = box(0.02, 0.02, 4.8, mat(0xd8d2c2, 0.5));
+    lin.position.set(bx + 2.2, GROUND + 1.5, lz + 0.2); badd(lin);
+    if (k !== 2) [[-1.1, 0.34, 0xe8e4d8], [0.2, 0.30, 0x9db8d6], [1.5, 0.36, 0xe0c9a8]].forEach(function (wg) {
+      var sh2 = box(0.02, wg[1], 0.28, mat(wg[2], 0.9));
+      sh2.position.set(bx + 2.2, GROUND + 1.5 - wg[1] / 2, lz + 0.2 + wg[0]); badd(sh2);
+    });
+    // a bin by the lane, and a patio slab by the back door
+    var bin = new THREE.Mesh(new THREE.CylinderGeometry(0.26, 0.23, 0.72, 10), mat(k === 1 ? 0x3f5a3a : 0x2f4a6a, 0.7));
+    bin.position.set(XC - 30.6, GROUND + 0.36, lz + (k === 0 ? 1.4 : -1.6)); badd(bin);
+    var binLid = new THREE.Mesh(new THREE.CylinderGeometry(0.28, 0.28, 0.06, 10), mat(0x2b2e33, 0.6));
+    binLid.position.set(XC - 30.6, GROUND + 0.74, lz + (k === 0 ? 1.4 : -1.6)); badd(binLid);
+    var slab = box(2.4, 0.05, 1.6, mat(0x9c988e, 0.95));
+    slab.position.set(XC - 20.6, GROUND + 0.025, lz + 0.4); badd(slab);
+  });
+
+  /* ---- WHAT YOU CAN ACTUALLY SEE FROM THE YARD ----------------------------------
+   * ⚠️⚠️ EVERYTHING ABOVE THIS IS BELOW THE FENCE LINE. Our own fence is 1.65 tall
+   * and the resting eye is at y 1.28, so the sightline grazing its top rises to only
+   * about y 1.23 by the time it reaches the neighbours. Probing each new prop from
+   * the eye: shed body BLOCKED, shed roof BLOCKED, washing line BLOCKED, bench
+   * BLOCKED, the lane BLOCKED, lot fence BLOCKED — all of them by our own fence at
+   * 12.9m. They are worth keeping (they show through the picket gaps, and from the
+   * porch and the side return) but they are NOT what makes the back read.
+   * The front yard works because you look ALONG the ground at it. The back is looked
+   * at OVER a fence, so the layer that does the work is everything above 1.25: roofs,
+   * chimneys, poles, wires and canopies. That is what this section is. */
+
+  /* chimneys and aerials — the cheapest roofline variety there is */
+  [[XC - 18.3, Z_S - 7.2], [XC - 17.6, Z_S + 6.4], [XC - 18.4, Z_S + 20.0],
+   [XC - 17.7, Z_S + 33.6], [XC - 18.2, Z_S + 47.2],
+   [XC - 27.7, Z_S - 0.4], [XC - 27.0, Z_S + 13.2], [XC - 27.8, Z_S + 26.8]].forEach(function (ch, ci) {
+    var st2 = box(0.46, 1.15 + (ci % 3) * 0.2, 0.46, mat(0x8a5a4a, 0.95));
+    st2.position.set(ch[0], GROUND + 3.9 + (ci % 3) * 0.1, ch[1] + (ci % 2 ? 1.6 : -1.4)); badd(st2);
+    var cap2 = box(0.56, 0.08, 0.56, mat(0x6a4a3a, 0.95));
+    cap2.position.set(ch[0], GROUND + 4.5 + (ci % 3) * 0.2, ch[1] + (ci % 2 ? 1.6 : -1.4)); badd(cap2);
+    if (ci % 3 === 1) {                       // and somebody still has the aerial up
+      var mast = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.03, 1.5, 6), mat(0x6a6f76, 0.5));
+      mast.position.set(ch[0] + 1.1, GROUND + 4.6, ch[1] - 0.8); badd(mast);
+      for (var ab = 0; ab < 4; ab++) {
+        var arm2 = box(0.9, 0.03, 0.03, mat(0x6a6f76, 0.5));
+        arm2.position.set(ch[0] + 1.1, GROUND + 4.9 + ab * 0.22, ch[1] - 0.8); badd(arm2);
+      }
+    }
+  });
+
+  /* one neighbour with an upstairs, so the roofline is not a flat repeated shape */
+  bHouse(XC - 18.1, Z_S + 13.2, 8.4, 6.1, 6.0, -Math.PI / 2 + 0.02,
+         [[-1.1, 1.5], [1.4, 2.4], [-1.0, 4.6], [1.5, 4.7]]);
+
+  /* the poles and the wires. The front yard has them and it is half of why the front
+   * reads as a STREET — a line of verticals with something strung between them, all
+   * of it well above any fence. */
+  (function () {
+    var poleM = mat(0x6a5a44, 0.95), wireM = mat(0x2b2e33, 0.6);
+    var PX = XC - 20.9, tops = [];
+    [Z_S - 10, Z_S + 3.6, Z_S + 17.2, Z_S + 30.8, Z_S + 44.4].forEach(function (pz, pi) {
+      var pole = new THREE.Mesh(new THREE.CylinderGeometry(0.13, 0.17, 7.2, 8), poleM);
+      pole.position.set(PX, GROUND + 3.6, pz); badd(pole);
+      var cross = box(0.14, 0.12, 1.9, poleM);
+      cross.position.set(PX, GROUND + 6.6, pz); badd(cross);
+      [-0.8, 0, 0.8].forEach(function (ix) {
+        var ins = new THREE.Mesh(new THREE.CylinderGeometry(0.055, 0.055, 0.14, 6), mat(0x7fa08f, 0.5));
+        ins.position.set(PX, GROUND + 6.74, pz + ix); badd(ins);
+      });
+      tops.push(pz);
+    });
+    // the spans, with a bit of sag so they are not laser lines
+    for (var sp = 0; sp < tops.length - 1; sp++) {
+      var z0 = tops[sp], z1 = tops[sp + 1], len = z1 - z0;
+      [-0.8, 0, 0.8].forEach(function (ix) {
+        for (var seg = 0; seg < 4; seg++) {
+          var f0 = seg / 4, f1 = (seg + 1) / 4;
+          var y0 = GROUND + 6.74 - 0.38 * Math.sin(Math.PI * f0), y1 = GROUND + 6.74 - 0.38 * Math.sin(Math.PI * f1);
+          var w = box(0.035, 0.035, len / 4 + 0.02, wireM);
+          w.position.set(PX, (y0 + y1) / 2, z0 + len * (f0 + f1) / 2 + ix * 0);
+          w.rotation.x = Math.atan2(y1 - y0, len / 4);
+          w.position.z = z0 + len * (f0 + f1) / 2;
+          var w2 = w.clone(); w2.position.z = w.position.z; w2.position.x = PX;
+          w.position.x = PX; badd(w);
+        }
+      });
+    }
+  })();
+
+  /* taller trees at three different distances — depth comes from overlap, which is
+   * the same lesson the front yard's nine layers taught */
+  [[XC - 15.4, Z_S + 2.0, 1.35], [XC - 15.8, Z_S + 24.0, 1.5], [XC - 16.1, Z_S + 44.0, 1.25],
+   [XC - 25.2, Z_S - 4.0, 1.45], [XC - 25.6, Z_S + 18.0, 1.3], [XC - 25.1, Z_S + 38.0, 1.55],
+   [XC - 34.6, Z_S + 8.0, 1.4], [XC - 35.0, Z_S + 30.0, 1.5]].forEach(function (t2) {
+    bTree(t2[0], t2[1], t2[2]);
+  });
+
+  /* a bench on the verge, because the front has a porch chair and the back had
+   * nowhere for anyone to be */
+  [[XC - 30.2, Z_S + 3.0, 0.1], [XC - 30.4, Z_S + 30.5, -0.06]].forEach(function (bn) {
+    var bg = new THREE.Group(); bg.position.set(bn[0], GROUND, bn[1]); bg.rotation.y = Math.PI / 2 + bn[2]; badd(bg);
+    var seat = box(1.55, 0.07, 0.44, benchM2); seat.position.y = 0.45; bg.add(seat);
+    var bk = box(1.55, 0.42, 0.06, benchM2); bk.position.set(0, 0.70, -0.20); bk.rotation.x = -0.14; bg.add(bk);
+    [-0.62, 0.62].forEach(function (lx) {
+      var lg3 = box(0.07, 0.45, 0.40, mat(0x3f4a44, 0.6)); lg3.position.set(lx, 0.22, 0); bg.add(lg3);
+    });
+  });
+
+  // trees down the line, between the lots rather than on top of them
+  [Z_S - 0.6, Z_S + 13.0, Z_S + 26.6, Z_S + 40.2].forEach(function (tz, ti) {
+    bTree(XC - 13.4 + (ti % 2 ? 0.6 : -0.5), tz, 0.9 + (ti % 3) * 0.12);
+  });
+  [Z_S + 6.2, Z_S + 19.8, Z_S + 33.4].forEach(function (tz, ti) {
+    bTree(XC - 22.6 + (ti % 2 ? -0.5 : 0.4), tz, 0.95 + (ti % 2) * 0.1);
+  });
   bTree(XC - 7.4, Z_S + 18.9, 1.15); bTree(XC + 14.4, Z_S + 19.7, 0.9); bTree(XC + 3.1, Z_S + 19.9, 0.8);
   /* ⚠⚠ THE LEFT SIDE WAS EMPTY. Turn and face the back door and everything west of
    * the house fell away to bare lawn and then nothing (Kyle: "the left side has no
    * neighborhood") — there was ONE house over that fence and it sat too far back to
    * read. Two more along the west line, closer and staggered, plus trees to break
    * the roofline, so the yard is enclosed on the side you actually look at. */
-  bHouse(XC - 18.3, Z_S + 12.6, 8.4, 3.3, 5.8, -Math.PI / 2, [[-1.1, 1.5], [1.5, 2.5]]);
-  bHouse(XC - 18.1, Z_S + 20.4, 8.0, 3.1, 5.6, -Math.PI / 2 + 0.05, [[0.9, 1.4]]);
-  bTree(XC - 13.6, Z_S + 11.2, 1.05); bTree(XC - 13.9, Z_S + 17.4, 0.95);
+
   /* ⚠️ THESE LIVE DOWN HERE WITH THE OTHER bHouse CALLS AND THEY HAVE TO. They were
    * first written up beside the fence work, ~45 lines ABOVE `var BHOUSE` — and bHouse
    * is a hoisted function DECLARATION while its colour palette is a plain `var`, so the
@@ -2972,11 +3185,6 @@ export function buildHallway(ctx) {
   bHouse(XC + 18.2, Z_S + 15.6, 8.2, 3.2, 5.8, Math.PI / 2 - 0.05, [[0.8, 1.4]]);
   /* and the side you now turn to see: another row further out so there is depth
    * behind the near neighbours, plus trees to break the line. */
-  bHouse(XC - 26.4, Z_S + 6.6, 8.4, 3.3, 6.0, -Math.PI / 2 + 0.04, [[-1.0, 1.5], [1.5, 2.4]]);
-  bHouse(XC - 26.8, Z_S + 14.4, 8.0, 3.5, 5.8, -Math.PI / 2, [[0.9, 1.4]]);
-  bHouse(XC - 26.6, Z_S + 22.2, 8.6, 3.2, 6.0, -Math.PI / 2 - 0.05, [[-1.2, 1.5]]);
-  bTree(XC - 19.4, Z_S + 8.8, 1.1); bTree(XC - 19.8, Z_S + 16.2, 0.95);
-  bTree(XC - 20.1, Z_S + 22.6, 1.05); bTree(XC - 15.2, Z_S + 20.8, 0.9);
   bTree(XC + 13.2, Z_S + 4.2, 1.0); bTree(XC + 13.6, Z_S + 15.9, 1.1);
   bTree(XC + 12.9, Z_S + 10.4, 0.85);
   bTree(XC + 13.4, Z_S + 12.0, 0.9);
@@ -5433,18 +5641,18 @@ export function buildHallway(ctx) {
     bdoor1: new THREE.Vector3(-5.34, 1.66, 7.85),   // squared up to the slider's clear pane
     bdoor2: new THREE.Vector3(-5.34, 1.58, 9.35),   // in the opening
     bdoorL: new THREE.Vector3(-3.20, 0.55, 14.6),   // what you see through it: the glow
-    ldoor1: new THREE.Vector3(-5.15, 1.66, 5.22),   // squared up to the living room door, hall side
-    ldoor2: new THREE.Vector3(-4.05, 1.62, 5.22),   // in the doorway
+    ldoor1: new THREE.Vector3(-5.15, 1.66, 6.67),   // squared up to the living room door, hall side
+    ldoor2: new THREE.Vector3(-4.05, 1.62, 6.67),   // in the doorway
     // ⚠️ these AIM AT THE FURNITURE, which sounds obvious and was not: the seating
     // group moved to the west half so the set would stop standing in front of the
     // window, and the camera was left looking east at the empty half of the floor.
-    ldoorL: new THREE.Vector3(-1.00, 1.15, 6.60),   // what you see through it: the set
+    ldoorL: new THREE.Vector3(-1.20, 1.15, 7.40),   // what you see through it: the set
     // ⚠️ look ALONG the room, not across it. The couch is on the north wall and the
     // set on the south, so any camera standing between them frames one and puts the
     // other behind its own head. From the east end looking west both are in shot.
     lrest:  new THREE.Vector3(3.35, 1.62, 6.25),    // the east end of the room
     llook:  new THREE.Vector3(-3.30, 1.08, 6.20),   // straight down it: couch, set, lamp
-    llookB: new THREE.Vector3(-4.10, 1.34, 5.25),   // turned round: the way back to the hall
+    llookB: new THREE.Vector3(-4.10, 1.34, 6.70),   // turned round: the way back to the hall
     grest: new THREE.Vector3(-7.92, 1.64, 4.68),    // the corner the door swing keeps clear
     glook: new THREE.Vector3(-11.70, 1.30, 7.55),   // down the long diagonal: pegboard, bench, tarp
     glookB: new THREE.Vector3(-7.40, 1.15, 5.70),   // turned round: the door back to the hall
