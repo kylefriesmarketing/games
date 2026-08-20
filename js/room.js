@@ -1827,7 +1827,18 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
     "HERE COMES THE TRUCK": { key: "truck-save", pick: function (m) { return m.days || null; }, noun: "days", attempts: true },
     // ⚠️ surf-best is a bare NUMBER, not JSON, so it needs `raw` like SHORT STAFFED's name
     "SURF":           { key: "surf-best", raw: true, pick: function (v) { return parseInt(v, 10) || null; }, noun: "best ride", attempts: true },
-    "CLEAN THE ZOO":  { key: "ctz-meta-v1", pick: function (m) { return m.lifetime || null; }, total: 1500, noun: "animals home" }
+    "CLEAN THE ZOO":  { key: "ctz-meta-v1", pick: function (m) { return m.lifetime || null; }, total: 1500, noun: "animals home" },
+    "BITE":           { key: "bite-save", pick: function (m) { return countOf(m.journal); }, total: 15, noun: "species logged", attempts: true },
+    "THE KILN":       { key: "kiln-save", pick: function (m) { return m.firings || null; }, noun: "firings", attempts: true },
+    // ⚠️ lw-prefs, not lw-save: lw-save is a mid-night snapshot that only exists while a
+    // run is in progress, so it reads as "never played" the moment you finish one.
+    // mapBests is the thing that persists — best wave per floor.
+    "TOYBOX: LAST WATCH": { key: "lw-prefs", pick: function (m) {
+        var bst = m && m.mapBests, best = 0;
+        for (var k in bst) if (bst[k] > best) best = bst[k];
+        return best || null;
+      }, noun: "furthest wave", attempts: true },
+    "THE HAUNT":      { key: "haunt-save", pick: function (m) { return m.nights || null; }, noun: "nights run", attempts: true }
   };
   function gameProgress(title) {
     var g = GAME_SAVES[title]; if (!g) return null;
@@ -3372,6 +3383,10 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
       quarryTrophies: gameProgress("QUARRY").done,
       surfBest: gameProgress("SURF").done,
       zooAnimals: gameProgress("CLEAN THE ZOO").done,
+      biteSpecies: gameProgress("BITE").done,
+      kilnFirings: gameProgress("THE KILN").done,
+      watchWave: gameProgress("TOYBOX: LAST WATCH").done,
+      hauntNights: gameProgress("THE HAUNT").done,
       truckHeard: (function () { try { return !!localStorage.getItem("room-truck-seen"); } catch (e) { return false; } })(),
       hoodRuns: hr ? (hr.lifetime && hr.lifetime.runs) || (hr.bestDist > 0 ? 1 : 0) : 0,
       hoodBest: hr ? Math.round(hr.bestDist || 0) : 0,
@@ -4452,6 +4467,23 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
       earn: "get an animal home in CLEAN THE ZOO", where: "on the shelf top, mid-stride",
       have: function () { return anyOf("ctz-meta-v1", function (m) { return m.lifetime || null; }); },
       home: { x: -1.25, y: 2.392, z: -2.32 }, build: COLL.buildZebra },
+    { key: "bobber", title: "the red bobber", from: "BITE", icon: "🎣",
+      earn: "log a fish at Mud Lake in BITE", where: "on the shelf top, still faintly damp",
+      have: function () { return anyOf("bite-save", function (m) { return countOf(m.journal); }); },
+      home: { x: -2.65, y: 2.392, z: -2.32 }, build: COLL.buildBobber },
+    { key: "shard", title: "the test tile", from: "THE KILN", icon: "🏺",
+      earn: "fire the kiln once in THE KILN", where: "on the shelf top, glaze side up",
+      have: function () { return anyOf("kiln-save", function (m) { return m.firings || null; }); },
+      home: { x: -2.05, y: 2.392, z: -2.32 }, build: COLL.buildShard },
+    { key: "armyman", title: "the last sentry", from: "TOYBOX: LAST WATCH", icon: "🏰",
+      earn: "hold a wave in TOYBOX: LAST WATCH", where: "on the shelf top, facing the door",
+      have: function () { return anyOf("lw-prefs", function (m) {
+        var bst = m && m.mapBests; for (var k in bst) if (bst[k] > 0) return 1; return null; }); },
+      home: { x: -0.45, y: 2.392, z: -2.32 }, build: COLL.buildArmyMan },
+    { key: "fangs", title: "the plastic fangs", from: "THE HAUNT", icon: "👻",
+      earn: "run a night in THE HAUNT", where: "on the desk, grinning at nothing",
+      have: function () { return anyOf("haunt-save", function (m) { return m.nights || null; }); },
+      anchor: "desk", home: { x: -0.72, y: 0.851, z: 0.14 }, build: COLL.buildFangs },
     { key: "waxcomb", title: "the wax comb", from: "SURF", icon: "🌊",
       earn: "catch a ride in SURF", where: "on the desk, still gritty",
       have: function () { try { return (parseInt(localStorage.getItem("surf-best") || "0", 10) || 0) > 0; } catch (e) { return false; } },

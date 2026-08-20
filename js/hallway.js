@@ -2645,6 +2645,83 @@ export function buildHallway(ctx) {
     rl.position.set(XC, ry, Z_S + 16.27); badd(rl);
   });
 
+  /* ---- CLOSING THE LOT ---------------------------------------------------------
+   * ⚠️⚠️ THE PERIMETER WAS NEVER CLOSED, and the earlier "the side runs reach the
+   * house now" fix did not close it either — it only fixed the two BACK corners.
+   * Measured by collecting every picket in the yard and grouping them into runs:
+   *     west  x -17.5, z 9.0 .. 25.3
+   *     east  x   5.5, z 9.0 .. 25.3
+   *     back  z  25.0, x -17.5 .. 5.7
+   * Three sides. The fourth is supposed to be the HOUSE — but the house only spans
+   * x -7.62 .. 4.42 and the garage behind it x -12.20 .. -7.40, so the north edge
+   * of the lot had two real holes you could walk straight out of:
+   *     x -17.50 .. -12.20   5.3m, between the west fence and the garage
+   *     x   4.42 ..   5.50   1.1m, between the house and the east fence
+   * Both are fenced now, with a gate in the big one because that is what a side
+   * return actually has — it is how the bins get out. */
+  /* ⚠️ AND THE EAST SIDE RETURN. East of the hall the house stops at z 3.62 (that is
+   * the bedroom back wall) while the side fence only began at z 8.95, so the lot was
+   * open along an 8m stretch beside the bedroom — measured by walking the boundary
+   * and firing sideways: one continuous miss from x -3.9 to 4.4. The ground there is
+   * lawn all the way up, so the honest fix is to carry the east fence NORTH to the
+   * house and turn it in, which is what a real side return does. */
+  var ER_Z0 = 3.95, ER_X = XC + 11.55;
+  for (var er = 0; er * 0.51 < (Z_S + 0.30) - ER_Z0; er++) {
+    var eb = box(0.04, 1.65, 0.17, bFenceM);
+    eb.position.set(ER_X, GROUND + 0.82, ER_Z0 + 0.10 + er * 0.51); badd(eb);
+  }
+  [GROUND + 0.35, GROUND + 1.42].forEach(function (ry4) {
+    var rl4 = box(0.05, 0.09, (Z_S + 0.30) - ER_Z0, mat(0x5e4a37, 0.95));
+    rl4.position.set(ER_X - 0.03, ry4, (ER_Z0 + Z_S + 0.30) / 2); badd(rl4);
+  });
+  var erPost = box(0.13, 1.85, 0.13, mat(0x51402f, 0.95));
+  erPost.position.set(ER_X - 0.02, GROUND + 0.92, ER_Z0 + 0.04); badd(erPost);
+  // and the turn back in to the house wall
+  for (var et = 0; et * 0.51 < (ER_X - 3.70) - 0.1; et++) {
+    var tb = box(0.17, 1.65, 0.04, bFenceM);
+    tb.position.set(ER_X - 0.14 - et * 0.51, GROUND + 0.82, ER_Z0); badd(tb);
+  }
+  [GROUND + 0.35, GROUND + 1.42].forEach(function (ry5) {
+    var rl5 = box(ER_X - 3.70, 0.09, 0.05, mat(0x5e4a37, 0.95));
+    rl5.position.set((ER_X + 3.70) / 2, ry5, ER_Z0 + 0.03); badd(rl5);
+  });
+
+  var NF_Z = Z_S + 0.30;
+  [[-17.50, -13.10], [-12.15, -12.10], [4.45, 5.55]].forEach(function (rn) {
+    var span = rn[1] - rn[0];
+    if (span < 0.06) return;
+    for (var nf = 0; nf * 0.51 < span - 0.05; nf++) {
+      var nb = box(0.17, 1.65, 0.04, bFenceM);
+      nb.position.set(rn[0] + 0.10 + nf * 0.51, GROUND + 0.82, NF_Z); badd(nb);
+    }
+    [GROUND + 0.35, GROUND + 1.42].forEach(function (ry3) {
+      var rl3 = box(span, 0.09, 0.05, mat(0x5e4a37, 0.95));
+      rl3.position.set((rn[0] + rn[1]) / 2, ry3, NF_Z + 0.03); badd(rl3);
+    });
+    [rn[0] + 0.06, rn[1] - 0.06].forEach(function (px3) {
+      var po3 = box(0.13, 1.85, 0.13, mat(0x51402f, 0.95));
+      po3.position.set(px3, GROUND + 0.92, NF_Z + 0.02); badd(po3);
+    });
+  });
+  // the side gate, standing open the way a side gate always is
+  (function () {
+    var gt = new THREE.Group();
+    gt.position.set(-13.10, GROUND, NF_Z); gt.rotation.y = -0.9; badd(gt);
+    for (var gf = 0; gf < 5; gf++) {
+      var gb = box(0.15, 1.45, 0.04, bFenceM);
+      gb.position.set(0.14 + gf * 0.19, 0.80, 0); gt.add(gb);
+    }
+    [0.42, 1.16].forEach(function (gy) {
+      var gr = box(0.98, 0.08, 0.045, mat(0x5e4a37, 0.95));
+      gr.position.set(0.55, gy, 0.02); gt.add(gr);
+    });
+    var brace = box(1.15, 0.07, 0.04, mat(0x5e4a37, 0.95));
+    brace.position.set(0.55, 0.79, 0.03); brace.rotation.z = 0.66; gt.add(brace);
+    var latch = box(0.09, 0.05, 0.03, mat(0x8a8f96, 0.4));
+    latch.position.set(1.02, 1.00, 0.04); gt.add(latch);
+    btag(gt.children[0], "the side gate", null, "it has never latched properly. everyone just lifts it.");
+  })();
+
   (function () {                                          // the tree that drops things on the deck
     var tg = new THREE.Group(); tg.position.set(XC - 5.6, GROUND, Z_S + 11.4); badd(tg);
     var tr = new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.26, 4.4, 7), mat(0x3d2f22, 0.95));
@@ -2726,6 +2803,15 @@ export function buildHallway(ctx) {
   bHouse(XC - 18.3, Z_S + 12.6, 8.4, 3.3, 5.8, -Math.PI / 2, [[-1.1, 1.5], [1.5, 2.5]]);
   bHouse(XC - 18.1, Z_S + 20.4, 8.0, 3.1, 5.6, -Math.PI / 2 + 0.05, [[0.9, 1.4]]);
   bTree(XC - 13.6, Z_S + 11.2, 1.05); bTree(XC - 13.9, Z_S + 17.4, 0.95);
+  /* ⚠️ THESE LIVE DOWN HERE WITH THE OTHER bHouse CALLS AND THEY HAVE TO. They were
+   * first written up beside the fence work, ~45 lines ABOVE `var BHOUSE` — and bHouse
+   * is a hoisted function DECLARATION while its colour palette is a plain `var`, so the
+   * call resolved fine and then died inside on BHOUSE.length of undefined. The whole
+   * room failed to boot. Hoisting moves the function, never the data it reads. */
+  bHouse(XC + 17.9, Z_S + 1.4, 8.6, 3.5, 6.0, Math.PI / 2, [[-1.3, 1.5], [1.4, 2.5]]);
+  bHouse(XC + 18.2, Z_S + 15.6, 8.2, 3.2, 5.8, Math.PI / 2 - 0.05, [[0.8, 1.4]]);
+  bTree(XC + 13.2, Z_S + 4.2, 1.0); bTree(XC + 13.6, Z_S + 15.9, 1.1);
+  bTree(XC + 12.9, Z_S + 10.4, 0.85);
   bTree(XC + 13.4, Z_S + 12.0, 0.9);
   // side fences: the lot actually closes now. Boards run along z, mirrored pair.
   /* ⚠⚠ THE SIDE RUNS NOW REACH THE HOUSE. They began at Z_S+1.1 and stopped short
@@ -3259,6 +3345,64 @@ export function buildHallway(ctx) {
         ? "SURF — best ride " + surfSave.best + " · the pool is practice. click for the ocean"
         : "SURF — the wave carries you because the water moves. click for the ocean");
   });
+
+  /* ---- THE KILN: brick, banded, and still ticking as it cools -----------------
+   * A reduction kiln does not live indoors. It sits on its own pad off the side of
+   * the lawn with the shelf of waiting pots beside it — which is exactly where the
+   * game's whole premise lives too: you load it blind, you fire it, and you do not
+   * find out what the fire did until it is cold enough to open. */
+  var kilnSave = (function () {
+    try {
+      var m = JSON.parse(localStorage.getItem("kiln-save") || "null");
+      return m ? { firings: m.firings || 0, effects: Object.keys(m.effects || {}).length } : { firings: 0, effects: 0 };
+    } catch (e) { return { firings: 0, effects: 0 }; }
+  })();
+  /* ⚠️ MEASURE THE FOOTPRINT, do not eyeball the lawn. The first spot (-9.50, 11.30)
+   * put the 1.9x1.7 pad straight through the grill, which stands at x -8.9..-7.93,
+   * z 11.3..12.1 — the kettle ended up sitting ON the pad. This spot is the gap
+   * between the grill and the zoo pens (which start at z 14.39), tested by sampling
+   * the whole pad footprint for anything standing above the grass. */
+  var kilnG = new THREE.Group(); kilnG.position.set(-9.00, GROUND, 13.30); kilnG.rotation.y = 0.24; badd(kilnG);
+  var padM = mat(0x8e8a80, 0.96), brickM = mat(0xa8674a, 0.92), bandM = mat(0x5d6169, 0.42);
+  var kPad = box(1.90, 0.07, 1.70, padM); kPad.position.y = 0.035; kilnG.add(kPad);
+  var kBody = new THREE.Mesh(new THREE.CylinderGeometry(0.46, 0.50, 1.02, 14), brickM);
+  kBody.position.y = 0.58; kilnG.add(kBody);
+  [0.28, 0.62, 0.96].forEach(function (by) {          // the steel bands that hold it together
+    var bd = new THREE.Mesh(new THREE.TorusGeometry(0.485, 0.022, 6, 20), bandM);
+    bd.rotation.x = Math.PI / 2; bd.position.y = by; kilnG.add(bd);
+  });
+  var kLid = new THREE.Mesh(new THREE.CylinderGeometry(0.40, 0.47, 0.16, 14), brickM);
+  kLid.position.y = 1.15; kilnG.add(kLid);
+  var kDoor = box(0.05, 0.52, 0.40, mat(0x8f5740, 0.9));
+  kDoor.position.set(0.47, 0.55, 0); kilnG.add(kDoor);
+  // the spyhole: the only way in while it is running, and the reason the game is blind
+  var spy = new THREE.Mesh(new THREE.CircleGeometry(0.035, 12),
+    new THREE.MeshStandardMaterial({ color: 0xffb257, emissive: 0xff7a1e, emissiveIntensity: 1.5, roughness: 0.5 }));
+  spy.rotation.y = Math.PI / 2; spy.position.set(0.503, 0.70, 0); kilnG.add(spy);
+  var flue = new THREE.Mesh(new THREE.CylinderGeometry(0.075, 0.085, 0.80, 10), bandM);
+  flue.position.set(0, 1.60, 0); kilnG.add(flue);
+  var flueCap = new THREE.Mesh(new THREE.ConeGeometry(0.13, 0.11, 10), bandM);
+  flueCap.position.set(0, 2.05, 0); kilnG.add(flueCap);
+  // the shelf of pots waiting their turn, and two that already went through
+  var shelfM = mat(0x7a6a52, 0.9);
+  var kShelf = box(0.92, 0.05, 0.34, shelfM); kShelf.position.set(-0.90, 0.52, 0.30); kilnG.add(kShelf);
+  [[-1.28, 0.26], [-0.52, 0.26]].forEach(function (lg) {
+    var leg = box(0.06, 0.50, 0.06, shelfM); leg.position.set(lg[0], 0.25, 0.30 + lg[1] - 0.26); kilnG.add(leg);
+  });
+  [[0xd8cbb0, 0.10, 0.13, -1.18], [0x6f8f7a, 0.085, 0.11, -0.95],
+   [0x9a5f4a, 0.095, 0.15, -0.70]].forEach(function (pt) {
+    var pot = new THREE.Mesh(new THREE.CylinderGeometry(pt[1] * 0.78, pt[1], pt[2], 12), mat(pt[0], 0.55));
+    pot.position.set(pt[3], 0.545 + pt[2] / 2, 0.30); kilnG.add(pot);
+  });
+  var kBucket = new THREE.Mesh(new THREE.CylinderGeometry(0.13, 0.11, 0.24, 12), mat(0x4a5a68, 0.6));
+  kBucket.position.set(0.62, 0.12, 0.66); kilnG.add(kBucket);
+  [kBody, kLid, kDoor, spy, flue, flueCap, kShelf, kBucket].forEach(function (m) {
+    btag(m, "THE KILN", function () { window.location.href = "https://kylefriesmarketing.github.io/the-kiln/"; },
+      kilnSave.firings
+        ? "THE KILN — " + kilnSave.firings + " firings, " + kilnSave.effects + " of 16 surfaces seen. click to load it again"
+        : "THE KILN — load it blind, fire it, and wait. you find out when it is cold. click to fire");
+  });
+  btag(kPad, "the kiln pad", null, "poured one weekend so the kiln would stop sinking. it worked.");
 
   // 🧊 THE COOLER — the back yard's stash
   var coolG = new THREE.Group(); coolG.position.set(PCX + 1.35, GROUND, POOL.z1 + 0.58); coolG.rotation.y = -0.3; badd(coolG);
@@ -3973,6 +4117,82 @@ export function buildHallway(ctx) {
     var st3 = box(np[0], np[1], np[2], mat(0xcfc8b4, 0.95)); st3.position.set(-8.05, np[3], 7.30); add(st3);
     gtag(st3, "the newspapers", null, "tied and ready for a paper drive that stopped happening in 1998.");
   });
+
+  /* ⚠️ EVERYTHING BELOW SITS OUTSIDE THE NEWSPAPER LOOP, and it has to. The rod
+   * first went in directly after the gtag line above — which is INSIDE a two-item
+   * forEach that builds the two tied bundles — so the whole thing was constructed
+   * TWICE in the same corner: two rods, two tackle boxes, two bobbers, z-fighting
+   * against themselves. It read as one rod, which is why nothing looked wrong; the
+   * giveaway was 16 pickables tagged BITE where the code tags 8.
+   * When you append to this file, check what BRACE you are landing inside. */
+
+  /* ---- BITE: the rod, stood in the corner where a rod actually lives ----------
+   * Nobody hangs a rod on the wall in a garage like this — it leans in the corner
+   * past the bench, with the tackle box at its foot and the bobber that came off
+   * in the grass last August still in the tray. Leaned into the SOUTH-WEST corner
+   * on purpose: it is what the arrival camera is already looking at, since grest
+   * aims down the long diagonal at the bench and the pegboard. */
+  var biteSave = (function () {
+    try {
+      var m = JSON.parse(localStorage.getItem("bite-save") || "null");
+      return m ? { sp: Object.keys(m.journal || {}).length, casts: m.casts || 0,
+                   mayor: !!(m.mayor && m.mayor.landed) } : { sp: 0, casts: 0, mayor: false };
+    } catch (e) { return { sp: 0, casts: 0, mayor: false }; }
+  })();
+  var rodG = new THREE.Group();
+  /* ⚠️ THE NORTH-WEST CORNER, not the south-west one it started in. From grest —
+   * the spot the camera actually arrives at — the tarped project car stands square
+   * in front of the far corner: probing the rod at four heights along its length,
+   * only ONE of the four was unblocked, and the grip and the tackle box were both
+   * behind the car. Same probe here reads 4 of 4. A prop nobody can see from the
+   * one camera that looks at the room is not in the room. */
+  rodG.position.set(-11.72, 0, 4.68);
+  rodG.rotation.set(-0.10, 0, 0.16);      // tipped back into the corner, both ways
+  add(rodG);
+  var corkM = mat(0xc9a877, 0.9), rodM = mat(0x2b2f36, 0.55), lineM = mat(0xdfe6ee, 0.6);
+  var grip = new THREE.Mesh(new THREE.CylinderGeometry(0.026, 0.024, 0.30, 10), corkM);
+  grip.position.y = 0.15; rodG.add(grip);
+  var seat = new THREE.Mesh(new THREE.CylinderGeometry(0.021, 0.021, 0.09, 10), mat(0x8a8f96, 0.4));
+  seat.position.y = 0.345; rodG.add(seat);
+  // the blank tapers — a rod that is the same width all the way up reads as a pole
+  [[0.55, 0.014, 0.011], [1.00, 0.011, 0.008], [1.45, 0.008, 0.005]].forEach(function (sg) {
+    var seg = new THREE.Mesh(new THREE.CylinderGeometry(sg[2], sg[1], 0.50, 8), rodM);
+    seg.position.y = sg[0] + 0.20; rodG.add(seg);
+  });
+  var reel = new THREE.Mesh(new THREE.CylinderGeometry(0.055, 0.055, 0.036, 14), mat(0x6d737b, 0.35));
+  reel.rotation.z = Math.PI / 2; reel.position.set(0.055, 0.30, 0); rodG.add(reel);
+  var reelStem = new THREE.Mesh(new THREE.BoxGeometry(0.045, 0.012, 0.012), mat(0x6d737b, 0.35));
+  reelStem.position.set(0.028, 0.30, 0); rodG.add(reelStem);
+  var handle = new THREE.Mesh(new THREE.CylinderGeometry(0.007, 0.007, 0.05, 6), mat(0x2b2f36, 0.5));
+  handle.rotation.x = Math.PI / 2; handle.position.set(0.088, 0.335, 0.03); rodG.add(handle);
+  [0.62, 0.98, 1.34, 1.66].forEach(function (gy) {   // the guides
+    var gd = new THREE.Mesh(new THREE.TorusGeometry(0.013, 0.0022, 5, 10), mat(0x9aa1a9, 0.35));
+    gd.rotation.y = Math.PI / 2; gd.position.set(0, gy, 0); rodG.add(gd);
+  });
+  var line = new THREE.Mesh(new THREE.CylinderGeometry(0.0016, 0.0016, 1.30, 4), lineM);
+  line.position.set(0.014, 1.00, 0); line.rotation.z = -0.012; rodG.add(line);
+  // the tackle box, lid shut, one latch undone
+  var tackG = new THREE.Group(); tackG.position.set(-11.28, 0, 4.94); tackG.rotation.y = -0.34; add(tackG);
+  var tackBody = box(0.34, 0.16, 0.20, mat(0x2f6f4e, 0.7)); tackBody.position.y = 0.08; tackG.add(tackBody);
+  var tackLid = box(0.35, 0.05, 0.21, mat(0x275c41, 0.7)); tackLid.position.y = 0.185; tackG.add(tackLid);
+  var tackHandle = new THREE.Mesh(new THREE.TorusGeometry(0.045, 0.008, 5, 12), mat(0x1f4a34, 0.7));
+  tackHandle.rotation.x = Math.PI / 2; tackHandle.position.set(0, 0.225, 0); tackG.add(tackHandle);
+  var latch = box(0.03, 0.02, 0.012, mat(0xb8b2a4, 0.4)); latch.position.set(0.11, 0.16, 0.106); tackG.add(latch);
+  var bob = new THREE.Mesh(new THREE.SphereGeometry(0.036, 10, 8), mat(0xd8443a, 0.6));
+  bob.position.set(-11.02, 0.036, 4.78); add(bob);
+  var bobTop = new THREE.Mesh(new THREE.SphereGeometry(0.0362, 10, 5, 0, Math.PI * 2, 0, Math.PI / 2), mat(0xf0ece0, 0.6));
+  bobTop.position.copy(bob.position); add(bobTop);
+  // the whole rod, not just the bits I happened to name: the blank, the guides and
+  // the line are most of what the eye lands on, and a prop you cannot click on the
+  // part you are looking at reads as scenery
+  var biteParts = [bob, bobTop];
+  [rodG, tackG].forEach(function (gr) { gr.traverse(function (m) { if (m.isMesh) biteParts.push(m); }); });
+  biteParts.forEach(function (m) {
+    gtag(m, "BITE", function () { window.location.href = "https://kylefriesmarketing.github.io/bite/"; },
+      biteSave.sp
+        ? "BITE — " + biteSave.sp + " of 15 logged at Mud Lake. click to go back down"
+        : "BITE — quiet fishing at Mud Lake. the water tells you everything. click to go");
+  });
   // the bare bulb, and the clack it answers to
   var garOn = true;
   var gShade = new THREE.Mesh(new THREE.ConeGeometry(0.16, 0.10, 14, 1, true), mat(0x3a5e3a, 0.6));
@@ -4435,6 +4655,110 @@ export function buildHallway(ctx) {
   var hopGlass = box(0.74, 0.32, 0.03, new THREE.MeshStandardMaterial({ color: 0x101828, roughness: 0.2 }));
   hopGlass.position.set(-4.5, BSM.ce - 0.45, BSM.z0 + 0.13); add(hopGlass);
   bstag(hopGlass, "the little window", null, "shins go by, sometimes. that's the whole channel.");
+
+  /* ---- TOYBOX: LAST WATCH — the towers, still standing where they were left ---
+   * The game is toy soldiers holding a line across a bedroom floor, so down here it
+   * is exactly that: the playmat unrolled, block towers on the corners, and the men
+   * facing the gap. Set up on the floor rather than a table on purpose — this is a
+   * game that got played where there was room for it. */
+  var lwSave = (function () {
+    try {
+      var pr = JSON.parse(localStorage.getItem("lw-prefs") || "null"), best = 0, maps = 0;
+      if (pr && pr.mapBests) for (var k in pr.mapBests) { maps++; best = Math.max(best, pr.mapBests[k] || 0); }
+      return { best: best, maps: maps };
+    } catch (e) { return { best: 0, maps: 0 }; }
+  })();
+  var lwG = new THREE.Group(); lwG.position.set(-1.40, BSM.fl, 1.80); lwG.rotation.y = -0.22; add(lwG);
+  var matT = canvasTex(128, 128, function (c, w, h) {
+    c.fillStyle = "#4a6a4e"; c.fillRect(0, 0, w, h);
+    c.strokeStyle = "rgba(230,225,205,0.5)"; c.lineWidth = 3;
+    c.strokeRect(9, 9, w - 18, h - 18);                       // the printed border
+    c.strokeStyle = "rgba(210,200,175,0.35)"; c.lineWidth = 5;
+    c.beginPath(); c.moveTo(0, h * 0.62); c.bezierCurveTo(w * 0.35, h * 0.5, w * 0.6, h * 0.72, w, h * 0.55); c.stroke();
+    c.fillStyle = "rgba(40,50,38,0.16)";                      // the worn middle
+    c.fillRect(w * 0.28, h * 0.28, w * 0.44, h * 0.44);
+  });
+  matT.colorSpace = THREE.SRGBColorSpace;
+  var lwMat = new THREE.Mesh(new THREE.PlaneGeometry(1.24, 0.94),
+    new THREE.MeshStandardMaterial({ map: matT, roughness: 0.97, polygonOffset: true, polygonOffsetFactor: -4, polygonOffsetUnits: -4 }));
+  lwMat.rotation.x = -Math.PI / 2; lwMat.position.y = 0.006; lwG.add(lwMat);
+  var blockCols = [0xc4553f, 0x3f6bb0, 0xe0b23a, 0x4f9a5e];
+  [[-0.44, -0.30, 4], [0.42, -0.26, 3], [-0.38, 0.32, 3], [0.46, 0.30, 5]].forEach(function (tw, ti) {
+    for (var bl = 0; bl < tw[2]; bl++) {
+      var blk = box(0.10, 0.055, 0.10, mat(blockCols[(ti + bl) % 4], 0.75));
+      blk.position.set(tw[0] + (bl % 2 ? 0.008 : -0.006), 0.028 + bl * 0.056, tw[1] + (bl % 3 ? -0.005 : 0.007));
+      blk.rotation.y = (bl * 0.13) - 0.1; lwG.add(blk);
+    }
+  });
+  // the men: two ranks facing the gap between the towers, one already down
+  [[-0.16, -0.06, 0], [-0.02, -0.10, 0.2], [0.12, -0.05, -0.15],
+   [-0.10, 0.10, 3.0], [0.06, 0.13, 3.2]].forEach(function (mn) {
+    var man = new THREE.Group(); man.position.set(mn[0], 0, mn[1]); man.rotation.y = mn[2]; lwG.add(man);
+    var base = new THREE.Mesh(new THREE.CylinderGeometry(0.021, 0.021, 0.006, 10), mat(0x4e6a3e, 0.85));
+    base.position.y = 0.003; man.add(base);
+    var bodyM = box(0.016, 0.044, 0.011, mat(0x4e6a3e, 0.85)); bodyM.position.y = 0.028; man.add(bodyM);
+    var head = new THREE.Mesh(new THREE.SphereGeometry(0.009, 7, 6), mat(0x4e6a3e, 0.85));
+    head.position.y = 0.057; man.add(head);
+    var rifle = box(0.004, 0.004, 0.030, mat(0x3c5230, 0.85));
+    rifle.position.set(0.010, 0.036, 0.012); rifle.rotation.x = 0.5; man.add(rifle);
+  });
+  var fallen = box(0.044, 0.016, 0.011, mat(0x4e6a3e, 0.85));
+  fallen.position.set(0.24, 0.008, 0.04); fallen.rotation.set(0, 0.6, Math.PI / 2); lwG.add(fallen);
+  // ⚠️ traverse, not children: each soldier is a GROUP of four little meshes, so a
+  // pass over direct children tagged the mat and the blocks and skipped every man.
+  lwG.traverse(function (m) {
+    if (m.isMesh) bstag(m, "TOYBOX: LAST WATCH", function () { window.location.href = "https://kylefriesmarketing.github.io/last-watch/"; },
+      lwSave.best
+        ? "TOYBOX: LAST WATCH — furthest wave " + lwSave.best + ". the line held that long. click to stand it again"
+        : "TOYBOX: LAST WATCH — the toys hold the line until morning. click to take the watch");
+  });
+
+  /* ---- THE HAUNT: the box that only comes up once a year ----------------------
+   * It lives in the basement eleven months of the year, which is the only honest
+   * place for it. Flaps open because somebody was looking for the good skull. */
+  var hauntSave = (function () {
+    try { var m = JSON.parse(localStorage.getItem("haunt-save") || "null");
+      return m ? { nights: m.nights || 0, guests: m.seasonGuests || 0 } : { nights: 0, guests: 0 };
+    } catch (e) { return { nights: 0, guests: 0 }; }
+  })();
+  var hxG = new THREE.Group(); hxG.position.set(2.20, BSM.fl, 3.00); hxG.rotation.y = -0.5; add(hxG);
+  var cardM = mat(0xb99a6e, 0.95), cardDk = mat(0x9d8058, 0.95);
+  var hxBody = box(0.60, 0.40, 0.44, cardM); hxBody.position.y = 0.20; hxG.add(hxBody);
+  [[-0.31, 0.44, 0, 0.5], [0.31, 0.44, 0, -0.5]].forEach(function (fl) {   // flaps thrown open
+    var flap = box(0.02, 0.28, 0.42, cardDk);
+    flap.position.set(fl[0], fl[1], fl[2]); flap.rotation.z = fl[3]; hxG.add(flap);
+  });
+  var hxLabel = new THREE.Mesh(new THREE.PlaneGeometry(0.34, 0.12), new THREE.MeshStandardMaterial({
+    map: canvasTex(256, 90, function (c, w, h) {
+      c.fillStyle = "#e8e2cf"; c.fillRect(0, 0, w, h);
+      c.fillStyle = "#3a2f22"; c.font = "bold 44px Georgia, serif"; c.textAlign = "center";
+      c.fillText("HALLOWEEN", w / 2, 58);
+    }), roughness: 0.95 }));
+  hxLabel.position.set(0, 0.22, 0.222); hxG.add(hxLabel);
+  var skull = new THREE.Mesh(new THREE.SphereGeometry(0.075, 12, 10), mat(0xe6e0cc, 0.7));
+  skull.scale.set(1, 1.08, 0.92); skull.position.set(0.16, 0.46, 0.06); hxG.add(skull);
+  var jaw = box(0.10, 0.03, 0.07, mat(0xdcd5bf, 0.7)); jaw.position.set(0.16, 0.395, 0.075); hxG.add(jaw);
+  [[-0.028, 0.475, 0.062], [0.028, 0.475, 0.062]].forEach(function (ey) {
+    var eye = new THREE.Mesh(new THREE.SphereGeometry(0.019, 8, 6), mat(0x1b1a18, 0.9));
+    eye.position.set(0.16 + ey[0], ey[1], ey[2] + 0.02); hxG.add(eye);
+  });
+  // the string of lights, half of it still in the box
+  var lampC = [0xff8a2b, 0x8a4fd0, 0x2bd07a];
+  for (var lb = 0; lb < 9; lb++) {
+    var t2 = lb / 8;
+    var lamp = new THREE.Mesh(new THREE.SphereGeometry(0.022, 8, 6),
+      new THREE.MeshStandardMaterial({ color: lampC[lb % 3], emissive: lampC[lb % 3], emissiveIntensity: 0.55, roughness: 0.5 }));
+    lamp.position.set(-0.34 - t2 * 0.44, 0.44 - t2 * 0.40 + Math.sin(t2 * 3.1) * 0.05, 0.02 + t2 * 0.20);
+    hxG.add(lamp);
+  }
+  var bat = box(0.18, 0.01, 0.07, mat(0x211f26, 0.85));
+  bat.position.set(-0.12, 0.455, -0.16); bat.rotation.set(0.1, 0.4, 0.16); hxG.add(bat);
+  [hxBody, hxLabel, skull, jaw, bat].forEach(function (m) {
+    bstag(m, "THE HAUNT", function () { window.location.href = "https://kylefriesmarketing.github.io/the-haunt/"; },
+      hauntSave.nights
+        ? "THE HAUNT — " + hauntSave.nights + " nights run. click to open the gate again"
+        : "THE HAUNT — you run the haunted house. timing is the whole trick. click to open");
+  });
   // light: a warm floor lamp by the couch, and a bare bulb over the stairs
   var lampPole = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.03, 1.35, 8), mat(0x8a6a44, 0.7));
   lampPole.position.set(1.85, BSM.fl + 0.675, 3.85); add(lampPole);

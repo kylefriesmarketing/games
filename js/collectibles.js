@@ -487,3 +487,62 @@ export function buildZebra() { // CLEAN THE ZOO — one that made it back to its
   tail.position.set(-0.042, 0.062, 0); g.add(tail);
   return g;
 }
+
+export function buildBobber() { // BITE — the one that came off in the grass last August
+  var g = new THREE.Group();
+  var top = new THREE.Mesh(new THREE.SphereGeometry(0.022, 12, 8, 0, Math.PI * 2, 0, Math.PI / 2), mat(0xd8443a, 0.6));
+  top.position.y = 0.022; g.add(top);
+  var bot = new THREE.Mesh(new THREE.SphereGeometry(0.022, 12, 8, 0, Math.PI * 2, Math.PI / 2, Math.PI / 2), mat(0xf0ece0, 0.6));
+  bot.position.y = 0.022; g.add(bot);
+  var stem = new THREE.Mesh(new THREE.CylinderGeometry(0.0028, 0.0028, 0.026, 6), mat(0xe8e2d2, 0.5));
+  stem.position.y = 0.050; g.add(stem);
+  var hook = new THREE.Mesh(new THREE.TorusGeometry(0.005, 0.0012, 4, 8, Math.PI * 1.4), mat(0x9aa1a9, 0.35));
+  hook.rotation.x = Math.PI / 2; hook.position.set(0, 0.004, 0.014); g.add(hook);
+  return g;
+}
+
+export function buildShard() { // THE KILN — a test tile, the only honest way to know a glaze
+  var g = new THREE.Group();
+  var tile = new THREE.Mesh(new THREE.BoxGeometry(0.034, 0.008, 0.052), mat(0xd8cbb0, 0.85));
+  tile.position.y = 0.004; g.add(tile);
+  // the glaze runs DOWN and pools at the foot — which is the whole reason you tilt a test tile
+  var glaze = new THREE.Mesh(new THREE.BoxGeometry(0.031, 0.0035, 0.036), mat(0x2f6f7a, 0.28));
+  glaze.position.set(0, 0.0095, 0.006); g.add(glaze);
+  var pool = new THREE.Mesh(new THREE.BoxGeometry(0.030, 0.006, 0.008), mat(0x1e5a66, 0.22));
+  pool.position.set(0, 0.010, 0.023); g.add(pool);
+  var hole = new THREE.Mesh(new THREE.TorusGeometry(0.004, 0.0014, 4, 10), mat(0xc7b99c, 0.85));
+  hole.rotation.x = Math.PI / 2; hole.position.set(0, 0.008, -0.020); g.add(hole);
+  return g;
+}
+
+export function buildArmyMan() { // TOYBOX: LAST WATCH — one that was still standing at dawn
+  var g = new THREE.Group();
+  var green = mat(0x4e6a3e, 0.85);
+  var base = new THREE.Mesh(new THREE.CylinderGeometry(0.020, 0.020, 0.005, 12), green);
+  base.position.y = 0.0025; g.add(base);
+  var legs = new THREE.Mesh(new THREE.BoxGeometry(0.013, 0.024, 0.010), green);
+  legs.position.y = 0.017; g.add(legs);
+  var torso = new THREE.Mesh(new THREE.BoxGeometry(0.017, 0.022, 0.011), green);
+  torso.position.y = 0.040; g.add(torso);
+  var head = new THREE.Mesh(new THREE.SphereGeometry(0.0085, 8, 6), green);
+  head.position.y = 0.058; g.add(head);
+  var helm = new THREE.Mesh(new THREE.SphereGeometry(0.0095, 8, 5, 0, Math.PI * 2, 0, Math.PI / 2), green);
+  helm.position.y = 0.059; g.add(helm);
+  var rifle = new THREE.Mesh(new THREE.BoxGeometry(0.0035, 0.0035, 0.030), green);
+  rifle.position.set(0.010, 0.046, 0.008); rifle.rotation.x = 0.55; g.add(rifle);
+  return g;
+}
+
+export function buildFangs() { // THE HAUNT — the good ones, from the bottom of the box
+  var g = new THREE.Group();
+  var white = mat(0xf2eee0, 0.5);
+  var arch = new THREE.Mesh(new THREE.TorusGeometry(0.020, 0.006, 6, 14, Math.PI), white);
+  arch.rotation.x = Math.PI / 2; arch.rotation.z = Math.PI; arch.position.y = 0.010; g.add(arch);
+  [-0.011, 0.011].forEach(function (fx) {          // the two that matter
+    var fang = new THREE.Mesh(new THREE.ConeGeometry(0.0045, 0.016, 7), white);
+    fang.position.set(fx, 0.004, 0.017); fang.rotation.x = Math.PI; g.add(fang);
+  });
+  var gum = new THREE.Mesh(new THREE.TorusGeometry(0.020, 0.0035, 5, 14, Math.PI), mat(0xc4485a, 0.6));
+  gum.rotation.x = Math.PI / 2; gum.rotation.z = Math.PI; gum.position.y = 0.017; g.add(gum);
+  return g;
+}

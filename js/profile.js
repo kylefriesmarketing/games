@@ -73,6 +73,14 @@ export var ACHIEVEMENTS = [
     check: function (c) { return c.zooAnimals > 0; } },
   { id: "surfer", icon: "🌊", name: "First ride", hint: "catch a ride in SURF",
     check: function (c) { return c.surfBest > 0; } },
+  { id: "angler", icon: "🎣", name: "Something took it", hint: "log a fish at Mud Lake in BITE",
+    check: function (c) { return c.biteSpecies > 0; } },
+  { id: "potter", icon: "🏺", name: "Opened it cold", hint: "fire the kiln once in THE KILN",
+    check: function (c) { return c.kilnFirings > 0; } },
+  { id: "sentry", icon: "🏰", name: "Held the line", hint: "hold a wave in TOYBOX: LAST WATCH",
+    check: function (c) { return c.watchWave > 0; } },
+  { id: "haunter", icon: "👻", name: "Opening night", hint: "run a night in THE HAUNT",
+    check: function (c) { return c.hauntNights > 0; } },
   // the hidden one: the truck only runs the street 15s in every 300, so this award
   // is really "you were outside at the right moment" — earned before you ever play it
   { id: "truck", icon: "🍦", name: "Heard the song", hint: "be out front when the ice cream truck goes by",
