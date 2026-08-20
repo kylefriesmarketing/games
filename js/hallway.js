@@ -343,7 +343,13 @@ export function buildHallway(ctx) {
     var LWZ = LIV.z0 + 1.30, LWW = 1.70, LWY0 = 0.95, LWY1 = 2.10;
     var glass = new THREE.Mesh(new THREE.PlaneGeometry(LWW, LWY1 - LWY0),
       new THREE.MeshStandardMaterial({ color: 0x2a3a4e, emissive: 0x8fa6c8, emissiveIntensity: 0.4, roughness: 0.2 }));
-    glass.position.set(LIV.x0 + 0.03, (LWY0 + LWY1) / 2, LWZ); glass.rotation.y = -Math.PI / 2; add(glass);
+    /* ⚠️ THE SIGN. PlaneGeometry's front normal is +Z; rotating it about Y by θ gives
+     * (sinθ, 0, cosθ). At -π/2 that is due WEST — out through the wall this window is
+     * set into — and the material is FrontSide, so the room's most centred object was
+     * not drawn at all. +π/2 faces east, into the room. Check every rotated plane in
+     * this file the same way: a window you cannot see reads as a window that is not there. */
+    glass.position.set(LIV.x0 + 0.03, (LWY0 + LWY1) / 2, LWZ); glass.rotation.y = Math.PI / 2; add(glass);
+    ltag(glass, 'the front window', null, 'looks down the drive at the street. you can see who is coming before they knock.');
     [LWY0 - 0.04, LWY1 + 0.04].forEach(function (fy) {
       var f2 = box(0.07, 0.08, LWW + 0.16, mat(0xe4e0d2, 0.8));
       f2.position.set(LIV.x0 + 0.07, fy, LWZ); add(f2);
@@ -487,9 +493,13 @@ export function buildHallway(ctx) {
       var pic = new THREE.Mesh(new THREE.PlaneGeometry(w2 - 0.06, h2 - 0.06),
         new THREE.MeshStandardMaterial({ map: t4, roughness: 0.9 }));
       pic.position.set(px, 1.62, pz); pic.rotation.y = ry; pic.rotation.z = tilt; add(pic);
-      var fr = box(0.03, h2, w2, frameM);
-      fr.position.set(px - Math.cos(ry) * 0.012, 1.62, pz + Math.sin(ry) * 0.012);
-      fr.rotation.y = ry; fr.rotation.x = tilt; add(fr);
+      /* ⚠️ box(w, h, d) maps straight to BoxGeometry(x, y, z), so box(0.03, h2, w2)
+       * put the frame's WIDTH on z — a 42 cm blade sticking into the room at right
+       * angles to its own picture, tilted about the wrong axis on top of that. The
+       * picture is a plane in XY; its frame has to be too. */
+      var fr = box(w2, h2, 0.03, frameM);
+      fr.position.set(px - Math.sin(ry) * 0.014, 1.62, pz - Math.cos(ry) * 0.014);
+      fr.rotation.y = ry; fr.rotation.z = tilt; add(fr);
       [pic, fr].forEach(function (m) { ltag(m, name, null, hint); });
     }
     // three on the north wall, each hung a different amount of crooked
@@ -535,7 +545,10 @@ export function buildHallway(ctx) {
     clkG.children.forEach(function (m) { ltag(m, 'the clock', null, 'eleven minutes fast, like the one in the kitchen. the whole house runs early.'); });
 
     // ---- ON THE CEILING ----
-    var cfG = new THREE.Group(); cfG.position.set(-12.40, LIV.ce - 0.02, 2.30); add(cfG);
+    // ⚠️ the ceiling's underside is LIV.ce + 0.05 - 0.05 = LIV.ce; the plate's top
+    // face sits 0.005 above the group, so the group belongs at ce + 0.005, not ce -
+    // 0.02, which left the rose floating with daylight in the gap.
+    var cfG = new THREE.Group(); cfG.position.set(-12.40, LIV.ce + 0.005, 2.30); add(cfG);
     var cfPlate = new THREE.Mesh(new THREE.CylinderGeometry(0.10, 0.13, 0.05, 14), mat(0xdad4c4, 0.6));
     cfPlate.position.y = -0.03; cfG.add(cfPlate);
     var cfBowl = new THREE.Mesh(new THREE.SphereGeometry(0.22, 16, 10, 0, Math.PI * 2, Math.PI * 0.52, Math.PI * 0.48),
@@ -938,6 +951,12 @@ export function buildHallway(ctx) {
     if (st === 3) tag(step, "the stairs up", function () { enterUpstairs(); },
       "her room, their room, and the attic. mind the third step.");
   }
+  /* ⚠️ THE TOP TREAD ENDED AT z 2.7625 AND THE FLOOR STARTED AT 2.45 — a 31 cm hole
+   * you walked over on the way up. A real stair finishes with a nosing that laps the
+   * landing; one mesh closes it and is what the joinery would actually be. */
+  var nosing = new THREE.Mesh(new THREE.BoxGeometry(0.92, 0.18, 0.62), stairM);
+  nosing.position.set(STAIR_X, UP_Y - 0.09, UP_Z0 - 16 * UP_GO);
+  nosing.castShadow = nosing.receiveShadow = true; add(nosing);
   // the rail up the open side
   (function () {
     var rz0 = UP_Z0, rz1 = UP_Z0 - 15 * UP_GO, ry0 = UP_RISE + 0.86, ry1 = 16 * UP_RISE + 0.86;
@@ -1072,6 +1091,7 @@ export function buildHallway(ctx) {
     });
     /* the corridor's north wall, with the three doorways cut into it. The stairwell
      * bay breaks it, which is why it is built as a list of runs rather than one slab. */
+    var UP_DH = 2.045;                 // 5 mm reveal under a 2.05 opening
     var DOORS = [
       { x: -12.20, w: 0.95, name: 'their room', hint: 'their room. the door is always half shut and the radio is always on low.' },
       { x: -3.60,  w: 0.95, name: 'her room',   hint: 'her room. KEEP OUT is written on a card in three colours.' },
@@ -1084,14 +1104,31 @@ export function buildHallway(ctx) {
     for (var e = 0; e < edges.length - 1; e++) {
       var a0 = edges[e], a1 = edges[e + 1];
       if (a1 - a0 < 0.02) continue;
-      var mid = (a0 + a1) / 2, isDoor = false, inShaft = (mid > STW.x0 && mid < STW.x1);
+      /* ⚠️ this loop used to skip the x-band of the stairwell, 'because the bay is
+       * open to the corridor'. True — but this wall is at z 1.00 and the well runs
+       * z 2.45..7.30, 1.45 m SOUTH of it. The skip punched a 1.04 m hole through the
+       * door wall into the sealed void behind it, for a shaft that never touches it. */
+      var mid = (a0 + a1) / 2, isDoor = false;
       DOORS.forEach(function (d) { if (Math.abs(mid - d.x) < d.w / 2) isDoor = true; });
-      if (inShaft) continue;                       // the stairwell bay is open to the corridor
       var h0 = isDoor ? UPF.fl + 2.05 : UPF.fl, h1 = UPF.ce;
       if (h1 - h0 < 0.02) continue;
       var seg = box(a1 - a0, h1 - h0, 0.10, upWallM);
       seg.position.set(mid, (h0 + h1) / 2, LAN.z0 - 0.05); add(seg);
     }
+    /* ⚠️⚠️ THE CORRIDOR'S SOUTH WALL DID NOT EXIST. LAN.z1 appeared in this block only
+     * as a position to hang things off — the hall table, the towels, the school photos,
+     * the thermostat, twelve wall-mounted meshes in all — and nothing was ever built
+     * there for them to hang ON. From the landing you looked straight past them into
+     * the void over the stairwell. It is built as runs so the stairwell bay stays open,
+     * which is where that skip actually belonged all along (the north wall had it by
+     * mistake and punched a hole in itself for a shaft 1.45 m away).
+     * ⚠️ It also has to stop at the ceiling of the FLIGHT, not the floor: the stairs
+     * arrive through this line. */
+    [[UPF.x0, STW.x0], [STW.x1, UPF.x1]].forEach(function (r2) {
+      if (r2[1] - r2[0] < 0.02) return;
+      var sw2 = box(r2[1] - r2[0], UPF.ce - UPF.fl, 0.10, upWallM);
+      sw2.position.set((r2[0] + r2[1]) / 2, (UPF.fl + UPF.ce) / 2, LAN.z1 + 0.05); add(sw2);
+    });
     // the doors themselves, shut, each with its handle and its own light under it
     DOORS.forEach(function (d, di) {
       /* EACH DOOR IS A PIVOT GROUP, not a slab at a position. The camera has to pass
@@ -1101,10 +1138,15 @@ export function buildHallway(ctx) {
       var piv = new THREE.Group();
       piv.position.set(d.x - d.w / 2, UPF.fl, LAN.z0 - 0.05); add(piv);
       roomDoors[di] = piv;
-      var slab = box(d.w - 0.03, 2.02, 0.05, mat(0x4a3a2a, 0.72));
-      slab.position.set(d.w / 2, 1.01, 0); piv.add(slab);
+      /* ⚠️ the opening in the wall runs to UPF.fl + 2.05 and the slab was 2.02 tall,
+       * so every door had a 3 cm slot 0.92 m wide clean through a 0.10 m wall, into
+       * the sealed void above the ceiling. Derive the slab from the opening. */
+      var slab = box(d.w - 0.03, UP_DH, 0.05, mat(0x4a3a2a, 0.72));
+      slab.position.set(d.w / 2, UP_DH / 2, 0); piv.add(slab);
+      var hstop = box(d.w + 0.02, 0.05, 0.02, mat(0xd8d2c2, 0.8));
+      hstop.position.set(d.w / 2, 2.035, -0.035); piv.add(hstop);
       var pnl2 = box(d.w - 0.26, 0.72, 0.012, mat(0x3f3122, 0.75));
-      pnl2.position.set(d.w / 2, 1.42, 0.032); piv.add(pnl2);
+      pnl2.position.set(d.w / 2, 1.435, 0.032); piv.add(pnl2);
       var pnl3 = box(d.w - 0.26, 0.52, 0.012, mat(0x3f3122, 0.75));
       pnl3.position.set(d.w / 2, 0.52, 0.032); piv.add(pnl3);
       var kn = new THREE.Mesh(new THREE.SphereGeometry(0.026, 12, 10), mat(0xc8b06a, 0.35));
@@ -1137,12 +1179,28 @@ export function buildHallway(ctx) {
       }
     });
     // a window at each end of the corridor, and the bulb that is always left on
-    [[UPF.x0 + 0.04, -Math.PI / 2], [UPF.x1 - 0.04, Math.PI / 2]].forEach(function (wn) {
+    /* ⚠️ same sign error as the living room's, twice: the west window faced west and
+     * the east window faced east, so both were backface-culled from inside the house
+     * and neither could be hovered. They also shared ONE name and one hint that
+     * described both, 21 m apart — whichever you hovered, half the sentence was about
+     * a window at the other end of the landing. */
+    [[UPF.x0 + 0.04, Math.PI / 2, 'the window over the street',
+      'the street. first one up opens it, whatever the month.'],
+     [UPF.x1 - 0.04, -Math.PI / 2, 'the window over the yard',
+      'the yard, the pool, the whole back of the house. this is the good one.']].forEach(function (wn) {
       var gl = new THREE.Mesh(new THREE.PlaneGeometry(1.20, 1.00),
         new THREE.MeshStandardMaterial({ color: 0x2a3a4e, emissive: 0x7f9dc4, emissiveIntensity: 0.32, roughness: 0.25 }));
       gl.position.set(wn[0], UPF.fl + 1.45, (LAN.z0 + LAN.z1) / 2); gl.rotation.y = wn[1]; add(gl);
-      utag(gl, 'the landing window', null, 'the street one way, the yard the other. whoever is up first opens both.');
+      utag(gl, wn[2], null, wn[3]);
     });
+    /* ⚠️ leaveUpstairs() existed, was exported, and was called by NOTHING — you could
+     * walk up and never walk down. Every other space in the house has a way back
+     * (bsUpHit does exactly this for the basement); the landing simply never got one. */
+    var upDownHit = new THREE.Mesh(new THREE.BoxGeometry(1.10, 2.0, 1.10),
+      new THREE.MeshBasicMaterial({ transparent: true, opacity: 0, depthWrite: false }));
+    upDownHit.position.set((STW.x0 + STW.x1) / 2, UPF.fl + 1.0, STW.z0 + 0.55); add(upDownHit);
+    utag(upDownHit, 'the stairs down', function () { leaveUpstairs(); },
+      'back down to the hall. the third one from the bottom announces you.');
     var bulb = new THREE.Mesh(new THREE.SphereGeometry(0.075, 12, 10),
       new THREE.MeshStandardMaterial({ color: 0xfff2d6, emissive: 0xffd9a0, emissiveIntensity: 1.1, roughness: 0.6 }));
     bulb.position.set(-6.10, UPF.ce - 0.30, (LAN.z0 + LAN.z1) / 2); add(bulb);
@@ -3328,6 +3386,15 @@ export function buildHallway(ctx) {
   var COVERED = [
     { x0: KX0 - 0.2, x1: 4.4, z0: Z_N - 0.25, z1: Z_S + 0.25, top: GROUND + 4.2 },   // kitchen + hall + garage + bedroom
     { x0: PX0 - 0.3, x1: PX1 + 0.3, z0: PZ1 - 0.2, z1: HOUSE_F + 0.1, top: 3.10 },   // the porch, under its roof
+    /* ⚠️ THE HOUSE GREW TWICE AND ITS ROOF DID NOT. The first rect was written when
+     * the house stopped at the kitchen (x0 KX0 - 0.2 = -13.20) and tops out at
+     * GROUND + 4.2 = 3.75. Since then the living room reached west to -17.15, so it
+     * rained on 3.95 m of it, and a whole second storey went up to y 5.70, so weather
+     * fell through the landing. Both new entries are DERIVED from the constants that
+     * build the geometry, exactly as the first one is, so they cannot drift apart
+     * from it again. */
+    { x0: LIV.x0 - 0.2, x1: KX0 - 0.15, z0: LIV.z0 - 0.2, z1: LIV.z1 + 0.2, top: LIV.ce + 0.5 },
+    { x0: UPF.x0 - 0.2, x1: UPF.x1 + 0.2, z0: UPF.z0 - 0.2, z1: UPF.z1 + 0.2, top: UPF.ce + 0.10 },
   ];
   function underCover(x, y, z) {
     for (var ci = 0; ci < COVERED.length; ci++) {
@@ -3391,7 +3458,7 @@ export function buildHallway(ctx) {
     wxKind = (k === "rain" || k === "storm") ? k : "clear";
     rainF.pts.visible = wxKind !== "clear";
     rainF.mat.opacity = wxKind === "storm" ? 0.62 : 0.5;
-    if (wxKind !== "storm") { boltF = 0; skyDome.material.color.setScalar(1); yardHemi.intensity = phaseHemi; }
+    if (wxKind !== "storm") { boltF = 0; skyDome.material.color.setScalar(1); backSky.material.color.setScalar(1); yardHemi.intensity = phaseHemi; }
   }
   function setYardSeason(k) {
     var L = SEASON_FALL[k];
@@ -3440,8 +3507,12 @@ export function buildHallway(ctx) {
       var k = boltF * boltF;
       yardHemi.intensity = phaseHemi * (1 + k * 2.4);
       skyDome.material.color.setScalar(1 + k * 1.7);
+      // ⚠️ skyDome is the FRONT backdrop. From the back lawn the entire sky is
+      // backSky, and it sat at a flat baseline through every bolt — the grass lit up
+      // and the thing supposedly doing the lighting did not.
+      backSky.material.color.setScalar(1 + k * 1.7);
     } else if (skyDome.material.color.r !== 1) {
-      yardHemi.intensity = phaseHemi; skyDome.material.color.setScalar(1);
+      yardHemi.intensity = phaseHemi; skyDome.material.color.setScalar(1); backSky.material.color.setScalar(1);
     }
   }
 
@@ -3947,11 +4018,15 @@ export function buildHallway(ctx) {
     [Z_S - 10, Z_S + 3.6, Z_S + 17.2, Z_S + 30.8, Z_S + 44.4].forEach(function (pz, pi) {
       var pole = new THREE.Mesh(new THREE.CylinderGeometry(0.13, 0.17, 7.2, 8), poleM);
       pole.position.set(PX, GROUND + 3.6, pz); badd(pole);
-      var cross = box(0.14, 0.12, 1.9, poleM);
+      /* ⚠️ the crossarm ran 1.9 m along Z — the same direction as the wires, so it
+       * lay ALONG the line instead of across it, and the three insulators were spaced
+       * out along the run rather than across the arm. A crossarm is perpendicular by
+       * definition; that is the whole point of it. */
+      var cross = box(1.9, 0.12, 0.14, poleM);
       cross.position.set(PX, GROUND + 6.6, pz); badd(cross);
       [-0.8, 0, 0.8].forEach(function (ix) {
         var ins = new THREE.Mesh(new THREE.CylinderGeometry(0.055, 0.055, 0.14, 6), mat(0x7fa08f, 0.5));
-        ins.position.set(PX, GROUND + 6.74, pz + ix); badd(ins);
+        ins.position.set(PX + ix, GROUND + 6.80, pz); badd(ins);
       });
       tops.push(pz);
     });
@@ -3962,12 +4037,14 @@ export function buildHallway(ctx) {
         for (var seg = 0; seg < 4; seg++) {
           var f0 = seg / 4, f1 = (seg + 1) / 4;
           var y0 = GROUND + 6.74 - 0.38 * Math.sin(Math.PI * f0), y1 = GROUND + 6.74 - 0.38 * Math.sin(Math.PI * f1);
+          /* ⚠️ `+ ix * 0`. The lateral offset was multiplied by ZERO, then the next
+           * two lines reassigned z and forced x back to PX — so all three wires of
+           * every span were stacked in the same place, 48 meshes drawing 16 wires.
+           * `w2` was cloned, positioned, and never added to the scene at all. */
           var w = box(0.035, 0.035, len / 4 + 0.02, wireM);
-          w.position.set(PX, (y0 + y1) / 2, z0 + len * (f0 + f1) / 2 + ix * 0);
+          w.position.set(PX + ix, (y0 + y1) / 2, z0 + len * (f0 + f1) / 2);
           w.rotation.x = Math.atan2(y1 - y0, len / 4);
-          w.position.z = z0 + len * (f0 + f1) / 2;
-          var w2 = w.clone(); w2.position.z = w.position.z; w2.position.x = PX;
-          w.position.x = PX; badd(w);
+          badd(w);
         }
       });
     }
@@ -4385,7 +4462,10 @@ export function buildHallway(ctx) {
     for (var sdi = 0; sdi < 4; sdi++) {
       var along = sdi < 2 ? pw : pd, horiz = sdi < 2;
       var n2 = Math.max(2, Math.round(along / 0.075));
-      for (var k2 = 0; k2 <= n2; k2++) {
+      // ⚠️ every corner was built twice — once by the run along it and once by the run
+      // across it — so 12 of the 88 sticks were exact duplicates, z-fighting with
+      // themselves. The horizontal runs own the corners; the vertical runs start one in.
+      for (var k2 = horiz ? 0 : 1; k2 <= (horiz ? n2 : n2 - 1); k2++) {
         var t2 = -0.5 + k2 / n2;
         var sx = horiz ? px5 + t2 * pw : px5 + (sdi === 2 ? -pw / 2 : pw / 2);
         var sz = horiz ? pz5 + (sdi === 0 ? -pd / 2 : pd / 2) : pz5 + t2 * pd;
@@ -4598,17 +4678,31 @@ export function buildHallway(ctx) {
   flueCap.position.set(0, 2.05, 0); kilnG.add(flueCap);
   // the shelf of pots waiting their turn, and two that already went through
   var shelfM = mat(0x7a6a52, 0.9);
-  var kShelf = box(0.92, 0.05, 0.34, shelfM); kShelf.position.set(-0.90, 0.52, 0.30); kilnG.add(kShelf);
-  [[-1.28, 0.26], [-0.52, 0.26]].forEach(function (lg) {
-    var leg = box(0.06, 0.50, 0.06, shelfM); leg.position.set(lg[0], 0.25, 0.30 + lg[1] - 0.26); kilnG.add(leg);
+  /* ⚠️ TWO BUGS IN FOUR LINES. (a) the pad's top face is y 0.07, and the shelf's own
+   * legs stood on y 0 — one leg was on the concrete, one sunk into it, because the
+   * shelf straddled the pad's edge. It stands wholly OFF the pad now, which is where
+   * a pot table goes anyway. (b) both legs landed on the same centreline: the table
+   * read [[-1.28, 0.26], [-0.52, 0.26]] and placed each at `0.30 + lg[1] - 0.26`, so
+   * the offset evaluated to exactly zero twice — the fossil of a four-leg table whose
+   * z column was never filled in. Four legs, two extra meshes, and the arithmetic
+   * no-op is gone. */
+  var kShelf = box(0.92, 0.05, 0.34, shelfM); kShelf.position.set(-1.42, 0.52, 0.30); kilnG.add(kShelf);
+  [[-1.80, -0.12], [-1.80, 0.12], [-1.04, -0.12], [-1.04, 0.12]].forEach(function (lg) {
+    var leg = box(0.06, 0.50, 0.06, shelfM); leg.position.set(lg[0], 0.25, 0.30 + lg[1]); kilnG.add(leg);
   });
-  [[0xd8cbb0, 0.10, 0.13, -1.18], [0x6f8f7a, 0.085, 0.11, -0.95],
-   [0x9a5f4a, 0.095, 0.15, -0.70]].forEach(function (pt) {
-    var pot = new THREE.Mesh(new THREE.CylinderGeometry(pt[1] * 0.78, pt[1], pt[2], 12), mat(pt[0], 0.55));
-    pot.position.set(pt[3], 0.545 + pt[2] / 2, 0.30); kilnG.add(pot);
+  /* the comment above says two of these have already been through, and for a while
+   * the code built three identical pots at three identical roughnesses in a dead
+   * straight row. A fired pot has a glaze on it: 0.20 against raw bisque at 0.95.
+   * The z and the turn vary too, because nobody puts pots down in a line. */
+  [[0xd8cbb0, 0.10, 0.13, -1.70, 0.24, 0.20, 0.6],
+   [0x6f8f7a, 0.085, 0.11, -1.42, 0.34, 0.20, -0.9],
+   [0x9a5f4a, 0.095, 0.15, -1.13, 0.28, 0.95, 0.25]].forEach(function (pt) {
+    var pot = new THREE.Mesh(new THREE.CylinderGeometry(pt[1] * 0.78, pt[1], pt[2], 12), mat(pt[0], pt[5]));
+    pot.position.set(pt[3], 0.545 + pt[2] / 2, pt[4]); pot.rotation.y = pt[6]; kilnG.add(pot);
+    btag(pot, 'the pots', null, 'two came out of the last firing. the third one is waiting its turn.');
   });
   var kBucket = new THREE.Mesh(new THREE.CylinderGeometry(0.13, 0.11, 0.24, 12), mat(0x4a5a68, 0.6));
-  kBucket.position.set(0.62, 0.12, 0.66); kilnG.add(kBucket);
+  kBucket.position.set(0.62, 0.19, 0.66); kilnG.add(kBucket);   // 0.07 pad + half its own height
   [kBody, kLid, kDoor, spy, flue, flueCap, kShelf, kBucket].forEach(function (m) {
     btag(m, "THE KILN", function () { window.location.href = "https://kylefriesmarketing.github.io/the-kiln/"; },
       kilnSave.firings
@@ -5368,7 +5462,11 @@ export function buildHallway(ctx) {
   var seat = new THREE.Mesh(new THREE.CylinderGeometry(0.021, 0.021, 0.09, 10), mat(0x8a8f96, 0.4));
   seat.position.y = 0.345; rodG.add(seat);
   // the blank tapers — a rod that is the same width all the way up reads as a pole
-  [[0.55, 0.014, 0.011], [1.00, 0.011, 0.008], [1.45, 0.008, 0.005]].forEach(function (sg) {
+  /* ⚠️ each segment is placed at sg[0] + 0.20 and is 0.50 long, so it spans
+   * [sg[0] - 0.05, sg[0] + 0.45]. The old table started the blank at 0.50 while the
+   * reel seat ended at 0.39 — an 11 cm hole in the rod at exactly the height the
+   * first guide sits. 0.44 butts the seat and keeps the taper and the 0.05 overlap. */
+  [[0.44, 0.014, 0.011], [0.89, 0.011, 0.008], [1.34, 0.008, 0.005]].forEach(function (sg) {
     var seg = new THREE.Mesh(new THREE.CylinderGeometry(sg[2], sg[1], 0.50, 8), rodM);
     seg.position.y = sg[0] + 0.20; rodG.add(seg);
   });
@@ -5380,7 +5478,11 @@ export function buildHallway(ctx) {
   handle.rotation.x = Math.PI / 2; handle.position.set(0.088, 0.335, 0.03); rodG.add(handle);
   [0.62, 0.98, 1.34, 1.66].forEach(function (gy) {   // the guides
     var gd = new THREE.Mesh(new THREE.TorusGeometry(0.013, 0.0022, 5, 10), mat(0x9aa1a9, 0.35));
-    gd.rotation.y = Math.PI / 2; gd.position.set(0, gy, 0); rodG.add(gd);
+    /* ⚠️ three.js builds a torus in the XY plane with its hole axis on +Z. A Y
+     * rotation swings that axis to +X — perpendicular to the blank — so the guides
+     * were little wheels bolted to the side of the rod. X puts the hole on Y, which
+     * is the direction the line actually runs. */
+    gd.rotation.x = Math.PI / 2; gd.position.set(0, gy, 0); rodG.add(gd);
   });
   var line = new THREE.Mesh(new THREE.CylinderGeometry(0.0016, 0.0016, 1.30, 4), lineM);
   line.position.set(0.014, 1.00, 0); line.rotation.z = -0.012; rodG.add(line);
@@ -5882,7 +5984,7 @@ export function buildHallway(ctx) {
     } catch (e) { return { best: 0, maps: 0 }; }
   })();
   var lwG = new THREE.Group(); lwG.position.set(-1.40, BSM.fl, 1.80); lwG.rotation.y = -0.22; add(lwG);
-  var matT = canvasTex(128, 128, function (c, w, h) {
+  var lwMatT = canvasTex(128, 128, function (c, w, h) {
     c.fillStyle = "#4a6a4e"; c.fillRect(0, 0, w, h);
     c.strokeStyle = "rgba(230,225,205,0.5)"; c.lineWidth = 3;
     c.strokeRect(9, 9, w - 18, h - 18);                       // the printed border
@@ -5891,22 +5993,27 @@ export function buildHallway(ctx) {
     c.fillStyle = "rgba(40,50,38,0.16)";                      // the worn middle
     c.fillRect(w * 0.28, h * 0.28, w * 0.44, h * 0.44);
   });
-  matT.colorSpace = THREE.SRGBColorSpace;
+  lwMatT.colorSpace = THREE.SRGBColorSpace;
   var lwMat = new THREE.Mesh(new THREE.PlaneGeometry(1.24, 0.94),
-    new THREE.MeshStandardMaterial({ map: matT, roughness: 0.97, polygonOffset: true, polygonOffsetFactor: -4, polygonOffsetUnits: -4 }));
+    new THREE.MeshStandardMaterial({ map: lwMatT, roughness: 0.97, polygonOffset: true, polygonOffsetFactor: -4, polygonOffsetUnits: -4 }));
   lwMat.rotation.x = -Math.PI / 2; lwMat.position.y = 0.006; lwG.add(lwMat);
   var blockCols = [0xc4553f, 0x3f6bb0, 0xe0b23a, 0x4f9a5e];
   [[-0.44, -0.30, 4], [0.42, -0.26, 3], [-0.38, 0.32, 3], [0.46, 0.30, 5]].forEach(function (tw, ti) {
     for (var bl = 0; bl < tw[2]; bl++) {
       var blk = box(0.10, 0.055, 0.10, mat(blockCols[(ti + bl) % 4], 0.75));
-      blk.position.set(tw[0] + (bl % 2 ? 0.008 : -0.006), 0.028 + bl * 0.056, tw[1] + (bl % 3 ? -0.005 : 0.007));
+      // ⚠️ the mat is at y 0.006 and the bottom block sat at 0.0005, so the whole
+      // base course was buried. Same +0.006 the soldiers needed; measured, not guessed.
+      blk.position.set(tw[0] + (bl % 2 ? 0.008 : -0.006), 0.034 + bl * 0.056, tw[1] + (bl % 3 ? -0.005 : 0.007));
       blk.rotation.y = (bl * 0.13) - 0.1; lwG.add(blk);
     }
   });
   // the men: two ranks facing the gap between the towers, one already down
   [[-0.16, -0.06, 0], [-0.02, -0.10, 0.2], [0.12, -0.05, -0.15],
    [-0.10, 0.10, 3.0], [0.06, 0.13, 3.2]].forEach(function (mn) {
-    var man = new THREE.Group(); man.position.set(mn[0], 0, mn[1]); man.rotation.y = mn[2]; lwG.add(man);
+    // ⚠️ the playmat is a plane at y 0.006 and each base is 0.006 thick standing on
+    // y 0 — so all five bases were exactly at or under the mat, five meshes drawing
+    // nothing. The man stands ON the mat, not in it.
+    var man = new THREE.Group(); man.position.set(mn[0], 0.006, mn[1]); man.rotation.y = mn[2]; lwG.add(man);
     var base = new THREE.Mesh(new THREE.CylinderGeometry(0.021, 0.021, 0.006, 10), mat(0x4e6a3e, 0.85));
     base.position.y = 0.003; man.add(base);
     var bodyM = box(0.016, 0.044, 0.011, mat(0x4e6a3e, 0.85)); bodyM.position.y = 0.028; man.add(bodyM);
@@ -5915,8 +6022,12 @@ export function buildHallway(ctx) {
     var rifle = box(0.004, 0.004, 0.030, mat(0x3c5230, 0.85));
     rifle.position.set(0.010, 0.036, 0.012); rifle.rotation.x = 0.5; man.add(rifle);
   });
+  /* ⚠️ 'one already down' — and then it was stood back UP. The standing man is
+   * box(0.016, 0.044, ...); this one swaps x and y, so it is ALREADY lying down, and
+   * the rotation.z of π/2 rotated it upright again into a 4.4 cm post. Drop the z
+   * turn, keep the yaw, and lift it clear of the mat like the others. */
   var fallen = box(0.044, 0.016, 0.011, mat(0x4e6a3e, 0.85));
-  fallen.position.set(0.24, 0.008, 0.04); fallen.rotation.set(0, 0.6, Math.PI / 2); lwG.add(fallen);
+  fallen.position.set(0.24, 0.014, 0.04); fallen.rotation.set(0, 0.6, 0.10); lwG.add(fallen);
   // ⚠️ traverse, not children: each soldier is a GROUP of four little meshes, so a
   // pass over direct children tagged the mat and the blocks and skipped every man.
   lwG.traverse(function (m) {
@@ -5957,9 +6068,14 @@ export function buildHallway(ctx) {
   var skull = new THREE.Mesh(new THREE.SphereGeometry(0.075, 12, 10), mat(0xe6e0cc, 0.7));
   skull.scale.set(1, 1.08, 0.92); skull.position.set(0.16, 0.46, 0.06); hxG.add(skull);
   var jaw = box(0.10, 0.03, 0.07, mat(0xdcd5bf, 0.7)); jaw.position.set(0.16, 0.395, 0.075); hxG.add(jaw);
-  [[-0.028, 0.475, 0.062], [0.028, 0.475, 0.062]].forEach(function (ey) {
-    var eye = new THREE.Mesh(new THREE.SphereGeometry(0.019, 8, 6), mat(0x1b1a18, 0.9));
-    eye.position.set(0.16 + ey[0], ey[1], ey[2] + 0.02); hxG.add(eye);
+  /* ⚠️ BOTH EYES WERE SEALED INSIDE THE SKULL. Normalised against the ellipsoid
+   * (semi-axes 0.075/0.081/0.069 after the scale), the old centres summed to 0.275 —
+   * a quarter of the way out, so two whole meshes rendered nowhere. They sit ON the
+   * surface now, along a forward-and-slightly-up direction, so a hemisphere of each
+   * shows. Anything placed by eye inside a SCALED sphere wants this check. */
+  [[-0.0225, 0.013, 0.0649], [0.0225, 0.013, 0.0649]].forEach(function (ey) {
+    var eye = new THREE.Mesh(new THREE.SphereGeometry(0.016, 8, 6), mat(0x1b1a18, 0.9));
+    eye.position.set(0.16 + ey[0], 0.46 + ey[1], 0.06 + ey[2]); hxG.add(eye);
   });
   // the string of lights, half of it still in the box
   var lampC = [0xff8a2b, 0x8a4fd0, 0x2bd07a];
@@ -6559,9 +6675,23 @@ export function buildHallway(ctx) {
       if (ctx.kidSay) ctx.kidSay("the hallway! the whole house is waking up.", 5);
     }
   }
+  /* ⚠️⚠️ THE STAIRS STAND IN THE WAY OF THE WALK HOME, and only of that one walk.
+   * Every `leave` in this file drops you AT the doorway you came through and lets the
+   * idle drift glide you back to P.rest over the next couple of seconds — so the
+   * camera is legitimately anywhere along the hall's west side when you click the
+   * bedroom door. The bedroom door is the only destination EAST of the flight
+   * (x -3.15 against treads spanning x -5.31..-4.39, z 2.76..7.21), so a walk that
+   * starts south of the flight and ends east of it cuts straight through the treads.
+   * Measured: coming in from the yard and clicking the door immediately put the
+   * camera through a tread at (-5.31, 1.66, 5.29). Coming out of the garage does it
+   * too. Routing via P.rest first goes round the newel the way a person would.
+   * ⚠️ the decision is taken ONCE, here — testing camera.position per frame would
+   * change the waypoint list mid-move and rebuild the curve under the walk. */
+  var leaveViaRest = false;
   function leave() {
     if (mode !== "idle" && mode !== "turning") return;
     if (space !== "hall") return;
+    leaveViaRest = camera.position.z > P.rest.z + 0.35;
     mode = "leaving"; tt = 0;
     c0.copy(camera.position); l0.copy(lookAt);
     if (turnBtn) turnBtn.style.display = "none";
@@ -6980,7 +7110,8 @@ export function buildHallway(ctx) {
       if (mode === "entering")
         walk([c0, P.door1, P.door2, P.rest], [l0, P.doorL, P.hallL, P.look], tt);
       else
-        walk([c0, P.door2, P.door1], [l0, P.doorL, BED_LOOK], tt);
+        walk(leaveViaRest ? [c0, P.rest, P.door2, P.door1] : [c0, P.door2, P.door1],
+             leaveViaRest ? [l0, P.look, P.doorL, BED_LOOK] : [l0, P.doorL, BED_LOOK], tt);
       camera.position.copy(_v); lookAt.copy(_w); camera.lookAt(lookAt);
       if (tt >= 1) {
         if (mode === "entering") { space = "hall"; if (ctx.doorPivot) ctx.doorPivot.rotation.y = 2.6; }
