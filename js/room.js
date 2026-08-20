@@ -3078,7 +3078,12 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
          : kidSpace === "kitchen" ? KID_KITCHEN_OBSTACLES
          : kidSpace === "garage" ? KID_GARAGE_OBSTACLES
          : kidSpace === "back" ? KID_BACK_OBSTACLES
-         : kidSpace === "basement" ? KID_BASEMENT_OBSTACLES : KID_OBSTACLES;
+         : kidSpace === "basement" ? KID_BASEMENT_OBSTACLES
+         : kidSpace === "living" ? KID_LIVING_OBSTACLES
+         : kidSpace === "upstairs" ? KID_UP_OBSTACLES
+         : kidSpace === "room0" ? KID_R0_OBSTACLES
+         : kidSpace === "room1" ? KID_R1_OBSTACLES
+         : kidSpace === "room2" ? KID_R2_OBSTACLES : KID_OBSTACLES;
   }
   var KID_HALL_STATIONS = [
     { x: -5.55, z: 2.50, act: "idle" },    // by the closet
@@ -3114,13 +3119,64 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
     { x: -10.70, z: 4.95, act: "fidget" }, // at the big door, willing it open
     { x: -8.75, z: 7.35, act: "idle" },    // by the project's back bumper
   ];
+  /* ⚠️ THE KID COULD NOT FOLLOW YOU INTO SIX SPACES. hall.space() returns 'living',
+   * 'upstairs' and 'room0'..'room2', and none of them had an entry in ANY of his
+   * tables — so the lookups fell through to their bedroom defaults and he teleported
+   * into the bedroom and announced the hallway. Every table below needs the same
+   * six keys or he half-arrives: entry, hub, stations, obstacles and a line to say.
+   * ⚠️ Upstairs stations carry `y`, exactly like the basement's, because that floor
+   * is at 3.45 and every one of his positions is otherwise assumed to be at 0. */
+  var UPY = 3.45;
+  var KID_LIVING_STATIONS = [
+    { x: -11.60, z: 2.60, act: 'idle' },      // middle of the floor, taking the room in
+    { x: -12.60, z: 1.62, act: 'sit' },       // on the good couch, which he is not supposed to
+    { x: -15.80, z: 2.95, act: 'fidget' },    // by the corner lamp
+    { x: -13.20, z: 3.05, act: 'idle' },      // right up close to the set, as you do
+  ];
+  var KID_UP_STATIONS = [
+    { x: -9.00, z: 1.75, y: UPY, act: 'idle' },
+    { x: -13.60, z: 1.70, y: UPY, act: 'fidget' },   // the west end, under the school photos
+    { x: -1.20, z: 1.78, y: UPY, act: 'idle' },      // the east end, by the yard window
+  ];
+  var KID_R0_STATIONS = [
+    { x: -12.90, z: -0.40, y: UPY, act: 'idle' },
+    { x: -10.60, z: -1.10, y: UPY, act: 'fidget' },  // at the dresser, touching things
+  ];
+  var KID_R1_STATIONS = [
+    { x: -4.30, z: -0.50, y: UPY, act: 'idle' },
+    { x: -2.20, z: -1.30, y: UPY, act: 'fidget' },   // at the desk, reading the homework
+    { x: -5.60, z: 0.10, y: UPY, act: 'sit' },       // the beanbag
+  ];
+  var KID_R2_STATIONS = [
+    { x: 1.90, z: -0.60, y: UPY, act: 'idle' },
+    { x: 3.20, z: -1.40, y: UPY, act: 'fidget' },    // under the gable window, in the good light
+  ];
+  var KID_LIVING_OBSTACLES = [
+    { x: -12.60, z: 1.02, r: 1.05 },   // the good couch
+    { x: -12.60, z: 3.58, r: 0.75 },   // the big set
+    { x: -12.60, z: 2.30, r: 0.70 },   // the coffee table
+    { x: -16.35, z: 3.50, r: 0.40 },   // the corner lamp
+  ];
+  var KID_UP_OBSTACLES = [
+    { x: -8.10, z: 1.55, r: 0.55 },    // the hall table
+    { x: -10.90, z: 1.60, r: 0.45 },   // the hamper
+    { x: -4.90, z: 4.90, r: 1.10 },    // the stairwell: he is not falling down it
+  ];
+  var KID_R0_OBSTACLES = [{ x: -12.60, z: -1.70, r: 1.20 }, { x: -16.15, z: 0.50, r: 0.75 }];
+  var KID_R1_OBSTACLES = [{ x: -6.60, z: -1.90, r: 1.00 }, { x: -2.35, z: -2.65, r: 0.70 }];
+  var KID_R2_OBSTACLES = [{ x: 0.74, z: -1.95, r: 0.60 }, { x: 3.20, z: -0.05, r: 0.55 }];
   function kidStations() {
     return kidSpace === "hall" ? KID_HALL_STATIONS
          : kidSpace === "porch" ? KID_PORCH_STATIONS
          : kidSpace === "kitchen" ? KID_KITCHEN_STATIONS
          : kidSpace === "garage" ? KID_GARAGE_STATIONS
          : kidSpace === "back" ? KID_BACK_STATIONS
-         : kidSpace === "basement" ? KID_BASEMENT_STATIONS : KID_STATIONS;
+         : kidSpace === "basement" ? KID_BASEMENT_STATIONS
+         : kidSpace === "living" ? KID_LIVING_STATIONS
+         : kidSpace === "upstairs" ? KID_UP_STATIONS
+         : kidSpace === "room0" ? KID_R0_STATIONS
+         : kidSpace === "room1" ? KID_R1_STATIONS
+         : kidSpace === "room2" ? KID_R2_STATIONS : KID_STATIONS;
   }
   // where he appears when he follows you: the doorway you both just came through,
   // so it reads as him walking in rather than as a teleport
@@ -3132,10 +3188,16 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
     garage:  { x: -8.00, z: 5.60 },   // just inside the garage doorway
     back:    { x: -5.34, z: 9.55 },   // out the slider, on the deck
     basement: { x: -6.97, z: 0.95 },  // top of the flight — he GLIDES down it, free
+    living:   { x: -8.10, z: 1.90 },              // just inside the living room doorway
+    upstairs: { x: -4.85, y: 3.45, z: 2.62 },     // off the top of the flight
+    room0:    { x: -12.20, y: 3.45, z: 0.80 },    // in each doorway, not in the middle
+    room1:    { x: -3.60, y: 3.45, z: 0.80 },
+    room2:    { x: 1.90, y: 3.45, z: 0.80 },
   };
   var KID_HUBS = { bedroom: { x: 0.3, z: 1.35 }, hall: { x: -5.9, z: 1.2 }, porch: { x: -5.9, z: -4.8 },
     kitchen: { x: -10.4, z: -1.2 }, garage: { x: -9.0, z: 5.15 }, back: { x: -4.6, z: 13.4 },
-    basement: { x: -3.2, z: 1.9 } };
+    basement: { x: -3.2, z: 1.9 }, living: { x: -11.8, z: 2.4 }, upstairs: { x: -9.0, z: 1.75 },
+    room0: { x: -12.5, z: -0.6 }, room1: { x: -4.1, z: -0.6 }, room2: { x: 2.0, z: -0.9 } };
   var kidFollowT = -1, kidFollowTo = null;
 
   // One avoidance step toward (tx,tz): steer around obstacles, then hard-clamp out
@@ -3241,9 +3303,13 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
     var ent = KID_ENTRY[kidFollowTo] || KID_ENTRY.bedroom;
     kidSpace = kidFollowTo; kidFollowTo = null;
     kidState.ignoreObs = -1;          // ⚠️ indices mean different things per space
-    kidState.mode = "roam"; kidState.via = false; kidState.targetY = 0;
-    kid.position.set(ent.x, 0, ent.z);
-    if (kidShadow) kidShadow.position.set(ent.x, 0.02, ent.z);
+    kidState.mode = "roam"; kidState.via = false; kidState.targetY = ent.y || 0;
+    // ⚠️ this used to hardcode y 0, which is fine for every ground-floor space and
+    // wrong for the whole second storey — he would have arrived 3.45 m under the
+    // landing and walked around inside the ceiling of the hall.
+    var entY = ent.y || 0;
+    kid.position.set(ent.x, entY, ent.z);
+    if (kidShadow) kidShadow.position.set(ent.x, entY + 0.02, ent.z);
     kidPickStation();
     if (kidSpace !== "bedroom" && Math.random() < 0.5) {
       try {
@@ -3252,6 +3318,11 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
              : kidSpace === "garage" ? "the GARAGE. i'm not allowed to touch the bench. i touch the bench."
              : kidSpace === "back" ? "a POOL. we have a POOL. we've always had one but STILL."
              : kidSpace === "basement" ? "the BASEMENT. all the best games live where the spiders are."
+             : kidSpace === "living" ? "the GOOD room. we're not really allowed to sit in here."
+             : kidSpace === "upstairs" ? "upstairs. the third step from the bottom tells on you."
+             : kidSpace === "room0" ? "this is THEIR room. we're being very quiet."
+             : kidSpace === "room1" ? "it says KEEP OUT. in three colours. i can read."
+             : kidSpace === "room2" ? "the ATTIC. it smells like old paper and christmas."
                                       : "i know this bit. this is the hallway.", 4);
       } catch (e) { }
     }

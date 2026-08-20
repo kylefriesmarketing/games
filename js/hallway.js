@@ -3718,9 +3718,20 @@ export function buildHallway(ctx) {
    * It is exterior cladding. It exists to be seen from the back lawn and nowhere
    * else, so that is the only time it is up. */
   var bedShell = [];
-  [[8.0, 3.3, 0.14, -0.35, 1.2, 3.62],     // south face, sealing the hall-bedroom gap too
-   [0.14, 3.3, 7.3, 3.62, 1.2, 0.05],      // east face
-   [8.3, 0.12, 7.5, -0.35, 3.02, 0.05]]    // the lid
+  /* ⚠️⚠️ THE SECOND STOREY STOOD ON NOTHING. The shell above (UP) runs to z 7.60,
+   * and east of the hall this ground floor stopped at z 3.69 — so 8.0 m x 3.9 m of
+   * upstairs hung over open grass, 6 m from where you stand in the back yard. I
+   * measured it rather than trusting the note: five rays cast straight down from
+   * y 2.9 under the storey all hit the LAWN at y -0.45 and nothing in between.
+   * The fix is not to shrink the storey (UPF runs the real floor to z 7.35, so a
+   * shorter shell would leave the landing unclad) — it is that the ground floor was
+   * always meant to be this deep. It reaches z 7.38 now and meets the hall's east
+   * wall exactly at that wall's own 7.24 joint.
+   * ⚠️ Checked for collisions first: everything in this band sits between x -4.4 and
+   * -4.0, hard against the hall wall. From x -4.0 to 3.7 there was nothing at all. */
+  [[7.94, 3.3, 0.14, -0.28, 1.2, 7.31],    // south face, carried back to meet the hall
+   [0.14, 3.3, 10.98, 3.62, 1.2, 1.89],    // east face, the full new depth
+   [8.3, 0.12, 11.15, -0.35, 3.02, 1.875]] // the lid the storey actually sits on
     .forEach(function (bs) {
       var shell = box(bs[0], bs[1], bs[2], sidingM);
       shell.position.set(bs[3], bs[4], bs[5]); badd(shell);
@@ -3914,32 +3925,71 @@ export function buildHallway(ctx) {
   var BHOUSE = [[0x8f99a8, 0x585f6b], [0x9c9184, 0x5e564c],
                 [0x849aa0, 0x515f63], [0xa0928f, 0x635857]];
   var bhN = 0;
+  /* ⚠️ THESE WERE THE ONLY BUILDINGS IN THE WORLD MADE OF FLAT COLOUR. The whole
+   * back block contains ZERO canvas textures, while every house on the front street
+   * wears the same lap-siding canvas — and the nearest of these stands closer to you
+   * than the textured ones do. They wear it now.
+   * ⚠️ IT IS NOT A DROP-IN: material.color MULTIPLIES the map, and sideT's base fill
+   * is a mid grey around 0.55, so handing it the palette colour straight would come
+   * out roughly half as bright as the flat version and the row would go muddy. Each
+   * colour is divided back out by that factor and clamped. */
+  var bClad = {};
+  function bLighten(hex) {
+    var r = Math.min(255, Math.round(((hex >> 16) & 255) / 0.55));
+    var g3 = Math.min(255, Math.round(((hex >> 8) & 255) / 0.55));
+    var b3 = Math.min(255, Math.round((hex & 255) / 0.55));
+    return (r << 16) | (g3 << 8) | b3;
+  }
+  function bCladM(hex) {
+    if (!bClad[hex]) bClad[hex] = new THREE.MeshStandardMaterial(
+      { map: sideT, color: bLighten(hex), roughness: 0.95 });
+    return bClad[hex];
+  }
+  var bRoofs = [];   // so the chimneys can stand ON their own roofs instead of near them
   function bHouse(hx, hz, hw, hh, hd, ry2, wins) {
     var hg = new THREE.Group(); hg.position.set(hx, GROUND, hz); hg.rotation.y = ry2; badd(hg);
     var pal = BHOUSE[bhN++ % BHOUSE.length];
-    var bod = box(hw, hh, hd, mat(pal[0], 0.95)); bod.position.y = hh / 2; hg.add(bod);
+    var bod = box(hw, hh, hd, bCladM(pal[0])); bod.position.y = hh / 2; hg.add(bod);
     var rf = new THREE.Mesh(new THREE.ConeGeometry(hw * 0.74, hh * 0.62, 4), mat(pal[1], 0.95));
     rf.rotation.y = Math.PI / 4; rf.position.y = hh + hh * 0.31; hg.add(rf);
-    (wins || []).forEach(function (wn) {
-      var win = new THREE.Mesh(new THREE.PlaneGeometry(0.95, 0.75),
-        new THREE.MeshStandardMaterial({ color: 0xfff0cc, emissive: 0xffd9a0, emissiveIntensity: 1.1, roughness: 0.6 }));
+    /* a 4-gon cone turned 45 degrees is a square pyramid: half-side = R*cos45, base
+     * at local y hh, apex at hh + 0.62hh. Recording that is the whole chimney fix. */
+    bRoofs.push({ x: hx, z: hz, ry: ry2, base: hh, rise: hh * 0.62, s: hw * 0.5233,
+                  hw: hw, hd: hd });
+    var hi = bhN;
+    (wins || []).forEach(function (wn, wi) {
+      /* ⚠️ ALL TWENTY-FIVE WINDOWS ON THIS BLOCK WERE LIT. Not one house had anybody
+       * asleep, which reads as a stage set rather than a street at night. An explicit
+       * third element wins; otherwise a deterministic ~55% are on. Deterministic
+       * because the yard has to look the same every night — the rule the whole
+       * section is built on. */
+      var lit = wn.length > 2 ? !!wn[2] : (((hi * 7 + wi * 3) % 9) < 5);
+      var win = new THREE.Mesh(new THREE.PlaneGeometry(0.95, 0.75), lit
+        ? new THREE.MeshStandardMaterial({ color: 0xfff0cc, emissive: 0xffd9a0, emissiveIntensity: 1.1, roughness: 0.6 })
+        : new THREE.MeshStandardMaterial({ color: 0x161c24, roughness: 0.5 }));
       win.position.set(wn[0], wn[1], -hd / 2 - 0.03); win.rotation.y = Math.PI; hg.add(win);
-      bWins.push(win.material);
+      if (lit) bWins.push(win.material);
     });
     return hg;
   }
   function bTree(tx, tz, sc) {
     var tg2 = new THREE.Group(); tg2.position.set(tx, GROUND, tz); tg2.scale.setScalar(sc || 1); badd(tg2);
+    /* ⚠️ TWENTY-TWO CLONES, ALL FACING THE SAME WAY, AND NOT ONE OF THEM MOVED —
+     * while every tree on the front street sways. Three deterministic lines (no rng:
+     * the yard must look identical every night) turn 22 copies into 22 silhouettes
+     * and put them in the wind with everything else. */
+    tg2.rotation.y = (tx * 0.37 + tz * 0.19) % 6.283;
     var tr2 = new THREE.Mesh(new THREE.CylinderGeometry(0.14, 0.24, 3.6, 7), mat(0x3d2f22, 0.95));
-    tr2.position.y = 1.8; tg2.add(tr2);
+    tr2.position.y = 1.8; tr2.rotation.z = (((tx + tz) % 7) - 3) * 0.012; tg2.add(tr2);
+    swayers.push({ o: tg2, ph: tx * 0.7 + tz * 0.3, amp: 0.009 });
     [[0, 4.1, 0, 1.35], [-0.9, 3.8, 0.4, 1.0], [0.9, 3.9, -0.3, 1.05]].forEach(function (bl2) {
       var lf2 = new THREE.Mesh(new THREE.IcosahedronGeometry(bl2[3], 1), mat(0x2f4a2a, 0.95));
       lf2.position.set(bl2[0], bl2[1], bl2[2]); lf2.scale.y = 0.82; tg2.add(lf2);
     });
   }
-  bHouse(XC + 8.2, Z_S + 21.5, 9.5, 3.6, 6.0, 0, [[-1.8, 2.55], [1.4, 1.5]]);   // next door (kept its light)
+  bHouse(XC + 8.2, Z_S + 21.5, 9.5, 3.6, 6.0, 0, [[-1.8, 2.55, true], [1.4, 1.5, false]]);   // next door: upstairs still up, downstairs gone to bed
   bHouse(XC - 4.1, Z_S + 21.9, 7.8, 3.2, 5.6, 0.06, [[0.9, 1.4]]);              // the one behind the tree line
-  bHouse(XC - 14.2, Z_S + 19.4, 8.6, 3.4, 5.8, -0.09, [[-1.2, 1.5], [1.6, 2.4]]); // the corner lot
+  bHouse(XC - 14.2, Z_S + 19.4, 8.6, 3.4, 5.8, -0.09, [[-1.2, 1.5, false], [1.6, 2.4, true]]); // the corner lot: whole house dark but the landing
   bHouse(XC + 17.6, Z_S + 8.0, 8.8, 3.4, 6.0, Math.PI / 2, [[-1.0, 1.5]]);      // east over the side fence
   /* ---- THE WEST STREET ---------------------------------------------------------
    * ⚠️⚠️ THE OLD ONES OVERLAPPED EACH OTHER. Three houses 8.2m long on a 7.0m
@@ -4067,16 +4117,37 @@ export function buildHallway(ctx) {
   [[XC - 18.3, Z_S - 7.2], [XC - 17.6, Z_S + 6.4], [XC - 18.4, Z_S + 20.0],
    [XC - 17.7, Z_S + 33.6], [XC - 18.2, Z_S + 47.2],
    [XC - 27.7, Z_S - 0.4], [XC - 27.0, Z_S + 13.2], [XC - 27.8, Z_S + 26.8]].forEach(function (ch, ci) {
-    var st2 = box(0.46, 1.15 + (ci % 3) * 0.2, 0.46, mat(0x8a5a4a, 0.95));
-    st2.position.set(ch[0], GROUND + 3.9 + (ci % 3) * 0.1, ch[1] + (ci % 2 ? 1.6 : -1.4)); badd(st2);
+    /* ⚠️ THE HEIGHT CAME FROM `ci % 3` AND NOT FROM THE ROOF IT STANDS ON, so six of
+     * the eight stacks sat BELOW their own roof surface — chimneys buried in the
+     * shingles — and two of the three aerials were half inside them. A pyramid's
+     * surface is base + rise * (1 - max(|lx|,|lz|)/halfside), and bHouse now records
+     * exactly those three numbers, so each stack can be put where the slope actually
+     * is. It is placed 0.25 INTO the roof so the flashing has something to be. */
+    var cz2 = ch[1] + (ci % 2 ? 1.6 : -1.4);
+    var surf = 3.9;                       // the old constant, if no roof is under it
+    for (var ri2 = 0; ri2 < bRoofs.length; ri2++) {
+      var rr = bRoofs[ri2], dx2 = ch[0] - rr.x, dz2 = cz2 - rr.z;
+      var ca = Math.cos(-rr.ry), sa = Math.sin(-rr.ry);
+      var lx2 = dx2 * ca + dz2 * sa, lz2 = -dx2 * sa + dz2 * ca;
+      if (Math.abs(lx2) > rr.hw / 2 + 0.1 || Math.abs(lz2) > rr.hd / 2 + 0.1) continue;
+      var k4 = Math.max(Math.abs(lx2), Math.abs(lz2)) / rr.s;
+      surf = rr.base + rr.rise * Math.max(0, 1 - k4);
+      break;
+    }
+    var stH = 1.15 + (ci % 3) * 0.2;
+    var stY = GROUND + surf + stH / 2 - 0.25;
+    var st2 = box(0.46, stH, 0.46, mat(0x8a5a4a, 0.95));
+    st2.position.set(ch[0], stY, cz2); badd(st2);
     var cap2 = box(0.56, 0.08, 0.56, mat(0x6a4a3a, 0.95));
-    cap2.position.set(ch[0], GROUND + 4.5 + (ci % 3) * 0.2, ch[1] + (ci % 2 ? 1.6 : -1.4)); badd(cap2);
+    cap2.position.set(ch[0], stY + stH / 2 + 0.04, cz2); badd(cap2);
     if (ci % 3 === 1) {                       // and somebody still has the aerial up
+      // and the aerial rides the same surface, one step down the slope from the stack
+      var mY = GROUND + surf + 0.45;
       var mast = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.03, 1.5, 6), mat(0x6a6f76, 0.5));
-      mast.position.set(ch[0] + 1.1, GROUND + 4.6, ch[1] - 0.8); badd(mast);
+      mast.position.set(ch[0] + 1.1, mY, cz2 - 0.8); badd(mast);
       for (var ab = 0; ab < 4; ab++) {
         var arm2 = box(0.9, 0.03, 0.03, mat(0x6a6f76, 0.5));
-        arm2.position.set(ch[0] + 1.1, GROUND + 4.9 + ab * 0.22, ch[1] - 0.8); badd(arm2);
+        arm2.position.set(ch[0] + 1.1, mY + 0.28 + ab * 0.22, cz2 - 0.8); badd(arm2);
       }
     }
   });
