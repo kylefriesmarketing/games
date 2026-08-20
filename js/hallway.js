@@ -644,6 +644,23 @@ export function buildHallway(ctx) {
     var dstep = new THREE.Mesh(new THREE.BoxGeometry(HOLE.x1 - HOLE.x0 - 0.06, 0.16, 0.24), stairM);
     dstep.position.set((HOLE.x0 + HOLE.x1) / 2, -0.1 - ds * 0.21, HOLE.z0 + 0.16 + ds * 0.19); add(dstep);
   }
+  /* ⚠️ THE SHAFT. A hole in a floor is not an opening until it has SIDES. Cutting
+   * the lawn out from under the stairwell opened the view down — and also opened the
+   * view SIDEWAYS, because below the boards the well had nothing around it: from
+   * halfway down you looked out under the house and saw the front lawn past the edge
+   * of the cut. Three walls (the south side is where the flight carries on into the
+   * basement) close the joist space from the floor down to the basement ceiling, all
+   * the way along the run so the whole descent is enclosed. */
+  var shaftM = mat(0x4a443c, 0.95);
+  var SH_Z0 = HOLE.z0 - 0.06, SH_Z1 = 2.75, SH_TOP = 0.02, SH_BOT = -0.34;
+  [[HOLE.x0 - 0.05, 0.10, SH_Z1 - SH_Z0],
+   [HOLE.x1 + 0.05, 0.10, SH_Z1 - SH_Z0]].forEach(function (w2) {
+    var sw = box(w2[1], SH_TOP - SH_BOT, w2[2], shaftM);
+    sw.position.set(w2[0], (SH_TOP + SH_BOT) / 2, (SH_Z0 + SH_Z1) / 2); add(sw);
+  });
+  var shN = box(HOLE.x1 - HOLE.x0 + 0.2, SH_TOP - SH_BOT, 0.10, shaftM);
+  shN.position.set((HOLE.x0 + HOLE.x1) / 2, (SH_TOP + SH_BOT) / 2, SH_Z0); add(shN);
+
   // rails: SOUTH and EAST only — the north edge is the mouth you walk in through
   (function () {
     var hr = new THREE.Mesh(new THREE.BoxGeometry((HOLE.x1 - HOLE.x0) + 0.1, 0.05, 0.05), mat(0x3a2c1c, 0.7));
@@ -1715,10 +1732,37 @@ export function buildHallway(ctx) {
   // ⚠️ TWO strips, not one big plane. A single lawn spanning the whole depth sits at
   // GROUND while the road sits at GROUND-0.06, so the grass rendered straight over
   // the top of the road and the street simply wasn't there.
-  [[4.0, Z_WALK], [Z_FKERB, -52]].forEach(function (lz) {
-    var lw = new THREE.Mesh(new THREE.PlaneGeometry(80, Math.abs(lz[0] - lz[1])), grassM);
-    lw.rotation.x = -Math.PI / 2;
-    lw.position.set(-5.0, GROUND, (lz[0] + lz[1]) / 2); lw.receiveShadow = true; yadd(lw);
+  /* ⚠️⚠️ AND THE NEAR STRIP HAS A HOLE IN IT, because the stairwell goes through
+   * here. GROUND is -0.45 and this plane runs the full 80m — so it passes UNDER the
+   * house and, at the top of the basement stairs, straight across the opening. The
+   * floor's own hole was never the problem: looking down the stairwell you hit lawn
+   * 45cm below the boards and the flight simply stopped (measured — a ray down the
+   * well hit "y=-0.45 PlaneGeometry" at z 1.1 through 1.3, with eleven perfectly
+   * good steps continuing below it).
+   * It is invisible everywhere else because it is a single-sided plane: from the
+   * basement, which sits at y -2.42 to -0.28, the camera is BELOW it and sees only
+   * culled back faces. That is why this survived so long.
+   * The cut is sized to the SIGHTLINE, not to the hole. Standing at the hall's rest
+   * spot and looking down the well, the line of sight passes through the opening and
+   * meets y -0.45 at z 0.05 — a third of a metre NORTH of the hole's own north edge
+   * — so a hole the same size as the floor's would still have shown lawn through it.
+   * Everything cut away here has hall floor directly over it, so nothing else in the
+   * house can see the gap. */
+  var LAWN_CUT = { x0: -7.50, x1: -6.20, z0: -0.70, z1: 1.90 };
+  [[4.0, Z_WALK], [Z_FKERB, -52]].forEach(function (lz, li) {
+    var zA = Math.min(lz[0], lz[1]), zB = Math.max(lz[0], lz[1]);
+    var rects = (li === 0)
+      ? [[-45, 35, zA, LAWN_CUT.z0],                    // north of the cut, full width
+         [-45, 35, LAWN_CUT.z1, zB],                    // south of the cut, full width
+         [-45, LAWN_CUT.x0, LAWN_CUT.z0, LAWN_CUT.z1],  // west sliver
+         [LAWN_CUT.x1, 35, LAWN_CUT.z0, LAWN_CUT.z1]]   // east sliver
+      : [[-45, 35, zA, zB]];
+    rects.forEach(function (r) {
+      if (r[1] - r[0] < 0.001 || r[3] - r[2] < 0.001) return;
+      var lw = new THREE.Mesh(new THREE.PlaneGeometry(r[1] - r[0], r[3] - r[2]), grassM);
+      lw.rotation.x = -Math.PI / 2;
+      lw.position.set((r[0] + r[1]) / 2, GROUND, (r[2] + r[3]) / 2); lw.receiveShadow = true; yadd(lw);
+    });
   });
   var path = box(1.3, 0.06, 10.6, pathM); path.position.set(FRONT_X, GROUND + 0.02, -11.7); yadd(path);
   ytag(path, "the front walk", null, "the front walk. the third slab has been cracked since forever.");
@@ -4889,10 +4933,16 @@ export function buildHallway(ctx) {
      * actually through the opening. gmid holds it on the doorway's own line until
      * it is inside, and only then does it swing round to the resting corner. */
     gmid: new THREE.Vector3(-7.95, 1.63, 5.52),     // through first, THEN turn
-    /* the same mistake one floor down: the flight drops from y 1.25 to y -0.60 over
-     * z 0.45..1.40, which passes clean through the top tread (y 0..0.6, z 0.35..1.3).
-     * cellarT keeps the camera above the treads until it is past them. */
-    cellarT: new THREE.Vector3(-6.97, 0.78, 1.36),  // over the top step, not through it
+    /* ⚠️ THERE WAS A cellarT HERE AT z 1.36 AND IT WAS WRONG. I added it believing
+     * the stairs were a solid block with a flat top at y 0.60 — which is what a ray
+     * cast down the well reports, because downHit, the invisible click target for
+     * "the stairs down", is exactly that shape. A MeshBasicMaterial with
+     * visible:false renders nothing and blocks nothing, but it still answers a
+     * raycast. The stairs are eleven real steps and always were.
+     * The waypoint's real effect was to aim the descent at z 1.36 — six centimetres
+     * PAST the hole, which ends at HOLE.z1 = 1.3 — so it dropped the camera through
+     * solid floor instead of down the opening. The original waypoints thread the
+     * hole correctly and are left to do it. */
     gdoor1: new THREE.Vector3(-5.98, 1.66, 5.60),   // squared up to the garage door, hall side
     gdoor2: new THREE.Vector3(-7.25, 1.62, 5.60),   // in the doorway
     gdoorL: new THREE.Vector3(-10.6, 0.90, 6.90),   // what you see through it
@@ -5164,11 +5214,11 @@ export function buildHallway(ctx) {
     if (mode === "basementIn" || mode === "basementOut") {   // down the hole, into the den
       tt = Math.min(1, tt + dt / 2.7);
       if (mode === "basementIn")
-        walk([c0, P.cellar1, P.cellar2, P.cellarT, P.cellar3, P.cellar4, P.bsrest],
-             [l0, new THREE.Vector3(-6.97, -1.2, 2.1), new THREE.Vector3(-6.9, -1.35, 2.3), new THREE.Vector3(-6.8, -1.5, 2.5), P.bslook, P.bslook, P.bslook], tt);
+        walk([c0, P.cellar1, P.cellar2, P.cellar3, P.cellar4, P.bsrest],
+             [l0, new THREE.Vector3(-6.97, -1.2, 2.1), new THREE.Vector3(-6.8, -1.5, 2.5), P.bslook, P.bslook, P.bslook], tt);
       else
-        walk([c0, P.cellar4, P.cellar3, P.cellarT, P.cellar2, P.cellar1],
-             [l0, new THREE.Vector3(-6.97, 0.4, 0.9), new THREE.Vector3(-6.97, 0.9, 0.6), new THREE.Vector3(-6.97, 1.2, 0.4), P.look, P.look], tt);
+        walk([c0, P.cellar4, P.cellar3, P.cellar2, P.cellar1],
+             [l0, new THREE.Vector3(-6.97, 0.4, 0.9), new THREE.Vector3(-6.97, 1.2, 0.4), P.look, P.look], tt);
       camera.position.copy(_v); lookAt.copy(_w); camera.lookAt(lookAt);
       if (tt >= 1) {
         if (mode === "basementIn") { space = "basement"; facing = turnTo = "den"; }
