@@ -7578,6 +7578,15 @@ export function buildHallway(ctx) {
        * first getPointAt or the stale table is already cached. */
       _wPos.arcLengthDivisions = 600; _wLook.arcLengthDivisions = 600;
     }
+    /* ⚠️ SEEN IN THE WILD, CAUSE NEVER PINNED: an intermittent boot-window state where
+     * t arrives non-finite and CatmullRomCurve3.getPointAt(NaN) indexes points[NaN] —
+     * an undefined-x crash deep inside three that kills the camera for the rest of the
+     * session, because the real rAF loop hits the same throw every frame. Twice this
+     * was chased and twice it would not reproduce on demand. So: a non-finite t is
+     * treated as ARRIVAL (t=1 completes the move and hands control back to idle, which
+     * self-heals; t=0 would re-pin the camera to the start of a walk forever), and it
+     * shouts to the console so a live occurrence finally leaves a fingerprint. */
+    if (!isFinite(t)) { try { console.error("[house] walk() got non-finite t in mode " + mode + " — completing the move"); } catch (e) {} t = 1; }
     var k = ease(Math.min(1, Math.max(0, t)));
     _wPos.getPointAt(k, _v);
     _wLook.getPointAt(k, _w);
