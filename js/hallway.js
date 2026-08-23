@@ -3580,9 +3580,19 @@ export function buildHallway(ctx) {
   groundShade(-7.15, -9.8, 0.55, 0.6, 0.45);
   // (a mown stripe behind it was tried twice — glowing unlit, then muddy lit —
   // and cut. Kyle's right: the mower sells the job on its own.)
-  var fcBagged = (function () { try { return parseInt(localStorage.getItem("fc-bagged") || "0", 10) || 0; } catch (e) { return 0; } })();
-  var fcHint = fcBagged > 0
-    ? "FRESH CUT — " + fcBagged + " bag" + (fcBagged === 1 ? "" : "s") + " on the kerb · the grass grew back"
+  /* ⚠️ fc-bagged is a ONE-SHOT FLAG — the game guards `if (getItem('fc-bagged'))
+   * return;` and writes "1" exactly once — and this code was parsing it as an
+   * integer and PLURALISING it. The count could never exceed one, so "N bags on the
+   * kerb" was a fiction; what the flag actually means is "you have bagged at least
+   * once". The real progress number lives in fc-save.done, so use that. */
+  var fcLawns = (function () { try {
+    var m = JSON.parse(localStorage.getItem("fc-save") || "null");
+    var c = m && m.done ? Object.keys(m.done).length : 0;
+    if (c && m.done.daily) c -= 1;
+    return c;
+  } catch (e) { return 0; } })();
+  var fcHint = fcLawns > 0
+    ? "FRESH CUT — " + fcLawns + " of 48 lawns cut · the grass grew back"
     : "FRESH CUT — the lawn won't mow itself · click to start the mower";
   function fcGo() { window.location.href = "https://kylefriesmarketing.github.io/fresh-cut/"; }
   mowG.traverse(function (o) { if (o.isMesh) ytag(o, "FRESH CUT", fcGo, fcHint); });

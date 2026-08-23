@@ -412,9 +412,15 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
 
   /* ---- reading the sibling games' saves (same origin) ------------------------ */
   // Age of Toys: 15 storybook missions on the shelf, three secret pages beyond it.
+  /* ⚠️ THIS LIST WAS TEN MISSIONS STALE. The campaign grew Act IV (The Great
+   * Outdoors) and Act V (The Kingdom Arrives) and the hub never heard: "all missions
+   * won" and the chest's full shine fired ten missions early. The 25 open ids, from
+   * the game's own CAMPAIGN table; the three secrets stay in their own count below. */
   var TT_IDS = ["naptime", "sandbox", "bathtub", "hill", "finale",
                 "crumbs", "sofa", "canyonrun", "nightlight", "shelfking",
-                "tagged", "boxed", "bargain", "stranger", "wayhome"];
+                "tagged", "boxed", "bargain", "stranger", "wayhome",
+                "doorstep", "dunes", "gardenwar", "washout", "oakcrown",
+                "unboxing", "portcullis", "carpetkings", "oldguard", "hearth"];
   function ttCampaign() {
     var p = readSave("tt-campaign", function (m) { return m; }) || {};
     var done = 0;
@@ -1966,7 +1972,13 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
     // JSON.parses and would throw on "Cook" and report the game as never started.
     "SHORT STAFFED":  { key: "ss-name", raw: true, pick: function (v) { return v ? 1 : null; }, total: 1, noun: "shifts", attempts: true },
     "HOME BREW":      { key: "mybrew-save-v1",  pick: function (m) { return countOf(m.G && m.G.discovered); }, noun: "recipes", attempts: true },
-    "FRESH CUT":      { key: "fc-save",         pick: function (m) { return countOf(m.done); }, total: 48, noun: "lawns", attempts: true },
+    /* ⚠️ the game has 48 fixed jobs, and completing the rotating Daily Lawn writes
+     * done["daily"] as a 49th key — so a completionist read "49 of 48". The daily is
+     * excluded from the count, not added to the total: it is a different lawn every
+     * day, not a 49th thing to finish. */
+    "FRESH CUT":      { key: "fc-save",         pick: function (m) {
+        var c = countOf(m.done); if (c && m.done && m.done.daily) c -= 1; return c;
+      }, total: 48, noun: "lawns", attempts: true },
     "THE LAST ISSUE": { key: "tli-runs",        pick: function (m) { return Array.isArray(m) ? m.length : null; }, noun: "runs", attempts: true },
     "QUARRY":         { key: "quarry-universe", pick: function (m) { return m && m.hunter ? countOf(m.hunter.trophies) : null; }, noun: "trophies", attempts: true },
     "HERE COMES THE TRUCK": { key: "truck-save", pick: function (m) { return m.days || null; }, noun: "days", attempts: true },
@@ -3600,7 +3612,14 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
       gamesStarted: started + (tt.done + tt.secrets > 0 ? 1 : 0) + (hr && (hr.bestDist > 0) ? 1 : 0),
       gamesTotal: Object.keys(GAME_SAVES).length + 2,   // the stories, plus Age of Toys and Hood Run
       anyComplete: complete,
-      totalEndings: total + tt.done + tt.secrets,
+      /* ⚠️ CAMPAIGN MISSIONS ARE NOT ENDINGS. Folding tt.done into this tally meant
+       * widening TT_IDS to the real 25 would have let one RTS completionist win the
+       * "Twenty endings" award without reading a single book — the exact inflation the
+       * attempts flag exists to prevent, and the same bug CLEAN THE ZOO just had. The
+       * campaign already has its own headline number (toysMissions, right below) and
+       * its own act-by-act notebook page. Earned awards are latched in room-profile,
+       * so nobody loses an award they already have. */
+      totalEndings: total,
       toysMissions: tt.done + tt.secrets,
       riftWins: brProfile().wins,
       lapWeeks: vlMeta().runs,
@@ -3669,7 +3688,7 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
       ["SOUTH", readSave("south_persist", function (m) { return countOf(m.endings); }), null],
       ["NOBODY", readSave("nobody_persist", function (m) { return countOf(m.endings); }), null],
       ["CURIOUSER", readSave("alice_persist", function (m) { return countOf(m.wakings); }), 11],
-      ["DRACULA", readSave("dracula_persist", function (m) { return countOf(m.endings); }), 6],
+      ["DRACULA", readSave("dracula_persist", function (m) { return countOf(m.endings); }), 15],
       ["G for George", readSave("gg_persist", function (m) { return countOf(m.endings); }), 14],
     ];
     var html = rows.map(function (r) {
