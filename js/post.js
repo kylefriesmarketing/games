@@ -57,6 +57,13 @@ var COMPOSITE = [
   "uniform sampler2D tScene; uniform sampler2D tBloom;",
   "uniform float bloomStrength; uniform float vignette; uniform float lift;",
   "uniform float exposure; uniform vec3 tint;",
+  // the second grade: the SPACE you are standing in. It multiplies with the per-hour
+  // tint/lift above rather than replacing it — the hour owns the whole house, the room
+  // owns its own identity, and neither fights the other. Identity (1,1,1)/1 = off.
+  "uniform vec3 spaceTint; uniform float spaceLift;",
+  // film grain: animated hash noise, luminance-weighted so shadows grain more than
+  // highlights (that is where film actually grains, and where banding lives). 0 = off.
+  "uniform float grainAmt; uniform float uTime;",
   "varying vec2 vUv;",
   "vec3 rrtOdtFit(vec3 v){",
   "  vec3 a = v * (v + 0.0245786) - 0.000090537;",
@@ -74,13 +81,23 @@ var COMPOSITE = [
   "void main(){",
   "  vec3 c = texture2D(tScene, vUv).rgb;",
   "  c += texture2D(tBloom, vUv).rgb * bloomStrength;",
-  "  c *= tint * lift;",
+  "  c *= tint * lift * spaceTint * spaceLift;",
   "  vec2 q = vUv - 0.5;",
   "  c *= 1.0 - dot(q, q) * vignette;",   // corners fall off — the room gets a frame
   // ⚠️ the /0.6 is three's, not a fudge: its ACESFilmicToneMapping does
   // `color *= toneMappingExposure / 0.6`. Leave it out and the whole room renders
   // at 60% exposure — measured 58.4 → 39.4 mean luma against the un-posted frame.
-  "  gl_FragColor = vec4(toSRGB(aces(c * exposure / 0.6)), 1.0);",
+  "  vec3 outc = toSRGB(aces(c * exposure / 0.6));",
+  // grain AFTER the tone map, in display space — before it, the ACES shoulder eats it.
+  // The hash is cheap and unrepeating enough at one draw per frame; time is quantised
+  // to 24fps steps so the grain flickers like film rather than boiling like static.
+  "  if (grainAmt > 0.0) {",
+  "    float gt = floor(uTime * 24.0);",
+  "    float h = fract(sin(dot(vUv * vec2(917.13, 533.7) + gt * 0.37, vec2(12.9898, 78.233))) * 43758.5453);",
+  "    float lum = dot(outc, vec3(0.2126, 0.7152, 0.0722));",
+  "    outc += (h - 0.5) * grainAmt * (1.0 - lum * 0.75);",
+  "  }",
+  "  gl_FragColor = vec4(outc, 1.0);",
   "}",
 ].join("\n");
 
@@ -95,6 +112,7 @@ export function createPost(renderer, scene, camera) {
     bloomSoftness: 0.42,    // measured so walls/floor never bloom, only real light sources
     bloomStrength: 0.72,
     vignette: 0.34,
+    grain: 0.0,             // film grain amount; 0 = off (the flagship pass sets it)
     lift: 1.0,
     tint: new THREE.Color(1, 1, 1),
     bloomScale: 4,          // bloom buffers at 1/4 res
@@ -141,6 +159,8 @@ export function createPost(renderer, scene, camera) {
       tScene: { value: sceneRT.texture }, tBloom: { value: bloomB.texture },
       bloomStrength: { value: p.bloomStrength }, vignette: { value: p.vignette },
       lift: { value: p.lift }, tint: { value: new THREE.Vector3(1, 1, 1) },
+      spaceTint: { value: new THREE.Vector3(1, 1, 1) }, spaceLift: { value: 1 },
+      grainAmt: { value: 0 }, uTime: { value: 0 },
       exposure: { value: renderer.toneMappingExposure },
     },
     vertexShader: VERT, fragmentShader: COMPOSITE, depthTest: false, depthWrite: false,
@@ -173,6 +193,12 @@ export function createPost(renderer, scene, camera) {
     compMat.uniforms.tint.value.set(r, g, b);
     compMat.uniforms.lift.value = lift == null ? 1 : lift;
   };
+  // the space's own grade, multiplied with the hour's. Lerped by the caller.
+  api.setSpaceGrade = function (r, g, b, lift) {
+    compMat.uniforms.spaceTint.value.set(r, g, b);
+    compMat.uniforms.spaceLift.value = lift == null ? 1 : lift;
+  };
+  api.setTime = function (t) { compMat.uniforms.uTime.value = t; };
 
   api.render = function () {
     if (!api.enabled) { renderer.setRenderTarget(null); renderer.render(scene, camera); return; }
@@ -199,6 +225,7 @@ export function createPost(renderer, scene, camera) {
     compMat.uniforms.tBloom.value = bloomA.texture;
     compMat.uniforms.bloomStrength.value = p.bloomStrength;
     compMat.uniforms.vignette.value = p.vignette;
+    compMat.uniforms.grainAmt.value = p.grain;
     compMat.uniforms.exposure.value = renderer.toneMappingExposure; // stay in step with the room
     pass(compMat, null);
   };

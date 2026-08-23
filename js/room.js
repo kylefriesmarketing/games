@@ -31,6 +31,36 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
   // phones render fewer pixels; nobody can tell on a 6" screen and the fans thank us
   var coarse = window.matchMedia && window.matchMedia("(pointer: coarse)").matches;
   var photoRd = null;   // the photo button reuses one renderer; see takePhoto
+  /* ---- PER-SPACE COLOUR GRADES -------------------------------------------------
+   * Age of Toys proved this pattern (MAP_GRADES in its post.js): each room gets a
+   * few-percent tint + lift that acts like the room's own lamp, composed with the
+   * per-hour grade the house already has. The table ships as IDENTITY — the flagship
+   * pass fills the numbers in from measurement, and until then this whole system is
+   * provably inert (verified pixel-identical against the pre-patch baseline).
+   * Transitions LERP over ~0.9s so walking between rooms reads as the light changing,
+   * never as a cut. */
+  var SPACE_GRADES = {
+    bedroom:  [1, 1, 1, 1], hall: [1, 1, 1, 1], kitchen: [1, 1, 1, 1],
+    porch:    [1, 1, 1, 1], garage: [1, 1, 1, 1], basement: [1, 1, 1, 1],
+    back:     [1, 1, 1, 1], living: [1, 1, 1, 1], upstairs: [1, 1, 1, 1],
+    room0:    [1, 1, 1, 1], room1: [1, 1, 1, 1], room2: [1, 1, 1, 1],
+  };
+  var sgCur = [1, 1, 1, 1], sgFrom = [1, 1, 1, 1], sgTo = [1, 1, 1, 1], sgT = 1, sgSpace = "bedroom";
+  function spaceGradeTick(dt) {
+    if (!post.available || !post.setSpaceGrade) return;
+    var sp = hall && hall.space ? hall.space() : "bedroom";
+    if (sp !== sgSpace) {
+      sgSpace = sp;
+      var g = SPACE_GRADES[sp] || [1, 1, 1, 1];
+      sgFrom = sgCur.slice(); sgTo = g; sgT = 0;
+    }
+    if (sgT < 1) {
+      sgT = Math.min(1, sgT + dt / 0.9);
+      var k = sgT * sgT * (3 - 2 * sgT);
+      for (var i = 0; i < 4; i++) sgCur[i] = sgFrom[i] + (sgTo[i] - sgFrom[i]) * k;
+      post.setSpaceGrade(sgCur[0], sgCur[1], sgCur[2], sgCur[3]);
+    }
+  }
   renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, coarse ? 1.5 : 2));
   renderer.shadowMap.enabled = true;
   /* ⚠️ THERE WAS NO CONTEXT-LOST HANDLER ANYWHERE IN THE PROJECT. A lost context is
@@ -38,6 +68,73 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
    * many WebGL pages will do it — and the default behaviour is a permanently black
    * canvas with no explanation. preventDefault() at least allows a restore, and the
    * list view is a working way to reach every game meanwhile. */
+  /* ---- THE ENVIRONMENT MAP -----------------------------------------------------
+   * Every MeshStandardMaterial in the house has DEAD SPECULARS: there is nothing for
+   * a rough surface to reflect, so plastic, brass, glass and lino all read as chalk.
+   * PMREMGenerator is core three. The environment is a tiny procedural scene — warm
+   * floor bounce below, cool night above, one bright window slab and one warm lamp
+   * slab — which is what a 90s bedroom actually reflects.
+   * ⚠️ r160 has NO scene.environmentIntensity (that is r163+); intensity control is
+   * per-material envMapIntensity, so enabling WALKS the graph once and stamps it.
+   * Ships DISABLED (scene.environment stays null): the flagship pass turns it on with
+   * a measured intensity. __room.env.enable(0.35) to try it live. */
+  var envRT = null;
+  function buildEnvTexture() {
+    if (envRT) return envRT.texture;
+    var pmrem = new THREE.PMREMGenerator(renderer);
+    var es = new THREE.Scene();
+    // the gradient shell: warm below the horizon, deep blue above
+    var shellG = new THREE.SphereGeometry(10, 16, 12);
+    var shellM = new THREE.ShaderMaterial({
+      side: THREE.BackSide,
+      uniforms: {},
+      vertexShader: "varying vec3 vP; void main(){ vP = position; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }",
+      fragmentShader: "varying vec3 vP; void main(){ float h = normalize(vP).y;" +
+        " vec3 dn = vec3(0.32, 0.21, 0.12);" +   // lamplit carpet bounce
+        " vec3 up = vec3(0.045, 0.06, 0.10);" +  // night ceiling
+        " vec3 c = mix(dn, up, smoothstep(-0.6, 0.55, h));" +
+        " gl_FragColor = vec4(c, 1.0); }",
+    });
+    es.add(new THREE.Mesh(shellG, shellM));
+    // the window: one cool bright slab (what glass and gloss pick up at night)
+    var win = new THREE.Mesh(new THREE.PlaneGeometry(3.4, 2.6),
+      new THREE.MeshBasicMaterial({ color: new THREE.Color(0.55, 0.72, 1.05) }));
+    win.position.set(0, 1.6, -6); es.add(win);
+    // the lamp: one warm slab off to the side
+    var lamp = new THREE.Mesh(new THREE.PlaneGeometry(1.6, 1.2),
+      new THREE.MeshBasicMaterial({ color: new THREE.Color(1.35, 0.85, 0.42) }));
+    lamp.position.set(4.4, 0.9, 2.2); lamp.rotation.y = -1.1; es.add(lamp);
+    envRT = pmrem.fromScene(es, 0.04);
+    pmrem.dispose(); shellG.dispose();
+    return envRT.texture;
+  }
+  var envState = { on: false, intensity: 0 };
+  function envEnable(intensity) {
+    var k = intensity == null ? 0.35 : intensity;
+    scene.environment = buildEnvTexture();
+    scene.traverse(function (o) {
+      if (!o.isMesh) return;
+      var ms = Array.isArray(o.material) ? o.material : [o.material];
+      ms.forEach(function (m) {
+        if (!m || !m.isMeshStandardMaterial) return;
+        /* ⚠️ WEIGHTED BY SMOOTHNESS, measured before believed: a flat envMapIntensity
+         * of 0.25 raised the bedroom +11.3 mean luma (+27%) and cost 7 points of
+         * saturation — the map was acting as FILL on carpet and walls, washing the
+         * mood out, when the entire point is specular life on glass, brass and gloss.
+         * (1-roughness)^2 gives carpet (0.98) essentially nothing and chrome (0.3)
+         * half the full strength; the mood survives, the shiny things wake up. */
+        var rr = 1 - (m.roughness == null ? 0.9 : m.roughness);
+        m.envMapIntensity = k * rr * rr * 4;
+        m.needsUpdate = envState.on === false;
+      });
+    });
+    envState.on = true; envState.intensity = k;
+    markShadowDirty(2);
+  }
+  function envDisable() {
+    scene.environment = null;
+    envState.on = false; envState.intensity = 0;
+  }
   renderer.domElement.addEventListener("webglcontextlost", function (ev) {
     ev.preventDefault();
     try {
@@ -6824,6 +6921,8 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
      * still costs ~2% of what redrawing every frame did. */
     if (shadowDirty > 0) { lampLight.shadow.needsUpdate = true; shadowDirty--; }
     else if ((frameCount % 45) === 0) lampLight.shadow.needsUpdate = true;
+    spaceGradeTick(dt);
+    if (post.available && post.setTime) post.setTime(t);
     renderOutside(camera.position.x);
     drawFrame();
   }
@@ -7055,6 +7154,8 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
     outside: { render: function (s) { portalFrame = 0; renderOutside(s); }, cam: portalCam,
       rt: portalRT, plane: portalP },
     post: post, draw: drawFrame, setGlow: setGlow, // tune live: __room.post.p.bloomStrength = … ; __room.draw()
+    env: { enable: envEnable, disable: envDisable, state: function () { return envState; } },
+    spaceGrades: SPACE_GRADES,   // live-tunable: __room.spaceGrades.kitchen = [r,g,b,lift]
     pets: { kind: function () { return petKind; }, set: setPet, group: function () { return petGroup(petKind); },
       labels: PET_LABEL, turtle: function () { return { g: turtleG, s: turtle }; },
       fish: function () { return { g: fishG, s: fish }; }, hamster: function () { return { g: hamG, s: ham }; },
