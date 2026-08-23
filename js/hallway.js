@@ -2806,7 +2806,9 @@ export function buildHallway(ctx) {
     c.fillStyle = "#a83a2c"; c.fillRect(w * 0.24, h * 0.52, w * 0.52, h * 0.22); // the pocket
     c.strokeStyle = "#f2e2c4"; c.lineWidth = 2; c.strokeRect(w * 0.24, h * 0.52, w * 0.52, h * 0.22);
     c.fillStyle = "#f2e2c4"; c.font = "bold 10px Georgia, serif"; c.textAlign = "center";
-    c.fillText("WING BARN", w * 0.5, h * 0.44);
+    // ⚠️ "WING BARN" appears nowhere in SHORT STAFFED. The diner is Hazel's —
+    // strings.js:9: "Her name is on the sign. Her mother's recipes are on the menu."
+    c.fillText("HAZEL'S", w * 0.5, h * 0.44);
     c.fillStyle = "rgba(90,60,30,0.4)";                         // one grease mark, earned
     c.beginPath(); c.ellipse(w * 0.62, h * 0.82, 8, 5, 0.4, 0, 7); c.fill();
   });
@@ -3559,16 +3561,27 @@ export function buildHallway(ctx) {
    * ⚠️ it is EMISSIVE (0.55). At 26m on an unlit lawn a painted board is a grey
    * smudge; the glow is what makes it legible at all, and a sign that glows faintly
    * in the dark is on-theme for a game about things landing in the night. */
+  /* ⚠️ THIS WAS A GREEN GREY-ALIEN HEAD IN A SERIF — a 90s-UFO cliche the game never
+   * uses. QUARRY is seen entirely through THE MASK: amber CRT phosphor (#e8c88a) on
+   * void black (#05070a), one typeface (Courier New), scanlines, and the object its
+   * players actually collect is the TROPHY FANG — the same silhouette as the bedroom's
+   * own buildFang collectible. The board now says what the game says. */
   var qSignT = canvasTex(128, 96, function (c, w, h) {
-    c.fillStyle = "#101a14"; c.fillRect(0, 0, w, h);
-    c.strokeStyle = "#5ce89a"; c.lineWidth = 5; c.strokeRect(5, 5, w - 10, h - 10);
-    c.fillStyle = "#5ce89a";                                   // the head
-    c.beginPath(); c.ellipse(w / 2, h * 0.44, 17, 22, 0, 0, 7); c.fill();
-    c.fillStyle = "#101a14";                                   // and the eyes
-    c.beginPath(); c.ellipse(w / 2 - 7, h * 0.44, 4.5, 8, 0.45, 0, 7); c.fill();
-    c.beginPath(); c.ellipse(w / 2 + 7, h * 0.44, 4.5, 8, -0.45, 0, 7); c.fill();
-    c.fillStyle = "#5ce89a"; c.font = "bold 13px Georgia, serif"; c.textAlign = "center";
-    c.fillText("QUARRY", w / 2, h - 12);
+    c.fillStyle = "#05070a"; c.fillRect(0, 0, w, h);
+    c.strokeStyle = "#e8c88a"; c.lineWidth = 4; c.strokeRect(5, 5, w - 10, h - 10);
+    // the fang: a curved two-stroke tooth, cord-wrapped at the root
+    c.strokeStyle = "#e8c88a"; c.lineWidth = 7; c.lineCap = "round";
+    c.beginPath(); c.moveTo(w * 0.44, h * 0.62); c.quadraticCurveTo(w * 0.40, h * 0.30, w * 0.52, h * 0.18); c.stroke();
+    c.lineWidth = 3; c.beginPath(); c.moveTo(w * 0.50, h * 0.62); c.quadraticCurveTo(w * 0.47, h * 0.36, w * 0.54, h * 0.22); c.stroke();
+    c.strokeStyle = "#d97a4a"; c.lineWidth = 2;
+    for (var wr = 0; wr < 3; wr++) { c.beginPath(); c.moveTo(w * 0.40, h * (0.58 + wr * 0.03)); c.lineTo(w * 0.52, h * (0.56 + wr * 0.03)); c.stroke(); }
+    c.fillStyle = "#e8c88a"; c.font = "bold 15px 'Courier New', monospace"; c.textAlign = "center";
+    c.fillText("QUARRY", w / 2, h - 16);
+    c.fillStyle = "#d97a4a"; c.font = "bold 8px 'Courier New', monospace";
+    c.fillText("SOMETHING CAME DOWN", w / 2, h - 6);
+    // the mask's scanlines
+    c.fillStyle = "rgba(0,0,0,0.16)";
+    for (var sy = 6; sy < h - 6; sy += 3) c.fillRect(6, sy, w - 12, 1);
   });
   qSignT.colorSpace = THREE.SRGBColorSpace;
   var qSignG = new THREE.Group(); qSignG.position.set(-8.5, GROUND, -31.0); qSignG.rotation.y = 0.16; yadd(qSignG);
@@ -3582,7 +3595,7 @@ export function buildHallway(ctx) {
   // between a landmark you notice from the porch and a smudge on somebody's lawn.
   var qBoard = new THREE.Mesh(new THREE.BoxGeometry(1.24, 0.92, 0.04),
     new THREE.MeshStandardMaterial({ map: qSignT, roughness: 0.75,
-      emissive: 0x3f9a68, emissiveIntensity: 0.85 }));
+      emissive: 0x9a7f4e, emissiveIntensity: 0.85 }));
   qBoard.position.set(0, 1.14, 0.03); qSignG.add(qBoard);
   groundShade(-8.5, -31.0, 0.5, 0.22, 0.4);
   function qGo() { window.location.href = "https://kylefriesmarketing.github.io/quarry/"; }
@@ -6460,11 +6473,71 @@ export function buildHallway(ctx) {
     } catch (e) { return { wins: 0, top: null }; }
   })();
   var BR_TINTS = {
-    zenith: 0x4ea8ff, triage: 0x4ea8ff, centurion: 0x4ea8ff, joule: 0x4ea8ff, marrow: 0x4ea8ff,
-    sovereign: 0xffb03a, terminus: 0xffb03a, halflight: 0xffb03a, chorus: 0xffb03a, kestrel: 0xffb03a,
-    strigoi: 0xc4232f, lycaon: 0xc4232f, graft: 0xc4232f, khet: 0xc4232f, harrow: 0xc4232f,
-    flux: 0x9a5ce8, vespra: 0x9a5ce8, ordnance: 0x9a5ce8, null: 0x9a5ce8, vyrm: 0x9a5ce8,
+    /* ⚠️ VERIFIED AGAINST bloodrift/main.mjs:44-57 — the game's own faction table:
+     *   THE VANGUARD #c9a227 (gold), APEX #d4af37, THE COURT #b8434e, THE SPIRAL
+     *   DOMINION #3ec6b8 (teal). This table had the Vanguard BLUE and the Dominion
+     *   PURPLE — so a player whose main is Zenith got a blue machine when the game
+     *   would have told them their machine is gold. A save-reactive feature, wrong. */
+    zenith: 0xc9a227, triage: 0xc9a227, centurion: 0xc9a227, joule: 0xc9a227, marrow: 0xc9a227,
+    sovereign: 0xd4af37, terminus: 0xd4af37, halflight: 0xd4af37, chorus: 0xd4af37, kestrel: 0xd4af37,
+    strigoi: 0xb8434e, lycaon: 0xb8434e, graft: 0xb8434e, khet: 0xb8434e, harrow: 0xb8434e,
+    flux: 0x3ec6b8, vespra: 0x3ec6b8, ordnance: 0x3ec6b8, null: 0x3ec6b8, vyrm: 0x3ec6b8,
   };
+  /* ---- THE LAST LOCAL: the bar neon on the den wall -------------------------------
+   * A live game with NO presence in the house until now — the research fleet found it
+   * missing. Copperhead, Montana: serve the tourists, save the bar, mind the pigs. A
+   * 90s den had a beer neon on the panelling; this one says the bar's name in the
+   * game's own neon (#ffd27f lettering, #ffb45e halo) over its Montana-night navy, with
+   * the beer-neon cold blue for the town line. It hangs on the EAST wall, which the
+   * den's resting camera faces dead-on (dot 1.0) and which was otherwise bare.
+   * ⚠️ The game writes no localStorage at all, so there is nothing to read for a hint;
+   * the click sets a visit flag the way the cross-origin games do. */
+  var llT = canvasTex(256, 112, function (c, w, h) {
+    c.clearRect(0, 0, w, h);
+    // the tube glow: draw the word three times — wide soft halo, tight halo, core
+    c.textAlign = "center"; c.textBaseline = "middle";
+    c.font = "bold 30px Georgia, serif";
+    c.shadowColor = "#ffb45e"; c.shadowBlur = 22; c.fillStyle = "rgba(255,180,94,0.55)";
+    c.fillText("THE LAST LOCAL", w / 2, 40);
+    c.shadowBlur = 9; c.fillStyle = "#ffd27f"; c.fillText("THE LAST LOCAL", w / 2, 40);
+    c.shadowBlur = 0; c.fillStyle = "#fff1cc"; c.font = "bold 29px Georgia, serif"; c.fillText("THE LAST LOCAL", w / 2, 40);
+    // the town line in the cold beer-neon blue
+    c.font = "12px 'Courier New', monospace"; c.shadowColor = "#8fd8ff"; c.shadowBlur = 10;
+    c.fillStyle = "#8fd8ff"; c.fillText("COPPERHEAD, MT \u00b7 OPEN LATE", w / 2, 80);
+    c.shadowBlur = 0;
+  });
+  // ⚠️ BSM.x1 is the OUTER line; the east wall is a 0.12 slab whose inner face sits at
+  // 3.18. Hung at x1 - 0.035 the sign was inside the plaster — every sightline from the
+  // den rest hit the wall 8 cm in front of it. 3.145 puts the board 3.5 cm proud.
+  var llG = new THREE.Group(); llG.position.set(3.145, BSM.fl + 1.28, 3.05); llG.rotation.y = -Math.PI / 2; add(llG);
+  var llBoard = box(1.12, 0.46, 0.035, mat(0x17313a, 0.72)); llBoard.position.z = -0.018; llG.add(llBoard);   // Montana-night navy backing
+  var llTube = new THREE.Mesh(new THREE.PlaneGeometry(1.06, 0.46),
+    new THREE.MeshStandardMaterial({ map: llT, emissive: 0xffffff, emissiveMap: llT, emissiveIntensity: 1.35,
+      transparent: true, roughness: 0.6, depthWrite: false }));
+  llTube.position.z = 0.004; llG.add(llTube);
+  // a little varnished bar-top shelf under it, because a neon over nothing is a poster
+  var llShelf = box(0.70, 0.03, 0.12, new THREE.MeshStandardMaterial({ color: 0x503620, roughness: 0.18, metalness: 0.05 }));
+  llShelf.position.set(0, -0.30, 0.06); llG.add(llShelf);
+  [[-0.22, 0xd69a32], [0.0, 0xe8a8b8], [0.21, 0x8fd8ff]].forEach(function (bt, bi) {   // three bottles: amber, the pig-pink, the cold blue
+    var bo = new THREE.Mesh(new THREE.CylinderGeometry(0.022, 0.026, 0.16, 10),
+      new THREE.MeshStandardMaterial({ color: bt[1], roughness: 0.25, transparent: true, opacity: 0.82 }));
+    bo.position.set(bt[0], -0.205, 0.06); bo.rotation.y = bi * 0.7; llG.add(bo);
+    var nk = new THREE.Mesh(new THREE.CylinderGeometry(0.009, 0.014, 0.06, 8),
+      new THREE.MeshStandardMaterial({ color: bt[1], roughness: 0.25, transparent: true, opacity: 0.82 }));
+    nk.position.set(bt[0], -0.095, 0.06); llG.add(nk);
+  });
+  // the light the neon actually throws — every practical in this house has one
+  var llLite = new THREE.PointLight(0xffc070, 0.75, 2.8, 2.0);
+  llLite.position.set(2.88, BSM.fl + 1.30, 3.05); add(llLite);
+  function llGo() {
+    try { localStorage.setItem("room-visited-lastlocal", "1"); } catch (e) { }
+    window.location.href = "https://kylefriesmarketing.github.io/last-local/";
+  }
+  llG.traverse(function (m) {
+    if (m.isMesh) bstag(m, "THE LAST LOCAL", llGo,
+      "THE LAST LOCAL \u2014 serve the tourists, save the bar, mind the pigs. co-op, Copperhead MT \u00b7 click to clock in");
+  });
+
   var tliSave = (function () {
     try { var rn = JSON.parse(localStorage.getItem("tli-runs") || "null"); return Array.isArray(rn) ? rn.length : 0; }
     catch (e) { return 0; }

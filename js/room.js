@@ -459,10 +459,15 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
   // matches, wins, the deepest tower floor anyone reached, and whoever you've put
   // the most XP into — that fighter's faction is what the cabinet glows.
   var BR_FACTION = { // fighter → faction tint, for the cabinet marquee (roster doc order)
-    zenith: 0x4ea8ff, triage: 0x4ea8ff, centurion: 0x4ea8ff, joule: 0x4ea8ff, marrow: 0x4ea8ff,
-    sovereign: 0xffb03a, terminus: 0xffb03a, halflight: 0xffb03a, chorus: 0xffb03a, kestrel: 0xffb03a,
-    strigoi: 0xc4232f, lycaon: 0xc4232f, graft: 0xc4232f, khet: 0xc4232f, harrow: 0xc4232f,
-    flux: 0x9a5ce8, vespra: 0x9a5ce8, ordnance: 0x9a5ce8, null: 0x9a5ce8, vyrm: 0x9a5ce8,
+    /* ⚠️ VERIFIED AGAINST bloodrift/main.mjs:44-57 — the game's own faction table:
+     *   THE VANGUARD #c9a227 (gold), APEX #d4af37, THE COURT #b8434e, THE SPIRAL
+     *   DOMINION #3ec6b8 (teal). This table had the Vanguard BLUE and the Dominion
+     *   PURPLE — so a player whose main is Zenith got a blue machine when the game
+     *   would have told them their machine is gold. A save-reactive feature, wrong. */
+    zenith: 0xc9a227, triage: 0xc9a227, centurion: 0xc9a227, joule: 0xc9a227, marrow: 0xc9a227,
+    sovereign: 0xd4af37, terminus: 0xd4af37, halflight: 0xd4af37, chorus: 0xd4af37, kestrel: 0xd4af37,
+    strigoi: 0xb8434e, lycaon: 0xb8434e, graft: 0xb8434e, khet: 0xb8434e, harrow: 0xb8434e,
+    flux: 0x3ec6b8, vespra: 0x3ec6b8, ordnance: 0x3ec6b8, null: 0x3ec6b8, vyrm: 0x3ec6b8,
   };
   function brProfile() {
     var p = readSave("br-profile-v1", function (m) { return m; });
@@ -2648,7 +2653,7 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
         g.fillStyle = "#e88a98"; g.font = "italic 19px Georgia, serif";
         g.fillText("three realities. one wound.", w / 2, h - 38);
         // the four factions, as a colour bar
-        [0x4ea8ff, 0xffb03a, 0xc4232f, 0x9a5ce8].forEach(function (c, i) {
+        [0xc9a227, 0xd4af37, 0xb8434e, 0x3ec6b8].forEach(function (c, i) {   // the game's own four, in order
           g.fillStyle = "#" + c.toString(16).padStart(6, "0");
           g.fillRect(i * (w / 4), h - 14, w / 4, 14);
         });
