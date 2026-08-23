@@ -693,6 +693,13 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
   var portalFrame = 0;
   function renderOutside(sway) {
     if (!portalP.visible || !hall || !hall.portalBegin) return;
+    /* ⚠️ THIS IS A SECOND FULL SCENE RENDER, and it was running at 30 Hz in all
+     * eleven spaces where the bedroom window cannot be seen at all — the basement,
+     * the attic, the back yard. The window lives in the BEDROOM; the only other
+     * moment it is on screen is the walk through the bedroom door. Everywhere else
+     * this pass painted a texture nobody looks at. */
+    var sp2 = hall.space();
+    if (sp2 !== "bedroom" && !(sp2 === "hall" && hall.busy())) return;
     // every other frame. The yard is low-poly and mostly still; at 30Hz nothing in
     // it reads as choppy, and it halves the cost of having a second scene render.
     if ((portalFrame++ & 1)) return;
