@@ -44,11 +44,19 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
   /* lifts first (the exposure retune after the sRGB fix); tints land with the
    * design pass. Every number here was reached by measurement against the family:
    * bedroom 40 = reference, kitchen pulled from 128 to ~88, attic stays darkest. */
+  /* [r, g, b, lift]. The TINTS are each room's own lamp — a few percent, never a
+   * filter: the kitchen's fluorescent green over tungsten, the den's deepest amber,
+   * the back yard's moonlit cyan with the pool bouncing it, her room's fairy-light
+   * pink, the attic's golden dust (Age of Toys' proven sepia number). The bedroom
+   * is IDENTITY on purpose: every per-hour phase grade was tuned in that room, and
+   * this table multiplies with the phase grade, so the anchor has to be 1.
+   * The LIFTS are the exposure retune after the sRGB migration, each one reached by
+   * measurement against the family (see the v47 commit). */
   var SPACE_GRADES = {
-    bedroom:  [1, 1, 1, 1.11], hall: [1, 1, 1, 1.05], kitchen: [1, 1, 1, 0.93],
-    porch:    [1, 1, 1, 1],    garage: [1, 1, 1, 1.04], basement: [1, 1, 1, 1.08],
-    back:     [1, 1, 1, 1],    living: [1, 1, 1, 1.09], upstairs: [1, 1, 1, 1.08],
-    room0:    [1, 1, 1, 1.03], room1: [1, 1, 1, 0.96], room2: [1, 1, 1, 1.04],
+    bedroom:  [1.00, 1.00, 1.00, 1.06], hall:     [1.03, 1.00, 0.96, 1.03], kitchen: [1.02, 1.03, 0.95, 0.86],
+    porch:    [1.04, 0.99, 0.93, 1.00], garage:   [1.03, 1.02, 0.94, 1.04], basement: [1.06, 0.99, 0.90, 1.08],
+    back:     [0.94, 1.00, 1.08, 1.00], living:   [1.05, 1.00, 0.94, 1.09], upstairs: [1.02, 1.00, 0.97, 1.08],
+    room0:    [1.03, 0.99, 0.97, 1.03], room1:    [1.04, 0.98, 1.02, 0.96], room2:    [1.06, 1.00, 0.90, 1.04],
   };
   var sgCur = [1, 1, 1, 1], sgFrom = [1, 1, 1, 1], sgTo = [1, 1, 1, 1], sgT = 1, sgSpace = "bedroom";
   function spaceGradeTick(dt) {
@@ -114,6 +122,18 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
     return envRT.texture;
   }
   var envState = { on: false, intensity: 0 };
+  function envStamp(root, k) {
+    root.traverse(function (o) {
+      if (!o.isMesh) return;
+      var ms = Array.isArray(o.material) ? o.material : [o.material];
+      ms.forEach(function (m) {
+        if (!m || !m.isMeshStandardMaterial) return;
+        var rr = 1 - (m.roughness == null ? 0.9 : m.roughness);
+        m.envMapIntensity = k * rr * rr * 4;
+        m.needsUpdate = true;
+      });
+    });
+  }
   function envEnable(intensity) {
     var k = intensity == null ? 0.35 : intensity;
     scene.environment = buildEnvTexture();
@@ -130,7 +150,7 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
          * half the full strength; the mood survives, the shiny things wake up. */
         var rr = 1 - (m.roughness == null ? 0.9 : m.roughness);
         m.envMapIntensity = k * rr * rr * 4;
-        m.needsUpdate = envState.on === false;
+        m.needsUpdate = true;   // ⚠️ always: a second enable at a new intensity must recompile too
       });
     });
     envState.on = true; envState.intensity = k;
@@ -520,7 +540,14 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
       var job = loadQ.shift();
       loadActive++;
       gltfL.load(job.url, (function (j) {
-        return function (g) { loadActive--; boot.glbDone++; try { j.cb(g); } finally { pumpGLB(); bootTick(); } };
+        return function (g) { loadActive--; boot.glbDone++;
+          try { j.cb(g); } finally {
+            // ⚠️ a GLB that lands AFTER the environment map is on would otherwise keep
+            // three's default envMapIntensity of 1.0 — full-strength reflections on the
+            // shiniest things in the house while everything hand-built sits at the
+            // weighted value. Stamp it with the same (1-roughness)^2 rule.
+            if (envState.on && g && g.scene) envStamp(g.scene, envState.intensity);
+            pumpGLB(); bootTick(); } };
       })(job), undefined, function () { loadActive--; boot.glbDone++; pumpGLB(); bootTick(); }); // a missing prop must never stall the queue
     }
   }
@@ -1666,6 +1693,7 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
   });
   var hall = buildHallway({
     scene: scene, camera: camera, lookAt: lookAt, clickable: clickable, glow: glow,
+    contactShadow: contactShadow,   // the bedroom's AO decal, so the rest of the house can stand on the floor too
     kidSay: function (s, d) { kidSay(s, d); }, doorPivot: doorPivot,
     // the house looks are bought with the same treasures the bedroom themes spend.
     // A closure, not a number: COLLECT is declared far below this call, and the
@@ -6470,6 +6498,10 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
     }, 1200);
   })();
 
+  // the environment map goes on once the first frame has been drawn — everything
+  // built synchronously is in the scene by then, and GLBs that arrive later are
+  // stamped by the loader. 0.35, weighted by smoothness: measured +1.0 mean luma.
+  envEnable(0.35);
   var frameCount = 0, lastT = performance.now() / 1000;
   function tick() {
     requestAnimationFrame(tick);

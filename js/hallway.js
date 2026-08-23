@@ -28,6 +28,18 @@ import * as AUDIO from "./audio.js";
 export function buildHallway(ctx) {
   var scene = ctx.scene, camera = ctx.camera, lookAt = ctx.lookAt,
       clickable = ctx.clickable, glow = ctx.glow;
+  /* ⚠️ GROUNDING. The bedroom plants every free-standing thing on the floor with a
+   * soft AO decal (contactShadow in room.js — one shared 64px radial canvas, opacity
+   * driven, never colour). The newer spaces had almost none, and measured against the
+   * bedroom rubric a couch with no shadow under it floats and a beanbag reads as a
+   * balloon. The helper is passed through ctx; this wrapper adds the one thing the
+   * bedroom version assumes — a floor at y 0 — by taking the floor height per call.
+   * ⚠️ y must sit ABOVE any rug (the rugs are at +0.008..0.012) or the decal z-fights
+   * the rug instead of shading it: +0.016 over the floor, the bedroom's convention. */
+  function plant(parent, rx, rz, op, floorY) {
+    if (!ctx.contactShadow) return null;
+    return ctx.contactShadow(parent, rx, rz, op, (floorY || 0) + 0.016);
+  }
 
   /* ---- the shell -------------------------------------------------------------
    * Interior: x -7.45..-4.35 (3.1m wide), z -3.45..4.5 (8m long), ceiling 2.95.
@@ -403,6 +415,7 @@ export function buildHallway(ctx) {
     var twB = bumpFrom(twT, 1.5);
     if (twB) { twB.repeat.copy(twT.repeat); tweedM.bumpMap = twB; tweedM.bumpScale = 0.35; }
     var cg = new THREE.Group(); cg.position.set(-12.60, 0, 1.02); add(cg);
+    plant(cg, 1.10, 0.50, 0.50, 0);          // the good couch: the room's biggest floor mass
     var cbase = box(2.35, 0.34, 0.86, tweedM); cbase.position.y = 0.24; cg.add(cbase);
     var cback = box(2.35, 0.62, 0.22, tweedM); cback.position.set(0, 0.58, -0.32); cg.add(cback);
     [-1, 1].forEach(function (sd2) {
@@ -436,6 +449,7 @@ export function buildHallway(ctx) {
      * 0.85 m face bulging 8 cm — geometry, not a texture trick. Its pole points -z
      * (rotation.x -PI/2 maps +Y to -Z), which is the direction the couch is in. */
     var sg = new THREE.Group(); sg.position.set(-12.60, 0, 3.58); sg.rotation.y = 0.06; add(sg);
+    plant(sg, 0.62, 0.40, 0.50, 0);          // the set and its stand: the focal prop
     /* ⚠️ THE STAND WAS A SOLID BLOCK, so 'the video' — all three of its meshes — was
      * built inside it and rendered nowhere. A television stand of this era is an open
      * bay with the video in it; that is the whole reason it is a stand and not a table. */
@@ -519,12 +533,14 @@ export function buildHallway(ctx) {
       ltag(m, 'the video', null, 'still blinking 12:00. it has been blinking 12:00 since it came out of the box.');
     });
     var ct = box(1.20, 0.06, 0.56, woodM); ct.position.set(-12.60, 0.40, 2.30); add(ct);
+    (function () { var sh = plant(g, 0.58, 0.38, 0.45, 0); if (sh) sh.position.set(-12.60, 0.016, 2.30); })();   // coffee table
     [[-0.53, -0.22], [0.53, -0.22], [-0.53, 0.22], [0.53, 0.22]].forEach(function (lp) {
       var lg2 = box(0.06, 0.40, 0.06, woodM); lg2.position.set(-12.60 + lp[0], 0.20, 2.30 + lp[1]); add(lg2); });
     ltag(ct, 'the coffee table', null, 'one ring you can still see, from before anyone used coasters.');
     var rem = box(0.06, 0.025, 0.17, mat(0x2b2e33, 0.6)); rem.position.set(-12.30, 0.445, 2.40); rem.rotation.y = 0.4; add(rem);
     ltag(rem, 'the remote', null, 'found. put it back where it was.');
     var lampG = new THREE.Group(); lampG.position.set(-16.35, 0, 3.50); add(lampG);
+    plant(lampG, 0.28, 0.28, 0.40, 0);
     var lpole = new THREE.Mesh(new THREE.CylinderGeometry(0.022, 0.03, 1.42, 8), mat(0x8a7a5a, 0.5));
     lpole.position.y = 0.71; lampG.add(lpole);
     var lbase = new THREE.Mesh(new THREE.CylinderGeometry(0.17, 0.19, 0.04, 12), mat(0x6a5a42, 0.6));
@@ -581,6 +597,7 @@ export function buildHallway(ctx) {
 
     // ---- A SIDE TABLE, AND WHAT LIVES ON IT ----
     var stG = new THREE.Group(); stG.position.set(-10.42, 0, 1.16); stG.rotation.y = -0.17; add(stG);
+    plant(stG, 0.30, 0.30, 0.40, 0);
     var stTop = box(0.52, 0.05, 0.52, woodM); stTop.position.y = 0.60; stG.add(stTop);
     var stShelf = box(0.46, 0.03, 0.46, woodM); stShelf.position.y = 0.28; stG.add(stShelf);
     [[-0.22, -0.22], [0.22, -0.22], [-0.22, 0.22], [0.22, 0.22]].forEach(function (lp) {
@@ -1469,6 +1486,7 @@ export function buildHallway(ctx) {
     // a chair on the landing that is not for sitting on, which every house has
     var lchG = new THREE.Group();
     lchG.position.set(1.85, UPF.fl, LAN.z0 + 0.42); lchG.rotation.y = -0.72; add(lchG);
+    plant(lchG, 0.30, 0.30, 0.40, 0);
     var lcS = box(0.40, 0.045, 0.40, mat(0x7a6248, 0.8)); lcS.position.y = 0.44; lchG.add(lcS);
     var lcB = box(0.40, 0.50, 0.045, mat(0x7a6248, 0.8)); lcB.position.set(0, 0.70, -0.18); lchG.add(lcB);
     [[-0.16, -0.16], [0.16, -0.16], [-0.16, 0.16], [0.16, 0.16]].forEach(function (lp3) {
@@ -1525,6 +1543,7 @@ export function buildHallway(ctx) {
 
     // ---- THE HALL TABLE, and everything that got put down on it ----
     var htG = new THREE.Group(); htG.position.set(-10.65, UPF.fl, LAN.z1 - 0.30); htG.rotation.y = 0.13; add(htG);
+    plant(htG, 0.45, 0.28, 0.45, 0);         // group sits AT the floor, so local 0
     var htTop = box(0.86, 0.045, 0.34, upWoodM); htTop.position.y = 0.74; htG.add(htTop);
     var htRail = box(0.80, 0.03, 0.03, upWoodM); htRail.position.set(0, 0.22, 0); htG.add(htRail);
     [[-0.38, -0.13], [0.38, -0.13], [-0.38, 0.13], [0.38, 0.13]].forEach(function (lp) {
@@ -1716,6 +1735,7 @@ export function buildHallway(ctx) {
       var R = UPR[0], cx = (R.x0 + R.x1) / 2;
       var woodM = mat(0x6b4b30, 0.8), sheetM = mat(0xe8e4d8, 0.95), quiltM = mat(0x7a6a8a, 0.94);
       var bg = new THREE.Group(); bg.position.set(cx - 0.75, fl, RZ0 + 1.50); bg.rotation.y = 0.02; add(bg);
+      plant(bg, 0.95, 1.05, 0.60, 0);        // under-bed dark: the strongest grounding cue a bedroom has
       [[1.62, 0.30, 2.05, woodM, 0, 0.22, 0], [1.70, 0.86, 0.09, woodM, 0, 0.61, -1.02],
        [1.54, 0.24, 1.96, sheetM, 0, 0.49, 0], [1.60, 0.14, 1.42, quiltM, 0, 0.62, 0.26],
        [1.60, 0.07, 0.30, sheetM, 0, 0.68, -0.48]
@@ -1782,6 +1802,7 @@ export function buildHallway(ctx) {
         }
       });
       var wg = new THREE.Group(); wg.position.set(R.x0 + 0.80, fl, RZ1 - 0.45); wg.rotation.y = -0.05; add(wg);
+      plant(wg, 0.50, 0.35, 0.55, 0);
       [[1.24, 1.92, 0.58, 0.96], [1.32, 0.06, 0.64, 1.95]].forEach(function (q) {
         var m = box(q[0], q[1], q[2], woodM); m.position.y = q[3]; wg.add(m); });
       [-0.30, 0.30].forEach(function (dx2) {
@@ -1804,6 +1825,7 @@ export function buildHallway(ctx) {
         rtag(gar, 0, 'the clothes on the chair', 'the third pile down is the one that actually gets worn.');
       });
       var dg = new THREE.Group(); dg.position.set(cx + 1.05, fl, RZ1 - 0.42); dg.rotation.y = 0.04; add(dg);
+      plant(dg, 0.55, 0.30, 0.50, 0);
       [[1.35, 0.78, 0.50, 0.39], [1.42, 0.05, 0.56, 0.80]].forEach(function (q) {
         var m = box(q[0], q[1], q[2], woodM); m.position.y = q[3]; dg.add(m); });
       [0.22, 0.56].forEach(function (dy) {
@@ -1899,6 +1921,7 @@ export function buildHallway(ctx) {
       var R = UPR[1], cx = (R.x0 + R.x1) / 2;
       var pineM = mat(0xb99a6e, 0.85), duvetM = mat(0x8a5a8a, 0.94), sheetM = mat(0xe8e4d8, 0.95);
       var bg2 = new THREE.Group(); bg2.position.set(R.x0 + 1.30, fl, RZ0 + 1.30); bg2.rotation.y = -0.04; add(bg2);
+      plant(bg2, 0.90, 1.00, 0.60, 0);
       [[1.02, 0.28, 1.94, pineM, 0, 0.20, 0], [1.08, 0.66, 0.07, pineM, 0, 0.53, -0.97],
        [0.96, 0.22, 1.86, sheetM, 0, 0.45, 0], [1.04, 0.17, 1.44, duvetM, 0.02, 0.60, 0.20]
       ].forEach(function (q) { var m = box(q[0], q[1], q[2], q[3]); m.position.set(q[4], q[5], q[6]); bg2.add(m); });
@@ -1914,6 +1937,7 @@ export function buildHallway(ctx) {
       snt.position.set(0, 0.14, 0.062); ted.add(snt);
       grp(1, ted, 'the bear', 'officially retired. unofficially still on the bed every single night.');
       var dg2 = new THREE.Group(); dg2.position.set(cx + 1.75, fl, RZ0 + 0.55); dg2.rotation.y = 0.06; add(dg2);
+      plant(dg2, 0.60, 0.35, 0.45, 0);
       var dt = box(1.20, 0.05, 0.58, pineM); dt.position.y = 0.73; dg2.add(dt);
       [-0.55, 0.55].forEach(function (lx) {
         var sd = box(0.05, 0.73, 0.56, pineM); sd.position.set(lx, 0.365, 0); dg2.add(sd); });
@@ -2002,6 +2026,7 @@ export function buildHallway(ctx) {
       var bean = new THREE.Mesh(new THREE.SphereGeometry(0.44, 12, 9), mat(0x4f9a5e, 0.95));
       bean.scale.set(1, 0.60, 0.92); bean.position.set(cx - 1.55, fl + 0.26, RZ1 - 0.80); bean.rotation.y = 0.75; add(bean);
       rtag(bean, 1, 'the beanbag', 'has taken the shape of one specific way of sitting and will not take another.');
+      (function () { var sh = plant(g, 0.50, 0.46, 0.50, fl); if (sh) sh.position.set(cx - 1.55, fl + 0.016, RZ1 - 0.80); })();   // a round soft mass with no shadow reads as a balloon
       var shf = box(1.30, 0.04, 0.22, pineM);
       shf.position.set(cx + 0.55, fl + 1.30, RZ1 - 0.16); shf.rotation.z = -0.008; add(shf);
       rtag(shf, 1, 'her shelf', 'put up by somebody in a hurry. everything on it leans very slightly left.');
@@ -2070,6 +2095,7 @@ export function buildHallway(ctx) {
        [1.58, 0.30, 0.70, 0.32, 'DAD'], [-0.30, 0.30, -0.35, 0.94, 'SCHOOL']].forEach(function (bx) {
         var bg3 = new THREE.Group();
         bg3.position.set(cx + bx[0], fl + bx[1] - 0.30, RZ0 + 1.30 + bx[2]); bg3.rotation.y = bx[3]; add(bg3);
+        if (bx[1] <= 0.31) plant(bg3, 0.34, 0.28, 0.45, 0);   // only the boxes ON the floor, not the stacked ones
         var bd = box(0.56, 0.44, 0.46, cardM); bd.position.y = 0.22; bg3.add(bd);
         var ld = box(0.58, 0.03, 0.48, cardDk); ld.position.y = 0.445; bg3.add(ld);
         var lt = canvasTex(64, 32, function (c, w, h) {
@@ -2084,6 +2110,7 @@ export function buildHallway(ctx) {
         grp(2, bg3, 'the boxes', 'labelled in marker by somebody who was very sure they would remember.');
       });
       var tg2 = new THREE.Group(); tg2.position.set(cx + 1.15, fl, RZ1 - 0.95); tg2.rotation.y = -0.36; add(tg2);
+      plant(tg2, 0.48, 0.32, 0.50, 0);
       var trb = box(0.92, 0.44, 0.52, mat(0x5a4636, 0.9)); trb.position.y = 0.22; tg2.add(trb);
       var trl = new THREE.Mesh(new THREE.CylinderGeometry(0.26, 0.26, 0.92, 14, 1, false, 0, Math.PI), mat(0x4a3a2c, 0.9));
       trl.rotation.z = Math.PI / 2; trl.position.y = 0.44; tg2.add(trl);
@@ -2165,6 +2192,7 @@ export function buildHallway(ctx) {
       var tbx = box(0.28, 1.20, 0.28, cardDk);
       tbx.position.set(R.x0 + 0.42, fl + 0.60, RZ0 + 0.60); tbx.rotation.set(0.14, 0.3, 0.16); add(tbx);
       rtag(tbx, 2, 'the tree', 'in its box, leaning in the corner, waiting for the one week it is famous.');
+      (function () { var sh = plant(g, 0.30, 0.30, 0.45, fl); if (sh) sh.position.set(R.x0 + 0.42, fl + 0.016, RZ0 + 0.60); })();
       /* the birdcage: round, empty, and hung on a nail at an angle nobody chose —
        * which is also the last of the off-axis the room was short of. */
       var cage = new THREE.Group();

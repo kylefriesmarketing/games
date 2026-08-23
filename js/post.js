@@ -64,6 +64,10 @@ var COMPOSITE = [
   // film grain: animated hash noise, luminance-weighted so shadows grain more than
   // highlights (that is where film actually grains, and where banding lives). 0 = off.
   "uniform float grainAmt; uniform float uTime;",
+  // the film look: a lifted-black base fog (cool, 3.6% max) so the darkest corners
+  // read as shadow rather than void, and a warm tint on the bloom so light sources
+  // halate the way tungsten does on film instead of blooming clinically white
+  "uniform vec3 fogBase; uniform vec3 bloomTint; uniform float satAmt;",
   "varying vec2 vUv;",
   "vec3 rrtOdtFit(vec3 v){",
   "  vec3 a = v * (v + 0.0245786) - 0.000090537;",
@@ -80,7 +84,7 @@ var COMPOSITE = [
   "}",
   "void main(){",
   "  vec3 c = texture2D(tScene, vUv).rgb;",
-  "  c += texture2D(tBloom, vUv).rgb * bloomStrength;",
+  "  c += texture2D(tBloom, vUv).rgb * bloomStrength * bloomTint;",
   "  c *= tint * lift * spaceTint * spaceLift;",
   "  vec2 q = vUv - 0.5;",
   "  c *= 1.0 - dot(q, q) * vignette;",   // corners fall off — the room gets a frame
@@ -88,6 +92,15 @@ var COMPOSITE = [
   // `color *= toneMappingExposure / 0.6`. Leave it out and the whole room renders
   // at 60% exposure — measured 58.4 → 39.4 mean luma against the un-posted frame.
   "  vec3 outc = toSRGB(aces(c * exposure / 0.6));",
+  // film never goes to pure black: the base fog lifts the floor by its own value,
+  // cool, and falls to zero effect by the midtones. In display space, after the
+  // tone map, which is where film density actually lives.
+  "  outc = mix(fogBase, vec3(1.0), outc);",
+  // a neutral layer (fog + monochrome grain) desaturates dark saturated pixels on
+  // average — Jensen, not taste. This gives back only what the film layer took:
+  // measured -7 sat in the bedroom, -8 in the yard, at satAmt 1.0.
+  "  float ly = dot(outc, vec3(0.2126, 0.7152, 0.0722));",
+  "  outc = mix(vec3(ly), outc, satAmt);",
   // grain AFTER the tone map, in display space — before it, the ACES shoulder eats it.
   // The hash is cheap and unrepeating enough at one draw per frame; time is quantised
   // to 24fps steps so the grain flickers like film rather than boiling like static.
@@ -112,7 +125,16 @@ export function createPost(renderer, scene, camera) {
     bloomSoftness: 0.42,    // measured so walls/floor never bloom, only real light sources
     bloomStrength: 0.72,
     vignette: 0.34,
-    grain: 0.0,             // film grain amount; 0 = off (the flagship pass sets it)
+    grain: 0.028,           // film grain: ~+-2.5/255 on mid grey; 0.035 cost too much saturation
+    satAmt: 1.05,           // gives back what fog+grain take from dark saturated pixels (measured)
+    /* ⚠️ MEASURED, NOT TAKEN FROM THE SPEC. The design called for 3.6% — and 3.6% of
+     * full scale is 9/255, which against a 36-luma night room is a quarter of the
+     * picture: measured +7 to +11 mean luma and -10 to -20 saturation in every dark
+     * space (the back yard 68 -> 49). A lifted black that costs the night its colour is
+     * a filter. 1.3% keeps the floor off pure black (that was the point) at a third
+     * of the cost. */
+    fogBase: new THREE.Color(0.009, 0.010, 0.013),
+    bloomTint: new THREE.Color(1.0, 0.93, 0.82),      // tungsten halation, not clinical white
     lift: 1.0,
     tint: new THREE.Color(1, 1, 1),
     bloomScale: 4,          // bloom buffers at 1/4 res
@@ -161,6 +183,8 @@ export function createPost(renderer, scene, camera) {
       lift: { value: p.lift }, tint: { value: new THREE.Vector3(1, 1, 1) },
       spaceTint: { value: new THREE.Vector3(1, 1, 1) }, spaceLift: { value: 1 },
       grainAmt: { value: 0 }, uTime: { value: 0 },
+      fogBase: { value: new THREE.Vector3(0.009, 0.010, 0.013) }, satAmt: { value: 1.05 },
+      bloomTint: { value: new THREE.Vector3(1.0, 0.93, 0.82) },
       exposure: { value: renderer.toneMappingExposure },
     },
     vertexShader: VERT, fragmentShader: COMPOSITE, depthTest: false, depthWrite: false,
@@ -226,6 +250,9 @@ export function createPost(renderer, scene, camera) {
     compMat.uniforms.bloomStrength.value = p.bloomStrength;
     compMat.uniforms.vignette.value = p.vignette;
     compMat.uniforms.grainAmt.value = p.grain;
+    compMat.uniforms.fogBase.value.set(p.fogBase.r, p.fogBase.g, p.fogBase.b);
+    compMat.uniforms.satAmt.value = p.satAmt;
+    compMat.uniforms.bloomTint.value.set(p.bloomTint.r, p.bloomTint.g, p.bloomTint.b);
     compMat.uniforms.exposure.value = renderer.toneMappingExposure; // stay in step with the room
     pass(compMat, null);
   };

@@ -40,12 +40,18 @@ for (const f of files) {
   catch (e) { console.log(`skip ${f} (${e.code})`); continue; }
   const seen = new Map();
   text.split(/\r?\n/).forEach((line, i) => {
-    const m = /^ {2}var\s+([A-Za-z_$][\w$]*)\s*=/.exec(line);
+    /* ⚠️ BOTH `var` AND `function` declarations. The first version of this tool only
+     * watched `var`, and a second `function ground(...)` — a decal helper added 3,000
+     * lines below the texture helper of the same name — walked straight past it. A
+     * later function DECLARATION replaces an earlier one at the same scope exactly
+     * like a later var, and the failure was the same shape: a Group handed to code
+     * that expected a texture, and a dead page. */
+    const m = /^ {2}(?:var\s+([A-Za-z_$][\w$]*)\s*=|function\s+([A-Za-z_$][\w$]*)\s*\()/.exec(line);
     if (!m) return;
-    const name = m[1];
+    const name = m[1] || m[2];
     if (seen.has(name)) {
       if (DORMANT.has(name)) { known++; return; }
-      console.log(`${f}:${i + 1}  DUPLICATE var ${name}  (first declared at line ${seen.get(name)})`);
+      console.log(`${f}:${i + 1}  DUPLICATE ${m[1] ? "var" : "function"} ${name}  (first declared at line ${seen.get(name)})`);
       bad++;
     } else seen.set(name, i + 1);
   });
