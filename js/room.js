@@ -1332,7 +1332,7 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
     var strap = new THREE.Mesh(new THREE.CylinderGeometry(cD / 2 + 0.008, cD / 2 + 0.008, 0.06, 22, 1, false, 0, Math.PI), bandM);
     strap.rotation.z = Math.PI / 2; strap.position.set(x, cH, 0); chest.add(strap); // over the dome
   });
-  var latch = box(0.1, 0.12, 0.03, mat(0xc9a23a, 0.35)); latch.position.set(0, cH - 0.08, cD / 2 + 0.02); chest.add(latch);
+  var latch = box(0.1, 0.12, 0.03, mat(0xe8a83c, 0.35)); latch.position.set(0, cH - 0.08, cD / 2 + 0.02); chest.add(latch);   // --gold, the game's
   // (the peeking toys and spilled blocks are gone — the chest keeps its wars inside)
   // the chest knows how the war is going (same-origin campaign save)
   var ttNow = ttCampaign();
@@ -1343,7 +1343,7 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
   lidG.children.forEach(function (m) { clickable(m, "AGE OF TOYS", go(BASE + "toybox-tactics/"), chestHint); });
   // a campaign in progress smolders inside the open chest; a finished one shines
   var chestGlowBase = ttNow.done >= TT_IDS.length ? 1.3 : (ttNow.started ? 0.85 : 0);
-  var chestGlow = new THREE.PointLight(ttNow.done >= TT_IDS.length ? 0xffd76a : 0xff9d45, chestGlowBase, 2.4, 2);
+  var chestGlow = new THREE.PointLight(ttNow.done >= TT_IDS.length ? 0xffca63 : 0xe08a28, chestGlowBase, 2.4, 2);   // --gold-2 when won, --prim-b ember while the war is on
   chestGlow.position.set(0, cH + 0.22, -0.1); chest.add(chestGlow);
   var chestGlowDisc = null;
   if (chestGlowBase > 0) {
@@ -2585,10 +2585,13 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
         c.beginPath(); c.moveTo(4, -34); c.lineTo(-12, -28); c.stroke(); // trailing arm
         c.beginPath(); c.moveTo(4, -34); c.lineTo(18, -40); c.stroke();  // leading arm
         c.restore();
-        c.fillStyle = "#f6efdd"; c.textAlign = "center";                  // the wordmark
+        // the wordmark in the game's own title gradient (hood-run index.html:50), not flat cream
+        var hrGrad = c.createLinearGradient(0, h * 0.10, 0, h * 0.18);
+        hrGrad.addColorStop(0, "#ffe98a"); hrGrad.addColorStop(0.45, "#ffd23c"); hrGrad.addColorStop(0.8, "#ff8c42"); hrGrad.addColorStop(1, "#e8604c");
+        c.fillStyle = hrGrad; c.textAlign = "center";                     // the wordmark
         c.font = "bold 46px Inter, Arial, sans-serif";
         c.fillText("HOOD RUN", w / 2, h * 0.16);
-        c.fillStyle = "#e8734a"; c.font = "bold 15px Inter, Arial, sans-serif";
+        c.fillStyle = "#3bd6c6"; c.font = "bold 15px Inter, Arial, sans-serif";   // --teal, the game's accent
         c.fillText("THE CROSSTOWN DASH", w / 2, h * 0.215);
         c.strokeStyle = "rgba(246,239,221,0.35)"; c.lineWidth = 2;
         c.strokeRect(10, 10, w - 20, h - 20);
@@ -2853,7 +2856,7 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
   // Set HOOD_RUN_URL when the game goes live and this becomes a doorway on its own.
   var hoodG = new THREE.Group();
   var canvasM = mat(0x2f3a44, 0.95), canvasDark = mat(0x222a32, 0.95);
-  var billM = mat(0x5f8a5c, 0.85), bandM = mat(0xc9a35c, 0.6);
+  var billM = mat(0x5fa86a, 0.85), bandM = mat(0xe8604c, 0.6);   // mkCash: #5fa86a bills, CORAL band — every pickup in the game
   var duffel = new THREE.Mesh(new THREE.CylinderGeometry(0.13, 0.13, 0.34, 18), canvasM);
   duffel.rotation.z = Math.PI / 2; duffel.position.set(0, 0.13, 0); duffel.castShadow = true; hoodG.add(duffel);
   [-0.17, 0.17].forEach(function (x) { // the rounded ends

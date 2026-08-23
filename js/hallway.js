@@ -2837,10 +2837,12 @@ export function buildHallway(ctx) {
     if (i === 0) {   // one label, hand-stuck slightly crooked
       var lbl = new THREE.Mesh(new THREE.PlaneGeometry(0.05, 0.055), new THREE.MeshStandardMaterial({
         map: canvasTex(48, 48, function (c, w, h) {
-          c.fillStyle = "#f2e8d0"; c.fillRect(0, 0, w, h);
-          c.strokeStyle = "#6a4a2a"; c.lineWidth = 3; c.strokeRect(2, 2, w - 4, h - 4);
-          c.fillStyle = "#6a4a2a"; c.font = "bold 9px Georgia, serif"; c.textAlign = "center";
+          // HOME BREW's entire visual identity is chalk on #2c3a31; a cream label is not from it
+          c.fillStyle = "#2c3a31"; c.fillRect(0, 0, w, h);
+          c.strokeStyle = "#f4ead8"; c.lineWidth = 2; c.strokeRect(3, 3, w - 6, h - 6);
+          c.fillStyle = "#f4ead8"; c.font = "bold 9px Georgia, serif"; c.textAlign = "center";
           c.fillText("HOME", w / 2, 20); c.fillText("BREW", w / 2, 32);
+          c.save(); c.translate(4, 3); c.rotate(-0.3); c.fillStyle = "#e8d9a8"; c.fillRect(-4, -3, 12, 6); c.restore();   // the tape corner
         }), roughness: 0.9,
       }));
       lbl.position.set(bp[0], 0.09, bp[1] + 0.031); lbl.rotation.z = -0.06; brewG.add(lbl);
@@ -3513,9 +3515,9 @@ export function buildHallway(ctx) {
   var slArm = box(1.1, 0.1, 0.1, mat(0x3a3d42, 0.6)); slArm.position.set(-3.15, GROUND + 5.16, Z_WALK - 1.4); yadd(slArm);
   var slHead = box(0.56, 0.15, 0.28, mat(0x2a2d31, 0.6)); slHead.position.set(-3.66, GROUND + 5.04, Z_WALK - 1.4); yadd(slHead);
   var slLamp = new THREE.Mesh(new THREE.BoxGeometry(0.46, 0.06, 0.22),
-    new THREE.MeshStandardMaterial({ color: 0xfff0c8, emissive: 0xffdca0, emissiveIntensity: 1.6, roughness: 0.5 }));
+    new THREE.MeshStandardMaterial({ color: 0xfff0c8, emissive: 0xffb347, emissiveIntensity: 1.6, roughness: 0.5 }));   // --amber, the title-glow
   slLamp.position.set(-3.66, GROUND + 4.94, Z_WALK - 1.4); yadd(slLamp);
-  var streetLight = new THREE.PointLight(0xffe0b0, 1.5, 18, 1.6);
+  var streetLight = new THREE.PointLight(0xffc98a, 1.5, 18, 1.6);   // the game's heat-scan warm
   streetLight.position.set(-3.66, GROUND + 4.7, Z_WALK - 1.4); yadd(streetLight);
   /* ⚠️ THE STREETLIGHT IS VICTORY LAP (Kyle's call, and the right one): the game
    * about a man who never leaves his home town, hung on the lamp that has buzzed
@@ -3538,13 +3540,15 @@ export function buildHallway(ctx) {
   [slPost, slHead, slLamp].forEach(function (m) { ytag(m, "VICTORY LAP", vlGo, vlLampHint); });
   // a flyer taped to the pole, the way game doorways get marked out here
   var vlFlyT = canvasTex(96, 128, function (c, w, h) {
-    c.fillStyle = "#f2e8d0"; c.fillRect(0, 0, w, h);
-    c.strokeStyle = "#8a4a3a"; c.lineWidth = 4; c.strokeRect(4, 4, w - 8, h - 8);
-    c.fillStyle = "#8a4a3a"; c.font = "bold 15px Georgia, serif"; c.textAlign = "center";
+    c.fillStyle = "#efe6d0"; c.fillRect(0, 0, w, h);                          // --paper
+    c.strokeStyle = "#9c3d2e"; c.lineWidth = 4; c.strokeRect(4, 4, w - 8, h - 8);
+    c.fillStyle = "#1a1712"; c.font = "900 15px Impact, 'Arial Black', sans-serif"; c.textAlign = "center";   // the logo face
     c.fillText("VICTORY", w / 2, 34); c.fillText("LAP", w / 2, 52);
+    c.fillStyle = "#6b4a2f"; c.font = "bold 9px Georgia, serif";
+    c.fillText("H O P E W E L L", w / 2, 66);                                  // the town
     c.fillStyle = "#4a4436"; c.font = "italic 10px Georgia, serif";
-    c.fillText("the 6 a.m. bus", w / 2, 82);
-    c.fillText("leaves without you", w / 2, 96);
+    c.fillText("the 6 a.m. bus", w / 2, 84);
+    c.fillText("leaves without you", w / 2, 98);
     c.fillStyle = "#b8b0a0"; c.fillRect(w * 0.3, 0, w * 0.4, 7); // the tape
   });
   var vlFly = new THREE.Mesh(new THREE.PlaneGeometry(0.30, 0.40),
@@ -4100,7 +4104,7 @@ export function buildHallway(ctx) {
   // top face, not the lawn's.
   var TRUCK_Y = GROUND - 0.06 + 0.025;
   var truckG = new THREE.Group(); truckG.visible = false; yadd(truckG);
-  var tkBodyM = mat(0xf2f0e6, 0.55), tkTrimM = mat(0xe4487a, 0.5);
+  var tkBodyM = mat(0xf7f3e6, 0.55), tkTrimM = mat(0xef9ec0, 0.5);   // CY'S livery: cream body, the soft pink band (truck/tex.js livery())
   var tkBox = box(4.5, 1.75, 2.0, tkBodyM); tkBox.position.set(0, 1.35, 0); truckG.add(tkBox);
   var tkCab = box(1.5, 1.25, 1.9, tkBodyM); tkCab.position.set(2.7, 1.05, 0); truckG.add(tkCab);
   var tkWind = box(0.06, 0.62, 1.7, mat(0x2a3340, 0.25)); tkWind.position.set(3.44, 1.32, 0); truckG.add(tkWind);
@@ -5232,7 +5236,11 @@ export function buildHallway(ctx) {
   var bbDeckT = canvasTex(128, 256, function (c, w, h) {
     c.fillStyle = "#f2d43a"; c.fillRect(0, 0, w, h);                 // that yellow
     c.fillStyle = "#e0483a"; c.fillRect(0, h * 0.42, w, h * 0.10);   // the stripes
-    c.fillStyle = "#2fb6c8"; c.fillRect(0, h * 0.54, w, h * 0.06);
+    c.fillStyle = "#4fb99e"; c.fillRect(0, h * 0.54, w, h * 0.06);        // pal.glow: the wave face
+    c.fillStyle = "#287f84"; c.fillRect(0, h * 0.615, w, h * 0.03);       // pal.shallow, right under it
+    // the tail traction pad — the thing a SURF player stares at between waves
+    c.fillStyle = "#202528";
+    c.fillRect(w * 0.24, h * 0.84, w * 0.15, h * 0.13); c.fillRect(w * 0.425, h * 0.84, w * 0.15, h * 0.13); c.fillRect(w * 0.61, h * 0.84, w * 0.15, h * 0.13);
     c.fillStyle = "rgba(255,255,255,0.5)";                           // a sun-bleached logo
     c.font = "bold 21px Georgia, serif"; c.textAlign = "center";
     c.save(); c.translate(w / 2, h * 0.24); c.fillText("SURF", 0, 0); c.restore();
@@ -5367,7 +5375,7 @@ export function buildHallway(ctx) {
   kDoor.position.set(0.47, 0.55, 0); kilnG.add(kDoor);
   // the spyhole: the only way in while it is running, and the reason the game is blind
   var spy = new THREE.Mesh(new THREE.CircleGeometry(0.035, 12),
-    new THREE.MeshStandardMaterial({ color: 0xffb257, emissive: 0xff7a1e, emissiveIntensity: 1.5, roughness: 0.5 }));
+    new THREE.MeshStandardMaterial({ color: 0xffdcaa, emissive: 0xffa64d, emissiveIntensity: 1.5, roughness: 0.5 }));   // --hot / --fire, the-kiln :root
   spy.rotation.y = Math.PI / 2; spy.position.set(0.503, 0.70, 0); kilnG.add(spy);
   var flue = new THREE.Mesh(new THREE.CylinderGeometry(0.075, 0.085, 0.80, 10), bandM);
   flue.position.set(0, 1.60, 0); kilnG.add(flue);
@@ -6197,14 +6205,17 @@ export function buildHallway(ctx) {
   var tackHandle = new THREE.Mesh(new THREE.TorusGeometry(0.045, 0.008, 5, 12), mat(0x1f4a34, 0.7));
   tackHandle.rotation.x = Math.PI / 2; tackHandle.position.set(0, 0.225, 0); tackG.add(tackHandle);
   var latch = box(0.03, 0.02, 0.012, mat(0xb8b2a4, 0.4)); latch.position.set(0.11, 0.16, 0.106); tackG.add(latch);
-  var bob = new THREE.Mesh(new THREE.SphereGeometry(0.036, 10, 8), mat(0xd8443a, 0.6));
+  var bob = new THREE.Mesh(new THREE.SphereGeometry(0.036, 10, 8), mat(0xd24a30, 0.6));    // drawBobber's literal red
   bob.position.set(-11.02, 0.036, 4.78); add(bob);
-  var bobTop = new THREE.Mesh(new THREE.SphereGeometry(0.0362, 10, 5, 0, Math.PI * 2, 0, Math.PI / 2), mat(0xf0ece0, 0.6));
+  var bobTop = new THREE.Mesh(new THREE.SphereGeometry(0.0362, 10, 5, 0, Math.PI * 2, 0, Math.PI / 2), mat(0xece8de, 0.6));
+  // the white antenna stem the game draws on every bobber (its fillRect(-1.4,-14,2.8,6))
+  var bobAnt = new THREE.Mesh(new THREE.CylinderGeometry(0.005, 0.005, 0.028, 6), mat(0xece8de, 0.6));
+  bobAnt.position.set(-11.02, 0.036 + 0.036 + 0.014, 4.78); add(bobAnt);
   bobTop.position.copy(bob.position); add(bobTop);
   // the whole rod, not just the bits I happened to name: the blank, the guides and
   // the line are most of what the eye lands on, and a prop you cannot click on the
   // part you are looking at reads as scenery
-  var biteParts = [bob, bobTop];
+  var biteParts = [bob, bobTop, bobAnt];
   [rodG, tackG].forEach(function (gr) { gr.traverse(function (m) { if (m.isMesh) biteParts.push(m); }); });
   biteParts.forEach(function (m) {
     gtag(m, "BITE", function () { window.location.href = "https://kylefriesmarketing.github.io/bite/"; },
