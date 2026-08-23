@@ -16,10 +16,22 @@ export function box(w, h, d, m) {
 }
 /* A texture drawn on the fly — this room has no image files for most of what it
    shows, so nearly every label, screen and sticker starts life here. */
-export function canvasTex(w, h, draw) {
+/* ⚠️⚠️ COLOUR-MANAGED BY DEFAULT, as of the flagship pass. The canvas 2D API paints
+ * in sRGB — that is what every hex colour and gradient in this project MEANS — but
+ * CanvasTexture ships with NoColorSpace, so for months 67 of the house's 107 painted
+ * textures were sampled as if their bytes were linear light: lifted mids, crushed
+ * saturation, and a visible mismatch against the GLB props, whose loader flags sRGB
+ * automatically. The room's lighting was then hand-tuned ON TOP of the bug.
+ * The fourth argument opts OUT for data textures — alpha masks, dust, rain, contact
+ * shadows, anything whose channels are quantities rather than colours. Bump maps are
+ * unaffected either way: bumpFrom() builds its own CanvasTexture and reads raw canvas
+ * pixels, and the flag is a sampler property, not a pixel mutation. */
+export function canvasTex(w, h, draw, linear) {
   var c = document.createElement("canvas"); c.width = w; c.height = h;
   draw(c.getContext("2d"), w, h);
-  var t = new THREE.CanvasTexture(c); t.anisotropy = 4; return t;
+  var t = new THREE.CanvasTexture(c); t.anisotropy = 4;
+  if (!linear) t.colorSpace = THREE.SRGBColorSpace;
+  return t;
 }
 /* a regular n-gon, centred on the current canvas origin */
 export function poly(g, n, r, rot, fill) {

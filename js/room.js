@@ -12,6 +12,8 @@ import * as THREE from "three";
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
 import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
 import { mat, box, canvasTex, loadJSON, saveJSON, readSave, countOf, esc, hex6 } from "./util.js";
+// data textures — masks, rain, dust, shadows: channels are quantities, not colours
+function canvasTexLinear(w, h, draw) { return canvasTex(w, h, draw, true); }
 import { STICKER_DESIGNS } from "./stickers.js";
 import * as COLL from "./collectibles.js";
 import * as PROFILE from "./profile.js";
@@ -39,11 +41,14 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
    * provably inert (verified pixel-identical against the pre-patch baseline).
    * Transitions LERP over ~0.9s so walking between rooms reads as the light changing,
    * never as a cut. */
+  /* lifts first (the exposure retune after the sRGB fix); tints land with the
+   * design pass. Every number here was reached by measurement against the family:
+   * bedroom 40 = reference, kitchen pulled from 128 to ~88, attic stays darkest. */
   var SPACE_GRADES = {
-    bedroom:  [1, 1, 1, 1], hall: [1, 1, 1, 1], kitchen: [1, 1, 1, 1],
-    porch:    [1, 1, 1, 1], garage: [1, 1, 1, 1], basement: [1, 1, 1, 1],
-    back:     [1, 1, 1, 1], living: [1, 1, 1, 1], upstairs: [1, 1, 1, 1],
-    room0:    [1, 1, 1, 1], room1: [1, 1, 1, 1], room2: [1, 1, 1, 1],
+    bedroom:  [1, 1, 1, 1.11], hall: [1, 1, 1, 1.05], kitchen: [1, 1, 1, 0.93],
+    porch:    [1, 1, 1, 1],    garage: [1, 1, 1, 1.04], basement: [1, 1, 1, 1.08],
+    back:     [1, 1, 1, 1],    living: [1, 1, 1, 1.09], upstairs: [1, 1, 1, 1.08],
+    room0:    [1, 1, 1, 1.03], room1: [1, 1, 1, 0.96], room2: [1, 1, 1, 1.04],
   };
   var sgCur = [1, 1, 1, 1], sgFrom = [1, 1, 1, 1], sgTo = [1, 1, 1, 1], sgT = 1, sgSpace = "bedroom";
   function spaceGradeTick(dt) {
@@ -321,6 +326,7 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
       t.wrapS = t.wrapT = THREE.RepeatWrapping;
       t.repeat.set(repX || 1, repY || 1);
       t.anisotropy = 8;
+      t.colorSpace = THREE.SRGBColorSpace;   // photos and art are sRGB; see canvasTex
       m.userData.baseMap = t; // "as found" restores this (the material swap system)
       m.userData.baseBump = bump || 0;
       if (m.userData.customMap) return; // a swapped wallpaper got here first — don't clobber it
@@ -336,7 +342,7 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
   // Cheap "bloom": a soft additive halo billboard around each bright source. Sprites
   // always face the camera, so the glow reads right from every angle without a
   // post-processing pass (which would reroute the whole render path and cost mobile).
-  var glowTex = canvasTex(128, 128, function (g, w, h) {
+  var glowTex = canvasTexLinear(128, 128, function (g, w, h) {
     var rad = g.createRadialGradient(w / 2, h / 2, 0, w / 2, h / 2, w / 2);
     rad.addColorStop(0, "rgba(255,255,255,0.9)");
     rad.addColorStop(0.35, "rgba(255,255,255,0.28)");
@@ -364,7 +370,7 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
   // Contact shadows: the soft dark pool a thing sits in. One real shadow-casting lamp
   // can't ground everything in the room, and without this every toy looks like it's
   // hovering a centimetre off the carpet. Cheap, and it rides along as furniture moves.
-  var contactTex = canvasTex(128, 128, function (g, w, h) {
+  var contactTex = canvasTexLinear(128, 128, function (g, w, h) {
     var rad = g.createRadialGradient(w / 2, h / 2, 0, w / 2, h / 2, w / 2);
     // weighted toward the core: a tight dark contact that falls off fast reads as
     // "sitting on the floor", where an even spread just looks like a grey smudge
@@ -723,7 +729,7 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
     hall.portalEnd(was);
   }
 
-  var rainT = canvasTex(256, 320, function (g) { g.clearRect(0, 0, 256, 320); });
+  var rainT = canvasTexLinear(256, 320, function (g) { g.clearRect(0, 0, 256, 320); });
   var winPane = new THREE.Mesh(new THREE.PlaneGeometry(1.4, 1.7),
     new THREE.MeshBasicMaterial({ map: rainT, transparent: true, depthWrite: false }));
   winPane.position.set(2.35, 1.95, -2.515); scene.add(winPane);
@@ -1185,7 +1191,9 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
   // A hemisphere carries part of that load instead: cool from the ceiling, warm bounced
   // up off the carpet. AMB_FLAT hands the difference over so the room doesn't just get
   // brighter — it gets shaped. Both scale together per phase (and when the bed dims it).
-  var AMB_FLAT = 0.76, BOUNCE_K = 0.44;
+  // +16%: the sRGB migration darkened every painted surface in the house at once,
+  // so the base fill comes up with it. Per-space character stays in the local lights.
+  var AMB_FLAT = 0.88, BOUNCE_K = 0.51;
   var bounce = new THREE.HemisphereLight(0x2c3440, 0x4a3526, 0.44);
   bounce.position.set(0, 3.2, 0); scene.add(bounce);
 
@@ -1573,7 +1581,7 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
     scene.add(st); stars.push(st);
   }
   // a rare shooting star streaks across the ceiling — make a wish
-  var streakTex = canvasTex(128, 40, function (g, w, h) {
+  var streakTex = canvasTexLinear(128, 40, function (g, w, h) {
     g.clearRect(0, 0, w, h);
     var lg = g.createLinearGradient(0, 0, w, 0); // tapering tail → bright head (right)
     lg.addColorStop(0, "rgba(200,230,255,0)");
@@ -1754,7 +1762,7 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
   else if (_md[0] === 10 && _md[1] >= 24) season = "spook";
   else if (_md[0] === 7 && _md[1] === 11) season = "bday";
   if (season === "yule") { // a paper snowflake, taped inside the glass
-    var flakeT = canvasTex(128, 128, function (g, w, h) {
+    var flakeT = canvasTexLinear(128, 128, function (g, w, h) {
       g.clearRect(0, 0, w, h);
       g.strokeStyle = "rgba(240,246,255,0.95)"; g.lineWidth = 4; g.lineCap = "round";
       g.translate(w / 2, h / 2);
@@ -2140,7 +2148,7 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
    * A soft wedge of light on the floor under the window. Not a real volumetric — a
    * pair of additive planes with a gradient that fades at both ends, which holds up
    * because the camera only ever pans a little. Brightest at night, gone by day. */
-  var shaftTex = canvasTex(64, 128, function (g, w, h) {
+  var shaftTex = canvasTexLinear(64, 128, function (g, w, h) {
     var lg = g.createLinearGradient(0, 0, 0, h);      // fade in from the glass, out on the floor
     lg.addColorStop(0, "rgba(255,214,160,0.0)");
     lg.addColorStop(0.18, "rgba(255,214,160,0.55)");
@@ -2489,7 +2497,7 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
     var g = new THREE.Group(); posterBrainrot = g;
     var backing = box(0.56, 0.82, 0.02, mat(0xe8e2d4, 0.9)); g.add(backing);
     var m = new THREE.MeshStandardMaterial({ color: 0x333944, roughness: 0.85 });
-    texLoader.load("assets/tex/poster_brainrot.jpg", function (t) { t.anisotropy = 8; m.map = t; m.color.set(0xffffff); m.needsUpdate = true; });
+    texLoader.load("assets/tex/poster_brainrot.jpg", function (t) { t.anisotropy = 8; t.colorSpace = THREE.SRGBColorSpace; m.map = t; m.color.set(0xffffff); m.needsUpdate = true; });
     var art = new THREE.Mesh(new THREE.PlaneGeometry(0.52, 0.78), m);
     art.position.z = 0.012; g.add(art);
     // ⚠️ was hard-coded to the OLD left wall (-3.53) and ended up floating in mid-air
@@ -3552,7 +3560,7 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
 
   /* ---- THE SOLAR SYSTEM POSTER (back wall, between shelf and window) ---------- */
   var posterM = new THREE.MeshStandardMaterial({ color: 0x2a3040, roughness: 0.9 });
-  texLoader.load("assets/tex/solar_poster.jpg", function (t) { t.anisotropy = 8; posterM.map = t; posterM.color.set(0xffffff); posterM.needsUpdate = true; });
+  texLoader.load("assets/tex/solar_poster.jpg", function (t) { t.anisotropy = 8; t.colorSpace = THREE.SRGBColorSpace; posterM.map = t; posterM.color.set(0xffffff); posterM.needsUpdate = true; });
   var solar = new THREE.Mesh(new THREE.PlaneGeometry(0.78, 1.04), posterM);
   solar.position.set(0.78, 1.98, -2.53); solar.rotation.z = -0.02; // taped up a little crooked
   scene.add(solar);
@@ -3560,7 +3568,7 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
 
   /* ---- the TV flips between static and Saturday cartoons ---------------------- */
   var cartoonT = null, tvCartoon = false, tvFlip = 6 + Math.random() * 6, crtBase = 0.7;
-  texLoader.load("assets/tex/tv_cartoon.jpg", function (t) { t.anisotropy = 4; cartoonT = t; });
+  texLoader.load("assets/tex/tv_cartoon.jpg", function (t) { t.anisotropy = 4; t.colorSpace = THREE.SRGBColorSpace; cartoonT = t; });
 
   /* ---- the notebook panel (DOM): reads the sibling games' saves --------------- */
   // It has grown pages: what i finished, then (once the war starts) the campaign
@@ -6625,8 +6633,10 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
     hall.glowTick(t, dt, dim); // the hallway breathes on the same dimmer
     amb.intensity = phase.ambI * AMB_FLAT * (1 - 0.65 * nap);
     bounce.intensity = phase.ambI * BOUNCE_K * (1 - 0.65 * nap); // the bounce sleeps too
-    lampLight.intensity = (lampOn ? 1.5 : 0.12) * dim;
-    lavaLight.intensity = (lavaOn ? 0.8 : 0.05) * dim;
+    // bedroom k=1.22 from the live search: the carpet and wood darkened under texMat's
+    // sRGB flag and the lamp carries the room
+    lampLight.intensity = (lampOn ? 2.35 : 0.17) * dim;
+    lavaLight.intensity = (lavaOn ? 0.95 : 0.06) * dim;
     shelfGlow.intensity = 0.55 * dim;
     if (nap > 0.5 && t > nextSnore) { nextSnore = t + 3.6; snoreSfx(); }
     // the TV surfs between dead air and whatever's on at this hour

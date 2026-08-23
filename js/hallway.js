@@ -21,6 +21,7 @@
  */
 import * as THREE from "three";
 import { mat, box, canvasTex, esc } from "./util.js";
+function canvasTexLinear(w, h, draw) { return canvasTex(w, h, draw, true); }   // masks/dust/rain: see util.js
 import * as PROFILE from "./profile.js";
 import * as AUDIO from "./audio.js";
 
@@ -1770,7 +1771,7 @@ export function buildHallway(ctx) {
           grp(0, lg, 'the reading lamp', 'left on most nights. the other one has learned to sleep through it.');
           var nl2 = new THREE.PointLight(0xffd2a0, 0.62, 3.6, 1.9);
           nl2.position.set(nx, fl + 0.88, nz); add(nl2);
-          var rlEnt = roomLite(nl2, sh2.material, 0.62, 0.45);
+          var rlEnt = roomLite(nl2, sh2.material, 0.85, 0.58);
           // ⚠️ the hint said it gets left on most nights, and there was no way to turn
           // it off. A fixture whose own description is about being switched has to be.
           lg.children.forEach(function (m) {
@@ -1836,7 +1837,7 @@ export function buildHallway(ctx) {
       rtag(ovh, 0, 'their ceiling light', 'a paper globe. it has been meaning to be replaced since it went up.');
       var ol = new THREE.PointLight(0xffd2a0, 0.50, 7.5, 1.9);
       ol.position.set(cx, UPF.ce - 0.40, RZ0 + 1.9); add(ol);
-      roomLite(ol, ovh.material, 0.50, 0.34);
+      roomLite(ol, ovh.material, 0.72, 0.44);
       /* ⚠️ MEASURED 73% BoxGeometry and 3.47 meshes per prop, against the bedroom's
        * 37.5% and 5.8. Boxes are the fast way to say 'furniture' and the reason a room
        * reads as blocked-out rather than built. Everything below is deliberately round
@@ -1944,7 +1945,7 @@ export function buildHallway(ctx) {
       grp(1, dl, 'the desk lamp', 'angled at the wall and not the desk, because that is how she likes it.');
       var dlite = new THREE.PointLight(0xffd2a0, 0.66, 3.6, 1.9);
       dlite.position.set(cx + 1.14, fl + 1.08, RZ0 + 0.68); add(dlite);
-      var dlEnt = roomLite(dlite, dh.material, 0.66, 0.55);
+      var dlEnt = roomLite(dlite, dh.material, 0.92, 0.72);
       dl.children.forEach(function (m) {
         if (m.userData && m.userData.name) m.userData.action = function () {
           dlEnt.on = !dlEnt.on; AUDIO.clickSfx && AUDIO.clickSfx(dlEnt.on ? 1650 : 1100);
@@ -2051,7 +2052,7 @@ export function buildHallway(ctx) {
       rtag(hcl, 1, 'her ceiling light', 'the shade has a horse on it. it was chosen at six and defended ever since.');
       var hli = new THREE.PointLight(0xffd2a0, 0.44, 7.0, 1.9);
       hli.position.set(cx, UPF.ce - 0.40, RZ0 + 1.9); add(hli);
-      roomLite(hli, hcl.material, 0.44, 0.30);
+      roomLite(hli, hcl.material, 0.54, 0.36);
     })();
 
     /* ============== THE ATTIC - warm, and it smells like old paper ============== */
@@ -2100,7 +2101,7 @@ export function buildHallway(ctx) {
         'you pull the flex, not a switch, and you do it by feel because the switch is at the bottom.'); });
       var alite = new THREE.PointLight(0xffd2a0, 0.80, 5.6, 1.9);
       alite.position.set(cx - 0.30, fl + 1.55, RZ1 - 0.55); add(alite);
-      var alEnt = roomLite(alite, abulb.material, 0.80, 0.95);
+      var alEnt = roomLite(alite, abulb.material, 1.30, 1.15);   // attic: k=1.76 measured
       // the hint already says you pull the flex, not a switch. Now you can.
       [abulb, aflex].forEach(function (m) {
         m.userData.action = function () {
@@ -2869,8 +2870,10 @@ export function buildHallway(ctx) {
     m.rotation.x = -Math.PI / 2; if (ry) m.rotation.z = ry;
     m.position.set(x, y, z); m.renderOrder = 2; kadd(m); return m;
   }
+  // ⚠️ stays LINEAR: these are darkening/wear decals whose alpha ramps were tuned
+  // against linear sampling; an sRGB decode would re-shape every ground shadow.
   function radialTex(rgb, peak) {
-    return canvasTex(64, 64, function (c, w, h) {
+    return canvasTexLinear(64, 64, function (c, w, h) {
       var g = c.createRadialGradient(32, 32, 1, 32, 32, 32);
       g.addColorStop(0, "rgba(" + rgb + "," + peak + ")"); g.addColorStop(1, "rgba(" + rgb + ",0)");
       c.fillStyle = g; c.fillRect(0, 0, w, h);
@@ -3249,7 +3252,7 @@ export function buildHallway(ctx) {
    * heights (lawn -0.45, path -0.43, road -0.51) and a fixed offset that clears one
    * of them z-fights or vanishes under another. Offsetting depth only means the
    * decal hugs whatever is actually beneath it. */
-  var shadeTex = canvasTex(64, 64, function (c, w, h) {
+  var shadeTex = canvasTexLinear(64, 64, function (c, w, h) {
     var g3 = c.createRadialGradient(w / 2, h / 2, 1, w / 2, h / 2, w / 2);
     g3.addColorStop(0, "rgba(0,0,0,0.85)");
     g3.addColorStop(0.55, "rgba(0,0,0,0.42)");
@@ -3746,7 +3749,7 @@ export function buildHallway(ctx) {
   // tighter cone also suits a small lantern better than a 2.3m-wide floodlight did.
   beam(FRONT_X + 0.95, GROUND + 1.35, HOUSE_F - 0.72, 0.10, 0.58, 3.2, 0.042); // the porch lamp
   // and a breath of mist sitting on the lawn, which is what makes the beams read
-  var mistT = canvasTex(128, 128, function (c, w, h) {
+  var mistT = canvasTexLinear(128, 128, function (c, w, h) {
     var g4 = c.createRadialGradient(w / 2, h / 2, 2, w / 2, h / 2, w / 2);
     g4.addColorStop(0, "rgba(206,220,240,0.30)"); g4.addColorStop(1, "rgba(206,220,240,0)");
     c.fillStyle = g4; c.fillRect(0, 0, w, h);
@@ -3938,14 +3941,14 @@ export function buildHallway(ctx) {
     return { pts: p, geo: geo, mat: m, box: box };
   }
   // a drop: a soft vertical streak down the middle of an otherwise empty square
-  var dropTex = canvasTex(16, 16, function (c, w, h) {
+  var dropTex = canvasTexLinear(16, 16, function (c, w, h) {
     c.clearRect(0, 0, w, h);
     var g5 = c.createLinearGradient(0, 0, 0, h);
     g5.addColorStop(0, "rgba(210,226,246,0)"); g5.addColorStop(0.35, "rgba(210,226,246,0.95)");
     g5.addColorStop(0.75, "rgba(210,226,246,0.75)"); g5.addColorStop(1, "rgba(210,226,246,0)");
     c.fillStyle = g5; c.fillRect(w * 0.42, 0, w * 0.16, h);
   });
-  var flakeTex = canvasTex(16, 16, function (c, w, h) {
+  var flakeTex = canvasTexLinear(16, 16, function (c, w, h) {
     c.clearRect(0, 0, w, h);
     var g6 = c.createRadialGradient(w / 2, h / 2, 0, w / 2, h / 2, w / 2);
     g6.addColorStop(0, "rgba(255,255,255,1)"); g6.addColorStop(0.5, "rgba(255,255,255,0.75)");
@@ -6797,13 +6800,13 @@ export function buildHallway(ctx) {
   lampPole.position.set(1.85, BSM.fl + 0.675, 3.85); add(lampPole);
   var lampShade = new THREE.Mesh(new THREE.ConeGeometry(0.19, 0.24, 12, 1, true), mat(0xd8b46a, 0.8));
   lampShade.position.set(1.85, BSM.fl + 1.42, 3.85); add(lampShade);
-  var bsLamp = new THREE.PointLight(0xffd9a0, 1.5, 4.6, 1.8);
+  var bsLamp = new THREE.PointLight(0xffd9a0, 2.1, 5.2, 1.8);
   bsLamp.position.set(1.85, BSM.fl + 1.3, 3.85); add(bsLamp);
   bstag(lampShade, "the lamp", null, "the click of it is the sound of the evening starting.");
   var bsBulb = new THREE.Mesh(new THREE.SphereGeometry(0.04, 10, 8),
     new THREE.MeshStandardMaterial({ color: 0xfff2d8, emissive: 0xffd9a0, emissiveIntensity: 1.4, roughness: 0.4 }));
   bsBulb.position.set(-6.97, BSM.ce - 0.28, 2.35); add(bsBulb);
-  var bsStairLite = new THREE.PointLight(0xffe0b0, 0.9, 3.6, 1.8);
+  var bsStairLite = new THREE.PointLight(0xffe0b0, 1.25, 3.9, 1.8);
   bsStairLite.position.set(-6.97, BSM.ce - 0.35, 2.35); add(bsStairLite);
   var bsUpHit = new THREE.Mesh(new THREE.BoxGeometry(1.1, 1.9, 1.3),
     new THREE.MeshBasicMaterial({ transparent: true, opacity: 0, depthWrite: false }));
@@ -7952,30 +7955,32 @@ export function buildHallway(ctx) {
     var on = lightsOn ? 1 : 0.06;
     var breathe = 0.94 + 0.06 * Math.sin(t * 0.8);
     [bulbS, bulbN, bulbB].forEach(function (b) {
-      b.light.intensity = 2.7 * dim * on * breathe;
+      b.light.intensity = 3.4 * dim * on * breathe;
       b.bulb.material.emissiveIntensity = 2.0 * dim * on;
       if (b.halo) b.halo.material.opacity = 0.34 * dim * on * breathe;
     });
-    hallFill.intensity = 0.5 * dim * on;
+    hallFill.intensity = 0.72 * dim * on;
     /* the living room and the landing, which used to be outside every ticker in the
      * file. Same `dim * on * breathe` term as the hall bulbs so they read as being on
      * the same electrical supply, because they are. */
     if (livingLife) livingLife(dt, t, livOn ? dim : dim * 0.15);
     if (livLightH) {
       var lon = livOn ? 1 : 0.05;
-      livLightH.lamp.intensity = 0.85 * dim * lon * breathe;
-      livLightH.ceil.intensity = 0.62 * dim * lon * breathe;
+      // living: 23.9 luma post-sRGB, k=2.35 measured to reach 33 — moody but readable
+      livLightH.lamp.intensity = 1.70 * dim * lon * breathe;
+      livLightH.ceil.intensity = 1.25 * dim * lon * breathe;
       livLightH.shade.emissiveIntensity = 0.50 * dim * lon;
       livLightH.bowl.emissiveIntensity = 0.42 * dim * lon;
       // the set flickers on its own schedule — a CRT does not breathe with the house
       var fl2 = 0.86 + 0.14 * Math.abs(Math.sin(t * 3.1) * Math.sin(t * 1.3));
-      livLightH.tv.intensity = 0.55 * dim * fl2;
+      livLightH.tv.intensity = 0.85 * dim * fl2;
       livLightH.scr.emissiveIntensity = 0.70 * dim * fl2;
     }
     if (upLightH) {
       var uon = upOn ? 1 : 0.05;
-      upLightH.a.intensity = 0.95 * dim * uon * breathe;
-      upLightH.b.intensity = 0.55 * dim * uon * breathe;
+      // the landing dropped 36 luma in the sRGB fix — the biggest fall in the house
+      upLightH.a.intensity = 1.90 * dim * uon * breathe;
+      upLightH.b.intensity = 1.10 * dim * uon * breathe;
       upLightH.bulbA.emissiveIntensity = 1.10 * dim * uon;
       upLightH.bulbB.emissiveIntensity = 0.95 * dim * uon;
       /* ⚠️ THE SMOKE ALARM'S LED WAS A CONSTANT. It is the cheapest possible ambient
@@ -8017,10 +8022,12 @@ export function buildHallway(ctx) {
     if (kitDoor.userData.spill) kitDoor.userData.spill.material.opacity = kitDoor.userData.spillOp * (0.9 + 0.1 * Math.sin(t * 0.4));
     // the kitchen breathes with the house's dim, and the fridge glow flickers the
     // tiniest bit — that's the compressor cycling, which is the hum made visible
-    kLight.intensity = 2.4 * dim;
-    kFill.intensity = 0.45 * dim;
-    kUnder.intensity = 1.1 * dim * kStripOn;
-    strip.material.emissiveIntensity = 1.3 * dim * kStripOn;
+    /* kitchen: measured 128 mean luma against the bedroom's 40 — three families too
+     * bright, mostly its own lights. Binary-searched to ~88 at k=0.42 of the old set. */
+    kLight.intensity = 0.60 * dim;
+    kFill.intensity = 0.20 * dim;
+    kUnder.intensity = 0.55 * dim * kStripOn;
+    strip.material.emissiveIntensity = 0.9 * dim * kStripOn;
     frGlow.intensity = (0.24 + 0.06 * Math.sin(t * 1.7)) * dim;
     kitchenLife(dt, dim);   // steam off the kettle, and the tap that drips
     hallLife(dt, t, dim * on);   // dust, visible only where it drifts through a bulb
