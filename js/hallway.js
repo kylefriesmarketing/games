@@ -40,6 +40,11 @@ export function buildHallway(ctx) {
     if (!ctx.contactShadow) return null;
     return ctx.contactShadow(parent, rx, rz, op, (floorY || 0) + 0.016);
   }
+  /* ⚠️ EIGHT POINT LIGHTS BURNED AT FULL BRIGHTNESS AT DEEPEST NIGHT — every light
+   * built as `new PointLight(c, i, d, k)` and never ticked ignored the one dial the
+   * whole house answers to. Anything registered here gets `base * dim` every frame
+   * from glowTick, so a new constant practical is one push() away from behaving. */
+  var dimLights = [];
 
   /* ---- the shell -------------------------------------------------------------
    * Interior: x -7.45..-4.35 (3.1m wide), z -3.45..4.5 (8m long), ceiling 2.95.
@@ -1483,6 +1488,7 @@ export function buildHallway(ctx) {
     acSpill.position.set(acX, UPF.fl + 0.014, LAN.z1 - 0.16); add(acSpill);
     var acLite = new THREE.PointLight(0xffb877, 0.30, 3.4, 2.0);
     acLite.position.set(acX, UPF.fl + 0.55, LAN.z1 - 0.30); add(acLite);
+    dimLights.push({ l: acLite, base: 0.30 });
     // a chair on the landing that is not for sitting on, which every house has
     var lchG = new THREE.Group();
     lchG.position.set(1.85, UPF.fl, LAN.z0 + 0.42); lchG.rotation.y = -0.72; add(lchG);
@@ -4161,7 +4167,11 @@ export function buildHallway(ctx) {
   var passHead = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.16, 1.5),
     new THREE.MeshStandardMaterial({ color: 0xfff4d8, emissive: 0xffe9b0, emissiveIntensity: 1.8, roughness: 0.4 }));
   passHead.position.set(0, 0.62, -2.0); passG.add(passHead);
-  var passLite = new THREE.PointLight(0xffe0b0, 0, 12, 1.8); passLite.position.set(0, 0.9, -3.0); passG.add(passLite);
+  /* ⚠️ the headlight glow must NOT live inside passG: hiding the parked car removed
+   * a light from the scene, which changes NUM_POINT_LIGHTS and recompiles every
+   * shader program in the house — ON EVERY PASS, every 14-40 seconds. The light
+   * lives on yardG at intensity 0 now and rides the car by position instead. */
+  var passLite = new THREE.PointLight(0xffe0b0, 0, 12, 1.8); passLite.position.set(0, 0.9, -3.0); yardG.add(passLite);
   var passX = 999, passDir = 1, passWait = 6 + Math.random() * 14;
 
   /* ---- HERE COMES THE TRUCK: the hidden one ------------------------------------
@@ -4216,7 +4226,8 @@ export function buildHallway(ctx) {
   var tkHead = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.18, 1.6),
     new THREE.MeshStandardMaterial({ color: 0xfff4d8, emissive: 0xffe9b0, emissiveIntensity: 1.8, roughness: 0.4 }));
   tkHead.position.set(3.5, 0.85, 0); truckG.add(tkHead);
-  var tkLite = new THREE.PointLight(0xffd9a0, 0, 14, 1.7); tkLite.position.set(-0.3, 1.7, -2.2); truckG.add(tkLite);
+  // on yardG, not truckG, for the same recompile reason as passLite above
+  var tkLite = new THREE.PointLight(0xffd9a0, 0, 14, 1.7); tkLite.position.set(-0.3, 1.7, -2.2); yardG.add(tkLite);
   truckG.children.forEach(function (m) {
     ytag(m, "HERE COMES THE TRUCK", function () {
       window.location.href = "https://kylefriesmarketing.github.io/here-comes-the-truck/";
@@ -5601,7 +5612,9 @@ export function buildHallway(ctx) {
   var poolLightOn = true;
   function setPoolLight(on2) {
     poolLightOn = !!on2;
-    poolLight.visible = poolLightOn; poolNiche.visible = poolLightOn;
+    // intensity, never .visible — a light leaving the scene graph changes the
+    // shader's light count and recompiles every program in the house on one click
+    poolLight.intensity = poolLightOn ? 1.5 : 0; poolNiche.visible = poolLightOn;
     waterM.emissiveIntensity = poolLightOn ? 0.5 : 0.12;
   }
   function setTorches(on2) { flames.forEach(function (f3) { f3.visible = !!on2; }); }
@@ -6750,6 +6763,7 @@ export function buildHallway(ctx) {
   });
   // the light the neon actually throws — every practical in this house has one
   var llLite = new THREE.PointLight(0xffc070, 0.75, 2.8, 2.0);
+  dimLights.push({ l: llLite, base: 0.75 });
   llLite.position.set(2.88, BSM.fl + 1.30, 3.05); add(llLite);
   function llGo() {
     try { localStorage.setItem("room-visited-lastlocal", "1"); } catch (e) { }
@@ -6810,6 +6824,7 @@ export function buildHallway(ctx) {
     });
     var cl3 = new THREE.PointLight(opts.glow, 0.6, 3.0, 2);
     cl3.position.set(cx, BSM.fl + 1.05, cz + 0.62); add(cl3);
+    dimLights.push({ l: cl3, base: 0.6 });
     cab.traverse(function (o) {
       if (o.isMesh) bstag(o, opts.name, function () { window.location.href = opts.url; }, opts.hint);
     });
@@ -7150,6 +7165,7 @@ export function buildHallway(ctx) {
   var hxOct = MONTH === 10 ? 1 : 0.28;   // the lights answer the month too, or they lie
   var hxLite = new THREE.PointLight(0xff8a2b, 0.9 * hxOct, 1.5, 2); hxLite.position.set(-0.55, 0.30, 0.12); hxG.add(hxLite);
   var hxLite2 = new THREE.PointLight(0x8a4fd0, 0.5 * hxOct, 1.1, 2); hxLite2.position.set(-0.20, 0.42, 0.05); hxG.add(hxLite2);
+  dimLights.push({ l: hxLite, base: 0.9 * hxOct }, { l: hxLite2, base: 0.5 * hxOct });
   var bat = box(0.18, 0.01, 0.07, mat(0x211f26, 0.85));
   bat.position.set(-0.12, 0.455, -0.16); bat.rotation.set(0.1, 0.4, 0.16); hxG.add(bat);
   /* the three artefacts of running the place (every colour from the-haunt source):
@@ -7211,12 +7227,14 @@ export function buildHallway(ctx) {
   lampShade.position.set(1.85, BSM.fl + 1.42, 3.85); add(lampShade);
   var bsLamp = new THREE.PointLight(0xffd9a0, 2.1, 5.2, 1.8);
   bsLamp.position.set(1.85, BSM.fl + 1.3, 3.85); add(bsLamp);
+  dimLights.push({ l: bsLamp, base: 2.1 });
   bstag(lampShade, "the lamp", null, "the click of it is the sound of the evening starting.");
   var bsBulb = new THREE.Mesh(new THREE.SphereGeometry(0.04, 10, 8),
     new THREE.MeshStandardMaterial({ color: 0xfff2d8, emissive: 0xffd9a0, emissiveIntensity: 1.4, roughness: 0.4 }));
   bsBulb.position.set(-6.97, BSM.ce - 0.28, 2.35); add(bsBulb);
   var bsStairLite = new THREE.PointLight(0xffe0b0, 1.25, 3.9, 1.8);
   bsStairLite.position.set(-6.97, BSM.ce - 0.35, 2.35); add(bsStairLite);
+  dimLights.push({ l: bsStairLite, base: 1.25 });
   var bsUpHit = new THREE.Mesh(new THREE.BoxGeometry(1.1, 1.9, 1.3),
     new THREE.MeshBasicMaterial({ transparent: true, opacity: 0, depthWrite: false }));
   bsUpHit.position.set(-6.9, BSM.fl + 0.95, 2.3); add(bsUpHit);
@@ -7234,18 +7252,18 @@ export function buildHallway(ctx) {
       fo2.m.position.x = 2.82 + Math.sin(t * 0.5 + fo2.ph) * 0.28;
       fo2.m.rotation.y = Math.cos(t * 0.5 + fo2.ph) > 0 ? 0 : Math.PI;
     }
-    if (aqLite.visible) aqLite.intensity = 1.1 + Math.sin(t * 1.3) * 0.12;
+    if (aqLite.intensity > 0) aqLite.intensity = 1.1 + Math.sin(t * 1.3) * 0.12;
   }
   var crtOn = true;
   function setCrt(on3) {
     crtOn = !!on3;
     crtScr.material.emissiveIntensity = crtOn ? 0.7 : 0.0;
     crtScr.material.color.setHex(crtOn ? 0x8a8f96 : 0x14161a);
-    tvLite.visible = crtOn;
+    tvLite.intensity = crtOn ? 0.5 : 0;   // not .visible — see setPoolLight
   }
   function setTank(mode3) {   // 0 green · 1 blue · 2 lights out
     var col = mode3 === 1 ? 0x7fb4e8 : 0x77d9a8;
-    aqLite.visible = mode3 !== 2;
+    aqLite.intensity = mode3 !== 2 ? 1.1 : 0;   // not .visible — see setPoolLight
     aqLite.color.setHex(col);
     aqWater.material.emissive.setHex(mode3 === 2 ? 0x0a201a : (mode3 === 1 ? 0x2f6a9c : 0x3fae76));
     aqWater.material.emissiveIntensity = mode3 === 2 ? 0.15 : 0.85;
@@ -8356,11 +8374,88 @@ export function buildHallway(ctx) {
     turnBtn.setAttribute("aria-label", "Turn around to face " + (LBL[next] || "the other way"));
   }
 
+  var SPACE_BOUNDS = {
+    hall:     { x: [W_IN - 0.15, -3.90], z: [Z_N - 0.20, Z_S + 0.20], y: [-0.15, CEIL + 0.60] },
+    kitchen:  { x: [KX0 - 0.15, KX1 + 0.15], z: [KZ0 - 0.15, KZ1 + 0.15], y: [-0.15, KCEIL + 0.50] },
+    garage:   { x: [-12.20, -7.40], z: [4.25, 8.55], y: [-0.15, 2.25] },
+    living:   { x: [LIV.x0 - 0.20, LIV.x1 + 0.20], z: [LIV.z0 - 0.20, LIV.z1 + 0.20], y: [-0.15, LIV.ce + 0.30] },
+    upstairs: { x: [UPF.x0 - 0.20, UPF.x1 + 0.20], z: [UPF.z0 - 0.20, UPF.z1 + 0.20], y: [UPF.fl - 0.20, UPF.ce + 0.30] },
+    room0:    { x: [UPR[0].x0 - 0.20, UPR[0].x1 + 0.20], z: [UPF.z0 - 0.20, LAN.z0 + 0.25], y: [UPF.fl - 0.20, UPF.ce + 0.30] },
+    room1:    { x: [UPR[1].x0 - 0.20, UPR[1].x1 + 0.20], z: [UPF.z0 - 0.20, LAN.z0 + 0.25], y: [UPF.fl - 0.20, UPF.ce + 0.30] },
+    room2:    { x: [UPR[2].x0 - 0.20, UPR[2].x1 + 0.20], z: [UPF.z0 - 0.20, LAN.z0 + 0.25], y: [UPF.fl - 0.20, UPF.ce + 0.30] },
+    basement: { x: [BSM.x0 - 0.15, BSM.x1 + 0.15], z: [BSM.z0 - 0.15, BSM.z1 + 0.15],
+                y: [BSM.fl - 0.15, BSM.ce + 0.10] },
+    porch:    { x: [-60, 60], z: [-62, HOUSE_F + 0.60], y: [GROUND - 0.20, GROUND + 14] },
+    back:     { x: [-32, 26], z: [Z_S - 0.70, 46], y: [GROUND - 1.60, GROUND + 12] },
+  };
+
+  /* ---- PER-SPACE LIGHT GATING -------------------------------------------------
+   * The house runs ~42 point lights and three.js counts every visible light in the
+   * scene per render, so standing in the garage the fragment shader still looped
+   * over the basement's neon, the landing's bulbs and the fairy lights two floors
+   * up — NUM_POINT_LIGHTS was 42 everywhere outside the bedroom. Each light is
+   * classified ONCE by position against SPACE_BOUNDS (this survives lights created
+   * in nested blocks and helpers — no variable scoping to fight), and only the
+   * current space's set plus its sightline neighbours stays visible. Doorway
+   * sightlines from the recon: the hall sees the living room, the kitchen spill
+   * and the stairwell; the rooms upstairs see each other's ajar doors; the
+   * basement and garage each see the hall. OUTDOOR lights (yard, street, back
+   * moon, pool) are deliberately unclassified and never gate — the moonlight
+   * through the slider glass is load-bearing from the hall, and yardG already has
+   * its own gate. Program note: each distinct visible-light count compiles its
+   * shader variants once and then they live in three.js's program cache; the
+   * union-during-walk below means the swap lands mid-transition, not on arrival. */
+  var LG_ALLOW = {
+    bedroom:  ["hall"],
+    hall:     ["hall", "living", "kitchen", "upstairs", "back"],
+    kitchen:  ["kitchen", "hall", "back"],      // the kitchen window looks at the yard
+    living:   ["living", "hall", "back"],
+    porch:    ["hall"],
+    back:     ["back", "hall", "kitchen"],
+    garage:   ["garage", "hall"],
+    basement: ["basement", "hall"],
+    upstairs: ["upstairs", "room0", "room1", "room2", "hall"],
+    room0:    ["room0", "room1", "room2", "upstairs"],
+    room1:    ["room0", "room1", "room2", "upstairs"],
+    room2:    ["room0", "room1", "room2", "upstairs"],
+  };
+  var lgSets = null, lgSettled = "hall", lgApplied = "";
+  function lgClassify() {
+    lgSets = [];
+    // most-specific first: the three rooms are carved out of the upstairs box
+    var order = ["basement", "room0", "room1", "room2", "upstairs", "living", "kitchen", "garage", "hall", "back"];
+    var v6 = new THREE.Vector3();
+    g.traverse(function (o) {
+      if (!o.isPointLight) return;
+      o.getWorldPosition(v6);
+      for (var i6 = 0; i6 < order.length; i6++) {
+        var b6 = SPACE_BOUNDS[order[i6]];
+        if (v6.x >= Math.min(b6.x[0], b6.x[1]) && v6.x <= Math.max(b6.x[0], b6.x[1]) &&
+            v6.z >= Math.min(b6.z[0], b6.z[1]) && v6.z <= Math.max(b6.z[0], b6.z[1]) &&
+            v6.y >= b6.y[0] && v6.y <= b6.y[1]) { lgSets.push({ l: o, sp: order[i6] }); return; }
+      }
+      // no match (outdoor, or straddling a wall): never gated — always-on is the safe failure
+    });
+  }
+  function lgTick() {
+    if (!lgSets) lgClassify();
+    if (mode === "idle") lgSettled = space;
+    var key6 = lgSettled + "|" + space;
+    if (key6 === lgApplied) return;    // sets only change on a transition
+    lgApplied = key6;
+    var allow6 = {};
+    (LG_ALLOW[lgSettled] || []).forEach(function (s6) { allow6[s6] = 1; });
+    (LG_ALLOW[space] || []).forEach(function (s6) { allow6[s6] = 1; });
+    allow6[lgSettled] = 1; allow6[space] = 1;   // both endpoints of a walk stay lit
+    for (var i6 = 0; i6 < lgSets.length; i6++) lgSets[i6].l.visible = !!allow6[lgSets[i6].sp];
+  }
+
   /* ---- per-frame life ---------------------------------------------------------
    * dim comes from the room (the bed's "five more minutes" fades the whole
    * house); the hall breathes with it. The TV flicker under the living room
    * door never stops. Nobody has ever seen the TV. */
   function glowTick(t, dt, dim) {
+    lgTick();
     var on = lightsOn ? 1 : 0.06;
     var breathe = 0.94 + 0.06 * Math.sin(t * 0.8);
     [bulbS, bulbN, bulbB].forEach(function (b) {
@@ -8369,6 +8464,7 @@ export function buildHallway(ctx) {
       if (b.halo) b.halo.material.opacity = 0.34 * dim * on * breathe;
     });
     hallFill.intensity = 0.72 * dim * on;
+    for (var dl6 = 0; dl6 < dimLights.length; dl6++) dimLights[dl6].l.intensity = dimLights[dl6].base * dim;
     /* the living room and the landing, which used to be outside every ticker in the
      * file. Same `dim * on * breathe` term as the hall bulbs so they read as being on
      * the same electrical supply, because they are. */
@@ -8503,6 +8599,7 @@ export function buildHallway(ctx) {
       passX += dt * 13.5 * passDir;
       passG.visible = true; passG.position.x = passX;
       passLite.intensity = 1.5 * PORCH_SKY[porchPhase].lamp;
+      passLite.position.set(passX + passDir * 3, 0.9, passG.position.z);
       if ((passDir > 0 && passX > 46) || (passDir < 0 && passX < -46)) passX = 999;
     }
 
@@ -8519,6 +8616,7 @@ export function buildHallway(ctx) {
       // cab down the road AND swings the serving window round to face the house.
       truckG.rotation.y = Math.PI;
       tkLite.intensity = 1.4 * PORCH_SKY[porchPhase].lamp;
+      tkLite.position.set(tx + 0.3, TRUCK_Y + 1.7, (Z_KERB + Z_ROADF) / 2 + 2.1 + 2.2);
       // ⚠️ the jingle is retriggered on a timer, not looped, because each call
       // SCHEDULES its phrase ahead on the audio clock — calling it every frame would
       // stack seven oscillators per frame and turn the street into a chord organ.
@@ -8600,20 +8698,7 @@ export function buildHallway(ctx) {
      * live past the wall line.
      * ⚠️ the porch box is enormous on x because the ice cream truck is a porch
      * clickable that drives from x +52 to -52. */
-    bounds: {
-      hall:     { x: [W_IN - 0.15, -3.90], z: [Z_N - 0.20, Z_S + 0.20], y: [-0.15, CEIL + 0.60] },
-      kitchen:  { x: [KX0 - 0.15, KX1 + 0.15], z: [KZ0 - 0.15, KZ1 + 0.15], y: [-0.15, KCEIL + 0.50] },
-      garage:   { x: [-12.20, -7.40], z: [4.25, 8.55], y: [-0.15, 2.25] },
-      living:   { x: [LIV.x0 - 0.20, LIV.x1 + 0.20], z: [LIV.z0 - 0.20, LIV.z1 + 0.20], y: [-0.15, LIV.ce + 0.30] },
-      upstairs: { x: [UPF.x0 - 0.20, UPF.x1 + 0.20], z: [UPF.z0 - 0.20, UPF.z1 + 0.20], y: [UPF.fl - 0.20, UPF.ce + 0.30] },
-      room0:    { x: [UPR[0].x0 - 0.20, UPR[0].x1 + 0.20], z: [UPF.z0 - 0.20, LAN.z0 + 0.25], y: [UPF.fl - 0.20, UPF.ce + 0.30] },
-      room1:    { x: [UPR[1].x0 - 0.20, UPR[1].x1 + 0.20], z: [UPF.z0 - 0.20, LAN.z0 + 0.25], y: [UPF.fl - 0.20, UPF.ce + 0.30] },
-      room2:    { x: [UPR[2].x0 - 0.20, UPR[2].x1 + 0.20], z: [UPF.z0 - 0.20, LAN.z0 + 0.25], y: [UPF.fl - 0.20, UPF.ce + 0.30] },
-      basement: { x: [BSM.x0 - 0.15, BSM.x1 + 0.15], z: [BSM.z0 - 0.15, BSM.z1 + 0.15],
-                  y: [BSM.fl - 0.15, BSM.ce + 0.10] },
-      porch:    { x: [-60, 60], z: [-62, HOUSE_F + 0.60], y: [GROUND - 0.20, GROUND + 14] },
-      back:     { x: [-32, 26], z: [Z_S - 0.70, 46], y: [GROUND - 1.60, GROUND + 12] },
-    },
+    bounds: SPACE_BOUNDS,
     stashes: stashByKey, openStash: openStash, closeStash: closeStash,
     setPhase: setPhase, phase: function () { return porchPhase; },
     knock: knockCame,
