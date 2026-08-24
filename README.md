@@ -1,16 +1,21 @@
-# THE ROOM
+# THE HOUSE
 
-**A 90s bedroom you can click. Every object is a doorway.**
+**A 90s house you can click. Every object is a doorway.**
 
 **▶ Play it: https://kylefriesmarketing.github.io/games/**
 
-![THE ROOM — a clickable 3D 90s bedroom](media/room-hero.jpg)
+![THE HOUSE — a clickable 3D 90s house](media/room-hero.jpg)
 
 It's after bedtime. Rain on the window, cartoons flickering on the CRT, a lava lamp
 doing its slow thing, and a wind-up robot making laps around the galaxy rug. Everything
-in the room is real and everything is clickable:
+in the room is real and everything is clickable — and the bedroom door opens onto the
+REST OF THE HOUSE: the hall, the kitchen, the living room, the porch and back yard,
+the garage, the basement den, and the landing upstairs with three more doors behind
+it. Twenty-eight games live here, each as a real object in the right room — the bar
+neon in the den, the kiln by the back fence, the tackle box in the garage. In the
+bedroom alone:
 
-| In the room | What it opens |
+| In the bedroom | What it opens |
 |---|---|
 | **The bookshelf** — five books standing proud of the row | [CHOOSE WISELY](https://kylefriesmarketing.github.io/choose-wisely/) · [NINE CIRCLES](https://kylefriesmarketing.github.io/nine-circles/) · [STILL BREATHING](https://kylefriesmarketing.github.io/still-breathing/) · [SOUTH](https://kylefriesmarketing.github.io/south/) · [NOBODY](https://kylefriesmarketing.github.io/nobody/) |
 | **The toy chest** — it smolders while a campaign is underway | [AGE OF TOYS](https://kylefriesmarketing.github.io/toybox-tactics/) — a storybook RTS |
@@ -41,10 +46,10 @@ flashes first, thunder arrives when the distance allows. The calendar has opinio
 too: December hangs red-green-gold lights and a paper snowflake, the last week of
 October runs slime in the lava lamp under pumpkin lights, and every July 11 — the day
 the room first opened — a crayon banner goes up over the shelf. Tab walks the room on
-a keyboard; Enter opens what you've landed on. The whole thing is Three.js —
-primitives, generated textures, four AI-generated props (beanbag, T-rex, skateboard,
-globe) and one patrolling tin robot — no build step, no framework, one HTML file and
-one script.
+a keyboard; Enter opens what you've landed on. The whole thing is Three.js — primitives,
+generated textures, a handful of AI-generated props and one patrolling tin robot —
+no build step, no framework, native ES modules, a film-grade post chain (bloom,
+per-room colour grade, grain) and per-room light gating so it runs cool.
 
 ## Running locally
 
@@ -57,6 +62,6 @@ node tools/check-room.js   # audits every asset reference against disk
 
 ## The idea
 
-One room, every game on the shelf, more games arriving as cartridges, posters, and
-toys as they're built. Built by [Kyle Fries](https://github.com/kylefriesmarketing)
+One house, every game somewhere in it, more games arriving as cartridges, posters,
+neons and toys as they're built. Built by [Kyle Fries](https://github.com/kylefriesmarketing)
 with Claude.

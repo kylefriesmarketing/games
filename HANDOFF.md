@@ -191,6 +191,24 @@ screen, light, season, tour, profile, audio, cat, posters, extras).
 
 ## 5. Testing & verification recipes (hard-won)
 
+**Flagship-pass additions (2026-08-24):**
+- **Pin the clock before measuring**: `?hour=1`. The house follows the real
+  clock; 2-3x luma swings between hours read as regressions and are not.
+- The dev server 404s bare `/games-hub/` — navigate `/games-hub/index.html`.
+  A 404 page has no importmap, so `import("three")` failing = wrong page.
+- The pane serves stale HTTP-cached modules across sessions: `fetch(url,
+  {cache:"reload"})` each edited module, then reload.
+- `node tools/check-shadow.mjs` before every commit (duplicate top-level var
+  AND function declarations in the two big files).
+- Space-circuit harness: `H.enter()/H.<space>.enter()/.leave()/H.stepOut()`,
+  drive `H.camTick(t,dt,0,0)+H.glowTick(t,dt,1)+scene.updateMatrixWorld(true)`
+  per step while `H.busy()`. Count effective lights by traversing for
+  `isPointLight` with the whole parent chain visible.
+- Verify canvas-textured designs NUMERICALLY: get the texture's canvas,
+  `getImageData` at known coordinates, compare to the game's hexes.
+- collectibles.js has MIXED line endings — anchor scripts must try CRLF
+  variants of multi-line anchors.
+
 - **The Browser pane runs pages hidden**: rAF suspended (tick never runs — drive
   functions directly), timers clamped ≥1s, `innerWidth` can be 0 (shim via
   `defineProperty`), **`camera.aspect` boots NaN** (set + updateProjectionMatrix
@@ -243,13 +261,48 @@ humanoid-only clip library) — none are needed.
 - **Always check `transactions` before batches** — prices drift, and parallel
   sessions spend from the same balance.
 
-## 7. Current state (2026-07-27) & backlog
+## 7. Current state (2026-08-24) & backlog
 
-Everything described above is **built, verified, and live**. Recent arc: full
-customization suite → themes/seasons → visual pass → PWA → kid onboarding →
-refactor into modules → materials/cat/posters (Higgsfield) → cat life/earned
-materials/movable frames/key ring → discoverability fixes (gold bar, sill
-treasures, pings, news whisper).
+Everything described above is **built, verified, and live**. It is THE HOUSE
+now: **twelve walkable spaces** (bedroom, hall, kitchen, living, porch, back,
+garage, basement, upstairs landing, and the three rooms behind its doors) and
+**28 games** — THE LAST LOCAL joined 2026-08-23 (basement bar neon, list card,
+JSON-LD, sitemap).
+
+### 7b. THE FLAGSHIP PASS (2026-08-22..24, sw v40→v54) — what changed and why
+
+- **Post chain** (`js/post.js`): HDR MSAA target → bloom → composite with
+  per-hour grade (tint/lift), **per-space grade** (`SPACE_GRADES` in room.js,
+  lerped over 0.9s), warm bloom tint, 1.0% atmosphere fog, satAmt 1.05, film
+  grain 0.028 applied post-tonemap. Toggleable; falls back to plain render.
+- **sRGB migration**: `canvasTex(w,h,draw,linear)` defaults SRGBColorSpace;
+  data textures (bump sources) use `canvasTexLinear`. Every instrument was
+  retuned after (kitchen luma ~92, living sat ~41 at `?hour=1`).
+- **PMREM environment**: `buildEnvTexture()` + `envEnable(k)` weighting
+  envMapIntensity by `k*(1-roughness)^2*4` — flat env washed the whole house.
+- **Shadow map renders on demand** (`markShadowDirty`) — 971k→~223k tris/frame.
+- **Per-game identity sweep**: every prop wears its game's OWN palette,
+  verified against each game's source by a checker fleet (the research digest
+  was wrong twice — trust source, not summaries). Bookshelf spines are
+  per-slot designs (`spineTex(text,bg,fg,opts)` + `slot.sp`); collectibles
+  rebuilt (woven bracelet, Dante-gold laurel + Beatrice star, instrument
+  compass, black-hulled Endurance, six-o'clock watch, **the Lancaster** — G
+  FOR GEORGE is a Lancaster's call sign, its bible line 2); seven props
+  rebuilt from source (LAST WATCH real mat print + dominoes, HAUNT polaroid/
+  walkie/SCM marquee, BITE open lid/lures/the Mayor, SHORT STAFFED crew-colour
+  apron + ticket wheel, HOME BREW tier shelf, zoo habitats + chicken, kiln
+  glazes + cone pack + kiln god).
+- **The photo button** shoots through the MAIN renderer + post chain from the
+  live camera (resize→render→toDataURL→restore in one synchronous task). The
+  second GL context is gone.
+- **Per-space light gating** (hallway.js, above glowTick): every point light
+  classified once by position against `SPACE_BOUNDS`; only the current space's
+  set + sightline neighbours (LG_ALLOW) stays visible. Bedroom's 7 practicals
+  gate too (room.js tick, bedVis). Outdoor lights never gate. Census: bedroom
+  7 / porch 16 / garage 17 / kitchen 23 / hall 29, from a flat ~49. Lights
+  must NEVER toggle `.visible` per-event (shader recompile) — passing car,
+  truck, pool, CRT and aquarium all drive **intensity** now; `dimLights`
+  registry ticks the once-constant practicals at `base*dim`.
 
 **Parked / next candidates:**
 - Chameleon was fully removed from the hub for copyright (computer shows a
