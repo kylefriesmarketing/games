@@ -32,7 +32,7 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
   renderer.setSize(window.innerWidth, window.innerHeight);
   // phones render fewer pixels; nobody can tell on a 6" screen and the fans thank us
   var coarse = window.matchMedia && window.matchMedia("(pointer: coarse)").matches;
-  var photoRd = null;   // the photo button reuses one renderer; see takePhoto
+  // (photoRd is GONE — the photo shoots through the MAIN renderer + post chain now; see shareRoom)
   /* ---- PER-SPACE COLOUR GRADES -------------------------------------------------
    * Age of Toys proved this pattern (MAP_GRADES in its post.js): each room gets a
    * few-percent tint + lift that acts like the room's own lamp, composed with the
@@ -5287,26 +5287,31 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
   /* ---- the snapshot (a real photo of your room, downloaded) ---------------------- */
   function shareRoom() {
     scene.updateMatrixWorld(true);
-    /* ⚠️⚠️ THIS BUILT A WHOLE SECOND WebGL CONTEXT ON EVERY PRESS AND NEVER RELEASED
-     * IT. dispose() frees three.js's own objects but does NOT drop the underlying
-     * context — browsers cap those at around 16 per page, so the sixteenth photo takes
-     * the ROOM's context down with it and the screen goes black. Every press also
-     * re-uploaded every texture and geometry in the house to the new context.
-     * One renderer, kept and reused. */
-    var W = 1600, H = 1000;
-    var rd = photoRd || (photoRd = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true }));
-    rd.setPixelRatio(1); rd.setSize(W, H);
-    rd.shadowMap.enabled = true; rd.shadowMap.type = THREE.PCFSoftShadowMap;
-    // the photo has to match what you're looking at — a fresh renderer starts with no
-    // tone mapping, which would hand you a flat, washed-out version of your own room
-    rd.toneMapping = renderer.toneMapping;
-    rd.toneMappingExposure = renderer.toneMappingExposure;
-    rd.outputColorSpace = renderer.outputColorSpace;
-    var cam = new THREE.PerspectiveCamera(52, W / H, 0.1, 50);
-    cam.position.set(0, 1.72, 4.8); cam.lookAt(new THREE.Vector3(0, 1.28, -0.5));
-    rd.render(scene, cam);
+    /* ⚠️ HISTORY, do not regress: v1 built a second WebGL context per press and the
+     * 16th photo killed the page; v2 reused one offscreen renderer — but that renderer
+     * bypassed the whole post chain (no bloom, no per-space grade, no grain) and shot a
+     * hardcoded BEDROOM camera even when you were standing in the attic, so the photo
+     * never matched the room. v3 (this): shoot through the MAIN renderer + post at a
+     * supersampled size, from the camera you are actually looking through. The resize
+     * → render → toDataURL → restore all happens in ONE synchronous task, and the
+     * browser only composites between tasks, so the flicker never reaches the screen. */
+    var szW = renderer.domElement.width, szH = renderer.domElement.height;   // backing store px
+    var pr = renderer.getPixelRatio(), aspect = camera.aspect;
+    var W = 1600, H = Math.round(W * szH / szW) || 1000;
     var url;
-    try { url = rd.domElement.toDataURL("image/png"); } catch (e) { return; }
+    try {
+      renderer.setPixelRatio(1); renderer.setSize(W, H, false);
+      camera.aspect = W / H; camera.updateProjectionMatrix();
+      if (post && post.setSize) post.setSize();
+      if (post && post.available && post.enabled) post.render();
+      else { renderer.setRenderTarget(null); renderer.render(scene, camera); }
+      url = renderer.domElement.toDataURL("image/png");
+    } catch (e) { url = null; }
+    // restore the live view before this task ends — same-task or it flashes
+    renderer.setPixelRatio(pr); renderer.setSize(Math.round(szW / pr), Math.round(szH / pr), false);
+    camera.aspect = aspect; camera.updateProjectionMatrix();
+    if (post && post.setSize) post.setSize();
+    if (!url) return;
     var nm = roomOwnerName();
     var a = document.createElement("a");
     a.href = url; a.download = (nm ? nm.replace(/\s+/g, "-").toLowerCase() + "s-room" : "my-room") + ".png";
