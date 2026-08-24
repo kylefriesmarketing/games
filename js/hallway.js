@@ -2792,20 +2792,27 @@ export function buildHallway(ctx) {
   cal.position.set(KCX + 0.6, 1.7, KZ1 - 0.055); cal.rotation.y = Math.PI; kadd(cal);
   ktag(cal, "the calendar", null, "one day is circled in red and nobody will say which one it is.");
 
-  /* ---- SHORT STAFFED: the apron on its hook by the window --------------------- */
+  /* ---- SHORT STAFFED: the apron on its hook by the window ---------------------
+   * The apron is painted in the visitor's OWN crew colour: the game stores the
+   * picked colour as an INDEX in 'ss-color' (main.js:45), and the four apron hexes
+   * are the game's 3D crew palette verbatim (world.js:13). Fresh visitors get
+   * index 0 — Hazel's red. */
+  var ssColIdx = (function () { try { var i5 = parseInt(localStorage.getItem("ss-color"), 10); return (i5 >= 0 && i5 < 4) ? i5 : 0; } catch (e) { return 0; } })();
+  var ssApBase = ["#d94f38", "#3a76c4", "#e8b53a", "#5c9e4f"][ssColIdx];
+  var ssApDark = ["#a83a2c", "#2a5a96", "#c2933a", "#477e3d"][ssColIdx];
   var apT = canvasTex(96, 144, function (c, w, h) {
     c.clearRect(0, 0, w, h);
-    c.fillStyle = "#c94b3a";                                   // diner red
+    c.fillStyle = ssApBase;
     c.beginPath();                                              // bib + skirt
     c.moveTo(w * 0.32, 6); c.lineTo(w * 0.68, 6);
     c.lineTo(w * 0.68, h * 0.34); c.lineTo(w * 0.88, h * 0.42); c.lineTo(w * 0.88, h - 6);
     c.lineTo(w * 0.12, h - 6); c.lineTo(w * 0.12, h * 0.42); c.lineTo(w * 0.32, h * 0.34);
     c.closePath(); c.fill();
-    c.strokeStyle = "#f2e2c4"; c.lineWidth = 3;                 // neck strap + ties
+    c.strokeStyle = "#fff6e8"; c.lineWidth = 3;                 // neck strap + ties, the game's --white
     c.beginPath(); c.moveTo(w * 0.32, 8); c.quadraticCurveTo(w * 0.5, -8, w * 0.68, 8); c.stroke();
-    c.fillStyle = "#a83a2c"; c.fillRect(w * 0.24, h * 0.52, w * 0.52, h * 0.22); // the pocket
-    c.strokeStyle = "#f2e2c4"; c.lineWidth = 2; c.strokeRect(w * 0.24, h * 0.52, w * 0.52, h * 0.22);
-    c.fillStyle = "#f2e2c4"; c.font = "bold 10px Georgia, serif"; c.textAlign = "center";
+    c.fillStyle = ssApDark; c.fillRect(w * 0.24, h * 0.52, w * 0.52, h * 0.22); // the pocket
+    c.strokeStyle = "#fff6e8"; c.lineWidth = 2; c.strokeRect(w * 0.24, h * 0.52, w * 0.52, h * 0.22);
+    c.fillStyle = "#fff6e8"; c.font = "bold 10px Georgia, serif"; c.textAlign = "center";
     // ⚠️ "WING BARN" appears nowhere in SHORT STAFFED. The diner is Hazel's —
     // strings.js:9: "Her name is on the sign. Her mother's recipes are on the menu."
     c.fillText("HAZEL'S", w * 0.5, h * 0.44);
@@ -2823,6 +2830,36 @@ export function buildHallway(ctx) {
     : "SHORT STAFFED — somebody's shift starts eventually · click to clock in";
   function ssGo() { window.location.href = "https://kylefriesmarketing.github.io/short-staffed/"; }
   [apron, apHook].forEach(function (m) { ktag(m, "SHORT STAFFED", ssGo, ssHint); });
+  /* the ticket wheel — world.js:581, the most diner object there is — on a little
+   * shelf under the hook, with one order ticket leaning by it (white body, gold top
+   * stripe: the game's own HUD .tkt) and the wordless green open plate (world.js:639
+   * — the game's sign is a red/green flip plate with no text, so no text here). */
+  var ssShelf = box(0.16, 0.02, 0.30, mat(0x8a6a44, 0.75)); ssShelf.position.set(KX0 + 0.10, 1.02, -0.62); kadd(ssShelf);
+  var ssPost = new THREE.Mesh(new THREE.CylinderGeometry(0.006, 0.006, 0.10, 8), mat(0x8f959b, 0.4));
+  ssPost.position.set(KX0 + 0.10, 1.08, -0.70); kadd(ssPost);
+  var ssWheel = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 0.008, 14), mat(0x8f959b, 0.35));
+  ssWheel.rotation.z = Math.PI / 2; ssWheel.position.set(KX0 + 0.10, 1.155, -0.70); kadd(ssWheel);
+  var ssWheelBits = [ssShelf, ssPost, ssWheel];
+  for (var tk5 = 0; tk5 < 6; tk5++) {
+    var ta5 = tk5 / 6 * Math.PI * 2;
+    var card5 = box(0.002, 0.04, 0.03, mat(0xfff6e8, 0.9));
+    card5.position.set(KX0 + 0.10, 1.155 + Math.cos(ta5) * 0.052, -0.70 + Math.sin(ta5) * 0.052);
+    card5.rotation.x = ta5; kadd(card5); ssWheelBits.push(card5);
+  }
+  var ssTktT = canvasTex(64, 48, function (c, w, h) {
+    c.fillStyle = "#fff6e8"; c.fillRect(0, 0, w, h);
+    c.fillStyle = "#e8b53a"; c.fillRect(0, 0, w, 6);                    // the gold top stripe
+    c.fillStyle = "#3a2c1c";                                            // dish dots
+    [14, 26, 38].forEach(function (dy) { c.beginPath(); c.arc(10, dy, 2.5, 0, 7); c.fill(); c.fillRect(17, dy - 2, 26 + (dy % 3) * 4, 4); });
+    c.fillStyle = "#2a2620"; c.fillRect(8, h - 8, w - 16, 4);           // patience track
+    c.fillStyle = "#5c9e4f"; c.fillRect(8, h - 8, (w - 16) * 0.7, 4);   // still green — the set is 5c9e4f/e8b53a/d94f38
+  });
+  var ssTkt = new THREE.Mesh(new THREE.PlaneGeometry(0.06, 0.045),
+    new THREE.MeshStandardMaterial({ map: ssTktT, roughness: 0.9 }));
+  ssTkt.position.set(KX0 + 0.105, 1.06, -0.52); ssTkt.rotation.y = Math.PI / 2; ssTkt.rotation.x = -0.14; kadd(ssTkt); ssWheelBits.push(ssTkt);
+  var ssPlate = box(0.006, 0.025, 0.04, mat(0x5c9e4f, 0.7));
+  ssPlate.position.set(KX0 + 0.105, 1.045, -0.585); kadd(ssPlate); ssWheelBits.push(ssPlate);
+  ssWheelBits.forEach(function (m) { ktag(m, "SHORT STAFFED", ssGo, "cook the tickets. make the rent. mind the bear."); });
 
   /* ---- HOME BREW: the batch on the counter, east of the cooker ---------------- */
   var brewG = new THREE.Group(); brewG.position.set(KX1 - 2.05, CT_Y + 0.03, KZ0 + 0.36); brewG.rotation.y = -0.2; kadd(brewG);
@@ -2848,6 +2885,45 @@ export function buildHallway(ctx) {
       lbl.position.set(bp[0], 0.09, bp[1] + 0.031); lbl.rotation.z = -0.06; brewG.add(lbl);
     }
   });
+  /* the tier shelf: the game's five quality tiers as a graded flight (names, prices
+   * and every hex from DATA.TIERS, my-brew 01_data.js:278-286) behind the bottles,
+   * and the champion — "The Grand Ol' Sudsy" (01_data.js:82) — corked and set apart
+   * in LEGENDARY gold #ffd98a. No brewery name sign: none exists in the source. */
+  var brewTiers = [["swill", "#8a9a6a"], ["decent", "#c9c26a"], ["good", "#e8a33d"], ["great", "#e86a3d"], ["LEGENDARY", "#ffd98a"]];
+  var brewMenu = new THREE.Mesh(new THREE.PlaneGeometry(0.16, 0.11),
+    new THREE.MeshStandardMaterial({ roughness: 0.9, map: canvasTex(128, 88, function (c, w, h) {
+      c.fillStyle = "#2c3a31"; c.fillRect(0, 0, w, h);
+      c.strokeStyle = "#f4ead8"; c.lineWidth = 2; c.strokeRect(3, 3, w - 6, h - 6);
+      c.font = "bold 9px Georgia, serif"; c.textAlign = "left";
+      var prices = ["$1.5", "$3", "$5", "$8", "$10"];
+      brewTiers.forEach(function (t5, i5) {
+        c.fillStyle = t5[1]; c.fillText(t5[0], 12, 20 + i5 * 13);
+        c.fillStyle = "#f4ead8"; c.textAlign = "right"; c.fillText(prices[i5], w - 12, 20 + i5 * 13); c.textAlign = "left";
+      });
+      c.save(); c.translate(6, 4); c.rotate(-0.3); c.fillStyle = "#e8d9a8"; c.fillRect(-5, -3, 13, 6); c.restore();
+    }) }));
+  brewMenu.position.set(-0.01, 0.075, -0.115); brewMenu.rotation.x = -0.10; brewG.add(brewMenu);
+  brewTiers.forEach(function (t5, i5) {   // the taster flight, Swill to LEGENDARY
+    var col5 = parseInt(t5[1].slice(1), 16);
+    var glass5 = new THREE.Mesh(new THREE.CylinderGeometry(0.011, 0.009, 0.03, 8),
+      new THREE.MeshStandardMaterial({ color: col5, roughness: 0.3, emissive: col5, emissiveIntensity: 0.16 }));
+    glass5.position.set(-0.08 + i5 * 0.031, 0.015, 0.135); brewG.add(glass5);
+  });
+  var champM = new THREE.MeshStandardMaterial({ color: 0xffd98a, roughness: 0.15, transparent: true, opacity: 0.9 });
+  var champ = new THREE.Mesh(new THREE.CylinderGeometry(0.030, 0.034, 0.19, 12), champM);
+  champ.position.set(0.19, 0.095, 0.03); brewG.add(champ);
+  var champNeck = new THREE.Mesh(new THREE.CylinderGeometry(0.012, 0.022, 0.07, 8), champM);
+  champNeck.position.set(0.19, 0.22, 0.03); brewG.add(champNeck);
+  var champCork = new THREE.Mesh(new THREE.CylinderGeometry(0.011, 0.011, 0.022, 8), mat(0xb08a56, 0.9));
+  champCork.position.set(0.19, 0.262, 0.03); brewG.add(champCork);
+  var champTag = new THREE.Mesh(new THREE.PlaneGeometry(0.07, 0.032),
+    new THREE.MeshStandardMaterial({ roughness: 0.9, map: canvasTex(64, 28, function (c, w, h) {
+      c.fillStyle = "#2c3a31"; c.fillRect(0, 0, w, h);
+      c.strokeStyle = "#f4ead8"; c.lineWidth = 1.5; c.strokeRect(2, 2, w - 4, h - 4);
+      c.fillStyle = "#ffd98a"; c.font = "italic 8px Georgia, serif"; c.textAlign = "center";
+      c.fillText("the grand", w / 2, 12); c.fillText("ol' sudsy", w / 2, 22);
+    }) }));
+  champTag.position.set(0.19, 0.05, 0.066); champTag.rotation.x = -0.18; brewG.add(champTag);
   var brewHas = (function () { try { return !!localStorage.getItem("mybrew-save-v1"); } catch (e) { return false; } })();
   var brewHint = brewHas
     ? "HOME BREW — the brewery's still running · click to check the tanks"
@@ -5100,8 +5176,19 @@ export function buildHallway(ctx) {
   zooG.rotation.y = 0.28; badd(zooG);
   var zooParts = [];
   function zpush(m) { zooParts.push(m); return m; }
-  // the pens: little stick fences, three of them in a row
+  // the pens: little stick fences, three of them in a row — and each pen carries a
+  // habitat floor in the game's own hex (clean-the-zoo data.js:27-31): savanna,
+  // arctic, farm. The animals stand in the right pen now; the hippo does not,
+  // because escaping is the entire game.
   var stickM = mat(0xd8bc86, 0.9);
+  [[-0.62, 0, 0.52, 0.46, 0x9a7c33], [0, 0, 0.46, 0.46, 0x9fb8cc], [0.58, 0, 0.50, 0.46, 0x7a6238]].forEach(function (pf) {
+    var slab = box(pf[2] - 0.04, 0.008, pf[3] - 0.04, mat(pf[4], 0.95));
+    slab.position.set(pf[0], 0.004, pf[1]); zooG.add(zpush(slab));
+  });
+  [[0.50, 0.10], [0.62, -0.10], [0.70, 0.06]].forEach(function (hy) {   // hay in the farm pen
+    var hay5 = box(0.024, 0.014, 0.018, mat(0xe8cf8a, 0.95));
+    hay5.position.set(hy[0], 0.015, hy[1]); hay5.rotation.y = hy[0] * 9; zooG.add(zpush(hay5));
+  });
   [[-0.62, 0, 0.52, 0.46], [0, 0, 0.46, 0.46], [0.58, 0, 0.50, 0.46]].forEach(function (pen) {
     var px5 = pen[0], pz5 = pen[1], pw = pen[2], pd = pen[3];
     for (var sdi = 0; sdi < 4; sdi++) {
@@ -5161,12 +5248,29 @@ export function buildHallway(ctx) {
     a.children.forEach(zpush);
     return a;
   }
-  toyAnimal(-0.70, -0.09, 0.5, 0x9aa0a6, 0x7d8288, "elephant");
-  toyAnimal(-0.52, 0.10, -0.9, 0xe0b03a, 0x8a5a24, "giraffe");
-  toyAnimal(0.04, -0.08, 1.9, 0xd8912e, 0x8a4a20, "lion");
-  toyAnimal(-0.06, 0.11, -0.4, 0xece8dc, 0x2b2e33, "zebra");
-  toyAnimal(0.50, -0.06, 2.6, 0x2b2e33, 0xf2efe4, "penguin");
-  toyAnimal(0.68, 0.12, -1.5, 0x8a7a6a, 0x6a5a4a, "hippo");
+  // every hex below is the game's own 3D palette (animals3d.js:601-603, 602) — the
+  // savanna four share the savanna pen, the penguin gets the arctic slab, and the
+  // hippo has ESCAPED (data.js:105 says savanna; the game says put it back).
+  toyAnimal(-0.76, -0.11, 0.5, 0x9aa0a6, 0x7d8288, "elephant");
+  toyAnimal(-0.52, 0.10, -0.9, 0xf0c05a, 0xb0782e, "giraffe");
+  toyAnimal(-0.70, 0.09, 2.4, 0xe0a03a, 0x9a5f2a, "lion");
+  toyAnimal(-0.48, -0.11, -0.4, 0xf0f0f4, 0x2a2a2e, "zebra");
+  toyAnimal(0.02, -0.04, 2.6, 0x2b2e33, 0xf2efe4, "penguin");
+  toyAnimal(0.86, 0.16, -1.5, 0x8a7a6a, 0x6a5a4a, "hippo");
+  // the chicken — the game's tutorial animal (main.js:223), smallest bird tier,
+  // placed nearest the sign the way the game introduces it first
+  (function () {
+    var ch = new THREE.Group(); ch.position.set(0.46, 0, -0.06); ch.rotation.y = -0.8; zooG.add(ch);
+    var chBody = box(0.026, 0.020, 0.018, mat(0xf0ead8, 0.85)); chBody.position.y = 0.020; ch.add(chBody);
+    var chBelly = box(0.020, 0.012, 0.019, mat(0xffffff, 0.85)); chBelly.position.set(0.002, 0.014, 0); ch.add(chBelly);
+    var chHead = box(0.011, 0.012, 0.011, mat(0xf0ead8, 0.85)); chHead.position.set(0.015, 0.036, 0); ch.add(chHead);
+    var chComb = box(0.007, 0.005, 0.004, mat(0xe03a3a, 0.85)); chComb.position.set(0.015, 0.0445, 0); ch.add(chComb);
+    var chBeak = box(0.006, 0.004, 0.004, mat(0xe8b83a, 0.7)); chBeak.position.set(0.023, 0.036, 0); ch.add(chBeak);
+    [-0.005, 0.005].forEach(function (lz) {
+      var chLeg = box(0.002, 0.010, 0.002, mat(0xe8b83a, 0.7)); chLeg.position.set(0, 0.005, lz); ch.add(chLeg);
+    });
+    ch.children.forEach(zpush);
+  })();
   // the sign, lettered by hand and pushed into the grass
   var zSignPost = box(0.010, 0.14, 0.010, stickM);
   zSignPost.position.set(-1.02, 0.07, -0.02); zooG.add(zpush(zSignPost));
@@ -5399,12 +5503,43 @@ export function buildHallway(ctx) {
    * the code built three identical pots at three identical roughnesses in a dead
    * straight row. A fired pot has a glaze on it: 0.20 against raw bisque at 0.95.
    * The z and the turn vary too, because nobody puts pots down in a line. */
-  [[0xd8cbb0, 0.10, 0.13, -1.70, 0.24, 0.20, 0.6],
-   [0x6f8f7a, 0.085, 0.11, -1.42, 0.34, 0.20, -0.9],
-   [0x9a5f4a, 0.095, 0.15, -1.13, 0.28, 0.95, 0.25]].forEach(function (pt) {
+  /* the glazes are the game's own (the-kiln data.js:19-42): tenmoku near-black at
+   * gloss 0.08, shino orange at 0.45, and the third pot is bare clay #b09680 at the
+   * game's bare roughness 0.92 (pot.js:340/349) — still waiting its turn. */
+  [[0x2c1a14, 0.10, 0.13, -1.70, 0.24, 0.08, 0.6],
+   [0xe8ac66, 0.085, 0.11, -1.42, 0.34, 0.45, -0.9],
+   [0xb09680, 0.095, 0.15, -1.13, 0.28, 0.92, 0.25]].forEach(function (pt) {
     var pot = new THREE.Mesh(new THREE.CylinderGeometry(pt[1] * 0.78, pt[1], pt[2], 12), mat(pt[0], pt[5]));
     pot.position.set(pt[3], 0.545 + pt[2] / 2, pt[4]); pot.rotation.y = pt[6]; kilnG.add(pot);
     btag(pot, 'the pots', null, 'two came out of the last firing. the third one is waiting its turn.');
+  });
+  /* the cone pack — the game's central instrument (its own words, data.js:440; it
+   * never says 'witness cones'). Four pyrometric cones in a clay pat: three standing
+   * clay-grey, one bent flat and toasted — the down-cone colour the game paints
+   * (main.js:681-684). */
+  var conePat = box(0.07, 0.014, 0.032, mat(0xb09680, 0.92));
+  conePat.position.set(-1.28, 0.552, 0.42); kilnG.add(conePat);
+  [0, 1, 2, 3].forEach(function (ci) {
+    var bent = ci === 2;
+    var cone5 = new THREE.Mesh(new THREE.CylinderGeometry(0.0015, 0.0045, 0.036, 4), mat(bent ? 0xd9c49a : 0x8d8377, 0.85));
+    cone5.position.set(-1.303 + ci * 0.016, bent ? 0.564 : 0.577, 0.42);
+    if (bent) cone5.rotation.z = Math.PI * 0.47; else cone5.rotation.y = ci * 0.4;
+    kilnG.add(cone5);
+    btag(cone5, "the cone pack", null, "the reduction pack reads 012, 010, 08, 06. the bend tells you what the fire did, after it has done it.");
+  });
+  btag(conePat, "the cone pack", null, "the reduction pack reads 012, 010, 08, 06. the bend tells you what the fire did, after it has done it.");
+  // the kiln god, on the arch — the game's phrase (main.js:215)
+  var godG = new THREE.Group(); godG.position.set(0.20, kLid.position.y + 0.08, 0.12); kilnG.add(godG);
+  var godBody = new THREE.Mesh(new THREE.SphereGeometry(0.016, 7, 6), mat(0xb09680, 0.92));
+  godBody.scale.set(1, 1.35, 0.9); godG.add(godBody);
+  var godHead = new THREE.Mesh(new THREE.SphereGeometry(0.009, 7, 6), mat(0xb09680, 0.92));
+  godHead.position.y = 0.026; godG.add(godHead);
+  [-0.013, 0.013].forEach(function (gx) {
+    var godArm = new THREE.Mesh(new THREE.SphereGeometry(0.006, 6, 5), mat(0xb09680, 0.92));
+    godArm.position.set(gx, 0.008, 0.004); godG.add(godArm);
+  });
+  godG.children.forEach(function (m) {
+    btag(m, "the kiln god", null, "make something out of the scrap clay and put it on the arch, if you want. it will not help.");
   });
   var kBucket = new THREE.Mesh(new THREE.CylinderGeometry(0.13, 0.11, 0.24, 12), mat(0x4a5a68, 0.6));
   kBucket.position.set(0.62, 0.19, 0.66); kilnG.add(kBucket);   // 0.07 pad + half its own height
@@ -6150,8 +6285,9 @@ export function buildHallway(ctx) {
     try {
       var m = JSON.parse(localStorage.getItem("bite-save") || "null");
       return m ? { sp: Object.keys(m.journal || {}).length, casts: m.casts || 0,
-                   mayor: !!(m.mayor && m.mayor.landed) } : { sp: 0, casts: 0, mayor: false };
-    } catch (e) { return { sp: 0, casts: 0, mayor: false }; }
+                   mayor: !!(m.mayor && m.mayor.landed),
+                   spooned: !!(m.mayor && m.mayor.hooked && !m.mayor.landed) } : { sp: 0, casts: 0, mayor: false, spooned: false };
+    } catch (e) { return { sp: 0, casts: 0, mayor: false, spooned: false }; }
   })();
   var rodG = new THREE.Group();
   /* ⚠️ THE NORTH-WEST CORNER, not the south-west one it started in. From grest —
@@ -6201,7 +6337,40 @@ export function buildHallway(ctx) {
   // the tackle box, lid shut, one latch undone
   var tackG = new THREE.Group(); tackG.position.set(-11.28, 0, 4.94); tackG.rotation.y = -0.34; add(tackG);
   var tackBody = box(0.34, 0.16, 0.20, mat(0x2f6f4e, 0.7)); tackBody.position.y = 0.08; tackG.add(tackBody);
-  var tackLid = box(0.35, 0.05, 0.21, mat(0x275c41, 0.7)); tackLid.position.y = 0.185; tackG.add(tackLid);
+  /* the lid is OPEN now — hinged back ~57° at the rear edge — because the inside of
+   * the lid is where the game keeps its heart: dad's note 'eights, kiddo.' and the
+   * taped barometer (BITE-BIBLE:108-109, 250-253). The three lures in the tray are
+   * the game's own (index.html:1743): the red-and-white spoon, the topwater frog,
+   * the inline spinner. */
+  var tackLid = box(0.35, 0.05, 0.21, mat(0x275c41, 0.7));
+  tackLid.position.set(0, 0.258, -0.070); tackLid.rotation.x = -1.0; tackG.add(tackLid);
+  var lidNote = new THREE.Mesh(new THREE.PlaneGeometry(0.10, 0.045), new THREE.MeshStandardMaterial({
+    roughness: 0.9, map: canvasTex(96, 44, function (c, w, h) {
+      c.fillStyle = "#ece8de"; c.fillRect(0, 0, w, h);
+      c.strokeStyle = "#b8b2a4"; c.lineWidth = 2; c.strokeRect(1, 1, w - 2, h - 2);
+      c.fillStyle = "#3a342c"; c.font = "italic 13px cursive"; c.textAlign = "center";
+      c.fillText("eights, kiddo.", w / 2, 27);
+    }) }));
+  lidNote.position.set(-0.06, 0.244, -0.048); lidNote.rotation.x = 0.57; tackG.add(lidNote);
+  var baroRim = new THREE.Mesh(new THREE.CylinderGeometry(0.016, 0.016, 0.006, 12), steelM);
+  baroRim.position.set(0.08, 0.244, -0.048); baroRim.rotation.x = 2.14; tackG.add(baroRim);
+  var baroFace = new THREE.Mesh(new THREE.CircleGeometry(0.013, 12), new THREE.MeshStandardMaterial({
+    roughness: 0.6, map: canvasTex(32, 32, function (c, w, h) {
+      c.fillStyle = "#ece8de"; c.beginPath(); c.arc(16, 16, 16, 0, 7); c.fill();
+      c.strokeStyle = "#3a342c"; c.lineWidth = 2;
+      c.beginPath(); c.moveTo(16, 16); c.lineTo(24, 9); c.stroke();   // rising — go fish
+    }) }));
+  baroFace.position.set(0.08, 0.2465, -0.0445); baroFace.rotation.x = 0.57; tackG.add(baroFace);
+  var luSpoon = new THREE.Mesh(new THREE.SphereGeometry(0.016, 8, 6), mat(0xc8402c, 0.4));
+  luSpoon.scale.set(1.1, 0.35, 0.65); luSpoon.position.set(-0.09, 0.167, 0.02); tackG.add(luSpoon);
+  var luStripe = box(0.008, 0.007, 0.02, mat(0xece8de, 0.5));
+  luStripe.position.set(-0.09, 0.169, 0.02); tackG.add(luStripe);
+  var luFrog = new THREE.Mesh(new THREE.SphereGeometry(0.014, 8, 6), mat(0x5c8f3a, 0.6));
+  luFrog.scale.set(1, 0.65, 1.15); luFrog.position.set(0.0, 0.167, -0.04); tackG.add(luFrog);
+  var luSpin = new THREE.Mesh(new THREE.CylinderGeometry(0.005, 0.005, 0.03, 6), mat(0xc9c02c, 0.5));
+  luSpin.rotation.z = Math.PI / 2; luSpin.position.set(0.08, 0.166, 0.04); tackG.add(luSpin);
+  var luBlade = box(0.014, 0.002, 0.009, mat(0xd8d8d0, 0.25));
+  luBlade.position.set(0.10, 0.170, 0.045); luBlade.rotation.y = 0.5; tackG.add(luBlade);
   var tackHandle = new THREE.Mesh(new THREE.TorusGeometry(0.045, 0.008, 5, 12), mat(0x1f4a34, 0.7));
   tackHandle.rotation.x = Math.PI / 2; tackHandle.position.set(0, 0.225, 0); tackG.add(tackHandle);
   var latch = box(0.03, 0.02, 0.012, mat(0xb8b2a4, 0.4)); latch.position.set(0.11, 0.16, 0.106); tackG.add(latch);
@@ -6229,6 +6398,48 @@ export function buildHallway(ctx) {
         : "BITE — quiet fishing at Mud Lake. the water tells you everything. click to go");
   });
   // the bare bulb, and the clack it answers to
+  /* THE MAYOR — 47 inches of her, as the wooden trophy nobody believes (her exact
+   * palette and nine bars from bite index.html:160-165). If the save says she was
+   * hooked and never landed, the red-and-white spoon hangs at her jaw — 'she has
+   * the spoon now' (BITE-BIBLE:260). The book of mud lake sits under her. */
+  var mayG = new THREE.Group(); mayG.position.set(-11.30, 0, 5.42); mayG.rotation.set(-0.22, -0.5, 0); add(mayG);
+  var mayPlq = box(0.28, 0.115, 0.014, mat(0x6a4e30, 0.85)); mayPlq.position.y = 0.30; mayG.add(mayPlq);
+  var mayFish = new THREE.Mesh(new THREE.PlaneGeometry(0.24, 0.09), new THREE.MeshStandardMaterial({
+    transparent: true, roughness: 0.8, map: canvasTex(192, 72, function (c, w, h) {
+      c.clearRect(0, 0, w, h);
+      c.fillStyle = "#7e8a6d";                                    // her body
+      c.beginPath(); c.moveTo(10, h * 0.5);
+      c.quadraticCurveTo(w * 0.3, h * 0.08, w * 0.62, h * 0.22); c.quadraticCurveTo(w * 0.86, h * 0.32, w - 26, h * 0.42);
+      c.lineTo(w - 6, h * 0.2); c.lineTo(w - 10, h * 0.5); c.lineTo(w - 6, h * 0.8); c.lineTo(w - 26, h * 0.58);
+      c.quadraticCurveTo(w * 0.86, h * 0.68, w * 0.62, h * 0.8); c.quadraticCurveTo(w * 0.3, h * 0.94, 10, h * 0.5);
+      c.fill();
+      c.fillStyle = "#57604e";                                    // her back
+      c.beginPath(); c.moveTo(14, h * 0.44); c.quadraticCurveTo(w * 0.3, h * 0.06, w * 0.62, h * 0.2);
+      c.quadraticCurveTo(w * 0.4, h * 0.28, 14, h * 0.44); c.fill();
+      c.fillStyle = "#cdd6bd";                                    // her belly
+      c.beginPath(); c.ellipse(w * 0.36, h * 0.66, w * 0.24, h * 0.13, 0.06, 0, 7); c.fill();
+      c.fillStyle = "#2b3026";                                    // the nine bars
+      for (var br6 = 0; br6 < 9; br6++) c.fillRect(24 + br6 * 15, h * 0.24 + (br6 % 2) * 3, 4, h * 0.4);
+      c.beginPath(); c.arc(26, h * 0.42, 3.5, 0, 7); c.fill();    // her eye
+    }) }));
+  mayFish.position.set(0, 0.30, 0.011); mayG.add(mayFish);
+  if (biteSave.spooned) {
+    var maySpoon = new THREE.Mesh(new THREE.SphereGeometry(0.008, 7, 5), mat(0xc8402c, 0.4));
+    maySpoon.scale.set(1.1, 0.4, 0.7); maySpoon.position.set(-0.108, 0.268, 0.016); mayG.add(maySpoon);
+  }
+  var mayBook = box(0.12, 0.025, 0.16, mat(0x33290f, 0.85));
+  mayBook.position.set(0.05, 0.0125, -0.28); mayBook.rotation.y = 0.3; mayG.add(mayBook);
+  var mayBookLbl = new THREE.Mesh(new THREE.PlaneGeometry(0.10, 0.028), new THREE.MeshStandardMaterial({
+    transparent: true, roughness: 0.9, map: canvasTex(96, 26, function (c, w, h) {
+      c.clearRect(0, 0, w, h);
+      c.fillStyle = "#e8e0cc"; c.font = "italic 11px Georgia, serif"; c.textAlign = "center";
+      c.fillText("the book of mud lake", w / 2, 17);
+    }) }));
+  mayBookLbl.position.set(0.05, 0.0262, -0.28); mayBookLbl.rotation.x = -Math.PI / 2; mayBookLbl.rotation.z = 0.3; mayG.add(mayBookLbl);
+  mayG.traverse(function (m) {
+    if (m.isMesh) gtag(m, "BITE", function () { window.location.href = "https://kylefriesmarketing.github.io/bite/"; },
+      "the bobber will tell you. everyone's seen the mayor once.");
+  });
   var garOn = true;
   var gShade = new THREE.Mesh(new THREE.ConeGeometry(0.16, 0.10, 14, 1, true), mat(0x3a5e3a, 0.6));
   gShade.position.set(-9.60, 1.93, 6.20); add(gShade);
@@ -6779,14 +6990,44 @@ export function buildHallway(ctx) {
    * clear; this spot gives 9.2 at 4.24 m, which is the same distance as before so it
    * still reads the same size. */
   var lwG = new THREE.Group(); lwG.position.set(-1.15, BSM.fl, 2.45); lwG.rotation.y = -0.30; add(lwG);
-  var lwMatT = canvasTex(128, 128, function (c, w, h) {
-    c.fillStyle = "#4a6a4e"; c.fillRect(0, 0, w, h);
-    c.strokeStyle = "rgba(230,225,205,0.5)"; c.lineWidth = 3;
-    c.strokeRect(9, 9, w - 18, h - 18);                       // the printed border
-    c.strokeStyle = "rgba(210,200,175,0.35)"; c.lineWidth = 5;
-    c.beginPath(); c.moveTo(0, h * 0.62); c.bezierCurveTo(w * 0.35, h * 0.5, w * 0.6, h * 0.72, w, h * 0.55); c.stroke();
-    c.fillStyle = "rgba(40,50,38,0.16)";                      // the worn middle
-    c.fillRect(w * 0.28, h * 0.28, w * 0.44, h * 0.44);
+  /* ⚠️ the old mat was flat #4a6a4e with one faint squiggle — colours that match
+   * NOTHING in the game. Everything here is the game's own print (field.js:157-199,
+   * data.js:24-48): felt #7bb661 shaded −16% at the edges, speckle so it reads as
+   * felt not vinyl, the road as a #d9c49c under-print with a #f5e6ca surface and a
+   * dashed white centre line, entering at 'the gap under the bed', snaking twice,
+   * ending at the toy chest; dashed build-pad rings; one pond #71afd6. */
+  var lwMatT = canvasTex(256, 196, function (c, w, h) {
+    c.fillStyle = "#7bb661"; c.fillRect(0, 0, w, h);
+    for (var sp6 = 0; sp6 < 850; sp6++) {   // felt speckle
+      c.fillStyle = sp6 % 2 ? "rgba(0,0,0,0.05)" : "rgba(255,255,255,0.05)";
+      c.fillRect(Math.random() * w, Math.random() * h, 1.4, 1.4);
+    }
+    var ed6 = c.createRadialGradient(w / 2, h / 2, h * 0.30, w / 2, h / 2, h * 0.74);
+    ed6.addColorStop(0, "rgba(0,0,0,0)"); ed6.addColorStop(1, "rgba(18,30,14,0.30)");
+    c.fillStyle = ed6; c.fillRect(0, 0, w, h);
+    // the pond, off the road
+    c.fillStyle = "#71afd6"; c.beginPath(); c.ellipse(214, 44, 17, 11, -0.2, 0, 7); c.fill();
+    c.strokeStyle = "rgba(255,255,255,0.35)"; c.lineWidth = 1.5; c.stroke();
+    // the road: enters at the left edge, loops twice, ends at the chest
+    function road6() {
+      c.beginPath(); c.moveTo(-4, 158);
+      c.bezierCurveTo(56, 150, 66, 112, 126, 112);
+      c.bezierCurveTo(192, 112, 206, 152, 234, 142);
+      c.bezierCurveTo(254, 134, 242, 96, 196, 84);
+      c.bezierCurveTo(148, 72, 96, 98, 76, 66);
+      c.bezierCurveTo(62, 42, 106, 30, 128, 26);
+      c.stroke();
+    }
+    c.lineCap = "round"; c.lineJoin = "round";
+    c.strokeStyle = "#d9c49c"; c.lineWidth = 20; road6();   // under-print
+    c.strokeStyle = "#f5e6ca"; c.lineWidth = 17; road6();   // surface
+    c.strokeStyle = "rgba(255,255,255,0.9)"; c.lineWidth = 1.6; c.setLineDash([6, 5]); road6(); c.setLineDash([]);
+    // build pads: dashed rings beside the road, where the towers go
+    c.strokeStyle = "rgba(255,255,255,0.38)"; c.lineWidth = 1.6; c.setLineDash([4, 4]);
+    [[58, 122], [166, 58], [208, 170]].forEach(function (bp6) {
+      c.beginPath(); c.arc(bp6[0], bp6[1], 10, 0, 7); c.stroke();
+    });
+    c.setLineDash([]);
   });
   lwMatT.colorSpace = THREE.SRGBColorSpace;
   var lwMat = new THREE.Mesh(new THREE.PlaneGeometry(1.24, 0.94),
@@ -6823,13 +7064,28 @@ export function buildHallway(ctx) {
    * turn, keep the yaw, and lift it clear of the mat like the others. */
   var fallen = box(0.044, 0.016, 0.011, mat(0x4e6a3e, 0.85));
   fallen.position.set(0.24, 0.014, 0.04); fallen.rotation.set(0, 0.6, 0.10); lwG.add(fallen);
+  // the toy chest at the end of the road — CHEST_HP is the loss condition (data.js:15)
+  var lwChest = box(0.045, 0.028, 0.028, mat(0x7a5230, 0.8));
+  lwChest.position.set(0, 0.020, -0.40); lwChest.rotation.y = 0.06; lwG.add(lwChest);
+  var lwChestLid = box(0.047, 0.008, 0.030, mat(0x8a6242, 0.8));
+  lwChestLid.position.set(0, 0.038, -0.40); lwChestLid.rotation.y = 0.06; lwG.add(lwChestLid);
+  var lwLatch = box(0.006, 0.008, 0.003, mat(0xe0b23a, 0.5));
+  lwLatch.position.set(0, 0.026, -0.385); lwG.add(lwLatch);
+  // the Domino Wall — 'three dominoes, standing where you drew them' (data.js:369),
+  // white slab #f2efe6 with the near-black band #2a2430 (view.js:167-170)
+  [[0.08, 0.020, -0.35], [0.115, 0.043, -0.28], [0.15, 0.066, -0.21]].forEach(function (dm6) {
+    var dom6 = box(0.017, 0.025, 0.0055, mat(0xf2efe6, 0.6));
+    dom6.position.set(dm6[0], 0.0185, dm6[2]); dom6.rotation.y = dm6[1] * 12; lwG.add(dom6);
+    var band6 = box(0.0175, 0.004, 0.006, mat(0x2a2430, 0.6));
+    band6.position.set(dm6[0], 0.0185, dm6[2]); band6.rotation.y = dm6[1] * 12; lwG.add(band6);
+  });
   // ⚠️ traverse, not children: each soldier is a GROUP of four little meshes, so a
   // pass over direct children tagged the mat and the blocks and skipped every man.
   lwG.traverse(function (m) {
     if (m.isMesh) bstag(m, "TOYBOX: LAST WATCH", function () { window.location.href = "https://kylefriesmarketing.github.io/last-watch/"; },
       lwSave.best
         ? "TOYBOX: LAST WATCH — furthest wave " + lwSave.best + ". the line held that long. click to stand it again"
-        : "TOYBOX: LAST WATCH — the toys hold the line until morning. click to take the watch");
+        : "TOYBOX: LAST WATCH — the toys hold the line until morning, and kills pay marbles. click to take the watch");
   });
 
   /* ---- THE HAUNT: the box that only comes up once a year ----------------------
@@ -6896,6 +7152,47 @@ export function buildHallway(ctx) {
   var hxLite2 = new THREE.PointLight(0x8a4fd0, 0.5 * hxOct, 1.1, 2); hxLite2.position.set(-0.20, 0.42, 0.05); hxG.add(hxLite2);
   var bat = box(0.18, 0.01, 0.07, mat(0x211f26, 0.85));
   bat.position.set(-0.12, 0.455, -0.16); bat.rotation.set(0.1, 0.4, 0.16); hxG.add(bat);
+  /* the three artefacts of running the place (every colour from the-haunt source):
+   * the polaroid off the wall of got-got (ui.js:218-254 — cream #f4efe2 frame, flash
+   * over #0c0a14, 'the scream barn' caption), the walkie the narrator lives in
+   * (ui.js:31-32 — amber #b8924a on near-black), and the marquee with three letters
+   * left: 'SCM' in 0xffdca0 (view.js:252-254). The marquee glows by the month like
+   * the light string above. */
+  var hxPol = new THREE.Mesh(new THREE.PlaneGeometry(0.089, 0.111), new THREE.MeshStandardMaterial({
+    roughness: 0.85, map: canvasTex(96, 120, function (c, w, h) {
+      c.fillStyle = "#f4efe2"; c.fillRect(0, 0, w, h);
+      c.fillStyle = "#0c0a14"; c.fillRect(8, 8, w - 16, h - 40);
+      var fl6 = c.createRadialGradient(w / 2, 42, 3, w / 2, 42, 34);
+      fl6.addColorStop(0, "rgba(255,252,240,0.95)"); fl6.addColorStop(1, "rgba(255,252,240,0)");
+      c.fillStyle = fl6; c.fillRect(8, 8, w - 16, h - 40);
+      [["#3a2c4a", 30], ["#4a2c2c", 47], ["#2c3a4a", 64]].forEach(function (fg6) {   // the got-got
+        c.fillStyle = fg6[0]; c.fillRect(fg6[1], 44, 9, 18);
+        c.fillStyle = "#d8b894"; c.beginPath(); c.arc(fg6[1] + 4.5, 40, 4, 0, 7); c.fill();
+      });
+      c.fillStyle = "#3a3428"; c.font = "italic 10px cursive"; c.textAlign = "center";
+      c.fillText("the scream barn", w / 2, h - 20);
+      c.fillStyle = "#6a6252"; c.font = "8px cursive";
+      c.fillText('"AAAAAA" — everyone', w / 2, h - 8);
+    }) }));
+  hxPol.position.set(0.05, 0.062, 0.247); hxPol.rotation.x = -0.16; hxPol.rotation.z = 0.05; hxG.add(hxPol);
+  var hxWk = box(0.05, 0.16, 0.03, mat(0x0a0805, 0.75));
+  hxWk.position.set(-0.10, 0.48, 0.14); hxWk.rotation.y = 0.25; hxG.add(hxWk);
+  var hxWkGrille = box(0.036, 0.05, 0.004, mat(0xb8924a, 0.6));
+  hxWkGrille.position.set(-0.098, 0.51, 0.156); hxWkGrille.rotation.y = 0.25; hxG.add(hxWkGrille);
+  var hxWkAnt = new THREE.Mesh(new THREE.CylinderGeometry(0.004, 0.004, 0.09, 6), mat(0x1b1a18, 0.7));
+  hxWkAnt.position.set(-0.115, 0.60, 0.135); hxG.add(hxWkAnt);
+  var hxMarqT = canvasTex(192, 48, function (c, w, h) {
+    c.fillStyle = "#150e08"; c.fillRect(0, 0, w, h);
+    c.fillStyle = "#ffdca0"; c.font = "bold 26px 'Courier New', monospace"; c.textAlign = "center";
+    c.shadowColor = "#ffdca0"; c.shadowBlur = 10;
+    c.fillText("S C M", w / 2, 26); c.shadowBlur = 0;
+    c.fillStyle = "#e8dcc0"; c.font = "9px 'Courier New', monospace";
+    c.fillText("the scream barn · route 9 · hazel park", w / 2, 41);
+  });
+  var hxMarq = new THREE.Mesh(new THREE.BoxGeometry(0.28, 0.07, 0.015), new THREE.MeshStandardMaterial({
+    color: 0x2a1c10, roughness: 0.85, map: hxMarqT, emissiveMap: hxMarqT, emissive: 0xffffff,
+    emissiveIntensity: 0.9 * hxOct }));
+  hxMarq.position.set(-0.22, 0.10, 0.27); hxMarq.rotation.x = -0.35; hxMarq.rotation.y = 0.10; hxG.add(hxMarq);
   /* ⚠️ this used to be a hand-written list of five meshes out of eighteen, so the two
    * FLAPS — the pieces whose whole job is to say 'this box is open' — and the entire
    * light string were invisible to the raycaster. A hand-written list goes stale the
