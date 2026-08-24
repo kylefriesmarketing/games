@@ -9,24 +9,51 @@ import { mat, box, canvasTex } from "./util.js";
 var goldM = new THREE.MeshStandardMaterial({ color: 0xd9a93a, roughness: 0.35, metalness: 0.7 });
 var glassM = new THREE.MeshStandardMaterial({ color: 0xbfe8e0, roughness: 0.12, transparent: true, opacity: 0.3 });
 var toyWood = mat(0x8a6242, 0.8), toyWoodD = mat(0x5e4028, 0.85);
-export function buildBracelet() {
-  var g = new THREE.Group(), cols = [0xe05a7a, 0x5ab8e0, 0xe0c05a, 0x7ae08a, 0xb87ae0];
-  var band = new THREE.Mesh(new THREE.TorusGeometry(0.05, 0.007, 8, 24), mat(0xd8cfc0, 0.8));
-  band.rotation.x = -Math.PI / 2; band.position.y = 0.012; g.add(band);
-  for (var i = 0; i < 8; i++) {
-    var b = new THREE.Mesh(new THREE.SphereGeometry(0.011, 8, 8), mat(cols[i % cols.length], 0.5));
-    b.position.set(Math.cos(i / 8 * Math.PI * 2) * 0.05, 0.012, Math.sin(i / 8 * Math.PI * 2) * 0.05);
-    g.add(b);
-  }
+/* Dante's gold (NINE CIRCLES --gold #c9a35c) and the instrument gunmetal STILL BREATHING
+ * paints its whole panel in — two of the shelf games' own metals, so their treasures
+ * are not all the same brass. */
+var danteGold = new THREE.MeshStandardMaterial({ color: 0xc9a35c, roughness: 0.38, metalness: 0.68 });
+var gunmetal = new THREE.MeshStandardMaterial({ color: 0x3a4048, roughness: 0.42, metalness: 0.62 });
+export function buildBracelet() { // CHOOSE WISELY — Milo and June's, the one on the HUD
+  /* ⚠️ This was a string of candy beads. The game's bracelet is a WOVEN friendship
+   * bracelet — the bond meter itself, three threads (candle-gold, sky, rose: the game's
+   * --gold #ffcf7a, its blue and its rose) plaited round a brown string core, with the
+   * knot and the two loose ends a kid leaves when they tie one on a friend. It mends,
+   * frays and snaps in the game; here it is whole, because you found an ending. */
+  var g = new THREE.Group();
+  var core = new THREE.Mesh(new THREE.TorusGeometry(0.05, 0.0055, 8, 32), mat(0x8a6a4a, 0.9));
+  core.rotation.x = -Math.PI / 2; core.position.y = 0.011; g.add(core);
+  // the plait: three thin threads wound round the core at three phases
+  [[0xffcf7a, 0], [0x8ad7ff, 2.09], [0xe08aa0, 4.19]].forEach(function (th) {
+    var pts = [];
+    for (var k = 0; k <= 96; k++) {
+      var a = k / 96 * Math.PI * 2, w = a * 9 + th[1];
+      pts.push(new THREE.Vector3(Math.cos(a) * (0.05 + Math.cos(w) * 0.0062), 0.011 + Math.sin(w) * 0.0062, Math.sin(a) * (0.05 + Math.cos(w) * 0.0062)));
+    }
+    var tube = new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts, true), 96, 0.0018, 5, true), mat(th[0], 0.75));
+    g.add(tube);
+  });
+  // the knot, and the two ends trailing off it
+  var knot = new THREE.Mesh(new THREE.SphereGeometry(0.0075, 8, 8), mat(0x8a6a4a, 0.9));
+  knot.position.set(0.05, 0.011, 0); knot.scale.set(1.2, 1, 1.2); g.add(knot);
+  [[0.018, 0.012, 0xffcf7a], [0.02, -0.014, 0x8ad7ff]].forEach(function (e) {
+    var tail = new THREE.Mesh(new THREE.CylinderGeometry(0.0016, 0.0012, 0.03, 5), mat(e[2], 0.8));
+    tail.position.set(0.05 + e[0], 0.006, e[1]); tail.rotation.z = -Math.PI / 2 + 0.25; tail.rotation.y = e[1] > 0 ? 0.5 : -0.5; g.add(tail);
+  });
   return g;
 }
 export function buildLaurel() {
   var g = new THREE.Group();
-  var ring = new THREE.Mesh(new THREE.TorusGeometry(0.052, 0.006, 8, 28, Math.PI * 1.72), goldM);
+  // the game's own --gold, not the shoebox's generic brass; and where the wreath opens,
+  // the one star the last line of every cantica climbs out to — Beatrice's, pale
+  var ring = new THREE.Mesh(new THREE.TorusGeometry(0.052, 0.006, 8, 28, Math.PI * 1.72), danteGold);
   ring.rotation.x = -Math.PI / 2; ring.rotation.z = Math.PI * 0.64; ring.position.y = 0.012; g.add(ring);
+  var star = new THREE.Mesh(new THREE.OctahedronGeometry(0.0065, 0),
+    new THREE.MeshStandardMaterial({ color: 0x9fb8c8, emissive: 0x9fb8c8, emissiveIntensity: 0.55, roughness: 0.3, metalness: 0.3 }));
+  star.position.set(Math.cos(Math.PI * 0.5) * 0.052, 0.016, -Math.sin(Math.PI * 0.5) * 0.052); star.scale.set(1, 1.6, 1); g.add(star);
   for (var i = 0; i < 10; i++) {
     var a = Math.PI * 0.64 + (i + 0.5) / 10 * Math.PI * 1.72;
-    var lf = new THREE.Mesh(new THREE.ConeGeometry(0.007, 0.028, 6), goldM);
+    var lf = new THREE.Mesh(new THREE.ConeGeometry(0.007, 0.028, 6), danteGold);
     lf.position.set(Math.cos(a) * 0.052, 0.014, -Math.sin(a) * 0.052);
     lf.rotation.x = Math.PI / 2; lf.rotation.y = -a + Math.PI / 2;
     g.add(lf);
@@ -35,19 +62,27 @@ export function buildLaurel() {
 }
 export function buildCompass() {
   var g = new THREE.Group();
-  var body = new THREE.Mesh(new THREE.CylinderGeometry(0.045, 0.045, 0.02, 24), goldM);
+  /* STILL BREATHING is read off a dark instrument panel — its whole UI is #05070a with
+   * grip-green vitals (#7cc47a) and one warn-orange (#e6603a). So this is the compass
+   * from that panel: gunmetal case, green bezel, black face, the needle in the warn. */
+  var body = new THREE.Mesh(new THREE.CylinderGeometry(0.045, 0.045, 0.02, 24), gunmetal);
   body.position.y = 0.01; g.add(body);
+  var bezel = new THREE.Mesh(new THREE.TorusGeometry(0.0405, 0.0028, 8, 32), mat(0x7cc47a, 0.5));
+  bezel.rotation.x = -Math.PI / 2; bezel.position.y = 0.0205; g.add(bezel);
   var face = new THREE.Mesh(new THREE.CircleGeometry(0.037, 24), new THREE.MeshBasicMaterial({
     map: canvasTex(64, 64, function (gc) {
-      gc.fillStyle = "#f2ead6"; gc.beginPath(); gc.arc(32, 32, 32, 0, 7); gc.fill();
-      gc.fillStyle = "#333"; gc.font = "bold 13px Georgia, serif"; gc.textAlign = "center"; gc.textBaseline = "middle";
+      gc.fillStyle = "#0e141b"; gc.beginPath(); gc.arc(32, 32, 32, 0, 7); gc.fill();
+      gc.strokeStyle = "#2a3a30"; gc.lineWidth = 1; gc.beginPath(); gc.arc(32, 32, 24, 0, 7); gc.stroke();
+      gc.fillStyle = "#e7e3d8"; gc.font = "bold 12px 'Courier New', monospace"; gc.textAlign = "center"; gc.textBaseline = "middle";
       gc.fillText("N", 32, 10); gc.fillText("S", 32, 54); gc.fillText("E", 54, 32); gc.fillText("W", 10, 32);
-      gc.strokeStyle = "#c0392b"; gc.lineWidth = 3;
+      gc.strokeStyle = "#e6603a"; gc.lineWidth = 3; gc.lineCap = "round";
       gc.beginPath(); gc.moveTo(30, 46); gc.lineTo(37, 16); gc.stroke();
+      gc.strokeStyle = "#7cc47a"; gc.beginPath(); gc.moveTo(32, 32); gc.lineTo(30, 46); gc.stroke();   // the south half, in the green
+      gc.fillStyle = "#e7e3d8"; gc.beginPath(); gc.arc(32, 32, 2.2, 0, 7); gc.fill();
     }),
   }));
   face.rotation.x = -Math.PI / 2; face.position.y = 0.021; g.add(face);
-  var loop = new THREE.Mesh(new THREE.TorusGeometry(0.011, 0.0035, 6, 12), goldM);
+  var loop = new THREE.Mesh(new THREE.TorusGeometry(0.011, 0.0035, 6, 12), gunmetal);
   loop.position.set(0.053, 0.012, 0); g.add(loop);
   return g;
 }
@@ -59,8 +94,15 @@ export function buildBottle() { // the Endurance, safely home
   neck.rotation.z = Math.PI / 2; neck.position.set(0.082, 0.048, 0); g.add(neck);
   var cork = new THREE.Mesh(new THREE.CylinderGeometry(0.011, 0.011, 0.018, 10), mat(0xb08a56, 0.9));
   cork.rotation.z = Math.PI / 2; cork.position.set(0.108, 0.048, 0); g.add(cork);
-  var hull = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.012, 0.016), toyWoodD);
+  // the Endurance was black-hulled (SOUTH's own --ship #101418); one amber lantern at the
+  // stern because the whole game is twenty-seven men and a light that mustn't go out
+  var hull = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.012, 0.016), mat(0x101418, 0.55));
   hull.position.y = 0.038; g.add(hull);
+  var strake = new THREE.Mesh(new THREE.BoxGeometry(0.061, 0.002, 0.0165), mat(0xe7e5dc, 0.7));   // the white waterline
+  strake.position.y = 0.0325; g.add(strake);
+  var lantern = new THREE.Mesh(new THREE.SphereGeometry(0.0028, 6, 6),
+    new THREE.MeshStandardMaterial({ color: 0xffe0a0, emissive: 0xe0a84a, emissiveIntensity: 1.4, roughness: 0.4 }));
+  lantern.position.set(-0.028, 0.049, 0); g.add(lantern);
   [-0.012, 0.012].forEach(function (x, i) {
     var sail = new THREE.Mesh(new THREE.PlaneGeometry(0.018, 0.026 - i * 0.008),
       new THREE.MeshStandardMaterial({ color: 0xf2ead6, side: THREE.DoubleSide, roughness: 0.9 }));
@@ -96,13 +138,22 @@ export function buildWatch() { // the White Rabbit's — permanently teatime
       gc.fillStyle = "#4a3a22"; gc.font = "10px Georgia, serif"; gc.textAlign = "center"; gc.textBaseline = "middle";
       gc.fillText("XII", 32, 9); gc.fillText("VI", 32, 55); gc.fillText("III", 55, 32); gc.fillText("IX", 9, 32);
       gc.strokeStyle = "#4a3a22"; gc.lineWidth = 3;
-      gc.beginPath(); gc.moveTo(32, 32); gc.lineTo(32, 52); gc.stroke();  // six o'clock —
-      gc.beginPath(); gc.moveTo(32, 32); gc.lineTo(44, 22); gc.stroke(); // teatime forever
+      // "It's always six o'clock now" — the Hatter. Both hands say so: hour straight down,
+      // minute straight up. (The old minute hand pointed at two, which is nobody's teatime.)
+      gc.beginPath(); gc.moveTo(32, 32); gc.lineTo(32, 50); gc.stroke();  // hour: six
+      gc.lineWidth = 2; gc.beginPath(); gc.moveTo(32, 32); gc.lineTo(32, 12); gc.stroke();  // minute: twelve
+      gc.fillStyle = "#4a3a22"; gc.beginPath(); gc.arc(32, 32, 2, 0, 7); gc.fill();
+      gc.strokeStyle = "rgba(150,100,40,0.45)"; gc.lineWidth = 2;   // the tea ring someone set a cup on
+      gc.beginPath(); gc.arc(44, 44, 16, 0.9, 3.3); gc.stroke();
     }),
   }));
   face.rotation.x = -Math.PI / 2; face.position.y = 0.014; g.add(face);
   var crownK = new THREE.Mesh(new THREE.CylinderGeometry(0.006, 0.006, 0.01, 8), goldM);
   crownK.rotation.z = Math.PI / 2; crownK.position.set(0.048, 0.007, 0); g.add(crownK);
+  // the tea ring on the surface it sits on — the Rabbit put it down mid-tea-party
+  var tea = new THREE.Mesh(new THREE.RingGeometry(0.04, 0.047, 32, 1, 0.6, 4.2),
+    new THREE.MeshBasicMaterial({ color: 0x8a5a2a, transparent: true, opacity: 0.32, depthWrite: false, side: THREE.DoubleSide }));
+  tea.rotation.x = -Math.PI / 2; tea.position.set(0.012, 0.0008, 0.01); g.add(tea);
   for (var i = 0; i < 3; i++) {
     var link = new THREE.Mesh(new THREE.TorusGeometry(0.007, 0.002, 6, 10), goldM);
     link.rotation.x = -Math.PI / 2; link.position.set(0.062 + i * 0.011, 0.004, 0.008 + i * 0.006); g.add(link);
@@ -115,7 +166,7 @@ export function buildInkwell() { // the red ink, corked. leave it corked.
     new THREE.MeshStandardMaterial({ color: 0xd8dce8, roughness: 0.1, transparent: true, opacity: 0.4 }));
   well.position.y = 0.0225; g.add(well);
   var ink = new THREE.Mesh(new THREE.CylinderGeometry(0.019, 0.023, 0.024, 12),
-    new THREE.MeshStandardMaterial({ color: 0x7a0f1e, roughness: 0.3, emissive: 0x3a0008, emissiveIntensity: 0.5 }));
+    new THREE.MeshStandardMaterial({ color: 0xb31f2b, roughness: 0.3, emissive: 0x4a0a10, emissiveIntensity: 0.5 }));   // THE RED INK itself: dracula --red
   ink.position.y = 0.014; g.add(ink);
   var cap = new THREE.Mesh(new THREE.CylinderGeometry(0.014, 0.02, 0.014, 10), mat(0x8a6a3a, 0.4));
   cap.position.y = 0.052; g.add(cap);
@@ -125,7 +176,7 @@ export function buildInkwell() { // the red ink, corked. leave it corked.
       gc.fillStyle = "#ece6da";
       gc.beginPath(); gc.moveTo(4, h / 2); gc.quadraticCurveTo(w * 0.55, -4, w, h * 0.3);
       gc.quadraticCurveTo(w * 0.55, h + 4, 4, h / 2); gc.fill();
-      gc.fillStyle = "#7a0f1e"; // the tip has been dipped
+      gc.fillStyle = "#b31f2b"; // the tip has been dipped
       gc.beginPath(); gc.moveTo(4, h / 2); gc.lineTo(22, h * 0.32); gc.lineTo(22, h * 0.68); gc.fill();
     }), transparent: true, side: THREE.DoubleSide,
   }));
@@ -143,31 +194,54 @@ export function buildLens() {
   handle.rotation.z = Math.PI / 2; handle.rotation.y = 0.5; handle.position.set(0.058, 0.008, -0.028); g.add(handle);
   return g;
 }
-export function buildSpitfire() { // on a little display stand, banking for the trees
+export function buildSpitfire() { // ⚠️ it is a LANCASTER — see below; the export name stays for the call site
+  /* G FOR GEORGE's bible, line 2: the title is "the hero's Lancaster's call sign". The
+   * shoebox was holding a single-engined fighter for a four-engined bomber's story — the
+   * crew of seven, two parachutes out over the Ruhr. So: four nacelles on long wings,
+   * the twin-fin tail, the greenhouse nose, dark-earth/green over black undersides,
+   * and a tiny G on the flank. Still banking for the trees on its little stand. */
   var g = new THREE.Group();
   var base = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.036, 0.01, 16), toyWoodD);
   base.position.y = 0.005; g.add(base);
   var pole = new THREE.Mesh(new THREE.CylinderGeometry(0.0035, 0.0035, 0.055, 8), mat(0x8a8f98, 0.4));
   pole.position.y = 0.036; g.add(pole);
-  var plane = new THREE.Group(); plane.position.y = 0.068; plane.rotation.set(0, 0.6, 0.35);
-  var raf = mat(0x66784f, 0.7);
-  var fus = new THREE.Mesh(new THREE.CylinderGeometry(0.0085, 0.006, 0.08, 10), raf);
+  var plane = new THREE.Group(); plane.position.y = 0.07; plane.rotation.set(0, 0.6, 0.3);
+  var earth = mat(0x5a4a36, 0.75), green = mat(0x4e5a3a, 0.75), night = mat(0x14161a, 0.7);
+  var fus = new THREE.Mesh(new THREE.CylinderGeometry(0.0075, 0.0062, 0.1, 10), earth);
   fus.rotation.z = Math.PI / 2; plane.add(fus);
-  var nose = new THREE.Mesh(new THREE.ConeGeometry(0.0085, 0.018, 10), raf);
-  nose.rotation.z = -Math.PI / 2; nose.position.x = 0.049; plane.add(nose);
-  var canopy = new THREE.Mesh(new THREE.SphereGeometry(0.007, 8, 8),
+  var belly = new THREE.Mesh(new THREE.CylinderGeometry(0.0077, 0.0064, 0.098, 10, 1, false, Math.PI, Math.PI), night);
+  belly.rotation.z = Math.PI / 2; plane.add(belly);   // black undersides, the bomber's night camouflage
+  var noseG = new THREE.Mesh(new THREE.SphereGeometry(0.0072, 10, 8),
+    new THREE.MeshStandardMaterial({ color: 0x9fc8e8, roughness: 0.15, transparent: true, opacity: 0.85 }));
+  noseG.position.x = 0.05; noseG.scale.set(1.3, 1, 1); plane.add(noseG);   // the bomb-aimer's greenhouse
+  var canopy = new THREE.Mesh(new THREE.SphereGeometry(0.0055, 8, 8),
     new THREE.MeshStandardMaterial({ color: 0x9fc8e8, roughness: 0.15 }));
-  canopy.scale.set(1.6, 1, 1); canopy.position.set(0.01, 0.008, 0); plane.add(canopy);
-  var wings = box(0.026, 0.003, 0.1, raf); wings.position.set(0.012, 0, 0); plane.add(wings);
-  var tailW = box(0.014, 0.0025, 0.036, raf); tailW.position.set(-0.036, 0.002, 0); plane.add(tailW);
-  var fin = box(0.014, 0.014, 0.0025, raf); fin.position.set(-0.038, 0.009, 0); plane.add(fin);
-  var prp = box(0.002, 0.03, 0.004, toyWoodD); prp.position.x = 0.059; prp.rotation.x = 0.6; plane.add(prp);
-  [-0.036, 0.036].forEach(function (z) { // roundels
-    var blue = new THREE.Mesh(new THREE.CylinderGeometry(0.0065, 0.0065, 0.0008, 12), mat(0x2a4a8a, 0.6));
-    blue.position.set(0.012, 0.0022, z); plane.add(blue);
-    var red = new THREE.Mesh(new THREE.CylinderGeometry(0.0028, 0.0028, 0.0012, 10), mat(0xb03030, 0.6));
-    red.position.set(0.012, 0.0024, z); plane.add(red);
+  canopy.scale.set(2.2, 1, 1); canopy.position.set(0.028, 0.0072, 0); plane.add(canopy);
+  var wings = box(0.022, 0.0028, 0.15, green); wings.position.set(0.014, -0.001, 0); plane.add(wings);
+  var wingsU = box(0.022, 0.001, 0.15, night); wingsU.position.set(0.014, -0.0026, 0); plane.add(wingsU);
+  [-0.056, -0.026, 0.026, 0.056].forEach(function (z) {   // four Merlins
+    var nac = new THREE.Mesh(new THREE.CylinderGeometry(0.0036, 0.003, 0.03, 8), earth);
+    nac.rotation.z = Math.PI / 2; nac.position.set(0.022, -0.001, z); plane.add(nac);
+    var prp = box(0.0015, 0.02, 0.003, night); prp.position.set(0.038, -0.001, z); prp.rotation.x = z * 20; plane.add(prp);
   });
+  var tailW = box(0.014, 0.0022, 0.05, green); tailW.position.set(-0.044, 0.002, 0); plane.add(tailW);
+  [-0.025, 0.025].forEach(function (z) {   // the twin fins — the Lancaster's silhouette
+    var fin = new THREE.Mesh(new THREE.CylinderGeometry(0.0085, 0.0085, 0.002, 12), earth);
+    fin.rotation.x = Math.PI / 2; fin.position.set(-0.046, 0.009, z); plane.add(fin);
+  });
+  [-0.05, 0.05].forEach(function (z) { // roundels on the wings
+    var blue = new THREE.Mesh(new THREE.CylinderGeometry(0.006, 0.006, 0.0008, 12), mat(0x2a4a8a, 0.6));
+    blue.position.set(0.012, 0.0016, z); plane.add(blue);
+    var red = new THREE.Mesh(new THREE.CylinderGeometry(0.0026, 0.0026, 0.0012, 10), mat(0xb03030, 0.6));
+    red.position.set(0.012, 0.0018, z); plane.add(red);
+  });
+  // the call sign on the flank: a square with the G, in the war's dull red
+  var letter = new THREE.Mesh(new THREE.PlaneGeometry(0.012, 0.008), new THREE.MeshBasicMaterial({
+    map: canvasTex(48, 32, function (gc, w, h) {
+      gc.clearRect(0, 0, w, h); gc.fillStyle = "#b03030"; gc.font = "bold 26px Arial, sans-serif"; gc.textAlign = "center"; gc.textBaseline = "middle";
+      gc.fillText("G", w / 2, h / 2 + 2);
+    }), transparent: true, side: THREE.DoubleSide }));
+  letter.position.set(-0.012, 0.002, 0.0078); plane.add(letter);
   g.add(plane);
   return g;
 }

@@ -1241,17 +1241,31 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
   boardY.forEach(function (y) { var b = box(caseW, 0.07, 0.5, woodM); b.position.set(0, y - 0.04, 0); shelfG.add(b); });
   var baseBoard = box(caseW, 0.12, 0.5, woodM); baseBoard.position.set(0, 0.06, 0); shelfG.add(baseBoard);
 
-  function spineTex(text, bg, fg) {
+  /* ⚠️ THE SHELF IS THE BEDROOM'S FOCAL PROP, and every spine was the same design in
+   * a different flat colour: cover colour, cream text, a generic white rule. The
+   * research fleet read each book's GAME — its :root, its title glow, its iconic
+   * marks — and each spine now carries its own: the magic shop's plum-black and gold,
+   * Dante's ink and ember, the airmail envelope, the black-figure amphora, the
+   * manuscript with the red-ink correction. opts = { rule, before(g,w,h), after(g,w,h),
+   * glow, font }; before paints under the title, after paints over it. */
+  function spineTex(text, bg, fg, opts) {
+    opts = opts || {};
     return canvasTex(128, 512, function (g, w, h) {
       g.fillStyle = bg; g.fillRect(0, 0, w, h);
-      g.strokeStyle = "rgba(255,255,255,0.22)"; g.lineWidth = 5;
+      if (opts.before) { g.save(); opts.before(g, w, h); g.restore(); }
+      g.strokeStyle = opts.rule || "rgba(255,255,255,0.22)"; g.lineWidth = 5;
       g.strokeRect(9, 9, w - 18, h - 18);
+      g.save();
       g.fillStyle = fg; g.textAlign = "center"; g.textBaseline = "middle";
       g.translate(w / 2, h / 2); g.rotate(-Math.PI / 2);
-      g.font = "bold 44px Georgia, serif";
+      var face = opts.font || "Georgia, serif";
+      g.font = "bold 44px " + face;
       var t = text, size = 44;
-      while (g.measureText(t).width > h - 70 && size > 22) { size -= 2; g.font = "bold " + size + "px Georgia, serif"; }
+      while (g.measureText(t).width > h - 70 && size > 22) { size -= 2; g.font = "bold " + size + "px " + face; }
+      if (opts.glow) { g.shadowColor = opts.glow; g.shadowBlur = 14; }
       g.fillText(t, 0, 0);
+      g.restore();
+      if (opts.after) { g.save(); opts.after(g, w, h); g.restore(); }
     });
   }
   // a standing book: spine faces +z (the camera)
@@ -1264,16 +1278,55 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
     return b;
   }
   var PLAY = [
-    { t: "SOUTH", c: 0x2e5877, url: BASE + "south/", tip: "SOUTH — bring all 27 home" },
-    { t: "STILL BREATHING", c: 0x9a3b1e, url: BASE + "still-breathing/", tip: "STILL BREATHING — four true ordeals" },
-    { t: "NINE CIRCLES", c: 0x8a6a24, url: BASE + "nine-circles/", tip: "NINE CIRCLES — a descent" },
-    { t: "CHOOSE WISELY", c: 0x53386b, url: BASE + "choose-wisely/", tip: "CHOOSE WISELY — the shop remembers you" },
-    { t: "NOBODY", c: 0xc96f3b, url: BASE + "nobody/", tip: "NOBODY — the Odyssey; argue with the poem" },
+    { t: "SOUTH", c: 0x2e5877, url: BASE + "south/", tip: "SOUTH — bring all 27 home",
+      sp: { bg: "#0a0f18", fg: "#e7e5dc", rule: "rgba(224,168,74,0.55)",            // panel navy, bone, one amber lantern
+        after: function (g, w, h) { g.fillStyle = "#e0a84a"; g.beginPath(); g.arc(w / 2, h - 42, 5, 0, 7); g.fill(); } } },
+    { t: "STILL BREATHING", c: 0x9a3b1e, url: BASE + "still-breathing/", tip: "STILL BREATHING — four true ordeals",
+      sp: { bg: "#05070a", fg: "#e7e3d8", rule: "rgba(230,96,58,0.6)",              // the dark instrument panel, one warn-orange vital
+        after: function (g, w, h) { g.strokeStyle = "#7cc47a"; g.lineWidth = 3; g.beginPath(); g.arc(w / 2, 44, 9, 0, 7); g.stroke(); } } },
+    { t: "NINE CIRCLES", c: 0x8a6a24, url: BASE + "nine-circles/", tip: "NINE CIRCLES — a descent",
+      sp: { bg: "#0b0a09", fg: "#d8cfc0", rule: "rgba(201,163,92,0.6)",             // engraved ink, Dante's gold, an ember
+        after: function (g, w, h) { g.fillStyle = "#c4552a"; g.beginPath(); g.arc(w / 2, h - 44, 6, 0, 7); g.fill();
+          g.fillStyle = "#7e2020"; g.beginPath(); g.arc(w / 2, h - 44, 3, 0, 7); g.fill(); } } },
+    { t: "CHOOSE WISELY", c: 0x53386b, url: BASE + "choose-wisely/", tip: "CHOOSE WISELY — the shop remembers you",
+      sp: { bg: "#1c1622", fg: "#ffcf7a", rule: "rgba(199,155,255,0.35)" } },        // the shop's plum-black and candle gold, the secret violet rule
+    { t: "NOBODY", c: 0xc96f3b, url: BASE + "nobody/", tip: "NOBODY — the Odyssey; argue with the poem",
+      sp: { bg: "#c96f3b", fg: "#0a0506", rule: "rgba(10,5,6,0.5)",                 // black-figure amphora: meander bands on amber ribbons
+        before: function (g, w, h) {
+          [[24, 56], [h - 56, h - 24]].forEach(function (band) {
+            g.fillStyle = "#d08a3e"; g.fillRect(12, band[0], w - 24, band[1] - band[0]);
+            g.fillStyle = "#0a0506";
+            for (var k = 16; k < w - 16; k += 16) { g.fillRect(k, band[0] + 6, 8, 8); g.fillRect(k + 8, band[0] + 14, 8, 8); }
+          });
+        } } },
     { t: "TIDEBOUND", c: 0x2e6f63, url: "https://dumb-tony.github.io/GameRepos/tidebound/", tip: "TIDEBOUND — the island that isn't on any chart (Dumb Tony's)" },
-    { t: "ELEMENTARY", c: 0xb0392b, url: BASE + "sherlock/", tip: "ELEMENTARY — observe, infer, and live with being wrong" },
-    { t: "CURIOUSER", c: 0xba6fd0, url: BASE + "alice/", tip: "CURIOUSER — Alice in Wonderland; wake as yourself" },
-    { t: "DRACULA", c: 0xb31f2b, url: BASE + "dracula/", tip: "DRACULA — the ensemble hunt; argue with the book" },
-    { t: "G FOR GEORGE", c: 0x5a6b7d, url: BASE + "george/", tip: "G FOR GEORGE — the true Great Escape; 336 feet to the trees" },
+    { t: "ELEMENTARY", c: 0xc0392b, url: BASE + "sherlock/", tip: "ELEMENTARY — observe, infer, and live with being wrong",
+      sp: { bg: "#0b0d0e", fg: "#e9e3d2", rule: "rgba(192,57,43,0.6)",             // ink, bone paper, and the red thread across four pinned cards
+        before: function (g, w, h) {
+          [[30, 120], [86, 210], [40, 330], [84, 420]].forEach(function (c2, i) {
+            g.save(); g.translate(c2[0], c2[1]); g.rotate(i % 2 ? 0.06 : -0.06);
+            g.fillStyle = "#e9e3d2"; g.fillRect(-5, -7, 10, 14); g.restore(); });
+          g.strokeStyle = "#c0392b"; g.lineWidth = 1.5; g.beginPath();
+          g.moveTo(30, 120); g.lineTo(86, 210); g.lineTo(40, 330); g.lineTo(84, 420); g.stroke();
+        } } },
+    { t: "CURIOUSER", c: 0xc67fd6, url: BASE + "alice/", tip: "CURIOUSER — Alice in Wonderland; wake as yourself",
+      sp: { bg: "#171026", fg: "#f1e9d6", rule: "rgba(198,127,214,0.45)", glow: "#c67fd6",   // the game's own title glow
+        after: function (g, w, h) { g.fillStyle = "#d8433c"; g.font = "bold 22px Georgia, serif"; g.textAlign = "center";
+          g.fillText("\u2665", w / 2, 52); g.fillText("\u2666", w / 2, h - 36);
+          g.fillStyle = "#f1e9d6"; g.fillText("\u2660", w / 2 - 26, h - 36); g.fillText("\u2663", w / 2 + 26, h - 36); } } },
+    { t: "DRACULA", c: 0xb31f2b, url: BASE + "dracula/", tip: "DRACULA — the ensemble hunt; argue with the book",
+      sp: { bg: "#e6dcc2", fg: "#2a1d14", rule: "rgba(42,29,20,0.35)",              // the manuscript, with the red-ink correction
+        after: function (g, w, h) { g.save(); g.translate(w / 2, h / 2 + 70); g.rotate(-Math.PI / 2);
+          g.fillStyle = "#b31f2b"; g.font = "italic 15px Georgia, serif"; g.textAlign = "center";
+          g.fillText("(it could not)", 0, 0); g.restore(); } } },
+    { t: "G FOR GEORGE", c: 0x33507a, url: BASE + "george/", tip: "G FOR GEORGE — the true Great Escape; 336 feet to the trees",
+      sp: { bg: "#efe6cf", fg: "#33507a", rule: "rgba(51,80,122,0.3)",              // the airmail envelope: red/blue chevrons down both edges
+        before: function (g, w, h) {
+          for (var y2 = 12; y2 < h - 12; y2 += 28) { [0, 1].forEach(function (side) {
+            var x0 = side ? w - 22 : 10;
+            g.fillStyle = (Math.floor(y2 / 28) % 2) ? "#8c2f24" : "#33507a";
+            g.beginPath(); g.moveTo(x0, y2); g.lineTo(x0 + 12, y2); g.lineTo(x0 + 12, y2 + 14); g.lineTo(x0, y2 + 14); g.closePath(); g.fill(); }); }
+        } } },
   ];
   var DECOR = [0x3b4a55, 0x5e3a3a, 0x39543e, 0x584a2e, 0x46485e, 0x2f3e4a, 0x64513a];
   var bookByTitle = {}; // WHAT'S OUT hides individual playable books by title
@@ -1285,7 +1338,8 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
     order.forEach(function (slot) {
       if (slot) {
         var bw = 0.24, bh = 0.8;
-        var bk = book(bw, bh, slot.c, spineTex(slot.t, "#" + slot.c.toString(16).padStart(6, "0"), "#efe2c4"));
+        var sp = slot.sp || {};
+        var bk = book(bw, bh, slot.c, spineTex(slot.t, sp.bg || ("#" + slot.c.toString(16).padStart(6, "0")), sp.fg || "#efe2c4", sp));
         bk.position.set(xCursor + bw / 2, y + bh / 2, 0.10);
         clickable(bk, slot.t, go(slot.url), slot.tip);
         bookByTitle[slot.t] = bk;
@@ -4701,7 +4755,7 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
       earn: "solve a case in ELEMENTARY", where: "on the floor, mid-room",
       have: function () { return anyOf("sherlock_persist", function (m) { return m && m.solved ? countOf(m.solved) : null; }); },
       home: { x: -1.35, y: 0, z: 1.9 }, build: COLL.buildLens },
-    { key: "spitfire", title: "the model Spitfire", from: "G FOR GEORGE", icon: "✈️",
+    { key: "spitfire", title: "the model Lancaster", from: "G FOR GEORGE", icon: "✈️",   // key kept for old saves; it was always G's Lanc
       earn: "finish a telling in G FOR GEORGE", where: "up on top of the big shelf",
       have: function () { return anyOf("gg_persist", function (m) { return countOf(m.endings); }); },
       home: { x: -1.05, y: 2.392, z: -2.32 }, build: COLL.buildSpitfire },
