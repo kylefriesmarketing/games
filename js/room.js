@@ -1465,7 +1465,7 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
   // the PC has nothing to run yet, so it does what a 90s PC does when it's idle
   var ssCanvas = document.createElement("canvas"); ssCanvas.width = 256; ssCanvas.height = 192;
   var ssCtx = ssCanvas.getContext("2d");
-  var ssT = new THREE.CanvasTexture(ssCanvas);
+  var ssT = new THREE.CanvasTexture(ssCanvas); ssT.colorSpace = THREE.SRGBColorSpace;   // ⚠️ raw CanvasTexture: unlike canvasTex() it does NOT tag itself
   var ssM = new THREE.MeshBasicMaterial({ map: ssT });
   // Five of them, because a 90s PC with nothing to run is still worth looking at.
   var SCREENSAVERS = [["stars", "starfield"], ["logo", "bouncing logo"], ["pipes", "pipes"],
@@ -1650,7 +1650,7 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
   var tv = box(0.85, 0.68, 0.7, mat(0x3a3a38, 0.55)); tv.position.y = 0.78; crt.add(tv);
   var staticCanvas = document.createElement("canvas"); staticCanvas.width = 128; staticCanvas.height = 96;
   var staticCtx = staticCanvas.getContext("2d");
-  var staticT = new THREE.CanvasTexture(staticCanvas);
+  var staticT = new THREE.CanvasTexture(staticCanvas); staticT.colorSpace = THREE.SRGBColorSpace;   // ⚠️ same: a raw CanvasTexture is linear until told otherwise
   var screen = new THREE.Mesh(new THREE.PlaneGeometry(0.62, 0.47), new THREE.MeshBasicMaterial({ map: staticT }));
   screen.position.set(0, 0.8, 0.355); crt.add(screen);
   var vhs = box(0.4, 0.09, 0.23, new THREE.MeshStandardMaterial({ map: labelTex("MY TAPES", "#141414", "#c9c9c9"), roughness: 0.6 }));
@@ -2880,7 +2880,13 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
         var pt = POSTER_PAINT[d.key]();
         posterTexCache[d.key] = pt; apply(pt);
       } else texLoader.load("assets/tex/poster-" + d.key + ".jpg",
-        function (t) { t.anisotropy = 8; posterTexCache[d.key] = t; apply(t); },
+        /* ⚠️ TextureLoader hands back a texture with NO colour space, and a colour
+         * map that is not tagged sRGB is sampled as if it were already linear — the
+         * art comes out washed out and flat. Its sibling loader twelve hundred lines
+         * up (poster_brainrot) tags it; this one never did, so every shipped
+         * poster-<key>.jpg rendered wrong. Measured: 7 of the 10 loaded textures in
+         * the house were correct and these three were the only strays. */
+        function (t) { t.anisotropy = 8; t.colorSpace = THREE.SRGBColorSpace; posterTexCache[d.key] = t; apply(t); },
         undefined,
         function () { // no painted print shipped for this one — paint it here instead
           if (!POSTER_PAINT[d.key]) return;
