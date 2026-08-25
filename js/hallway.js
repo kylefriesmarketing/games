@@ -3404,11 +3404,20 @@ export function buildHallway(ctx) {
     return bt;
   }
   function ground(tex, repX, repY, colour, rough, bumpScale) {
-    tex.wrapS = tex.wrapT = THREE.RepeatWrapping; tex.repeat.set(repX, repY);
-    tex.colorSpace = THREE.SRGBColorSpace;          // honest colours, same as the sky
-    var m = new THREE.MeshStandardMaterial({ map: tex, color: colour || 0xffffff, roughness: rough == null ? 0.97 : rough });
-    var b = bumpFrom(tex, 1.8);
-    if (b) { b.repeat.copy(tex.repeat); m.bumpMap = b; m.bumpScale = bumpScale == null ? 1.2 : bumpScale; }
+    /* ⚠️⚠️ CLONE, DO NOT MUTATE THE TEXTURE YOU WERE HANDED. concT, asphT and tileT
+     * each dress two or three surfaces at different repeats, and setting repeat on
+     * the shared object means the LAST caller wins — every earlier material silently
+     * re-tiles, while its bumpMap keeps the repeat it was born with, so the relief
+     * slides off the colour. It was doing exactly that to the kitchen backsplash:
+     * asked for 6x1, ended up 4x0.14, so the tile grid rendered as smeared bands.
+     * A clone shares the Source (no second GPU upload) and owns its own repeat.
+     * room.js:325 already documents this hazard and clones; this did not. */
+    var t = tex.clone(); t.needsUpdate = true;
+    t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(repX, repY);
+    t.colorSpace = THREE.SRGBColorSpace;            // honest colours, same as the sky
+    var m = new THREE.MeshStandardMaterial({ map: t, color: colour || 0xffffff, roughness: rough == null ? 0.97 : rough });
+    var b = bumpFrom(t, 1.8);
+    if (b) { b.repeat.copy(t.repeat); m.bumpMap = b; m.bumpScale = bumpScale == null ? 1.2 : bumpScale; }
     return m;
   }
   var grassT = canvasTex(256, 256, function (c, w, h) {

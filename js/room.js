@@ -2237,7 +2237,7 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
    * A soft wedge of light on the floor under the window. Not a real volumetric — a
    * pair of additive planes with a gradient that fades at both ends, which holds up
    * because the camera only ever pans a little. Brightest at night, gone by day. */
-  var shaftTex = canvasTexLinear(64, 128, function (g, w, h) {
+  var shaftTex = canvasTex(64, 128, function (g, w, h) {   // ⚠️ sRGB, not linear: this is AMBER, not a mask — as linear its blue contributed 1.78x and the wedge went pale
     var lg = g.createLinearGradient(0, 0, 0, h);      // fade in from the glass, out on the floor
     lg.addColorStop(0, "rgba(255,214,160,0.0)");
     lg.addColorStop(0.18, "rgba(255,214,160,0.55)");
@@ -5847,6 +5847,13 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
       // mirrored repeat hides the AI tiles' imperfect seams — every edge meets itself
       t.wrapS = t.wrapT = THREE.MirroredRepeatWrapping;
       t.repeat.set(rx, ry); t.anisotropy = 8;
+      /* ⚠️ TextureLoader hands back NoColorSpace. A colour map that is not tagged
+       * sRGB is sampled as if it were already linear — mids lift and chroma
+       * collapses. Every OTHER loader in this file tags it; this one did not, so
+       * every wallpaper, floor and rug print in the paint box rendered pale beside
+       * the as-found one it replaces. These only load when you pick a swatch, which
+       * is why a live scan of the default room never sees them. */
+      t.colorSpace = THREE.SRGBColorSpace;
       matTexCache[ck] = t; cb(t);
     });
   }
