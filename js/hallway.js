@@ -1185,9 +1185,17 @@ export function buildHallway(ctx) {
   // sixteen risers of 0.216 on a 0.275 going: 38 degrees, which is steep and is what
   // a house of this age actually has when the hall is this full
   var UP_RISE = UP_Y / 16, UP_GO = 0.275, UP_Z0 = 7.05;
+  /* ⚠️ THE FLIGHT HAD A SLOT BETWEEN EVERY STEP. The rise is 0.2156 and the tread
+   * box was 0.18 tall, so consecutive treads missed each other by 3.6 cm — sixteen
+   * horizontal slits you could see the room beyond through, which is most of why
+   * the staircase read as scaffolding rather than joinery (Kyle: you can see through
+   * it). The box is now a hair TALLER than the rise so the steps overlap and close
+   * the flight; the top face still lands exactly on (st+1)*UP_RISE, because that is
+   * what makes the sixteenth tread BE the floor above. */
+  var UP_TREAD_H = UP_RISE + 0.03;
   for (var st = 0; st < 16; st++) {
-    var step = new THREE.Mesh(new THREE.BoxGeometry(0.92, 0.18, UP_GO + 0.05), stairM);
-    step.position.set(STAIR_X, (st + 1) * UP_RISE - 0.09, UP_Z0 - st * UP_GO);
+    var step = new THREE.Mesh(new THREE.BoxGeometry(0.92, UP_TREAD_H, UP_GO + 0.05), stairM);
+    step.position.set(STAIR_X, (st + 1) * UP_RISE - UP_TREAD_H / 2, UP_Z0 - st * UP_GO);
     step.castShadow = step.receiveShadow = true; add(step);
     if (st === 3) tag(step, "the stairs up", function () { enterUpstairs(); },
       "her room, their room, and the attic. mind the third step.");
@@ -1195,8 +1203,8 @@ export function buildHallway(ctx) {
   /* ⚠️ THE TOP TREAD ENDED AT z 2.7625 AND THE FLOOR STARTED AT 2.45 — a 31 cm hole
    * you walked over on the way up. A real stair finishes with a nosing that laps the
    * landing; one mesh closes it and is what the joinery would actually be. */
-  var nosing = new THREE.Mesh(new THREE.BoxGeometry(0.92, 0.18, 0.62), stairM);
-  nosing.position.set(STAIR_X, UP_Y - 0.09, UP_Z0 - 16 * UP_GO);
+  var nosing = new THREE.Mesh(new THREE.BoxGeometry(0.92, UP_TREAD_H, 0.62), stairM);
+  nosing.position.set(STAIR_X, UP_Y - UP_TREAD_H / 2, UP_Z0 - 16 * UP_GO);
   nosing.castShadow = nosing.receiveShadow = true; add(nosing);
   // the rail up the open side
   (function () {
@@ -1317,6 +1325,9 @@ export function buildHallway(ctx) {
   var upFloorT = plankT.clone(); upFloorT.needsUpdate = true;
   upFloorT.wrapS = upFloorT.wrapT = THREE.RepeatWrapping; upFloorT.repeat.set(4.5, 3.5);
   var upFloorM = new THREE.MeshStandardMaterial({ map: upFloorT, roughness: 0.9 });
+  // what the storey above looks like from beneath: the hall ceiling’s own colour, so
+  // the soffit over the stairwell matches the ceiling it continues
+  var upSoffitM = mat(0x2a2f3d, 0.98);
   function utag(m, name, action, hint) { clickable(m, name, action, hint); m.userData.space = 'upstairs'; return m; }
   function grpU(g4, name, hint) { g4.children.forEach(function (m) { if (m.isMesh) utag(m, name, null, hint); }); }
   // ⚠️ and the same again upstairs: five light handles trapped in an IIFE, so the
@@ -1342,6 +1353,15 @@ export function buildHallway(ctx) {
       var fl = new THREE.Mesh(new THREE.PlaneGeometry(r[1] - r[0], r[3] - r[2]), upFloorM);
       fl.rotation.x = -Math.PI / 2; fl.position.set((r[0] + r[1]) / 2, UPF.fl + 0.005, (r[2] + r[3]) / 2);
       fl.receiveShadow = true; add(fl);
+      /* ⚠️ A PlaneGeometry HAS ONE FACE. This one points up, so from underneath the
+       * storey above had NO FLOOR — stand in the hall, look up the stairwell, and you
+       * saw straight through the landing into the rooms above it (Kyle: you can see
+       * through the floor of upstairs). The fix is not DoubleSide, which would hang
+       * floorboards over the hall; it is the thing a house actually has under its
+       * floorboards, a plastered soffit facing down. */
+      var soff = new THREE.Mesh(new THREE.PlaneGeometry(r[1] - r[0], r[3] - r[2]), upSoffitM);
+      soff.rotation.x = Math.PI / 2; soff.position.set((r[0] + r[1]) / 2, UPF.fl - 0.055, (r[2] + r[3]) / 2);
+      add(soff);
       utag(fl, 'the landing', null, 'the boards up here were never carpeted. you can hear everyone.');
     });
     var ceil = box(UPF.x1 - UPF.x0, 0.10, UPF.z1 - UPF.z0, mat(0xe8e4d8, 0.95));
