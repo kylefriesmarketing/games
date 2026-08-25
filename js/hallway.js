@@ -148,7 +148,10 @@ export function buildHallway(ctx) {
   // four: the garage door was a decor slab on solid wall from the day it went up,
   // and the moment it became a door you could open it would have opened onto
   // wallpaper, exactly like the closet did).
-  var GDO = { z0: 5.08, z1: 6.12, y1: 2.16 };
+  /* ⚠️ THE GARAGE DOOR MOVED SOUTH (z 5.08..6.12 -> 7.45..8.49) because the
+   * staircase now runs up this wall and its low end lands at z 7.40. 8.49 leaves
+   * 0.31 m of wall to the south corner at Z_S 8.8, which is enough for the jamb. */
+  var GDO = { z0: 7.45, z1: 8.49, y1: 2.16 };
   /* …and a SIXTH hole for the living room, which is a real room on this side now.
    * ⚠️ IT GOES IN THIS LIST. I first built a SECOND west wall carrying only the
    * living room's opening — which is a full-height slab straight across the kitchen
@@ -219,7 +222,12 @@ export function buildHallway(ctx) {
    * flight, which stops at a half-landing 1.475 up. The second flight — the one that
    * actually reaches the floor above — switches back and climbs south, so the hole in
    * the ceiling has to run with it or the stairs go through the slab. */
-  var STW = { x0: E_IN - 1.02, x1: E_IN + 0.02, z0: 2.45, z1: 7.30 }; // the stairwell void
+  /* ⚠️ THE VOID FOLLOWED THE FLIGHT TO THE WEST WALL (Kyle, 2026-08-25: he did not
+   * like where the stairs had moved to). STW is the spine — the hall ceiling's four
+   * pieces, the storey's four floor pieces, the corridor wall runs, the shaft faces
+   * and the up/down hitbox are all derived from it — so moving the flight is this
+   * one line plus STAIR_X and UP_Z0, and everything else follows. */
+  var STW = { x0: W_IN - 0.10, x1: W_IN + 1.02, z0: 2.60, z1: 7.45 }; // the stairwell void
   var CZ_S = Z_S + 0.15, CX_E = XC + (HW + 0.3) / 2;      // the ceiling's south + east edges
   var ceilA = box(HW + 0.3, 0.1, CZ_S - STW.z1, ceilM);   // everything south of the void
   ceilA.position.set(XC, CEIL + 0.05, (STW.z1 + CZ_S) / 2); add(ceilA);
@@ -246,10 +254,15 @@ export function buildHallway(ctx) {
   // coplanar face right around the stairwell opening, which is the rim Kyle saw
   // flashing. Butted against the cut edge instead, nothing is coplanar and the reveal
   // of the opening reads properly.
-  var stwE = box(0.1, 0.45, STW.z1 - STW.z0, hwallM);
-  stwE.position.set(STW.x1 - 0.05, 3.175, (STW.z0 + STW.z1) / 2); add(stwE);
-  var stwS = box(STW.x1 - STW.x0, 0.45, 0.1, hwallM);
-  stwS.position.set((STW.x0 + STW.x1) / 2, 3.175, STW.z1 - 0.05); add(stwS);
+  /* ⚠️ THESE WERE 0.45 TALL AND STOPPED AT y 3.40, five centimetres SHORT of the
+   * boards at 3.455 — a slot around the shaft you could see the joist void through
+   * while the stair camera flew up it. They span the whole gap now (ceiling top
+   * 3.05 to the floor above). The north side stays open on purpose: that is where
+   * you step off the flight onto the landing. */
+  var stwE = box(0.1, 0.51, STW.z1 - STW.z0, hwallM);
+  stwE.position.set(STW.x1 - 0.05, 3.205, (STW.z0 + STW.z1) / 2); add(stwE);
+  var stwS = box(STW.x1 - STW.x0, 0.51, 0.1, hwallM);
+  stwS.position.set((STW.x0 + STW.x1) / 2, 3.205, STW.z1 - 0.05); add(stwS);
   // ⚠️⚠️ BASEBOARDS ARE BOXES THAT STAND PROUD, NOT PLANES AT +0.001. A 1mm offset
   // is FAR below what the depth buffer can resolve with near 0.1 / far 120 — the
   // board and the wall behind it swap depth-test winners as the camera drifts, and
@@ -1157,7 +1170,17 @@ export function buildHallway(ctx) {
    * (-2.85..1.15), the bedroom door (1.65..2.55) and the closet (7.24..8.16). The one
    * clear run long enough for a staircase is the EAST wall between the bedroom door
    * and the closet — 4.7m — so that is where it goes, climbing north. */
-  var STAIR_X = E_IN - 0.50, RAIL_X = STAIR_X - 0.44;
+  /* ⚠️ THE FLIGHT IS ON THE WEST WALL AND CLIMBS NORTH. 1c4ea28 tested four
+   * placements and rejected the west wall on a flight climbing SOUTH from z -3.0,
+   * which does cross the kitchen and living-room doorways. Climbing NORTH from the
+   * south end crosses neither: the nosing stops at z 2.53 and the living room's
+   * doorway ends at 2.38. The only thing in the way was the garage door, and that
+   * moved south. This puts the up-stair and the basement down-stair on the same
+   * wall about a metre apart, which is what a real house does, and it frees the
+   * whole east back wall (laundry, mud room, closet) to be read as one run.
+   * RAIL_X is used now — it used to be declared here and never referenced, a fossil
+   * of an earlier west-wall attempt. The rail goes on the OPEN side, which is east. */
+  var STAIR_X = W_IN + 0.50, RAIL_X = STAIR_X + 0.50;
   /* ⚠️⚠️ ONE STRAIGHT FLIGHT, AND THE SWITCHBACK IS WHY. The old stub was eight
    * risers climbing NORTH — 1.48m, which is half a storey, ending at a landing with a
    * taped door on it. My first attempt at the rest was a switchback turning on that
@@ -1184,7 +1207,7 @@ export function buildHallway(ctx) {
   var UP_Y = 3.45;
   // sixteen risers of 0.216 on a 0.275 going: 38 degrees, which is steep and is what
   // a house of this age actually has when the hall is this full
-  var UP_RISE = UP_Y / 16, UP_GO = 0.275, UP_Z0 = 7.05;
+  var UP_RISE = UP_Y / 16, UP_GO = 0.275, UP_Z0 = 7.24;   // low end z 7.08..7.40, nosing centre 2.84
   /* ⚠️ THE FLIGHT HAD A SLOT BETWEEN EVERY STEP. The rise is 0.2156 and the tread
    * box was 0.18 tall, so consecutive treads missed each other by 3.6 cm — sixteen
    * horizontal slits you could see the room beyond through, which is most of why
@@ -1210,12 +1233,12 @@ export function buildHallway(ctx) {
   (function () {
     var rz0 = UP_Z0, rz1 = UP_Z0 - 15 * UP_GO, ry0 = UP_RISE + 0.86, ry1 = 16 * UP_RISE + 0.86;
     var rail = box(0.05, 0.05, Math.hypot(rz1 - rz0, ry1 - ry0), mat(0x3a2c1c, 0.7));
-    rail.position.set(STAIR_X - 0.50, (ry0 + ry1) / 2, (rz0 + rz1) / 2);
+    rail.position.set(RAIL_X, (ry0 + ry1) / 2, (rz0 + rz1) / 2);
     rail.rotation.x = -Math.atan2(ry1 - ry0, rz1 - rz0); add(rail);
     for (var rp = 0; rp <= 5; rp++) {
       var t2 = rp / 5;
       var po = box(0.045, 0.90, 0.045, mat(0x3a2c1c, 0.7));
-      po.position.set(STAIR_X - 0.50, ry0 + t2 * (ry1 - ry0) - 0.45, rz0 + t2 * (rz1 - rz0)); add(po);
+      po.position.set(RAIL_X, ry0 + t2 * (ry1 - ry0) - 0.45, rz0 + t2 * (rz1 - rz0)); add(po);
     }
   })();
   // The flight lands on a real landing and meets a real door — taped like every
@@ -5674,21 +5697,25 @@ export function buildHallway(ctx) {
   // covered by the shelf and boxes".)
   // Same construction as the kitchen door: the slab hangs on a real hinge (north
   // jamb, swings INTO the garage); jambs, spill and plaque stay on the wall.
-  var gDoorPivot = new THREE.Group(); gDoorPivot.position.set(W_IN + 0.03, 0, 6.06); add(gDoorPivot);
+  /* ⚠️ THE SLAB, JAMBS, SPILL AND PLAQUE WERE ALL HARDCODED TO z 5.08..6.12 while
+   * the OPENING came from GDO — so moving GDO left the door itself behind in the
+   * middle of the new staircase. They are derived now and cannot drift again. */
+  var GDO_C = (GDO.z0 + GDO.z1) / 2;
+  var gDoorPivot = new THREE.Group(); gDoorPivot.position.set(W_IN + 0.03, 0, GDO.z1 - 0.06); add(gDoorPivot);
   var gSlab = box(0.05, 2.05, 0.92, mat(0x3f4a52, 0.72)); gSlab.position.set(0, 1.025, -0.46); gDoorPivot.add(gSlab);
   var gKnob = new THREE.Mesh(new THREE.SphereGeometry(0.026, 12, 10),
     new THREE.MeshStandardMaterial({ color: 0xb08d3f, roughness: 0.35, metalness: 0.6 }));
   gKnob.position.set(0.05, 1.0, -0.80); gDoorPivot.add(gKnob);
-  [[2.09, 0.08, 1.06, 5.60], [1.02, 2.12, 0.08, 5.08], [1.02, 2.12, 0.08, 6.12]].forEach(function (j) {
+  [[2.09, 0.08, 1.06, GDO_C], [1.02, 2.12, 0.08, GDO.z0], [1.02, 2.12, 0.08, GDO.z1]].forEach(function (j) {
     var jm = box(0.08, j[1], j[2], mat(0x241b12, 0.8));
     jm.position.set(W_IN + 0.045, j[0], j[3]); add(jm);
   });
   var gSpill = new THREE.Mesh(new THREE.PlaneGeometry(0.92, 0.08),
     new THREE.MeshBasicMaterial({ color: 0xffd9a0, transparent: true, opacity: 0.12, blending: THREE.AdditiveBlending, depthWrite: false }));
   gSpill.rotation.x = -Math.PI / 2; gSpill.rotation.z = Math.PI / 2;
-  gSpill.position.set(W_IN + 0.12, 0.012, 5.60); add(gSpill);
+  gSpill.position.set(W_IN + 0.12, 0.012, GDO_C); add(gSpill);
   (function () {
-    var pg = new THREE.Group(); pg.position.set(W_IN + 0.03, 0, 5.60); add(pg);
+    var pg = new THREE.Group(); pg.position.set(W_IN + 0.03, 0, GDO_C); add(pg);
     plaque(pg, "GARAGE", "mind your head");
   })();
   [gSlab, gKnob].forEach(function (m) {
@@ -5699,7 +5726,7 @@ export function buildHallway(ctx) {
   // the way back: an invisible hitbox in the opening, garage side
   var gBackHit = new THREE.Mesh(new THREE.BoxGeometry(0.2, 2.0, 1.0),
     new THREE.MeshBasicMaterial({ transparent: true, opacity: 0, depthWrite: false }));
-  gBackHit.position.set(W_IN - 0.15, 1.03, 5.60); add(gBackHit);
+  gBackHit.position.set(W_IN - 0.15, 1.03, 7.97); add(gBackHit);
   clickable(gBackHit, "the hallway", function () { leaveGarage(); }, "back to the hall");
   gBackHit.userData.space = "garage";
 
@@ -5786,21 +5813,31 @@ export function buildHallway(ctx) {
     new THREE.MeshStandardMaterial({ map: pawT, transparent: true, roughness: 1 }));
   paws.rotation.x = -Math.PI / 2; paws.position.set(E_IN - 0.75, 0.011, 7.0); badd(paws);
 
-  // --- THE OVERFLOW CORNER: chest freezer + the shelves every house grows
+  /* --- THE OVERFLOW CORNER: chest freezer + the shelves every house grows.
+   * ⚠️ IT USED TO STAND IN THE HALL'S SOUTH-WEST CORNER, which is now the foot of
+   * the staircase AND the garage doorway — it fouled tread 0 and stood in the new
+   * opening. It has moved UNDER the flight, which is where a chest freezer and a
+   * rack of bins actually live in a house like this. Measured against the stairs
+   * above them: the freezer (top y 0.93) sits at z 4.58..5.82 where the lowest
+   * tread overhead is 1.11, and the shelving (top 2.25) sits at z 3.0..4.15 where
+   * the flight is 2.8-3.1 up. The garage was checked first and is full — a grid
+   * search found no clear 0.7x1.3 floor anywhere but one column, and no free wall
+   * at shelf height at all. */
+  var FRZ_X = W_IN + 0.40, FRZ_Z = 5.20, SHV_X = W_IN + 0.24, SHV_Z = 3.60;
   var frz = box(1.24, 0.86, 0.66, mat(0xe8eae6, 0.5));
-  frz.position.set(W_IN + 0.36, 0.43, 7.5); frz.rotation.y = Math.PI / 2; frz.castShadow = true; badd(frz);
+  frz.position.set(FRZ_X, 0.43, FRZ_Z); frz.rotation.y = Math.PI / 2; frz.castShadow = true; badd(frz);
   var frzLid = box(1.2, 0.07, 0.64, mat(0xdcdedb, 0.45));
-  frzLid.position.set(W_IN + 0.36, 0.89, 7.5); frzLid.rotation.y = Math.PI / 2; badd(frzLid);
-  var frzSeal = box(0.06, 0.04, 0.6, mat(0x9aa0a0, 0.6)); frzSeal.position.set(W_IN + 0.68, 0.72, 7.5); badd(frzSeal);
+  frzLid.position.set(FRZ_X, 0.89, FRZ_Z); frzLid.rotation.y = Math.PI / 2; badd(frzLid);
+  var frzSeal = box(0.06, 0.04, 0.6, mat(0x9aa0a0, 0.6)); frzSeal.position.set(FRZ_X + 0.32, 0.72, FRZ_Z); badd(frzSeal);
   tag(frz, "the chest freezer", null, "the chest freezer. nobody remembers what is at the bottom of it.");
   tag(frzLid, "the chest freezer", null, "the chest freezer. nobody remembers what is at the bottom of it.");
   var shelfM = mat(0x7d8489, 0.6);
   [1.25, 1.72, 2.19].forEach(function (sy, si) {
-    var sh = box(0.42, 0.04, 1.5, shelfM); sh.position.set(W_IN + 0.24, sy, 7.5); badd(sh);
+    var sh = box(0.42, 0.04, 1.5, shelfM); sh.position.set(SHV_X, sy, SHV_Z); badd(sh);
     [[-0.6, 0x8a5a3a], [0.0, 0x4a6a8a], [0.55, 0x6a6a4a]].forEach(function (bn, bi) {
       if ((si + bi) % 3 === 2) return;                      // not every slot has a bin
       var bin = box(0.34, 0.26, 0.4, mat(bn[1], 0.85));
-      bin.position.set(W_IN + 0.24, sy + 0.15, 7.5 + bn[0]); badd(bin);
+      bin.position.set(SHV_X, sy + 0.15, SHV_Z + bn[0]); badd(bin);
     });
   });
   [-0.72, 0.72].forEach(function (uz) {
@@ -7754,14 +7791,16 @@ export function buildHallway(ctx) {
     /* ⚠️ you walk PAST the flight and board it at the bottom, which is at the NORTH
      * end because it climbs south. A path straight from the hall to the foot goes
      * through every tread on the way. */
-    up1: new THREE.Vector3(-6.30, 1.70, 6.10),      // down the west side to the foot
-    up2: new THREE.Vector3(-5.20, 1.70, 7.00),      // squared onto the bottom tread
-    up3: new THREE.Vector3(-4.85, 2.55, 5.95),      // a few treads up
-    up4: new THREE.Vector3(-4.85, 3.95, 4.35),      // halfway
-    uprest: new THREE.Vector3(-4.85, 5.07, 2.15),   // off the top, standing on the landing
+    // ⚠️ these five follow STAIR_X. The flight is on the WEST wall now, so the
+    // approach comes from the EAST side of the hall instead of crossing it.
+    up1: new THREE.Vector3(-5.00, 1.70, 6.10),      // out into the hall, facing the foot
+    up2: new THREE.Vector3(-6.60, 1.70, 7.10),      // squared onto the bottom tread
+    up3: new THREE.Vector3(-6.95, 2.55, 6.00),      // a few treads up
+    up4: new THREE.Vector3(-6.95, 3.95, 4.40),      // halfway
+    uprest: new THREE.Vector3(-6.95, 5.07, 1.80),   // off the top, standing on the landing (z 1.80 = mid LAN; 2.20 stood 0.40 off the south wall)
     uplook: new THREE.Vector3(-15.60, 4.55, 1.60),  // down the corridor, west
     uplookB: new THREE.Vector3(2.60, 4.55, 1.60),   // and the other way, east
-    upL1: new THREE.Vector3(-6.98, 2.20, -3.30),    // what you see on the way up
+    upL1: new THREE.Vector3(-6.95, 2.20, -3.30),    // what you see on the way up: straight up the flight
     upL2: new THREE.Vector3(-8.60, 4.70, 1.70),
     /* the three rooms share ONE set of keyframes, rewritten on the way in - they
      * differ only by x, so three fixed sets would be the same numbers typed out three
@@ -7800,8 +7839,8 @@ export function buildHallway(ctx) {
      * PAST the hole, which ends at HOLE.z1 = 1.3 — so it dropped the camera through
      * solid floor instead of down the opening. The original waypoints thread the
      * hole correctly and are left to do it. */
-    gdoor1: new THREE.Vector3(-5.98, 1.66, 5.60),   // squared up to the garage door, hall side
-    gdoor2: new THREE.Vector3(-7.25, 1.62, 5.60),   // in the doorway
+    gdoor1: new THREE.Vector3(-5.98, 1.66, 7.97),   // squared up to the garage door, hall side
+    gdoor2: new THREE.Vector3(-7.25, 1.62, 7.97),   // in the doorway
     gdoorL: new THREE.Vector3(-10.6, 0.90, 6.90),   // what you see through it
     porch: new THREE.Vector3(-5.70, 1.62, -5.35),   // out on the boards
     porchL: new THREE.Vector3(-5.62, 0.75, -14.5),  // down the path at the street

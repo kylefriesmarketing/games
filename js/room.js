@@ -3295,7 +3295,7 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
    * something else entirely in the hall. */
   var kidSpace = "bedroom";
   var KID_HALL_OBSTACLES = [
-    { x: -6.98, z: -1.6, r: 1.15 },  // the staircase
+    { x: -6.95, z: 4.97, r: 1.10 },  // the staircase (west wall, z 2.53..7.40 — its real centre)
     { x: -7.00, z: 0.82, r: 0.72 },  // the hole down to the basement
     { x: -4.60, z: -3.15, r: 0.42 }, // the hall table
     { x: -4.70, z: 5.45, r: 0.62 },  // the laundry
@@ -3460,7 +3460,7 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
     back:    { x: -5.34, z: 9.55 },   // out the slider, on the deck
     basement: { x: -6.97, z: 0.95 },  // top of the flight — he GLIDES down it, free
     living:   { x: -8.10, z: 1.90 },              // just inside the living room doorway
-    upstairs: { x: -4.85, y: 3.45, z: 2.62 },     // off the top of the flight
+    upstairs: { x: -6.95, y: 3.45, z: 2.70 },     // off the top of the flight
     room0:    { x: -12.20, y: 3.45, z: 0.80 },    // in each doorway, not in the middle
     room1:    { x: -3.60, y: 3.45, z: 0.80 },
     room2:    { x: 1.90, y: 3.45, z: 0.80 },
