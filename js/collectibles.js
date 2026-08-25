@@ -237,9 +237,12 @@ export function buildSpitfire() { // ⚠️ it is a LANCASTER — see below; the
   });
   // the call sign on the flank: a square with the G, in the war's dull red
   var letter = new THREE.Mesh(new THREE.PlaneGeometry(0.012, 0.008), new THREE.MeshBasicMaterial({
-    map: canvasTex(48, 32, function (gc, w, h) {
-      gc.clearRect(0, 0, w, h); gc.fillStyle = "#b03030"; gc.font = "bold 26px Arial, sans-serif"; gc.textAlign = "center"; gc.textBaseline = "middle";
-      gc.fillText("G", w / 2, h / 2 + 2);
+    // ⚠️ 16x8, not 48x32: this decal is 12 mm x 8 mm on the flank. 48 px across
+    // 12 mm is 4000 texels/m, roughly eighty times what a prop that size can
+    // resolve at arm’s length — all of it uploaded and mip-chained for nothing.
+    map: canvasTex(16, 8, function (gc, w, h) {
+      gc.clearRect(0, 0, w, h); gc.fillStyle = "#b03030"; gc.font = "bold 9px Arial, sans-serif"; gc.textAlign = "center"; gc.textBaseline = "middle";
+      gc.fillText("G", w / 2, h / 2 + 1);
     }), transparent: true, side: THREE.DoubleSide }));
   letter.position.set(-0.012, 0.002, 0.0078); plane.add(letter);
   g.add(plane);
@@ -327,11 +330,13 @@ export function buildTrophy() { // VICTORY LAP — first place, a long time ago 
   var base = new THREE.Mesh(new THREE.CylinderGeometry(0.028, 0.032, 0.016, 4), mat(0x2b211a, 0.7));
   base.rotation.y = Math.PI / 4; base.position.y = 0.008; g.add(base);
   var plate = new THREE.Mesh(new THREE.PlaneGeometry(0.038, 0.011), new THREE.MeshBasicMaterial({
-    map: canvasTex(128, 36, function (gc, w, h) {
+    // ⚠️ 32x10, not 128x36. The plate is 38 mm x 11 mm — 128 px across it is 3368
+    // texels/m and the lettering was never legible at any distance the shoebox is
+    // viewed from. Two ruled lines read as engraving and cost a tenth of the memory.
+    map: canvasTex(32, 10, function (gc, w, h) {
       gc.fillStyle = "#b39a52"; gc.fillRect(0, 0, w, h);
-      gc.fillStyle = "#3a2f1c"; gc.font = "bold 15px Georgia, serif";
-      gc.textAlign = "center"; gc.textBaseline = "middle";
-      gc.fillText("1st  ·  STILL HERE", w / 2, h / 2 + 1);
+      gc.fillStyle = "rgba(58,47,28,0.8)";
+      gc.fillRect(3, 4, w - 6, 1); gc.fillRect(6, 6, w - 12, 1);
     }),
   }));
   plate.position.set(0, 0.008, 0.0325); g.add(plate);

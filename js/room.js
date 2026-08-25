@@ -620,7 +620,20 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
   rug.rotation.x = -Math.PI / 2; rug.position.set(rugCX, 0.012, rugCZ); rug.receiveShadow = true; scene.add(rug);
   clickable(rug, "the rug", null, "the rug — the whole galaxy, floor version");
   var wallM = texMat("assets/tex/wallpaper.jpg", 0x38404f, 0.95, 3.4, 1.3, 0.9);
-  var wallMSide = texMat("assets/tex/wallpaper.jpg", 0x38404f, 0.95, 2.6, 1.3, 0.9);
+  /* ⚠️ ONE MATERIAL, FOUR WALL SEGMENTS OF DIFFERENT LENGTHS — the same defect the
+   * hallway had. BoxGeometry normalises UVs per FACE, so a shared repeat of 2.6 put
+   * the same number of tiles on a 7.00 m wall, a 5.14 m one, a 0.94 m return and a
+   * 0.92 m lintel: the paper's tile measured 2.69 m on one and 0.36 m on the next,
+   * 5.5x apart, meeting at the doorway. Each segment now gets its own material sized
+   * to the BACK wall's density, so the paper reads as one roll right round the room.
+   * ⚠️ every one of them has to reach the paint box and the reset below, or swapping
+   * a wallpaper would repaint the back wall and leave the sides on the old print. */
+  var BED_TILE_U = 8.7 / 3.4, BED_TILE_V = 3.4 / 1.3;   // 2.559 m and 2.615 m per tile
+  var wallSideMats = [], wallSideLens = [];
+  function sideWallM(len, hgt) {
+    var m = texMat("assets/tex/wallpaper.jpg", 0x38404f, 0.95, len / BED_TILE_U, hgt / BED_TILE_V, 0.9);
+    wallSideMats.push(m); wallSideLens.push(len); return m;
+  }
   // ⚠️ WALL_X is the side walls' centre; their inner faces are at ±(WALL_X - 0.05).
   // The room was 7.1m across and had filled up (Kyle: "starting to feel crowded"), so
   // it was widened to 8.6m. Anything mounted on a side wall reads from WALL_X — door,
@@ -669,10 +682,10 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
   // The left wall has a REAL doorway cut in it now (the hallway is on the other
   // side): a long piece north of the door, a short piece south of it, and a
   // lintel over the opening (z 1.64..2.56 — exactly where the door slab hangs).
-  var left = box(0.1, 3.4, 5.14, wallMSide); left.position.set(-WALL_X, 1.7, -0.93); scene.add(left);
-  var leftS = box(0.1, 3.4, 0.94, wallMSide); leftS.position.set(-WALL_X, 1.7, 3.03); scene.add(leftS);
-  var leftL = box(0.1, 1.35, 0.92, wallMSide); leftL.position.set(-WALL_X, 2.725, 2.1); scene.add(leftL);
-  var right = box(0.1, 3.4, 7, wallMSide); right.position.set(WALL_X, 1.7, 0); scene.add(right);
+  var left = box(0.1, 3.4, 5.14, sideWallM(5.14, 3.4)); left.position.set(-WALL_X, 1.7, -0.93); scene.add(left);
+  var leftS = box(0.1, 3.4, 0.94, sideWallM(0.94, 3.4)); leftS.position.set(-WALL_X, 1.7, 3.03); scene.add(leftS);
+  var leftL = box(0.1, 1.35, 0.92, sideWallM(0.92, 1.35)); leftL.position.set(-WALL_X, 2.725, 2.1); scene.add(leftL);
+  var right = box(0.1, 3.4, 7, sideWallM(7, 3.4)); right.position.set(WALL_X, 1.7, 0); scene.add(right);
   var stripe = new THREE.Mesh(new THREE.PlaneGeometry(8.7, 0.28), mat(0x8a4d5e, 0.95)); // 90s wallpaper border
   stripe.position.set(0, 2.6, -2.54); scene.add(stripe);
   var skirt = new THREE.Mesh(new THREE.PlaneGeometry(8.7, 0.14), mat(0x2a2019, 0.85));
@@ -5816,7 +5829,7 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
   // choice instead of silently getting the snow back on their next visit.
   if (paintState.noSeason && !paintState.season) { paintState.season = "summer"; delete paintState.noSeason; }
   var PAINT = {
-    walls: { label: "the walls", mats: [wallM, wallMSide], opts: [
+    walls: { label: "the walls", mats: [wallM].concat(wallSideMats), opts: [
       ["as found", 0xffffff], ["mint", 0xcfe4d2], ["peach", 0xf2d4c2],
       ["sky", 0xc6d8f0], ["lavender", 0xdccce8], ["butter", 0xf0e6be]] },
     carpet: { label: "the carpet", mats: [floorM], opts: [
@@ -5839,7 +5852,11 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
   // opts: [label, file, repX, repY, treasuresNeeded] — materials unlock like themes do,
   // by collectibles earned (the play-to-decorate loop). 0/absent = free from night one.
   var MAT_TEX = {
-    walls: { mats: [wallM, wallMSide], scales: [1, 0.78], bump: 0.9, label: "the wallpaper", opts: [
+    // ⚠️ scales are per-material and index-aligned with mats: a swapped print's repeat
+    // is authored for the 8.7 m back wall, so each side segment takes its own share.
+    walls: { mats: [wallM].concat(wallSideMats),
+      scales: [1].concat(wallSideLens.map(function (L) { return L / 8.7; })),
+      bump: 0.9, label: "the wallpaper", opts: [
       // order is FROZEN (saved paintState + theme wallsTex index into it) — needs vary, order doesn't
       ["as found", null],
       ["glow stars", "wp-stars.webp", 4.4, 1.65, 0],
@@ -6117,7 +6134,7 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
   function pbWash() { // back to as-found
     paintState = {};
     saveJSON("room-paint", paintState);
-    [wallM, wallMSide, floorM, rug.material, woodM, woodMSide].forEach(function (m) { m.userData.tint = null; m.color.set(0xffffff); });
+    [wallM, floorM, rug.material, woodM, woodMSide].concat(wallSideMats).forEach(function (m) { m.userData.tint = null; m.color.set(0xffffff); });
     doorM.userData.tint = null; if (doorM.userData.base != null) doorM.color.set(doorM.userData.base);
     if (neonMesh) { if (neonMesh.material.map) neonMesh.material.map.dispose(); neonMesh.material.map = neonTex(0xff5aa8); neonMesh.material.color.set(0xffffff); neonMesh.material.needsUpdate = true; }
     applyPaint();

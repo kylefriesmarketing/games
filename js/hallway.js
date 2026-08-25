@@ -141,6 +141,29 @@ export function buildHallway(ctx) {
   });
   hwallT.wrapS = hwallT.wrapT = THREE.RepeatWrapping; hwallT.repeat.set(4, 1.6);
   var hwallM = new THREE.MeshStandardMaterial({ map: hwallT, roughness: 0.95 });
+
+  /* ⚠️⚠️ EVERY WALL PANEL GETS ITS OWN REPEAT. BoxGeometry normalises UVs PER FACE, so
+   * one shared material means one shared TILE COUNT on faces of wildly different size.
+   * The hall's west wall alone is built from panels of 5.07, 2.55, 1.24 and 0.31 m and
+   * the wallpaper's pinstripe measured 15.8, 8.0, 3.9 and 1.0 cm across them — a 16x
+   * jump on ONE continuous wall, the panels meeting edge to edge at the door jambs.
+   * paperWallM scales the repeat by the face's real size, so the pitch is the same
+   * everywhere. A clone shares the texture's Source: no second GPU upload.
+   * ⚠️ PHASE still resets at each panel edge, and that is fine — wallpaper is hung in
+   * strips and a seam at a door jamb is what a real wall looks like. It is the PITCH
+   * changing that read as broken.
+   * ⚠️⚠️ ANY MATERIAL A HELPER MAKES MUST GO INTO LOOK_EXTRA. LOOK_MATS is a fixed
+   * list built near the bottom of this file and the house LOOKS lerp material.color
+   * over it — a material that is not in it silently stops taking the paint, which is
+   * exactly the bug the comment on LOOK_MATS already records happening twice. */
+  var LOOK_EXTRA = [];
+  function paperWallM(lenU, lenV, rough) {
+    var t = hwallT.clone(); t.needsUpdate = true;
+    t.wrapS = t.wrapT = THREE.RepeatWrapping;
+    t.repeat.set(Math.max(0.2, lenU) * 0.789, Math.max(0.2, lenV) * 0.471);  // the 5.07 m run's own measured density
+    var m = new THREE.MeshStandardMaterial({ map: t, roughness: rough == null ? 0.95 : rough });
+    LOOK_EXTRA.push(m); return m;
+  }
   // the WEST wall is cut for the kitchen doorway — third hole in this house, same
   // lesson each time: a door you can walk through needs an opening, not a slab
   var KDO = { z0: -0.90, z1: 0.20, y1: 2.16 };
@@ -161,7 +184,7 @@ export function buildHallway(ctx) {
   [[Z_N, KDO.z0, 0, 3.4], [KDO.z1, LDO.z0, 0, 3.4], [LDO.z1, GDO.z0, 0, 3.4], [GDO.z1, Z_S, 0, 3.4],
    [KDO.z0, KDO.z1, KDO.y1, 3.4], [LDO.z0, LDO.z1, LDO.y1, 3.4],
    [GDO.z0, GDO.z1, GDO.y1, 3.4]].forEach(function (p) {
-    var seg = box(0.1, p[3] - p[2], p[1] - p[0], hwallM);
+    var seg = box(0.1, p[3] - p[2], p[1] - p[0], paperWallM(p[1] - p[0], p[3] - p[2]));
     seg.position.set(W_IN - 0.05, (p[2] + p[3]) / 2, (p[0] + p[1]) / 2); add(seg);
   });
   // the hall's OWN east wall, south of where the bedroom stops — CUT for the closet.
@@ -183,7 +206,7 @@ export function buildHallway(ctx) {
    [CDO.z1, Z_S + 0.1, 0, 3.4],         // south of it
    [CDO.z0, CDO.z1, CDO.y1, 3.4]]       // the header over it, opening-width only
     .forEach(function (p) {
-      var seg = box(0.1, p[3] - p[2], p[1] - p[0], hwallM);
+      var seg = box(0.1, p[3] - p[2], p[1] - p[0], paperWallM(p[1] - p[0], p[3] - p[2]));
       seg.position.set(E_IN + 0.05, (p[2] + p[3]) / 2, (p[0] + p[1]) / 2); add(seg);
     });
   // the NORTH cap is cut too, now that the front door opens onto a real porch.
@@ -199,7 +222,7 @@ export function buildHallway(ctx) {
   [[W_IN - 0.1, FDO.x0, 0, 3.4],
    [FDO.x1, E_IN + 0.1, 0, 3.4],
    [FDO.x0, FDO.x1, FDO.y1, 3.4]].forEach(function (p) {
-    var seg = box(p[1] - p[0], p[3] - p[2], 0.1, hwallM);
+    var seg = box(p[1] - p[0], p[3] - p[2], 0.1, paperWallM(p[1] - p[0], p[3] - p[2]));
     seg.position.set((p[0] + p[1]) / 2, (p[2] + p[3]) / 2, Z_N - 0.05); add(seg);
   });
   // ⚠️ the SOUTH cap has a hole in it. Built as one slab (like capN) the sliding
@@ -211,7 +234,7 @@ export function buildHallway(ctx) {
    [SDO.x0, SDO.x1, SDO.y1, 3.4]]           // ⚠️ the header spans the OPENING only —
     // full width it sat on top of both side segments (0.52m² each) at identical z
     .forEach(function (p) {
-      var seg = box(p[1] - p[0], p[3] - p[2], 0.1, hwallM);
+      var seg = box(p[1] - p[0], p[3] - p[2], 0.1, paperWallM(p[1] - p[0], p[3] - p[2]));
       seg.position.set((p[0] + p[1]) / 2, (p[2] + p[3]) / 2, Z_S + 0.05); add(seg);
     });
   // The ceiling is TWO pieces, not one, because the stairs go through it — same
@@ -259,9 +282,9 @@ export function buildHallway(ctx) {
    * while the stair camera flew up it. They span the whole gap now (ceiling top
    * 3.05 to the floor above). The north side stays open on purpose: that is where
    * you step off the flight onto the landing. */
-  var stwE = box(0.1, 0.51, STW.z1 - STW.z0, hwallM);
+  var stwE = box(0.1, 0.51, STW.z1 - STW.z0, paperWallM(STW.z1 - STW.z0, 0.51));
   stwE.position.set(STW.x1 - 0.05, 3.205, (STW.z0 + STW.z1) / 2); add(stwE);
-  var stwS = box(STW.x1 - STW.x0, 0.51, 0.1, hwallM);
+  var stwS = box(STW.x1 - STW.x0, 0.51, 0.1, paperWallM(STW.x1 - STW.x0, 0.51));
   stwS.position.set((STW.x0 + STW.x1) / 2, 3.205, STW.z1 - 0.05); add(stwS);
   // ⚠️⚠️ BASEBOARDS ARE BOXES THAT STAND PROUD, NOT PLANES AT +0.001. A 1mm offset
   // is FAR below what the depth buffer can resolve with near 0.1 / far 120 — the
@@ -391,7 +414,7 @@ export function buildHallway(ctx) {
      [0.10, LIV.ce, LIV.z1 - LIV.z0 + 0.2, LIV.x0 - 0.05, LIV.ce / 2, (LIV.z0 + LIV.z1) / 2],
      [LIV_SE - LIV.x0, LIV.ce, 0.10, (LIV.x0 + LIV_SE) / 2, LIV.ce / 2, LIV.z1 + 0.05]
     ].forEach(function (w) {
-      var m2 = box(w[0], w[1], w[2], livWallM); m2.position.set(w[3], w[4], w[5]); add(m2);
+      var m2 = box(w[0], w[1], w[2], paperWallM(Math.max(w[0], w[2]), w[1], 0.94)); m2.position.set(w[3], w[4], w[5]); add(m2);
     });
     // the front window: this room looks down the drive at the street
     var LWZ = LIV.z0 + 1.30, LWW = 1.70, LWY0 = 0.95, LWY1 = 2.10;
@@ -1406,6 +1429,10 @@ export function buildHallway(ctx) {
       if (r[1] - r[0] < 0.02 || r[3] - r[2] < 0.02) return;
       var fl = new THREE.Mesh(new THREE.PlaneGeometry(r[1] - r[0], r[3] - r[2]), upFloorM);
       fl.rotation.x = -Math.PI / 2; fl.position.set((r[0] + r[1]) / 2, UPF.fl + 0.005, (r[2] + r[3]) / 2);
+      /* ⚠️ the landing was the one floor in the house with no relief — the hall,
+       * the kitchen, the living room and the garage all carry a bump. */
+      var upB = bumpFrom(upFloorT, 1.8);
+      if (upB) { upB.repeat.copy(upFloorT.repeat); fl.material = fl.material.clone(); fl.material.bumpMap = upB; fl.material.bumpScale = 0.9; }
       fl.receiveShadow = true; add(fl);
       /* ⚠️ A PlaneGeometry HAS ONE FACE. This one points up, so from underneath the
        * storey above had NO FLOOR — stand in the hall, look up the stairwell, and you
@@ -1423,11 +1450,11 @@ export function buildHallway(ctx) {
     // the outer walls of the storey
     [[UPF.x1 - UPF.x0 + 0.2, 0.10, (UPF.x0 + UPF.x1) / 2, UPF.z0 - 0.05],
      [UPF.x1 - UPF.x0 + 0.2, 0.10, (UPF.x0 + UPF.x1) / 2, UPF.z1 + 0.05]].forEach(function (w) {
-      var m2 = box(w[0], UPF.ce - UPF.fl, w[1], upWallM);
+      var m2 = box(w[0], UPF.ce - UPF.fl, w[1], paperWallM(Math.max(w[0], w[1]), UPF.ce - UPF.fl));
       m2.position.set(w[2], (UPF.fl + UPF.ce) / 2, w[3]); add(m2);
     });
     [UPF.x0 - 0.05, UPF.x1 + 0.05].forEach(function (wx) {
-      var m3 = box(0.10, UPF.ce - UPF.fl, UPF.z1 - UPF.z0, upWallM);
+      var m3 = box(0.10, UPF.ce - UPF.fl, UPF.z1 - UPF.z0, paperWallM(UPF.z1 - UPF.z0, UPF.ce - UPF.fl));
       m3.position.set(wx, (UPF.fl + UPF.ce) / 2, (UPF.z0 + UPF.z1) / 2); add(m3);
     });
     /* the corridor's north wall, with the three doorways cut into it. The stairwell
@@ -1453,7 +1480,7 @@ export function buildHallway(ctx) {
       DOORS.forEach(function (d) { if (Math.abs(mid - d.x) < d.w / 2) isDoor = true; });
       var h0 = isDoor ? UPF.fl + 2.05 : UPF.fl, h1 = UPF.ce;
       if (h1 - h0 < 0.02) continue;
-      var seg = box(a1 - a0, h1 - h0, 0.10, upWallM);
+      var seg = box(a1 - a0, h1 - h0, 0.10, paperWallM(a1 - a0, h1 - h0));
       seg.position.set(mid, (h0 + h1) / 2, LAN.z0 - 0.05); add(seg);
     }
     /* ⚠️⚠️ THE CORRIDOR'S SOUTH WALL DID NOT EXIST. LAN.z1 appeared in this block only
@@ -1480,12 +1507,12 @@ export function buildHallway(ctx) {
      * z = 2.450 and traded one leak for 20 flashing rays — the same mistake this whole
      * pass has been about. Overlap, never abut. */
     [STW.x0 - 0.13, STW.x1 + 0.13].forEach(function (wx) {
-      var shw = box(0.10, (UPF.ce - UPF.fl) + 0.10, STW.z1 - LAN.z1 - 0.05, upWallM);
+      var shw = box(0.10, (UPF.ce - UPF.fl) + 0.10, STW.z1 - LAN.z1 - 0.05, paperWallM(STW.z1 - LAN.z1 - 0.05, (UPF.ce - UPF.fl) + 0.10));
       shw.position.set(wx, (UPF.fl + UPF.ce) / 2 - 0.05, (LAN.z1 + 0.05 + STW.z1) / 2); add(shw);
     });
     [[UPF.x0, STW.x0], [STW.x1, UPF.x1]].forEach(function (r2) {
       if (r2[1] - r2[0] < 0.02) return;
-      var sw2 = box(r2[1] - r2[0], UPF.ce - UPF.fl, 0.10, upWallM);
+      var sw2 = box(r2[1] - r2[0], UPF.ce - UPF.fl, 0.10, paperWallM(r2[1] - r2[0], UPF.ce - UPF.fl));
       sw2.position.set((r2[0] + r2[1]) / 2, (UPF.fl + UPF.ce) / 2, LAN.z1 + 0.05); add(sw2);
     });
     // the doors themselves, shut, each with its handle and its own light under it
@@ -1814,7 +1841,7 @@ export function buildHallway(ctx) {
    * fixture you can actually see. Each room is one person's evidence. */
   (function () {
     [-8.00, -0.20].forEach(function (dx) {                 // the two dividing walls
-      var dw = box(0.10, UPF.ce - UPF.fl, RZ1 - RZ0 + 0.24, upWallM);
+      var dw = box(0.10, UPF.ce - UPF.fl, RZ1 - RZ0 + 0.24, paperWallM(RZ1 - RZ0 + 0.24, UPF.ce - UPF.fl));
       dw.position.set(dx, (UPF.fl + UPF.ce) / 2, (RZ0 + RZ1) / 2); add(dw);
     });
     function rtag(m, ri, name, hint) {
@@ -3481,7 +3508,31 @@ export function buildHallway(ctx) {
       c.fillRect(Math.random() * w, Math.random() * h, 30 + Math.random() * 60, 18 + Math.random() * 30);
     }
   });
-  var grassM = ground(grassT, 26, 14, 0x9fb894, 1, 1.6);
+  var grassM = ground(grassT, 26, 14, 0x9fb894, 1, 1.6);   // kept: the pool apron and anything else still sharing it
+
+  /* ⚠️⚠️ WORLD-ALIGNED, not just per-plane. Thirteen lawn planes from 18 x 5 m to
+   * 80 x 23 m shared one material and therefore one tile count, so the mower stripe
+   * measured 6.7 cm on one plane and 59.3 cm on the one it abuts — a 9x change of
+   * pitch across a seam you can stand on.
+   * ⚠️ BUT the back lawn's planes deliberately OVERLAP (see the note at the back-lawn
+   * fill), and that is only safe while both sides sample the SAME grass. Giving each
+   * plane its own repeat would have made two overlapping planes disagree on tile
+   * PHASE and z-fight between two different patterns — trading one bug for a worse
+   * one. So the tiling is pinned to WORLD position instead: repeat scales with the
+   * plane's size and offset cancels its origin, so any two planes agree everywhere
+   * they meet or overlap, seams included.
+   * The plane is rotated -PI/2 about X, so V runs against +Z — hence the sign. */
+  function lawnM(wx, wz, cx, cz) {
+    var ku = 0.325, kv = 0.74;                    // the 80 x 18.9 plane's own density
+    var t = grassT.clone(); t.needsUpdate = true;
+    t.wrapS = t.wrapT = THREE.RepeatWrapping;
+    t.repeat.set(wx * ku, wz * kv);
+    t.offset.set((cx - wx / 2) * ku, -(cz + wz / 2) * kv);
+    var m = new THREE.MeshStandardMaterial({ map: t, color: 0x9fb894, roughness: 1 });
+    var b = bumpFrom(t, 1.8);
+    if (b) { b.repeat.copy(t.repeat); b.offset.copy(t.offset); m.bumpMap = b; m.bumpScale = 1.6; }
+    LOOK_EXTRA.push(m); return m;
+  }
 
   /* Contact shade. Nothing outdoors casts a real shadow — yardSun deliberately
    * doesn't, because a shadow-casting directional over this much geometry is not
@@ -3546,7 +3597,7 @@ export function buildHallway(ctx) {
       : [[-45, 35, zA, zB]];
     rects.forEach(function (r) {
       if (r[1] - r[0] < 0.001 || r[3] - r[2] < 0.001) return;
-      var lw = new THREE.Mesh(new THREE.PlaneGeometry(r[1] - r[0], r[3] - r[2]), grassM);
+      var lw = new THREE.Mesh(new THREE.PlaneGeometry(r[1] - r[0], r[3] - r[2]), lawnM(r[1] - r[0], r[3] - r[2], (r[0] + r[1]) / 2, (r[2] + r[3]) / 2));
       lw.rotation.x = -Math.PI / 2;
       lw.position.set((r[0] + r[1]) / 2, GROUND, (r[2] + r[3]) / 2); lw.receiveShadow = true; yadd(lw);
     });
@@ -4485,7 +4536,7 @@ export function buildHallway(ctx) {
   [[LAWN.x0, LAWN.x1, LAWN.z0, PHOLE.z0], [LAWN.x0, LAWN.x1, PHOLE.z1, LAWN.z1],
    [LAWN.x0, PHOLE.x0, PHOLE.z0, PHOLE.z1], [PHOLE.x1, LAWN.x1, PHOLE.z0, PHOLE.z1]]
     .forEach(function (lp3) {
-      var lw = new THREE.Mesh(new THREE.PlaneGeometry(lp3[1] - lp3[0], lp3[3] - lp3[2]), grassM);
+      var lw = new THREE.Mesh(new THREE.PlaneGeometry(lp3[1] - lp3[0], lp3[3] - lp3[2]), lawnM(lp3[1] - lp3[0], lp3[3] - lp3[2], (lp3[0] + lp3[1]) / 2, (lp3[2] + lp3[3]) / 2));
       lw.rotation.x = -Math.PI / 2;
       lw.position.set((lp3[0] + lp3[1]) / 2, GROUND, (lp3[2] + lp3[3]) / 2); badd(lw);
     });
@@ -4994,7 +5045,7 @@ export function buildHallway(ctx) {
   // z-fight resolves to the same green either way, so it cannot flicker.
   [[-45, 35, 4.0, 9.74], [-45, -20.86, 9.66, 26.74], [9.06, 35, 9.66, 26.74], [-45, 35, 26.66, 44]]
     .forEach(function (gf) {
-      var gp2 = new THREE.Mesh(new THREE.PlaneGeometry(gf[1] - gf[0], gf[3] - gf[2]), grassM);
+      var gp2 = new THREE.Mesh(new THREE.PlaneGeometry(gf[1] - gf[0], gf[3] - gf[2]), lawnM(gf[1] - gf[0], gf[3] - gf[2], (gf[0] + gf[1]) / 2, (gf[2] + gf[3]) / 2));
       gp2.rotation.x = -Math.PI / 2;
       gp2.position.set((gf[0] + gf[1]) / 2, GROUND, (gf[2] + gf[3]) / 2); badd(gp2);
     });
@@ -6122,7 +6173,13 @@ export function buildHallway(ctx) {
   // ⚠️ the sill's top is BURIED 2cm inside the floor slab, not flush with it — at a
   // shared y 0 the two top faces were coplanar across the whole opening strip,
   // which is the baseboard-flashing bug all over again.
-  var gSill = box(3.40, 0.40, 0.10, garFloorM); gSill.position.set(-10.40, -0.28, 4.41); add(gSill);
+  /* ⚠️ its own aspect: the sill is 3.40 x 0.40, so the floor material’s square 2x2
+   * repeat drew the concrete 8.5x wider than tall across it. */
+  var gSillT = garFloorT.clone(); gSillT.needsUpdate = true;
+  gSillT.wrapS = gSillT.wrapT = THREE.RepeatWrapping; gSillT.repeat.set(2, 0.24);
+  var gSillM = new THREE.MeshStandardMaterial({ map: gSillT, roughness: 0.98 });
+  LOOK_EXTRA.push(gSillM);
+  var gSill = box(3.40, 0.40, 0.10, gSillM); gSill.position.set(-10.40, -0.28, 4.41); add(gSill);
   var gThresh = box(0.46, 0.04, 1.04, mat(0x6b5638, 0.85)); gThresh.position.set(-7.62, 0.0, GDO_C); add(gThresh);   // ⚠️ GDO_C, not the old opening's hardcoded 5.60
   /* ---- the big door: four real panels on a track. It opens. --------------------
    * Lives in yardG so the SAME door reads from the driveway and from inside —
@@ -6660,15 +6717,31 @@ export function buildHallway(ctx) {
   });
   cinderT.wrapS = cinderT.wrapT = THREE.RepeatWrapping; cinderT.repeat.set(3, 1.4);
   var cinderM = new THREE.MeshStandardMaterial({ map: cinderT, roughness: 0.97 });
+  /* ⚠️ 128px textures at a FIXED repeat on walls of 10.70 m and 7.00 m: the north wall
+   * ran 35.9 texels/m, the lowest of any surface in the house, on a wall you stand a
+   * metre from — and it drew the blocks 117 x 25 cm when a real cinder block is
+   * 40 x 20. Per-wall clones at a real-world course size instead. */
+  function blockM(len, hgt) {                 // 42/128 of a tile is one block; target 0.40 m
+    var t = cinderT.clone(); t.needsUpdate = true;
+    t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(len * 0.820, hgt * 0.654);
+    var m = new THREE.MeshStandardMaterial({ map: t, roughness: 0.97 });
+    LOOK_EXTRA.push(m); return m;
+  }
+  function plankWallM(len, hgt) {              // 16/128 of a tile is one plank; target 0.20 m
+    var t = panelT.clone(); t.needsUpdate = true;
+    t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(len * 0.625, Math.max(0.6, hgt) * 0.41);
+    var m = new THREE.MeshStandardMaterial({ map: t, roughness: 0.85 });
+    LOOK_EXTRA.push(m); return m;
+  }
   var bsFloorM = mat(0x77756e, 0.98);
   var bsFloor = box(BSM.x1 - BSM.x0, 0.10, BSM.z1 - BSM.z0, bsFloorM);
   bsFloor.position.set((BSM.x0 + BSM.x1) / 2, BSM.fl - 0.05, (BSM.z0 + BSM.z1) / 2); add(bsFloor);
   bstag(bsFloor, "the basement floor", null, "cold through socks. everyone knows, everyone forgets.");
   var BSH = BSM.ce - BSM.fl, BSY = (BSM.ce + BSM.fl) / 2;
-  var bwN = box(BSM.x1 - BSM.x0, BSH, 0.12, cinderM); bwN.position.set((BSM.x0 + BSM.x1) / 2, BSY, BSM.z0 + 0.06); add(bwN);
-  var bwW = box(0.12, BSH, BSM.z1 - BSM.z0, cinderM); bwW.position.set(BSM.x0 + 0.06, BSY, (BSM.z0 + BSM.z1) / 2); add(bwW);
-  var bwS = box(BSM.x1 - BSM.x0, BSH, 0.12, panelM); bwS.position.set((BSM.x0 + BSM.x1) / 2, BSY, BSM.z1 - 0.06); add(bwS);
-  var bwE = box(0.12, BSH, BSM.z1 - BSM.z0, panelM); bwE.position.set(BSM.x1 - 0.06, BSY, (BSM.z0 + BSM.z1) / 2); add(bwE);
+  var bwN = box(BSM.x1 - BSM.x0, BSH, 0.12, blockM(BSM.x1 - BSM.x0, BSH)); bwN.position.set((BSM.x0 + BSM.x1) / 2, BSY, BSM.z0 + 0.06); add(bwN);
+  var bwW = box(0.12, BSH, BSM.z1 - BSM.z0, blockM(BSM.z1 - BSM.z0, BSH)); bwW.position.set(BSM.x0 + 0.06, BSY, (BSM.z0 + BSM.z1) / 2); add(bwW);
+  var bwS = box(BSM.x1 - BSM.x0, BSH, 0.12, plankWallM(BSM.x1 - BSM.x0, BSH)); bwS.position.set((BSM.x0 + BSM.x1) / 2, BSY, BSM.z1 - 0.06); add(bwS);
+  var bwE = box(0.12, BSH, BSM.z1 - BSM.z0, plankWallM(BSM.z1 - BSM.z0, BSH)); bwE.position.set(BSM.x1 - 0.06, BSY, (BSM.z0 + BSM.z1) / 2); add(bwE);
   bstag(bwS, "the paneling", null, "real simulated wood. the finest kind.");
   // ceiling in three pieces around the stairwell notch, joists and a duct below it
   [[BSM.x0, BSM.x1, BSM.z0, 0.35], [BSM.x0, BSM.x1, 1.30, BSM.z1], [-6.55, BSM.x1, 0.35, 1.30]]
@@ -6691,7 +6764,7 @@ export function buildHallway(ctx) {
     new THREE.MeshStandardMaterial({ color: 0x8a2f2a, roughness: 0.5, metalness: 0.3 }));
   lally.position.set(-2.4, BSY, 2.2); add(lally);
   bstag(lally, "the pole", null, "holds the whole house up. also holds the record for being run into.");
-  var stringer = box(0.08, 1.15, 2.45, panelM); stringer.position.set(-6.51, BSM.fl + 0.95, 1.55); add(stringer);
+  var stringer = box(0.08, 1.15, 2.45, plankWallM(2.45, 1.15)); stringer.position.set(-6.51, BSM.fl + 0.95, 1.55); add(stringer);
   // the den rug, couch, coffee table
   var rugT = canvasTex(128, 96, function (c, w, h) {
     c.fillStyle = "#5d3a2a"; c.fillRect(0, 0, w, h);
@@ -7516,7 +7589,11 @@ export function buildHallway(ctx) {
     // room's walls and the landing's were never in the list, so the paint stopped at
     // two doorways. All three are declared at function scope, so LOOK_BASE captures
     // their base hex on the next line with no other change.
-    livWallM, upWallM, upFloorM];   // garage, pool deck, den paneling too
+    livWallM, upWallM, upFloorM]
+    // ⚠️ the per-panel materials paperWallM/lawnM/blockM/plankWallM build at construction
+    // time. Without this the looks would repaint the house and stop dead at every
+    // wall and every blade of grass — the same failure the note above records.
+    .concat(LOOK_EXTRA);
   var LOOK_BASE = LOOK_MATS.map(function (m) { return m.color.getHex(); });
   // `need` = treasures required, the same currency the bedroom's ROOM_THEMES spend.
   // The bedroom ladder tops out at 9 of 21; the house goes all the way to 21, so the
@@ -8826,6 +8903,10 @@ export function buildHallway(ctx) {
     portalBegin: portalBegin, portalEnd: portalEnd, aimPortal: aimPortal,
     setPortalLive: setPortalLive,
     setWeather: setYardWeather, setSeason: setYardSeason,
-    camTick: camTick, glowTick: glowTick, refreshPhotos: refreshPhotos
+    camTick: camTick, glowTick: glowTick, refreshPhotos: refreshPhotos,
+    // audit hooks: the per-panel materials the helpers build are invisible from
+    // outside, and whether the house LOOKS reach them is exactly the thing that
+    // breaks silently. applyLook lets a test paint the house and measure it.
+    lookMats: function () { return LOOK_MATS.length; }, applyLook: applyLook
   };
 }
