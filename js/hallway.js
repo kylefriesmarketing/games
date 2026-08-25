@@ -7797,7 +7797,14 @@ export function buildHallway(ctx) {
     up2: new THREE.Vector3(-6.60, 1.70, 7.10),      // squared onto the bottom tread
     up3: new THREE.Vector3(-6.95, 2.55, 6.00),      // a few treads up
     up4: new THREE.Vector3(-6.95, 3.95, 4.40),      // halfway
-    uprest: new THREE.Vector3(-6.95, 5.07, 1.80),   // off the top, standing on the landing (z 1.80 = mid LAN; 2.20 stood 0.40 off the south wall)
+    /* ⚠️ THE WAY BACK DOWN HAS TO BE ON SCREEN FROM HERE. Standing at the stair head
+     * (x -6.95) the stairwell is 88 degrees off the corridor view — measured, the
+     * down-hitbox drew ZERO pixels at rest and only appeared at full mouse deflection,
+     * in the extreme corner, and never at all once you turned east. That is a room you
+     * cannot leave. Stepping east to the hall centreline puts the opening in the lower
+     * left of the resting view: 220 sampled rays land on it, closest at screen
+     * (-0.44, -0.02). Swept x -6.95..-4.60 by z 1.60..2.00; this is the best cell. */
+    uprest: new THREE.Vector3(-5.90, 5.07, 1.80),   // off the top and out onto the landing
     uplook: new THREE.Vector3(-15.60, 4.55, 1.60),  // down the corridor, west
     uplookB: new THREE.Vector3(2.60, 4.55, 1.60),   // and the other way, east
     upL1: new THREE.Vector3(-6.95, 2.20, -3.30),    // what you see on the way up: straight up the flight
