@@ -369,7 +369,19 @@ export function buildHallway(ctx) {
    * can reach. A null guard keeps the tick honest if the room ever fails to build. */
   var livLightH = null, livOn = true, livingLife = null;
   (function () {
-    var fl = new THREE.Mesh(new THREE.PlaneGeometry(LIV.x1 - LIV.x0, LIV.z1 - LIV.z0), plankM);
+    /* ⚠️ ITS OWN MATERIAL, not the hall's. PlaneGeometry UVs run 0..1 whatever the
+     * face measures, so sharing plankM gave this 9.7 x 3.65 m room the repeat tuned
+     * for the 3.1 m-wide hall: 63 texels/m across against 561 along — an 8.9:1 stretch
+     * that drew the boards 1.1 cm wide and turned the nail heads into 4.7 cm dashes.
+     * Cloned at the hall's own measured density, so the boards match through the door
+     * — which is what the tooltip has always claimed. */
+    var livFloorT = plankT.clone(); livFloorT.needsUpdate = true;
+    livFloorT.wrapS = livFloorT.wrapT = THREE.RepeatWrapping;
+    livFloorT.repeat.set((LIV.x1 - LIV.x0) * 0.387, (LIV.z1 - LIV.z0) * 0.327);
+    var livFloorM = new THREE.MeshStandardMaterial({ map: livFloorT, roughness: 0.9 });
+    var livFloorB = bumpFrom(livFloorT, 1.8);
+    if (livFloorB) { livFloorB.repeat.copy(livFloorT.repeat); livFloorM.bumpMap = livFloorB; livFloorM.bumpScale = 1.0; }
+    var fl = new THREE.Mesh(new THREE.PlaneGeometry(LIV.x1 - LIV.x0, LIV.z1 - LIV.z0), livFloorM);
     fl.rotation.x = -Math.PI / 2; fl.position.set((LIV.x0 + LIV.x1) / 2, 0.005, (LIV.z0 + LIV.z1) / 2);
     fl.receiveShadow = true; add(fl);
     ltag(fl, 'the living room floor', null, 'same boards as the hall. they ran out halfway and matched it as best they could.');
@@ -3401,6 +3413,11 @@ export function buildHallway(ctx) {
     g2.putImageData(d, 0, 0);
     var bt = new THREE.CanvasTexture(c);
     bt.wrapS = bt.wrapT = THREE.RepeatWrapping;
+    /* ⚠️ MATCH THE COLOUR MAP'S ANISOTROPY. Every relief surface in the house — the
+     * floors, the lawn, the road, the brick — sampled its colour at 4-8 and its bump
+     * at three.js's default of 1, and floors are exactly the grazing-angle case
+     * anisotropy exists for. The relief shimmered against a stable colour. */
+    bt.anisotropy = tex.anisotropy || 4;
     return bt;
   }
   function ground(tex, repX, repY, colour, rough, bumpScale) {
@@ -6071,7 +6088,10 @@ export function buildHallway(ctx) {
     c.strokeStyle = "rgba(30,30,34,0.4)"; c.lineWidth = 1;             // one honest crack
     c.beginPath(); c.moveTo(w * 0.15, h * 0.9); c.lineTo(w * 0.3, h * 0.62); c.lineTo(w * 0.34, h * 0.4); c.stroke();
   });
-  var garFloorM = new THREE.MeshStandardMaterial({ map: garFloorT, roughness: 0.98 });
+  // ⚠️ through ground() like every other floor: 1:1 over 4.5 x 4.1 m was 57 texels/m,
+  // the blurriest floor in the house, in the one room you walk into at ground level.
+  // 2x2 gives 114 and hands it the bump relief the others all have.
+  var garFloorM = ground(garFloorT, 2, 2, 0xffffff, 0.98, 0.7);
   var benchM = mat(0x8a6f4a, 0.85), steelM = new THREE.MeshStandardMaterial({ color: 0x454b52, roughness: 0.4, metalness: 0.6 });
   function gtag(m, name, action, hint) { clickable(m, name, action, hint); m.userData.space = "garage"; return m; }
   // shell
@@ -6717,6 +6737,11 @@ export function buildHallway(ctx) {
     whl.rotation.z = Math.PI / 2; whl.position.set(cp3[0], 0.045, cp3[1]); cartG.add(whl);
   });
   var crt = box(0.66, 0.52, 0.56, mat(0x4a4438, 0.7)); crt.position.set(0, 1.05, -0.02); cartG.add(crt);
+  /* ⚠️ RepeatWrapping is REQUIRED here: this texture's offset.y is animated 0->1 at
+   * 3.1 Hz (see bsmTick). Under three.js's default ClampToEdge an offset does not
+   * wrap — it stretches the edge row across the uncovered band, so at offset 0.4 the
+   * top 40% of the screen became one scanline smeared into hard vertical bars, and
+   * the band grew and reset three times a second. The den TV was a strobe, not snow. */
   var staticT = canvasTex(64, 64, function (c, w, h) {
     for (var sp2 = 0; sp2 < w * h / 2; sp2++) {
       var vv = 90 + Math.random() * 165 | 0;
@@ -6724,6 +6749,7 @@ export function buildHallway(ctx) {
       c.fillRect(Math.random() * w | 0, Math.random() * h | 0, 1, 1);
     }
   });
+  staticT.wrapS = staticT.wrapT = THREE.RepeatWrapping;
   var crtScr = new THREE.Mesh(new THREE.PlaneGeometry(0.52, 0.40),
     new THREE.MeshStandardMaterial({ map: staticT, emissiveMap: staticT, color: 0x8a8f96,
       emissive: 0xbfc8d8, emissiveIntensity: 0.7, roughness: 0.3 }));
@@ -7373,7 +7399,7 @@ export function buildHallway(ctx) {
   // the den breathes: static crawls, fish patrol, the tank light sways
   function bsmTick(t) {
     if (crtOn) {
-      staticT.offset.y = (t * 3.1) % 1;
+      staticT.offset.y = (t * 3.1) % 1;   // wraps because staticT is RepeatWrapping — see its declaration
       crtScr.material.emissiveIntensity = 0.62 + Math.sin(t * 23) * 0.08 + Math.sin(t * 7.3) * 0.05;
       tvLite.intensity = 0.5 + Math.sin(t * 19) * 0.08;
     }

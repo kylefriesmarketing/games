@@ -317,6 +317,7 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
     g.putImageData(d, 0, 0);
     var bt = new THREE.CanvasTexture(c);
     bt.wrapS = bt.wrapT = THREE.RepeatWrapping;
+    bt.anisotropy = tex.anisotropy || 4;   // ⚠️ a bump at 1 aliases under a colour map at 8 — see hallway.js bumpFrom
     bumpCache[key] = bt;
     return bt;
   }
@@ -2778,6 +2779,10 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
     { key: "curiouser", label: "CURIOUSER", title: "CURIOUSER", url: BASE + "alice/", tip: "CURIOUSER — wake as yourself" },
     { key: "redink", label: "THE RED INK", title: "DRACULA", url: BASE + "dracula/", tip: "DRACULA: THE RED INK — argue with the book" },
     { key: "george", label: "G FOR GEORGE", title: "G FOR GEORGE", url: BASE + "george/", tip: "G FOR GEORGE — 336 feet to the trees" },
+    // ⚠️ poster-bite.jpg had been sitting in assets/tex unwired — the asset audit found
+    // it on disk with nothing pointing at it. BITE is in the garage; this puts it on the
+    // bedroom wall too, which was the outstanding half of its move-in.
+    { key: "bite", label: "BITE", url: BASE + "bite/", tip: "BITE — quiet fishing at Mud Lake" },
     // `painted` = no .jpg ships for this one, go straight to POSTER_PAINT. Without it
     // the loader still recovers via its 404 handler, but every visitor eats a console
     // error on load. Delete the flag the day a real print lands in assets/tex.
