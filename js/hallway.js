@@ -8389,73 +8389,29 @@ export function buildHallway(ctx) {
     back:     { x: [-32, 26], z: [Z_S - 0.70, 46], y: [GROUND - 1.60, GROUND + 12] },
   };
 
-  /* ---- PER-SPACE LIGHT GATING -------------------------------------------------
-   * The house runs ~42 point lights and three.js counts every visible light in the
-   * scene per render, so standing in the garage the fragment shader still looped
-   * over the basement's neon, the landing's bulbs and the fairy lights two floors
-   * up — NUM_POINT_LIGHTS was 42 everywhere outside the bedroom. Each light is
-   * classified ONCE by position against SPACE_BOUNDS (this survives lights created
-   * in nested blocks and helpers — no variable scoping to fight), and only the
-   * current space's set plus its sightline neighbours stays visible. Doorway
-   * sightlines from the recon: the hall sees the living room, the kitchen spill
-   * and the stairwell; the rooms upstairs see each other's ajar doors; the
-   * basement and garage each see the hall. OUTDOOR lights (yard, street, back
-   * moon, pool) are deliberately unclassified and never gate — the moonlight
-   * through the slider glass is load-bearing from the hall, and yardG already has
-   * its own gate. Program note: each distinct visible-light count compiles its
-   * shader variants once and then they live in three.js's program cache; the
-   * union-during-walk below means the swap lands mid-transition, not on arrival. */
-  var LG_ALLOW = {
-    bedroom:  ["hall"],
-    hall:     ["hall", "living", "kitchen", "upstairs", "back"],
-    kitchen:  ["kitchen", "hall", "back"],      // the kitchen window looks at the yard
-    living:   ["living", "hall", "back"],
-    porch:    ["hall"],
-    back:     ["back", "hall", "kitchen"],
-    garage:   ["garage", "hall"],
-    basement: ["basement", "hall"],
-    upstairs: ["upstairs", "room0", "room1", "room2", "hall"],
-    room0:    ["room0", "room1", "room2", "upstairs"],
-    room1:    ["room0", "room1", "room2", "upstairs"],
-    room2:    ["room0", "room1", "room2", "upstairs"],
-  };
-  var lgSets = null, lgSettled = "hall", lgApplied = "";
-  function lgClassify() {
-    lgSets = [];
-    // most-specific first: the three rooms are carved out of the upstairs box
-    var order = ["basement", "room0", "room1", "room2", "upstairs", "living", "kitchen", "garage", "hall", "back"];
-    var v6 = new THREE.Vector3();
-    g.traverse(function (o) {
-      if (!o.isPointLight) return;
-      o.getWorldPosition(v6);
-      for (var i6 = 0; i6 < order.length; i6++) {
-        var b6 = SPACE_BOUNDS[order[i6]];
-        if (v6.x >= Math.min(b6.x[0], b6.x[1]) && v6.x <= Math.max(b6.x[0], b6.x[1]) &&
-            v6.z >= Math.min(b6.z[0], b6.z[1]) && v6.z <= Math.max(b6.z[0], b6.z[1]) &&
-            v6.y >= b6.y[0] && v6.y <= b6.y[1]) { lgSets.push({ l: o, sp: order[i6] }); return; }
-      }
-      // no match (outdoor, or straddling a wall): never gated — always-on is the safe failure
-    });
-  }
-  function lgTick() {
-    if (!lgSets) lgClassify();
-    if (mode === "idle") lgSettled = space;
-    var key6 = lgSettled + "|" + space;
-    if (key6 === lgApplied) return;    // sets only change on a transition
-    lgApplied = key6;
-    var allow6 = {};
-    (LG_ALLOW[lgSettled] || []).forEach(function (s6) { allow6[s6] = 1; });
-    (LG_ALLOW[space] || []).forEach(function (s6) { allow6[s6] = 1; });
-    allow6[lgSettled] = 1; allow6[space] = 1;   // both endpoints of a walk stay lit
-    for (var i6 = 0; i6 < lgSets.length; i6++) lgSets[i6].l.visible = !!allow6[lgSets[i6].sp];
-  }
+  /* ⚠️⚠️ PER-SPACE LIGHT GATING WAS HERE, AND IT WAS A NET LOSS — DO NOT REBUILD IT.
+   * Hiding the lights a room cannot see looked like free performance: fewer lights in
+   * the fragment shader. It is not, because three.js bakes NUM_POINT_LIGHTS into the
+   * program key. Give twelve spaces twelve different light counts and every material
+   * in the house recompiles the first time you walk into each one. Measured on a cold
+   * cache, walking bedroom->hall->kitchen->living->basement->garage->upstairs->room1:
+   * 81 shader programs grew to 149, and the first frame in each NEW count cost
+   * 141-289 ms while a space that happened to REUSE a count (living and garage both
+   * land on the hall’s 29) cost 15-18 ms and compiled nothing. That is the stutter
+   * you feel walking through the house.
+   * The light count must stay CONSTANT. Today it has exactly two states — the bedroom
+   * (hallway group hidden) and everywhere else — which is what shipped for months.
+   * If you want fewer lights per fragment, the only safe shape is a FIXED-SIZE POOL:
+   * N lights that never leave the scene and get repositioned per space, so the count
+   * never moves. Gating by .visible, or by hiding a group that contains lights, is the
+   * thing that costs. (The same trap is why the passing car, the ice cream truck, the
+   * pool light, the CRT and the aquarium drive INTENSITY and never .visible.) */
 
   /* ---- per-frame life ---------------------------------------------------------
    * dim comes from the room (the bed's "five more minutes" fades the whole
    * house); the hall breathes with it. The TV flicker under the living room
    * door never stops. Nobody has ever seen the TV. */
   function glowTick(t, dt, dim) {
-    lgTick();
     var on = lightsOn ? 1 : 0.06;
     var breathe = 0.94 + 0.06 * Math.sin(t * 0.8);
     [bulbS, bulbN, bulbB].forEach(function (b) {

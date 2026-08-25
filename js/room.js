@@ -6743,14 +6743,11 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
     lavaLight.intensity = (lavaOn ? 0.95 : 0.06) * dim;
     shelfGlow.intensity = 0.55 * dim;
     if (brainGlow) brainGlow.intensity = 0.5 * dim;   // it burned full-pink at deepest night
-    /* the bedroom's seven point lights were in every shader in the house — from the
-     * kitchen, the basement, the attic. Nothing outside the bedroom, the hall and
-     * the porch (the lit window from the street) can see them. hall.busy() keeps
-     * them up through any walk so a transition never pops. */
-    var spB = hall && hall.space ? hall.space() : "bedroom"; var bedVis = spB === "bedroom" || spB === "hall" || spB === "porch" || (hall && hall.busy && hall.busy());
-    [lampLight, crtLight, shelfGlow, neonLight, chestGlow, brainGlow, lavaLight].forEach(function (bl) {
-      if (bl && bl.visible !== bedVis) bl.visible = bedVis;
-    });
+    /* ⚠️ the seven bedroom lights were gated by .visible here for one day and it was
+     * REVERTED: toggling a light out of the scene changes NUM_POINT_LIGHTS, which is
+     * part of three.js’s program key, so every material recompiled on the way in and
+     * out of the bedroom. See the long note in hallway.js where its twin used to live.
+     * These seven stay in the scene for the life of the page. */
     if (nap > 0.5 && t > nextSnore) { nextSnore = t + 3.6; snoreSfx(); }
     // the TV surfs between dead air and whatever's on at this hour
     tvFlip -= dt;
