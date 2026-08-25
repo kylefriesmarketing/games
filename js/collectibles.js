@@ -26,7 +26,7 @@ export function buildBracelet() { // CHOOSE WISELY — Milo and June's, the one 
   // the plait: three thin threads wound round the core at three phases
   [[0xffcf7a, 0], [0x8ad7ff, 2.09], [0xe08aa0, 4.19]].forEach(function (th) {
     var pts = [];
-    for (var k = 0; k <= 96; k++) {
+    for (var k = 0; k < 96; k++) {   // NOT <=: a closed curve supplies the wrap itself — a duplicated closure point kinks the seam 5.6mm
       var a = k / 96 * Math.PI * 2, w = a * 9 + th[1];
       pts.push(new THREE.Vector3(Math.cos(a) * (0.05 + Math.cos(w) * 0.0062), 0.011 + Math.sin(w) * 0.0062, Math.sin(a) * (0.05 + Math.cos(w) * 0.0062)));
     }

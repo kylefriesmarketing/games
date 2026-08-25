@@ -1316,7 +1316,9 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
           g.fillStyle = "#f1e9d6"; g.fillText("\u2660", w / 2 - 26, h - 36); g.fillText("\u2663", w / 2 + 26, h - 36); } } },
     { t: "DRACULA", c: 0xb31f2b, url: BASE + "dracula/", tip: "DRACULA — the ensemble hunt; argue with the book",
       sp: { bg: "#e6dcc2", fg: "#2a1d14", rule: "rgba(42,29,20,0.35)",              // the manuscript, with the red-ink correction
-        after: function (g, w, h) { g.save(); g.translate(w / 2, h / 2 + 70); g.rotate(-Math.PI / 2);
+        // +170, not +70: canvas-y is ALONG the rotated title, and +70 painted the
+        // red ink across the D and R; +170 clears the word and reads as a footnote
+        after: function (g, w, h) { g.save(); g.translate(w / 2, h / 2 + 170); g.rotate(-Math.PI / 2);
           g.fillStyle = "#b31f2b"; g.font = "italic 15px Georgia, serif"; g.textAlign = "center";
           g.fillText("(it could not)", 0, 0); g.restore(); } } },
     { t: "G FOR GEORGE", c: 0x33507a, url: BASE + "george/", tip: "G FOR GEORGE — the true Great Escape; 336 feet to the trees",
@@ -5295,9 +5297,12 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
      * supersampled size, from the camera you are actually looking through. The resize
      * → render → toDataURL → restore all happens in ONE synchronous task, and the
      * browser only composites between tasks, so the flicker never reaches the screen. */
-    var szW = renderer.domElement.width, szH = renderer.domElement.height;   // backing store px
+    // CSS px via getSize — exactly what setSize takes. domElement.width is the
+    // BACKING store (floor(css*pr)), and round(backing/pr) is not its inverse on
+    // fractional ratios: at Windows 125% scaling it restored 1 CSS px narrow.
+    var szV = renderer.getSize(new THREE.Vector2());
     var pr = renderer.getPixelRatio(), aspect = camera.aspect;
-    var W = 1600, H = Math.round(W * szH / szW) || 1000;
+    var W = 1600, H = Math.round(W * szV.y / szV.x) || 1000;
     var url;
     try {
       renderer.setPixelRatio(1); renderer.setSize(W, H, false);
@@ -5308,7 +5313,7 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
       url = renderer.domElement.toDataURL("image/png");
     } catch (e) { url = null; }
     // restore the live view before this task ends — same-task or it flashes
-    renderer.setPixelRatio(pr); renderer.setSize(Math.round(szW / pr), Math.round(szH / pr), false);
+    renderer.setPixelRatio(pr); renderer.setSize(szV.x, szV.y, false);
     camera.aspect = aspect; camera.updateProjectionMatrix();
     if (post && post.setSize) post.setSize();
     if (!url) return;
