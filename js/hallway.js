@@ -355,6 +355,10 @@ export function buildHallway(ctx) {
    * wall came north (KZ1 2.05 -> 0.30) and the drive moved west (x -16.8 -> -20.8).
    * Between them they open a real 9.6 x 3.6 footprint, and the door is back at z 1.9. */
   var LIV = { x0: -17.15, x1: W_IN, z0: 0.45, z1: 4.10, ce: 2.62 };
+  // where the living room's SHELL stops: inside the hall wall, never flush with its
+  // far face. Flush is a depth tie, and a depth tie flashes. (Fittings that belong to
+  // this room — the door casing, the switch, the way-out hit — keep using LIV.x1.)
+  var LIV_SE = LIV.x1 - 0.025;
   var livWallM = new THREE.MeshStandardMaterial({ map: hwallT, roughness: 0.94 });
   function ltag(m, name, action, hint) { clickable(m, name, action, hint); m.userData.space = 'living'; return m; }
   /* ⚠️ THE HOUSE DIMMER STOPPED AT THE DOORWAY. Every light in this room was built
@@ -369,11 +373,11 @@ export function buildHallway(ctx) {
     fl.rotation.x = -Math.PI / 2; fl.position.set((LIV.x0 + LIV.x1) / 2, 0.005, (LIV.z0 + LIV.z1) / 2);
     fl.receiveShadow = true; add(fl);
     ltag(fl, 'the living room floor', null, 'same boards as the hall. they ran out halfway and matched it as best they could.');
-    var ceil = box(LIV.x1 - LIV.x0, 0.10, LIV.z1 - LIV.z0, mat(0xe8e4d8, 0.95));
-    ceil.position.set((LIV.x0 + LIV.x1) / 2, LIV.ce + 0.05, (LIV.z0 + LIV.z1) / 2); add(ceil);
-    [[LIV.x1 - LIV.x0, LIV.ce, 0.10, (LIV.x0 + LIV.x1) / 2, LIV.ce / 2, LIV.z0 - 0.05],
+    var ceil = box(LIV_SE - LIV.x0, 0.10, LIV.z1 - LIV.z0, mat(0xe8e4d8, 0.95));
+    ceil.position.set((LIV.x0 + LIV_SE) / 2, LIV.ce + 0.05, (LIV.z0 + LIV.z1) / 2); add(ceil);
+    [[LIV_SE - LIV.x0, LIV.ce, 0.10, (LIV.x0 + LIV_SE) / 2, LIV.ce / 2, LIV.z0 - 0.05],
      [0.10, LIV.ce, LIV.z1 - LIV.z0 + 0.2, LIV.x0 - 0.05, LIV.ce / 2, (LIV.z0 + LIV.z1) / 2],
-     [LIV.x1 - LIV.x0, LIV.ce, 0.10, (LIV.x0 + LIV.x1) / 2, LIV.ce / 2, LIV.z1 + 0.05]
+     [LIV_SE - LIV.x0, LIV.ce, 0.10, (LIV.x0 + LIV_SE) / 2, LIV.ce / 2, LIV.z1 + 0.05]
     ].forEach(function (w) {
       var m2 = box(w[0], w[1], w[2], livWallM); m2.position.set(w[3], w[4], w[5]); add(m2);
     });
@@ -651,19 +655,27 @@ export function buildHallway(ctx) {
      * ('the running boards flashing'), and the kitchen copies it with a comment saying
      * so. This room got neither, so its walls met its floor at a bare seam.
      * ⚠️ Boxes, 0.02 proud. Do not 'simplify' this to a plane. */
-    [[(LIV.x0 + LIV.x1) / 2, LIV.z0 + 0.01, LIV.x1 - LIV.x0, 0.02],
-     [(LIV.x0 + LIV.x1) / 2, LIV.z1 - 0.01, LIV.x1 - LIV.x0, 0.02],
+    [[(LIV.x0 + LIV_SE) / 2, LIV.z0 + 0.01, LIV_SE - LIV.x0, 0.02],
+     [(LIV.x0 + LIV_SE) / 2, LIV.z1 - 0.01, LIV_SE - LIV.x0, 0.02],
      [LIV.x0 + 0.01, (LIV.z0 + LIV.z1) / 2, 0.02, LIV.z1 - LIV.z0]].forEach(function (sk2) {
       var skb = box(sk2[2], 0.14, sk2[3], mat(0x241b12, 0.85));
       skb.position.set(sk2[0], 0.07, sk2[1]); add(skb);
     });
     // and the doorway gets the jambs and head every other doorway in the house has
-    [[LDO.z0 - 0.035], [LDO.z1 + 0.035]].forEach(function (jz) {
-      var jm2 = box(0.10, LDO.y1 + 0.06, 0.07, mat(0xd8d2c2, 0.8));
-      jm2.position.set(LIV.x1 - 0.03, (LDO.y1 + 0.06) / 2, jz[0]); add(jm2);
+    /* ⚠️⚠️ THIS CASING WAS BUILT INSIDE THE WALL, ON THE WRONG FACE OF IT. LIV.x1 IS
+     * W_IN — the wall's HALL face — so a 0.10 board at LIV.x1-0.03 spanned
+     * -7.530..-7.430: 0.080 buried in the hall wall, 0.020 poking into the HALL, its z
+     * faces landing exactly on the opening's cut edges and its head's underside exactly
+     * on the header's soffit. 0.443 m² of coincident wall around one doorway. The
+     * living room's own face of that wall is x -7.550; the casing stands proud of THAT
+     * now and shares no plane with anything. */
+    var LCAS = 0.022, LCX = W_IN - 0.10 - LCAS / 2;   // back face butts the wall at -7.550
+    [[LDO.z0 - 0.020], [LDO.z1 + 0.020]].forEach(function (jz) {
+      var jm2 = box(LCAS, LDO.y1 - 0.03, 0.07, mat(0xd8d2c2, 0.8));
+      jm2.position.set(LCX, (LDO.y1 - 0.03) / 2, jz[0]); add(jm2);
     });
-    var jhd = box(0.10, 0.07, LDO.z1 - LDO.z0 + 0.14, mat(0xd8d2c2, 0.8));
-    jhd.position.set(LIV.x1 - 0.03, LDO.y1 + 0.035, (LDO.z0 + LDO.z1) / 2); add(jhd);
+    var jhd = box(LCAS, 0.08, LDO.z1 - LDO.z0 + 0.22, mat(0xd8d2c2, 0.8));
+    jhd.position.set(LCX, LDO.y1 + 0.01, (LDO.z0 + LDO.z1) / 2); add(jhd);
     // ---- ON THE WALLS ----
     var frameM = mat(0x4a3524, 0.7);
     function wallPic(px, pz, ry, w2, h2, tilt, draw, name, hint) {
@@ -823,7 +835,14 @@ export function buildHallway(ctx) {
 
   })();
   var lDoorPivot = new THREE.Group(); lDoorPivot.position.set(W_IN - 0.03, 0, LDO.z0); add(lDoorPivot);
-  var lSlab = box(0.05, 2.05, 0.94, mat(0x4a3524, 0.72)); lSlab.position.set(0, 1.025, 0.47); lDoorPivot.add(lSlab);
+  /* ⚠️ CUT TO LDO, not to the house's stock 2.05. This doorway's head lining sits
+   * ABOVE its opening instead of lining it the way the kitchen's and garage's do, so
+   * the clear frame here is the full 0.94 x 2.24 — and a 2.05 slab left a 0.94 x 0.19
+   * hole over the shut door (Kyle: the living room door doesn't fill the frame).
+   * Derived so it cannot drift again. The hinge edge is still local z 0, so the swing
+   * is untouched. */
+  var lSlab = box(0.05, LDO.y1, LDO.z1 - LDO.z0, mat(0x4a3524, 0.72));
+  lSlab.position.set(0, LDO.y1 / 2, (LDO.z1 - LDO.z0) / 2); lDoorPivot.add(lSlab);
   // ⚠️ mat() sets colour and roughness only, so metalness stays 0 — this was a
   // brass-COLOURED matte ball, while the kitchen's knob 120 lines away is real brass
   // and the ceiling rose's nut in this very room uses a proper brass material.
@@ -1434,6 +1453,24 @@ export function buildHallway(ctx) {
      * mistake and punched a hole in itself for a shaft 1.45 m away).
      * ⚠️ It also has to stop at the ceiling of the FLIGHT, not the floor: the stairs
      * arrive through this line. */
+    /* ⚠️ THE STAIRWELL IS A SLOT, NOT AN OPEN BAY. These runs skip STW.x0..STW.x1 so
+     * you can step off the flight — but nothing ever closed the SIDES of the shaft
+     * above the floor, so the moment a climbing eye rose past the boards it was
+     * looking out over the 96 m² of bare floor south of the corridor that no room
+     * uses (Kyle: you can see into an empty space that isn't being used). At rest
+     * you never see it — the south wall hides it from both landing views — it is
+     * entirely the transit: measured 76.9% of the frame at t=0.75 going up and 67.6%
+     * coming down. Two boxes take every sampled frame to 0.0%.
+     * ⚠️ they start 0.10 BELOW the floor: at eye height 3.34 a ray otherwise slips
+     * under a floor-height wall through the floor/soffit gap and the leak comes back. */
+    /* ⚠️ the north end BURIES itself 0.05 into the corridor south wall (which occupies
+     * z 2.45..2.55). Butting it flush at LAN.z1 put both north faces on the plane
+     * z = 2.450 and traded one leak for 20 flashing rays — the same mistake this whole
+     * pass has been about. Overlap, never abut. */
+    [STW.x0 - 0.13, STW.x1 + 0.13].forEach(function (wx) {
+      var shw = box(0.10, (UPF.ce - UPF.fl) + 0.10, STW.z1 - LAN.z1 - 0.05, upWallM);
+      shw.position.set(wx, (UPF.fl + UPF.ce) / 2 - 0.05, (LAN.z1 + 0.05 + STW.z1) / 2); add(shw);
+    });
     [[UPF.x0, STW.x0], [STW.x1, UPF.x1]].forEach(function (r2) {
       if (r2[1] - r2[0] < 0.02) return;
       var sw2 = box(r2[1] - r2[0], UPF.ce - UPF.fl, 0.10, upWallM);
@@ -1461,12 +1498,24 @@ export function buildHallway(ctx) {
       pnl3.position.set(d.w / 2, 0.52, 0.032); piv.add(pnl3);
       var kn = new THREE.Mesh(new THREE.SphereGeometry(0.026, 12, 10), mat(0xc8b06a, 0.35));
       kn.position.set(d.w - 0.16, 1.00, 0.06); piv.add(kn);
-      [[-1, 0], [1, 0]].forEach(function (jj) {
-        var jm = box(0.07, 2.14, 0.11, mat(0xd8d2c2, 0.8));
-        jm.position.set(d.x + jj[0] * (d.w / 2 + 0.035), UPF.fl + 1.07, LAN.z0 - 0.05); add(jm);
+      /* ⚠️⚠️ A CASING IS A BOARD ON THE WALL, NOT A BOARD IN IT. The +0.035 offset
+       * was exactly the board's own half-thickness, so each jamb's inner face landed
+       * on d.x ± d.w/2 — the wall's own cut plane, to 0.000 mm — with both faces
+       * pointing the same way and both drawn. 0.214 m² of coincident, both-front-
+       * facing wall per jamb, six jambs, dead in the doorway reveal you actually look
+       * at. That is the flashing (Kyle: the new door frames look like they are
+       * flashing) — and it was these three because they are the newest doors; every
+       * older jamb in the house already stands 5 mm clear or buries itself 2 cm.
+       * Same lesson as the skirting and the stairwell rim: give the part real
+       * thickness and stand it PROUD, so the only plane it shares is its BACK face,
+       * which is back-facing and culled. */
+      var CAS = 0.022, CZ = LAN.z0 + CAS / 2;      // back face butts the wall at 1.050
+      [[-1], [1]].forEach(function (jj) {
+        var jm = box(0.07, 2.03, CAS, mat(0xd8d2c2, 0.8));
+        jm.position.set(d.x + jj[0] * (d.w / 2 + 0.015), UPF.fl + 1.015, CZ); add(jm);
       });
-      var hd = box(d.w + 0.14, 0.08, 0.11, mat(0xd8d2c2, 0.8));
-      hd.position.set(d.x, UPF.fl + 2.14, LAN.z0 - 0.05); add(hd);
+      var hd = box(d.w + 0.19, 0.08, CAS, mat(0xd8d2c2, 0.8));
+      hd.position.set(d.x, UPF.fl + 2.07, CZ); add(hd);
       var spill = new THREE.Mesh(new THREE.PlaneGeometry(d.w - 0.08, 0.30),
         new THREE.MeshBasicMaterial({ color: 0xffd9a0, transparent: true, opacity: 0.13,
           blending: THREE.AdditiveBlending, depthWrite: false }));
@@ -1477,7 +1526,7 @@ export function buildHallway(ctx) {
     });
     // the rail around the stairwell, so the corridor has an edge and not a drop
     [[STW.x0 - 0.03, STW.z0, STW.x0 - 0.03, STW.z1], [STW.x1 + 0.03, STW.z0, STW.x1 + 0.03, STW.z1],
-     [STW.x0, STW.z1 + 0.03, STW.x1, STW.z1 + 0.03]].forEach(function (rl) {
+     [STW.x0, STW.z1 - 0.03, STW.x1, STW.z1 - 0.03]].forEach(function (rl) {   // ⚠️ MINUS: at +0.03 (z 7.48) this run stood inside the south wall, invisible and guarding nothing
       var len = Math.max(Math.abs(rl[2] - rl[0]), Math.abs(rl[3] - rl[1]));
       var along = Math.abs(rl[2] - rl[0]) > Math.abs(rl[3] - rl[1]);
       var top = box(along ? len : 0.05, 0.05, along ? 0.05 : len, mat(0x3a2c1c, 0.7));
@@ -2326,7 +2375,15 @@ export function buildHallway(ctx) {
   PROFILE.ACHIEVEMENTS.forEach(function (a, i) {
     var row = i % pwRows, col = (i / pwRows) | 0;
     var z = PW_Z0 - col * pwStep, y = pwY0 + row * pwYStep;
-    var fr = new THREE.Group(); fr.position.set(E_IN + 0.012, y, z); fr.rotation.z = (((i * 7) % 5) - 2) * 0.012; photoWall.add(fr);
+    /* ⚠️ THE GALLERY WAS HUNG INSIDE THE WALL. At E_IN + 0.012 the frame box sat
+     * BEHIND the wall face (the hall is west of E_IN, so proud means MORE negative)
+     * and only the photo plane poked out — by one millimetre, which the depth buffer
+     * cannot separate at this range. Every frame on the wall was a depth tie, and the
+     * whole gallery shimmered as the camera drifted. Hung properly now: the frame
+     * stands 12mm off the plaster like a real one. Same lesson as the skirting.
+     * ⚠️ MORE NEGATIVE IS TOWARD THE ROOM on this wall. Getting the sign wrong here
+     * buries the whole gallery again. */
+    var fr = new THREE.Group(); fr.position.set(E_IN - 0.022, y, z); fr.rotation.z = (((i * 7) % 5) - 2) * 0.012; photoWall.add(fr);
     var when = pState.ach[a.id] || null;
     var frameM = mat(when ? 0x6a4e2e : 0x3c3630, 0.8);
     var back = box(0.02, 0.36, 0.30, frameM); fr.add(back);
@@ -6021,8 +6078,15 @@ export function buildHallway(ctx) {
   // and a 0.12 wall at -7.66 left that face 3cm PROUD of the drywall — the whole
   // east side of the room rendered as exterior siding. The interior wall has to
   // swallow the shell's face, not stand behind it.
-  [[0.73, 4.715], [2.33, 7.285]].forEach(function (p) {   // east wall, split around the man door
-    var seg = box(0.24, 2.05, p[0], garWallM); seg.position.set(-7.70, 1.025, p[1]); add(seg);
+  /* ⚠️ DERIVED FROM GDO, and it has to be: this run was hardcoded to split around the
+   * man door at z 5.08..6.12, so when the doorway moved south to 7.45 the garage kept
+   * a solid wall behind the new opening AND a 1.04 m hole in itself at the old one.
+   * The wall now runs from the garage's north end to the doorway; south of GDO.z1
+   * there is no wall left to build, which the guard handles. */
+  [[4.35, GDO.z0], [GDO.z1, 8.45]].forEach(function (p) {   // east wall, split around the man door
+    if (p[1] - p[0] < 0.02) return;
+    var seg = box(0.24, 2.05, p[1] - p[0], garWallM);
+    seg.position.set(-7.70, 1.025, (p[0] + p[1]) / 2); add(seg);
   });
   var gwN = box(1.10, 2.05, 0.12, garWallM); gwN.position.set(-8.15, 1.025, 4.41); add(gwN);
   var gwNh = box(3.40, 0.20, 0.12, garWallM); gwNh.position.set(-10.40, 1.95, 4.41); add(gwNh);
@@ -6030,7 +6094,7 @@ export function buildHallway(ctx) {
   // shared y 0 the two top faces were coplanar across the whole opening strip,
   // which is the baseboard-flashing bug all over again.
   var gSill = box(3.40, 0.40, 0.10, garFloorM); gSill.position.set(-10.40, -0.28, 4.41); add(gSill);
-  var gThresh = box(0.46, 0.04, 1.04, mat(0x6b5638, 0.85)); gThresh.position.set(-7.62, 0.0, 5.60); add(gThresh);
+  var gThresh = box(0.46, 0.04, 1.04, mat(0x6b5638, 0.85)); gThresh.position.set(-7.62, 0.0, GDO_C); add(gThresh);   // ⚠️ GDO_C, not the old opening's hardcoded 5.60
   /* ---- the big door: four real panels on a track. It opens. --------------------
    * Lives in yardG so the SAME door reads from the driveway and from inside —
    * one door, one truth, like the truck. applyRoll walks each panel along a
