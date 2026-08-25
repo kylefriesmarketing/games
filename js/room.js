@@ -701,7 +701,14 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
   })(wl);
   // a fourth layer for TRANSIENT LIFE — cars, gulls, owls, shooting stars. Cleared when
   // idle; only re-uploaded while something is actually crossing the view.
-  var winEvT = canvasTex(768, 512, function (g, w, h) { g.clearRect(0, 0, w, h); });
+  /* ⚠️ 384x256, NOT 768x512. This canvas is cleared and redrawn every third frame
+   * while a car or a cat is crossing, and every redraw re-uploads the WHOLE texture
+   * plus a fresh mip chain: 768*512*4 = 1.5 MB per upload at 20 Hz = 31.5 MB/s of
+   * texture traffic for one 1.44 x 1.74 m plane, which made it the largest per-frame
+   * GPU cost in the bedroom. Quartering the bytes still leaves 178 texels/m across
+   * the window — more than the plane can show. Events run 0.8-11 s every 14-40 s. */
+  var WIN_EV_W = 384, WIN_EV_H = 256;
+  var winEvT = canvasTex(WIN_EV_W, WIN_EV_H, function (g, w, h) { g.clearRect(0, 0, w, h); });
   winEvT.repeat.set(1 / WIN_OVER, 1 / WIN_OVERY); winEvT.offset.set(WIN_OFF0, WIN_OFFY); winEvT.anisotropy = 8;
   var winEvM = new THREE.MeshBasicMaterial({ map: winEvT, transparent: true, depthWrite: false });
   var winEvP = new THREE.Mesh(new THREE.PlaneGeometry(1.44, 1.74), winEvM);
@@ -1158,7 +1165,7 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
     space: [{ dur: 0.8, draw: _evShootStar }, { dur: 11, draw: _evSat }],
   };
   var winEv = { next: 9 + Math.random() * 12, ev: null, t: 0, dir: 1, seed: 1 };
-  function winEvClear() { winEvT.image.getContext("2d").clearRect(0, 0, 768, 512); winEvT.needsUpdate = true; }
+  function winEvClear() { winEvT.image.getContext("2d").clearRect(0, 0, WIN_EV_W, WIN_EV_H); winEvT.needsUpdate = true; }
   function winEvStart(i) { // (also the debug handle's way in)
     var pool = WIN_EVENTS[curViewKey] || [];
     if (!pool.length) { winEv.next = 20; return; }
@@ -1171,8 +1178,8 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
       if (winEv.t >= winEv.ev.dur) { winEv.ev = null; winEvClear(); winEv.next = 14 + Math.random() * 26; }
       else if ((fc % 3) === 0) { // 20fps is plenty for a passing car
         var g = winEvT.image.getContext("2d");
-        g.clearRect(0, 0, 768, 512);
-        winEv.ev.draw(g, 768, 512, winEv.t / winEv.ev.dur, winEv);
+        g.clearRect(0, 0, WIN_EV_W, WIN_EV_H);
+        winEv.ev.draw(g, WIN_EV_W, WIN_EV_H, winEv.t / winEv.ev.dur, winEv);
         winEvT.needsUpdate = true;
       }
     } else { winEv.next -= dt2; if (winEv.next <= 0) winEvStart(); }
@@ -1651,6 +1658,12 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
   var tv = box(0.85, 0.68, 0.7, mat(0x3a3a38, 0.55)); tv.position.y = 0.78; crt.add(tv);
   var staticCanvas = document.createElement("canvas"); staticCanvas.width = 128; staticCanvas.height = 96;
   var staticCtx = staticCanvas.getContext("2d");
+  /* ⚠️ hoisted, not allocated per frame: the static redraw ran createImageData(128, 96)
+   * every fourth frame — 49 KB plus wrapper, ~15 times a second, ~740 KB/s of garbage
+   * thrown at the collector for as long as the TV shows snow, which is most of the
+   * night. One buffer, reused; the alpha column is set once because it never varies. */
+  var staticImg = staticCtx.createImageData(128, 96);
+  for (var sAi = 3; sAi < staticImg.data.length; sAi += 4) staticImg.data[sAi] = 255;
   var staticT = new THREE.CanvasTexture(staticCanvas); staticT.colorSpace = THREE.SRGBColorSpace;   // ⚠️ same: a raw CanvasTexture is linear until told otherwise
   var screen = new THREE.Mesh(new THREE.PlaneGeometry(0.62, 0.47), new THREE.MeshBasicMaterial({ map: staticT }));
   screen.position.set(0, 0.8, 0.355); crt.add(screen);
@@ -6783,10 +6796,10 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
     if (tvCartoon) {
       crtBase = 0.72 + 0.08 * Math.sin(t * 9);
     } else if ((frameCount & 3) === 0) { // static flicker
-      var d = staticCtx.createImageData(128, 96);
+      var d = staticImg;                       // reused — see its declaration
       for (var i = 0; i < d.data.length; i += 4) {
         var v = (Math.random() * 255) | 0;
-        d.data[i] = d.data[i + 1] = d.data[i + 2] = v; d.data[i + 3] = 255;
+        d.data[i] = d.data[i + 1] = d.data[i + 2] = v;   // alpha already 255, set once
       }
       staticCtx.putImageData(d, 0, 0);
       staticT.needsUpdate = true;
