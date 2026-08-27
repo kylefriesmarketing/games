@@ -106,6 +106,15 @@ body.listing #vignette,body.no3d #vignette{display:none}
   background:rgba(10,14,20,.6);border:1px solid var(--line);border-radius:6px;
   padding:8px 12px;cursor:pointer}
 #list-toggle:hover{color:var(--bone);border-color:var(--dim)}
+#walk-toggle{position:fixed;top:60px;right:22px;z-index:6;font-family:"Inter",sans-serif;
+  font-size:10px;letter-spacing:.16em;text-transform:uppercase;color:var(--dim);
+  background:rgba(10,14,20,.6);border:1px solid var(--line);border-radius:6px;
+  padding:8px 12px;cursor:pointer}
+#walk-toggle:hover{color:var(--bone);border-color:var(--dim)}
+/* pressed reads as lit, not merely hovered — you need to know at a glance whether
+   the arrow keys are going to move the boy or do nothing. */
+#walk-toggle[aria-pressed="true"]{color:#ffdca0;border-color:#7a6134;
+  background:rgba(60,44,18,.55)}
 #tip{position:fixed;z-index:7;transform:translate(-50%,-100%);pointer-events:none;
   font-family:"Inter",sans-serif;font-size:12px;letter-spacing:.04em;color:var(--bone);
   background:rgba(8,12,18,.88);border:1px solid var(--line);border-radius:6px;
@@ -144,7 +153,7 @@ body.listing #vignette,body.no3d #vignette{display:none}
 #shelf-view{display:none;position:fixed;inset:0;z-index:15;overflow-y:auto;background:var(--ink);
   flex-direction:column;align-items:center;padding:8vh 20px calc(60px + env(safe-area-inset-bottom,0px))}
 body.no3d #shelf-view,body.listing #shelf-view{display:flex}
-body.no3d #room,body.no3d .hud,body.no3d #list-toggle{display:none}
+body.no3d #room,body.no3d .hud,body.no3d #list-toggle,body.no3d #walk-toggle{display:none}
 .eyebrow{font-family:"Inter","Segoe UI",system-ui,sans-serif;font-size:11px;
   letter-spacing:.3em;text-transform:uppercase;color:var(--faint)}
 #shelf-view h1{font-family:"Inter","Segoe UI",system-ui,sans-serif;font-weight:800;
@@ -166,7 +175,7 @@ a.game:hover{transform:translateY(-2px);border-color:var(--acc);
 a.game,.foot a{touch-action:manipulation;-webkit-tap-highlight-color:transparent}
 .g-done{font-family:"Inter","Segoe UI",system-ui,sans-serif;font-size:10.5px;letter-spacing:.12em;
   text-transform:uppercase;color:var(--acc,#7be08a);margin-top:6px;opacity:.85}
-a.game:focus-visible,#list-toggle:focus-visible,#nb-close:focus-visible,.foot a:focus-visible,#enter:focus-visible{
+a.game:focus-visible,#list-toggle:focus-visible,#walk-toggle:focus-visible,#nb-close:focus-visible,.foot a:focus-visible,#enter:focus-visible{
   outline:2px solid #ff5aa8;outline-offset:3px}
 @media (prefers-reduced-motion: reduce){ a.game{transition:none} a.game:hover{transform:none} }
 
@@ -235,6 +244,7 @@ body.no3d #enter,body.listing #enter{display:none}
   <div class="hint">click the books · the chest · the notebook · the shoebox</div>
 </div>
 <button id="list-toggle" type="button">list view</button>
+<button id="walk-toggle" type="button" aria-pressed="false" title="walk the boy around the room (C)">walk</button>
 <div id="tip"></div>
 
 <!-- the notebook: your progress across every game (same-origin saves) -->

@@ -20,6 +20,14 @@ import * as PROFILE from "./profile.js";
 import * as AUDIO from "./audio.js";
 import { createPost } from "./post.js";
 import { buildHallway } from "./hallway.js";
+
+/* ⚠️⚠️ BOOT TIMING, and it is permanent on purpose. This project shipped with NO
+ * instrumentation at all, which is exactly why its load cost stayed invisible for so
+ * long. Measured 2026-08-27: every module has ARRIVED by 63 ms, and then the page
+ * spends SIX SECONDS building meshes before it requests its first texture. Nobody can
+ * see that in a network panel — the waterfall looks idle, because it is. Read it with
+ * window.__boot after a load, and never optimise this file's load path without it. */
+window.__boot = { modStart: performance.now() };
 // the sound effects are called from all over the room; keep the short names
 var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchetSfx,
     snoreSfx = AUDIO.snoreSfx, knockSfx = AUDIO.knockSfx;
@@ -1779,6 +1787,7 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
     clickable(m, "the door", function () { hall.toggleDoor(); }, "the door — the hallway is right through it");
     m.userData.space = "both"; // clickable from either side, obviously
   });
+  window.__boot.hallStart = performance.now();
   var hall = buildHallway({
     scene: scene, camera: camera, lookAt: lookAt, clickable: clickable, glow: glow,
     contactShadow: contactShadow,   // the bedroom's AO decal, so the rest of the house can stand on the floor too
@@ -1794,6 +1803,7 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
     },
     onLeave: null
   });
+  window.__boot.hallMs = Math.round(performance.now() - window.__boot.hallStart);
   // once a night, somebody knocks softly — they know you're still up.
   // ?knock=5 makes them impatient (seconds until the knock, for tinkering).
   var knockAt = -1, knockAnim = -1;
@@ -3510,6 +3520,16 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
 
   // One avoidance step toward (tx,tz): steer around obstacles, then hard-clamp out
   // of any we'd still penetrate. Returns remaining distance to the target.
+  /* ⚠️ TURNING LIVES HERE, not inside tick(). The original kidFace() was nested in
+   * tick() because it captured that frame's dt, which made it invisible to anything
+   * outside the loop — the walk controller could not turn the boy at all. Same maths,
+   * dt passed in; kidFace() below is now a one-line delegate so every existing call
+   * site behaves exactly as it did. */
+  function kidTurn(want, rate, dt) {
+    var kdr = want - kid.rotation.y;
+    while (kdr > Math.PI) kdr -= Math.PI * 2; while (kdr < -Math.PI) kdr += Math.PI * 2;
+    kid.rotation.y += kdr * Math.min(1, dt * (rate || 6));
+  }
   function kidStep(dt, speed) {
     var kdx = kidState.tx - kid.position.x, kdz = kidState.tz - kid.position.z;
     var kdist = Math.sqrt(kdx * kdx + kdz * kdz);
@@ -6623,6 +6643,166 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
   // stamped by the loader. 0.35, weighted by smoothness: measured +1.0 mean luma.
   envEnable(0.35);
   var frameCount = 0, lastT = performance.now() / 1000;
+  /* ================= THIRD PERSON: WALK THE BOY =================================
+   * The boy was always an NPC who wandered between authored stations. Everything a
+   * player-controlled character needs was already here and unused:
+   *   kidStep(dt, speed)  circle avoidance + hard depenetration against kidObs()
+   *   kidObs()            a hand-authored obstacle set for EVERY space
+   *   kidFace(a, rate)    turn-toward with a rate limit
+   *   setKidAction(name)  the clip library (idle / walk / wave / sit / dance)
+   * So this drives the SAME mover the roam AI drives — it just chooses the target
+   * from the keyboard instead of from a station. Collision, sliding past furniture
+   * and never-end-a-frame-inside-a-sofa all come for free, and they stay correct in
+   * every room because kidObs() already switches with kidSpace.
+   *
+   * ⚠️ He walks the room you are IN. There is no collision BETWEEN spaces (each
+   * obstacle set is local and the doorways are not modelled as walkable), so this is
+   * a camera mode, not a free-roam world. Leaving a space through the normal doors
+   * still works and the boy comes with you.
+   *
+   * ⚠️ THE SPIRAL. Mapping input to camera space while the camera chases the boy's
+   * facing is a feedback loop: hold D, he turns right, the camera swings right, so
+   * 'right' keeps moving and he circles forever. The camera therefore only follows
+   * when you are driving FORWARD (fwd > 0). Strafing leaves the camera where it is,
+   * which is both stable and what you actually want when sidestepping round a bed. */
+  var tp = { on: false, yaw: 0, keys: {}, prevMode: "roam" };
+  var TP_SPEED = 1.45, TP_DIST = 2.9, TP_HEIGHT = 1.5, TP_EYE = 1.02;
+  /* ⚠️⚠️ WALLS. kidObs() is FURNITURE ONLY — there is not one wall in any of those
+   * arrays, because the roam AI only ever walks between authored stations and never
+   * aims at a wall. A player does immediately: driving forward for five seconds put
+   * the boy at z -7.25, straight through the bedroom wall and out into the dark.
+   * hall.bounds (SPACE_BOUNDS) already describes every room in the house, so the fix
+   * is to reuse it rather than author a second set that could drift out of step.
+   * ⚠️ those boxes are CAMERA clamps, padded ~0.15-0.20 OUTWARD past the real wall,
+   * so the margin taken off them is bigger than the bedroom's — whose box is authored
+   * tight to WALL_X here. Getting that backwards lets him stand inside the plaster. */
+  var TP_BEDROOM = { x: [-4.25, 4.25], z: [-2.55, 3.45] };
+  function tpBounds() {
+    var b = null;
+    try { b = (kidSpace !== "bedroom" && hall.bounds) ? hall.bounds[kidSpace] : null; } catch (e) { }
+    return b ? { box: b, m: KID_R + 0.32 } : { box: TP_BEDROOM, m: KID_R + 0.12 };
+  }
+  function tpClamp() {
+    var B = tpBounds(), b = B.box, m = B.m;
+    kid.position.x = Math.max(b.x[0] + m, Math.min(b.x[1] - m, kid.position.x));
+    kid.position.z = Math.max(b.z[0] + m, Math.min(b.z[1] - m, kid.position.z));
+    /* ⚠️ y is CLAMPED, never lerped. The house has three floor levels (the second
+     * storey sits at 3.45) and a helper that dragged him toward 0 once walked him
+     * through the landing and along the inside of the hall ceiling. Clamping can only
+     * ever stop him leaving a floor he is already standing on. */
+    if (b.y) kid.position.y = Math.max(b.y[0], Math.min(b.y[1], kid.position.y));
+    /* ⚠️ AND OBSTACLES WIN THE TIE. The toy chest sits flush against the south wall,
+     * so the gap behind it is narrower than the boy: the wall clamp pulls him in, the
+     * furniture pushes him out, and whichever runs LAST decides. Push him out of the
+     * furniture — standing a few cm inside plaster is invisible (the wall is behind
+     * him, and so is the camera), while standing inside the toy chest is not. */
+    var OBS = kidObs();
+    for (var i = 0; i < OBS.length; i++) {
+      if (i === kidState.ignoreObs) continue;
+      var o = OBS[i], dx = kid.position.x - o.x, dz = kid.position.z - o.z;
+      var d = Math.sqrt(dx * dx + dz * dz), min = o.r + KID_R;
+      if (d < min && d > 0.001) { kid.position.x = o.x + dx / d * min; kid.position.z = o.z + dz / d * min; }
+    }
+  }
+  function tpAnyKey() {
+    var k = tp.keys;
+    return !!(k.w || k.a || k.s || k.d || k.arrowup || k.arrowdown || k.arrowleft || k.arrowright);
+  }
+  function tpSet(on) {
+    on = !!on;
+    if (on === tp.on) return;
+    tp.on = on;
+    var btn = document.getElementById("walk-toggle");
+    if (btn) { btn.setAttribute("aria-pressed", on ? "true" : "false"); btn.textContent = on ? "stop" : "walk"; }
+    if (on) {
+      /* ⚠️ take the boy off the roam state machine or the two of us fight over
+       * kidState.tx every frame — he would keep steering back to his next station. */
+      tp.prevMode = kidState.mode === "player" ? "roam" : kidState.mode;
+      kidState.mode = "player";
+      kidState.via = false; kidState.station = null; kidState.ignoreObs = -1;
+      kidState.tx = kid.position.x; kidState.tz = kid.position.z;
+      tp.yaw = Math.atan2(kidState.faceX, kidState.faceZ);
+      kid.visible = true;
+      setKidAction("idle", 0.2);
+      try { kidSay("ok — arrow keys, or WASD.", 3.5); } catch (e) { }
+    } else {
+      tp.keys = {};
+      kidState.mode = "roam"; kidState.walkT = 0; kidState.via = false;
+      try { kidPickStation(); } catch (e) { }
+    }
+  }
+  /* returns true when it has taken the camera for this frame */
+  function tpUpdate(dt) {
+    if (!tp.on) return false;
+    var k = tp.keys;
+    var fwd = ((k.w || k.arrowup) ? 1 : 0) - ((k.s || k.arrowdown) ? 1 : 0);
+    var side = ((k.d || k.arrowright) ? 1 : 0) - ((k.a || k.arrowleft) ? 1 : 0);
+    var sy = Math.sin(tp.yaw), cy = Math.cos(tp.yaw);
+    if (fwd || side) {
+      var dx = sy * fwd + cy * side, dz = cy * fwd - sy * side;
+      var L = Math.sqrt(dx * dx + dz * dz) || 1; dx /= L; dz /= L;
+      /* aim a short way ahead rather than teleporting to a target: kidStep steers
+       * around furniture on the way, exactly as it does for the roam AI. */
+      kidState.tx = kid.position.x + dx * 1.6;
+      kidState.tz = kid.position.z + dz * 1.6;
+      kidStep(dt, TP_SPEED);
+      tpClamp();
+      if (kidState.faceX || kidState.faceZ) kidTurn(Math.atan2(kidState.faceX, kidState.faceZ), 10, dt);
+      setKidAction("walk", 0.18);
+      if (fwd > 0) { // see THE SPIRAL above — only forward motion swings the camera
+        var want = Math.atan2(dx, dz), d = want - tp.yaw;
+        while (d > Math.PI) d -= Math.PI * 2;
+        while (d < -Math.PI) d += Math.PI * 2;
+        tp.yaw += d * Math.min(1, dt * 2.2);
+      }
+    } else {
+      kidState.tx = kid.position.x; kidState.tz = kid.position.z;
+      setKidAction("idle", 0.22);
+    }
+    tpClamp();   // a space change can strand him outside the new room's box
+    var fy = kid.position.y;
+    var cx = kid.position.x - Math.sin(tp.yaw) * TP_DIST;
+    var cz = kid.position.z - Math.cos(tp.yaw) * TP_DIST;
+    var ease = Math.min(1, dt * 5);
+    camera.position.x += (cx - camera.position.x) * ease;
+    camera.position.y += ((fy + TP_HEIGHT) - camera.position.y) * ease;
+    camera.position.z += (cz - camera.position.z) * ease;
+    lookAt.x += (kid.position.x - lookAt.x) * ease;
+    lookAt.y += ((fy + TP_EYE) - lookAt.y) * ease;
+    lookAt.z += (kid.position.z - lookAt.z) * ease;
+    camera.lookAt(lookAt);
+    return true;
+  }
+  (function () {
+    var btn = document.getElementById("walk-toggle");
+    if (btn) btn.addEventListener("click", function () { tpSet(!tp.on); try { clickSfx(1200); } catch (e) { } });
+    /* ⚠️ a keydown handler must never eat a keystroke meant for a text field, and
+     * this page has one (the store's redeem code). Bail on any editable target. */
+    function editable(t) {
+      if (!t) return false;
+      var n2 = (t.tagName || "").toLowerCase();
+      return n2 === "input" || n2 === "textarea" || n2 === "select" || t.isContentEditable;
+    }
+    window.addEventListener("keydown", function (e) {
+      if (editable(e.target) || e.ctrlKey || e.metaKey || e.altKey) return;
+      var key = (e.key || "").toLowerCase();
+      if (key === "c") { tpSet(!tp.on); e.preventDefault(); return; }
+      if (!tp.on) return;
+      if (key === "escape") { tpSet(false); e.preventDefault(); return; }
+      if (tp.keys.hasOwnProperty(key) || /^(w|a|s|d|arrowup|arrowdown|arrowleft|arrowright)$/.test(key)) {
+        tp.keys[key] = true;
+        e.preventDefault(); // or the arrows scroll the page out from under the room
+      }
+    });
+    window.addEventListener("keyup", function (e) {
+      var key = (e.key || "").toLowerCase();
+      if (tp.keys[key]) { tp.keys[key] = false; e.preventDefault(); }
+    });
+    /* ⚠️ a key held while the tab loses focus never sends its keyup, and the boy
+     * would walk into a wall forever. Drop every key on blur. */
+    window.addEventListener("blur", function () { tp.keys = {}; });
+  })();
+
   function tick() {
     requestAnimationFrame(tick);
     var t = performance.now() / 1000, dt = Math.min(t - lastT, 0.1); lastT = t;
@@ -6633,7 +6813,12 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
     var mx = decorMode ? (camera.aspect > 0.95 ? 0.42 : 0) : idle ? Math.sin(t * 0.07) * 0.4 : mouse.x;
     var my = decorMode ? 0 : idle ? Math.sin(t * 0.05 + 2) * 0.18 : mouse.y;
     var baseX = mx * 0.55, baseY = 1.72 + my * 0.24;
-    if (zoomT >= 0) { // the kid opened something: lean in while it loads
+    /* the walk camera outranks the hallway's and the bedroom's — it is the only one
+     * the player is actively steering. It yields to the lean-in (zoomT) so opening a
+     * game still reads the same way. */
+    if (zoomT < 0 && tpUpdate(dt)) {
+      // the player has the camera
+    } else if (zoomT >= 0) { // the kid opened something: lean in while it loads
       zoomT = Math.min(1, zoomT + dt / 1.15);
       var kz = zoomT * zoomT * (3 - 2 * zoomT);
       camera.position.lerpVectors(zoomFrom, zoomTo, kz);
@@ -6657,11 +6842,7 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
     }
     // THE KID: walks between spots, then actually DOES something where he lands —
     // sits in the beanbag, lies on the bed, fidgets at the shelves. Clips crossfade.
-    function kidFace(want, rate) { // turn toward a heading
-      var kdr = want - kid.rotation.y;
-      while (kdr > Math.PI) kdr -= Math.PI * 2; while (kdr < -Math.PI) kdr += Math.PI * 2;
-      kid.rotation.y += kdr * Math.min(1, dt * (rate || 6));
-    }
+    function kidFace(want, rate) { kidTurn(want, rate, dt); } // this frame's dt
     kidFollowTick(dt);
     // he waves hello when you first step into the room (once the clip is ready)
     if (kidGreet && kidActions.wave && !pendingNav && zoomT < 0 &&
@@ -7309,6 +7490,17 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
   }
 
   window.__room = { audit: audit, // one call to prove the room is still geometrically sane
+    // the walk mode, exposed so it can be driven and measured without a keyboard
+    walk: function (on) { tpSet(on === undefined ? !tp.on : on); return tp.on; },
+    walkState: tp,
+    /* ⚠️ requestAnimationFrame is SUSPENDED in the embedded review browser, so tick()
+     * never runs there and walking cannot be verified by waiting. walkStep advances
+     * exactly one frame of the walk update, which is what makes this feature testable
+     * at all: set walkState.keys, call walkStep(dt) N times, then measure. */
+    walkStep: function (dt) { return tpUpdate(dt || 1 / 60); },
+    // ⚠️ NOT kidObstacles: that key already exists further down as the raw BEDROOM
+    // array, and in an object literal the last one wins — mine was silently dropped.
+    kidObsActive: function () { return kidObs(); },
     hall: hall, // the hallway: space()/enter()/leave()/camTick — the rest of the house starts here
     scene: scene, camera: camera, renderer: renderer, pick: pick, ray: ray, THREE: THREE, // debug hook (THREE: modules hide the global)
     kid: kid, kidState: kidState, kidStep: kidStep, kidGoto: kidGoto, kidObstacles: KID_OBSTACLES, kidStations: KID_STATIONS,
@@ -7395,4 +7587,5 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
     });
     document.getElementById("sr-no").addEventListener("click", clean);
   })();
+  window.__boot.totalMs = Math.round(performance.now() - window.__boot.modStart);
 })();
