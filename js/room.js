@@ -724,6 +724,22 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
   var leftS = box(0.1, 3.4, 0.94, sideWallM(0.94, 3.4)); leftS.position.set(-WALL_X, 1.7, 3.03); scene.add(leftS);
   var leftL = box(0.1, 1.35, 0.92, sideWallM(0.92, 1.35)); leftL.position.set(-WALL_X, 2.725, 2.1); scene.add(leftL);
   var right = box(0.1, 3.4, 7, sideWallM(7, 3.4)); right.position.set(WALL_X, 1.7, 0); scene.add(right);
+  /* ⚠️⚠️ THE FOURTH WALL. This room was a three-sided film set: a back wall and two
+   * sides and nothing at all on the south, because the resting camera stands OUTSIDE
+   * the room at z ~5.25 and looks in through the gap where the wall should be. That
+   * works right up until you are INSIDE the room — walking, or riding the doorway
+   * transition in from the hall — and then you can see straight out of the bedroom
+   * into the back yard: fence, siding and night sky, over your own shoulder.
+   * So the wall exists now, and it HIDES ITSELF for the camera it would block.
+   * ⚠️ keyed off the CAMERA's z, not off walk mode: the hall->bedroom transition
+   * flies the camera in at z ~2.1 and that is exactly where the hole was reported.
+   * ⚠️ built with sideWallM so it joins wallSideMats and therefore the paint box
+   * and MAT_TEX — a wall built with a bare material silently stops repainting. */
+  var southWall = box(8.7, 3.4, 0.1, sideWallM(8.7, 3.4));
+  southWall.position.set(0, 1.7, 3.55); scene.add(southWall);
+  function updateRoomShell() {
+    southWall.visible = camera.position.z < 3.40;
+  }
   var stripe = new THREE.Mesh(new THREE.PlaneGeometry(8.7, 0.28), mat(0x8a4d5e, 0.95)); // 90s wallpaper border
   stripe.position.set(0, 2.6, -2.54); scene.add(stripe);
   var skirt = new THREE.Mesh(new THREE.PlaneGeometry(8.7, 0.14), mat(0x2a2019, 0.85));
@@ -6695,8 +6711,9 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
    * 'right' keeps moving and he circles forever. The camera therefore only follows
    * when you are driving FORWARD (fwd > 0). Strafing leaves the camera where it is,
    * which is both stable and what you actually want when sidestepping round a bed. */
-  var tp = { on: false, yaw: 0, keys: {}, prevMode: "roam" };
+  var tp = { on: false, yaw: 0, keys: {}, prevMode: "roam", combo: "", dirX: 0, dirZ: 1, moving: false };
   var TP_SPEED = 1.45, TP_DIST = 2.9, TP_HEIGHT = 1.5, TP_EYE = 1.02;
+  var TP_FOLLOW = 2.6, TP_TURN = 3.4;   // camera swing: ease rate, and a rad/s cap
   /* ⚠️⚠️ WALLS. kidObs() is FURNITURE ONLY — there is not one wall in any of those
    * arrays, because the roam AI only ever walks between authored stations and never
    * aims at a wall. A player does immediately: driving forward for five seconds put
@@ -6752,6 +6769,7 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
       kidState.via = false; kidState.station = null; kidState.ignoreObs = -1;
       kidState.tx = kid.position.x; kidState.tz = kid.position.z;
       tp.yaw = Math.atan2(kidState.faceX, kidState.faceZ);
+      tp.combo = ""; tp.dirX = Math.sin(tp.yaw); tp.dirZ = Math.cos(tp.yaw);
       kid.visible = true;
       setKidAction("idle", 0.2);
       try { kidSay("ok — arrow keys, or WASD.", 3.5); } catch (e) { }
@@ -6768,9 +6786,27 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
     var fwd = ((k.w || k.arrowup) ? 1 : 0) - ((k.s || k.arrowdown) ? 1 : 0);
     var side = ((k.d || k.arrowright) ? 1 : 0) - ((k.a || k.arrowleft) ? 1 : 0);
     var sy = Math.sin(tp.yaw), cy = Math.cos(tp.yaw);
+    /* ⚠️⚠️ THE DIRECTION IS LATCHED WHEN YOU PRESS, NOT RECOMPUTED EVERY FRAME.
+     * This is the whole reason the camera can follow him at all. Recomputing the
+     * heading from the live camera yaw every frame, while the camera eases toward his
+     * facing, is a rotating equilibrium: hold S and the target stays 180 degrees from
+     * a yaw that is itself turning, so he orbits forever. Measured before this fix —
+     * facing 0.52 -> 7.85 rad in 90 frames, the camera trailing 2.8 rad behind the
+     * whole way and never arriving. Nearly five radians a second of spin.
+     * Latching makes it a FIXED world direction, so the camera converges on it and
+     * stops. Press S: he turns to face away, walks, and the camera swings round
+     * behind him and settles — which is exactly the thing that reads as third person.
+     * The cost is that holding W+D gives one 45-degree turn rather than a continuous
+     * curve; change the key combination and it re-latches, so steering stays crisp. */
+    var combo = fwd + "|" + side;
     if (fwd || side) {
-      var dx = sy * fwd + cy * side, dz = cy * fwd - sy * side;
-      var L = Math.sqrt(dx * dx + dz * dz) || 1; dx /= L; dz /= L;
+      if (combo !== tp.combo) {
+        tp.combo = combo;
+        var lx = sy * fwd + cy * side, lz = cy * fwd - sy * side;
+        var L = Math.sqrt(lx * lx + lz * lz) || 1;
+        tp.dirX = lx / L; tp.dirZ = lz / L;
+      }
+      var dx = tp.dirX, dz = tp.dirZ;
       /* aim a short way ahead rather than teleporting to a target: kidStep steers
        * around furniture on the way, exactly as it does for the roam AI. */
       kidState.tx = kid.position.x + dx * 1.6;
@@ -6779,17 +6815,33 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
       tpClamp();
       if (kidState.faceX || kidState.faceZ) kidTurn(Math.atan2(kidState.faceX, kidState.faceZ), 10, dt);
       setKidAction("walk", 0.18);
-      if (fwd > 0) { // see THE SPIRAL above — only forward motion swings the camera
-        var want = Math.atan2(dx, dz), d = want - tp.yaw;
-        while (d > Math.PI) d -= Math.PI * 2;
-        while (d < -Math.PI) d += Math.PI * 2;
-        tp.yaw += d * Math.min(1, dt * 2.2);
-      }
+      tp.moving = true;
+      void dx; void dz;
     } else {
       kidState.tx = kid.position.x; kidState.tz = kid.position.z;
       setKidAction("idle", 0.22);
+      tp.moving = false;
+      tp.combo = "";           // next press re-latches against wherever the camera ended
     }
+    /* ⚠️⚠️ THE CAMERA ALWAYS COMES ROUND BEHIND HIM. This is what makes it read as
+     * third person instead of a fixed camera you happen to be moving a doll around in:
+     * press S and he turns to face you, and the camera swings round until it is behind
+     * him again and S is 'forward' once more.
+     * The earlier version only swung the camera while you drove FORWARD, to dodge the
+     * feedback loop (input is in camera space, so a camera that chases his facing can
+     * chase its own tail and walk him in a circle). Dodging it cost the feature: with
+     * the camera pinned, A and D just slid him sideways across the screen.
+     * It is rate-limited instead — TP_TURN caps how fast the camera may swing, so a
+     * held turn is a wide readable arc rather than a spin, and a 180 takes about half
+     * a second. This is the Mario 64 arrangement and the arc is the accepted cost. */
+    var want = kid.rotation.y, dyaw = want - tp.yaw;
+    while (dyaw > Math.PI) dyaw -= Math.PI * 2;
+    while (dyaw < -Math.PI) dyaw += Math.PI * 2;
+    var step = dyaw * Math.min(1, dt * TP_FOLLOW), cap = TP_TURN * dt;
+    if (step > cap) step = cap; else if (step < -cap) step = -cap;
+    tp.yaw += step;
     tpClamp();   // a space change can strand him outside the new room's box
+    updateRoomShell();
     var fy = kid.position.y;
     var cx = kid.position.x - Math.sin(tp.yaw) * TP_DIST;
     var cz = kid.position.z - Math.cos(tp.yaw) * TP_DIST;
@@ -7334,6 +7386,7 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
   // Bake world matrices + paint one frame immediately, so picking works even
   // before the animation loop has run (background tabs throttle rAF).
   scene.updateMatrixWorld(true);
+  updateRoomShell();
   drawFrame();
   tick();
   /* ============================================================================

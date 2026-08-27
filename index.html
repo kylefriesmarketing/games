@@ -106,11 +106,22 @@ body.listing #vignette,body.no3d #vignette{display:none}
   background:rgba(10,14,20,.6);border:1px solid var(--line);border-radius:6px;
   padding:8px 12px;cursor:pointer}
 #list-toggle:hover{color:var(--bone);border-color:var(--dim)}
-#walk-toggle{position:fixed;top:60px;right:22px;z-index:6;font-family:"Inter",sans-serif;
+#walk-toggle{position:fixed;top:22px;right:112px;z-index:6;font-family:"Inter",sans-serif;
   font-size:10px;letter-spacing:.16em;text-transform:uppercase;color:var(--dim);
   background:rgba(10,14,20,.6);border:1px solid var(--line);border-radius:6px;
   padding:8px 12px;cursor:pointer}
 #walk-toggle:hover{color:var(--bone);border-color:var(--dim)}
+/* ⚠️ the top-right column runs on a 42px rhythm and room.js INJECTS into it at
+   runtime: #wel-btn 64, #decor-btn 106 and #decor-nudge 142 are all injected by
+   js/room.js, so the whole column below #list-toggle is spoken for — and #decor-nudge
+   is an opacity:0 tooltip at z-index 7, i.e. invisible in the DOM but still able to
+   cover a button under it. So this sits BESIDE #list-toggle on the top row instead,
+   which is empty. Two mode toggles, one row. Verify with elementFromPoint, never by
+   reading index.html alone: the things it collided with are not in this file.
+   The first version sat at 60 and was buried under the help button — a collision you
+   cannot see by reading index.html alone, because the thing it collides with is not
+   in index.html. Measure with elementFromPoint, not by eye. */
+body.listing #walk-toggle{display:none}
 /* pressed reads as lit, not merely hovered — you need to know at a glance whether
    the arrow keys are going to move the boy or do nothing. */
 #walk-toggle[aria-pressed="true"]{color:#ffdca0;border-color:#7a6134;
