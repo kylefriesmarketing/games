@@ -67,7 +67,9 @@ games-hub/
     props/*.glb         bed, kid (animated), cat, trex, bean, chair, globe, skate…
     tex/                carpet/wallpaper/rug bases, wp-*/fl-* material swaps,
                         poster-*.jpg (11 game posters), window_view, neon
-  media/                og-room.jpg + room-hero.jpg (real in-engine renders)
+  media/                og-house.jpg (the share card: the house at night, lit) +
+                        room-hero.jpg (the enter screen) + og-room.jpg (the old
+                        bedroom card, kept as a fallback). All real in-engine renders.
 ```
 
 ### Iron rules

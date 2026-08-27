@@ -3990,6 +3990,73 @@ export function buildHallway(ctx) {
     hedgeAt(s4[0] - 5, s4[0] + 5, s4[1] + 0.6, 0.9, 0.8, 0x3d5f34);
   });
 
+  /* ⚠️ OUR OWN FRONT WINDOWS, and they belong HERE rather than beside the siding that
+   * carries them: nbWin is declared at the top of the neighbours block above, and a
+   * var is undefined until its line runs. Pushing to it from the siding code 600 lines
+   * earlier would throw — the same hoisting trap that ate an hour on paperWallM.
+   * The house had exactly one pane on its whole front elevation and it was unlit, so
+   * from the street it read as an empty building. These are facade windows: the walls
+   * behind them are solid, which is why they can sit anywhere the elevation wants one.
+   * Joining nbWin means the phase drives them with the neighbours for free — dim by
+   * day, full after dark — and the house lights up when the street does. */
+  /* ⚠️ MUNTINS ARE NOT DECORATION HERE. Shot from the pavement, a lit rectangle with
+   * no bars across it reads as a glowing PANEL, not a window - photographed beside the
+   * one existing 2x2 window on this elevation, that is the whole difference between a
+   * house and a warehouse. The cross sits PROUD of the glass (z - 0.02, toward the
+   * street) and the frame BEHIND it: on this elevation more-negative z is nearer. */
+  function litWindow(x, y, w, h, z) {
+    var m = new THREE.MeshStandardMaterial({ color: 0xffdca0, emissive: 0xffca82, emissiveIntensity: 1.1, roughness: 0.5 });
+    var pane = box(w, h, 0.05, m); pane.position.set(x, y, z); yadd(pane);
+    var fr = box(w + 0.14, h + 0.14, 0.03, trimM); fr.position.set(x, y, z + 0.015); yadd(fr);
+    var v = box(0.055, h, 0.03, trimM); v.position.set(x, y, z - 0.02); yadd(v);
+    var hz = box(w, 0.055, 0.03, trimM); hz.position.set(x, y, z - 0.02); yadd(hz);
+    nbWin.push(m); return m;
+  }
+  litWindow(-12.20, 4.72, 1.25, 0.95, HOUSE_F - 0.10);
+  litWindow(-8.60, 4.72, 1.25, 0.95, HOUSE_F - 0.10);
+  litWindow(1.90, 4.72, 1.25, 0.95, HOUSE_F - 0.10);
+  /* ⚠️ and the one the house already had: an opening at x -5.00..-3.80 whose glass
+   * (bwGlass) faces the BACK yard, so from the street it was a black hole punched in
+   * the middle of a row of lit windows - the only dark pane on the house. Sized to the
+   * opening and set just proud of the siding so it plugs it. */
+  litWindow(-4.40, 4.75, 1.20, 0.90, HOUSE_F - 0.06);
+  // and two on the kitchen wing, whose face stands 0.15 further out than the hall’s,
+  // so these clear KZ0 - 0.175 rather than the hall's HOUSE_F - 0.055
+  litWindow(-11.80, 2.00, 1.15, 0.85, KZ0 - 0.24);
+  litWindow(-9.20, 2.00, 1.15, 0.85, KZ0 - 0.24);
+
+  /* ⚠️⚠️ THE EAST WING HAD NO OUTSIDE. From x -4.35 to +4.35 — nine metres, the whole
+   * width of the bedroom — nothing stood on the house's front plane at all, so the
+   * surface facing the street was the BEDROOM'S INTERIOR: its wallpaper, its pink
+   * border stripe at y 2.60, its skirting. From the pavement the house showed a pale
+   * papered panel where its front wall should be. It is invisible from indoors and
+   * from the porch cameras, which is how it survived this long; it is unmissable the
+   * moment anyone looks at the house from the front.
+   * ⚠️ Safe to clad ONLY because the bedroom's portal camera (WIN_EYE) stands at
+   * z = HOUSE_F - 0.10, already OUTSIDE this skin and aimed down the street at
+   * z -26. A wall here cannot appear in the view out of the bedroom window. Check
+   * that again before moving either number. */
+  var eastW = 4.42 - (E_IN + 0.10);
+  var eSide = box(eastW, 3.0, 0.04, sidingM);
+  eSide.position.set((E_IN + 0.10 + 4.42) / 2, 1.5, HOUSE_F - 0.055); yadd(eSide);
+  /* and the bedroom's own window, cut where the real one is (x 1.63..3.07, y 1.08..2.82).
+   * This is the hero room, so from the street it is the window that should be burning. */
+  litWindow(2.35, 1.95, 1.44, 1.74, HOUSE_F - 0.10);
+
+  /* ⚠️ AND A 4.2 m NOTCH AT THE FRONT-WEST CORNER: the second storey and the eaves run
+   * out to x -17.20, but the ground floor stopped at the kitchen's west wall (-13.05),
+   * so there was a black gap under the overhang that you could see the neighbour's
+   * house and the parked car through. Front and west return, both siding — that closes
+   * it from the street and from the west approach, which are the only ways to see it. */
+  /* ⚠️ the literal, NOT UP.x0: the UP box is declared 1,100 lines below this and
+   * var hoists, so reading it here gets undefined. Same trap as paperM. */
+  var UPX0 = -17.20;                         // === UP.x0, kept in step by hand
+  var nW = (KX0 - 0.05) - (UPX0 + 0.08);
+  var nFront = box(nW, 3.0, 0.04, sidingM);
+  nFront.position.set((UPX0 + 0.08 + KX0 - 0.05) / 2, 1.5, HOUSE_F - 0.055); yadd(nFront);
+  var nWest = box(0.04, 3.0, 3.80, sidingM);
+  nWest.position.set(UPX0 + 0.10, 1.5, HOUSE_F - 0.055 + 1.90); yadd(nWest);
+
   // --- the sky. One big backdrop that the phase repaints.
   // 256 wide, not 8 — a 8px strip can only ever be a vertical gradient, and the sky
   // needed cloud banding and a moon painted into it
@@ -5097,6 +5164,13 @@ export function buildHallway(ctx) {
     w3.position.set(ex, upY, (UP.z0 + UP.z1) / 2); badd(w3);
   });
   var bwGlass = new THREE.Mesh(new THREE.PlaneGeometry(BW.x1 - BW.x0 - 0.10, BW.y1 - BW.y0 - 0.10),
+    /* ⚠️ warm, not 0x1a2436. The emissive was always amber but the DIFFUSE was night-
+     * blue, so beside the neighbours' 0xffdca0 panes this one read as the only dark
+     * window on the street — in the one house that is supposed to be awake. */
+    /* ⚠️ this one is rotation.y = Math.PI - it faces the BACK yard, not the street.
+     * Warming its diffuse to match the neighbours' panes does nothing to the front
+     * elevation; the dark rectangle you see from the pavement is the OPENING it sits
+     * behind, and that is filled by litWindow(-4.40, ...) instead. Left night-blue. */
     new THREE.MeshStandardMaterial({ color: 0x1a2436, emissive: 0xffd9a0, emissiveIntensity: 1.1, roughness: 0.25 }));
   bwGlass.position.set((BW.x0 + BW.x1) / 2, (BW.y0 + BW.y1) / 2, UP.z0 + 0.17);
   bwGlass.rotation.y = Math.PI; badd(bwGlass);
