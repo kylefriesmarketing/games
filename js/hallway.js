@@ -3309,6 +3309,15 @@ export function buildHallway(ctx) {
     var sv = box(p[1] - p[0], 3.4, 0.04, sidingM);
     sv.position.set((p[0] + p[1]) / 2, 1.7, HOUSE_F - 0.055); yadd(sv);
   });
+  /* ⚠️⚠️ THE KITCHEN WING WAS NEVER CLAD. The two runs above span W_IN to E_IN —
+   * the HALL’s width — but the ground floor carries on west for the kitchen, whose
+   * north wall IS the house’s front face there. From the street that whole bay showed
+   * its interior wall material: half the house in lap siding, half in kitchen plaster,
+   * with a hard seam at the porch. Nobody caught it in months because the porch camera
+   * looks AWAY from the house — the only way to see your own front elevation is to
+   * stand in the street and point a camera back at it. */
+  var kSide = box((W_IN - 0.1) - (KX0 - 0.05), 3.0, 0.04, sidingM);
+  kSide.position.set(((KX0 - 0.05) + (W_IN - 0.1)) / 2, 1.5, KZ0 - 0.175); yadd(kSide);
   // ⚠️ opening width only, same reason as the wall header it clads
   var sideHdr = box(FDO.x1 - FDO.x0, 3.4 - FDO.y1, 0.04, sidingM);
   sideHdr.position.set(FRONT_X, (FDO.y1 + 3.4) / 2, HOUSE_F - 0.055); yadd(sideHdr);
