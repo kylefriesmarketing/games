@@ -254,6 +254,36 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
     boot.compileMs = Math.round(_now() - _c0);
     boot.tookMs = Math.round(((performance && performance.now) ? performance.now() : 0) - boot.t0);
     bootNotify();
+    /* ⚠️⚠️ AND NOW COMPILE THE HOUSE AGAINST THE HOUSE'S OWN LIGHTS.
+     * The compile above is not wasted, but it is compiled against the wrong world.
+     * three.js bakes NUM_POINT_LIGHTS / NUM_DIR_LIGHTS / NUM_HEMI_LIGHTS into the
+     * program cache key, and renderer.compile() collects lights with traverseVisible
+     * while collecting materials with a plain traverse. The hallway group is hidden
+     * while you are in the bedroom, so every material in the house gets compiled
+     * against the BEDROOM's light set and then thrown away and recompiled the first
+     * time you step out.
+     * MEASURED on an RTX 5060 Ti, 2026-08-27: visible lights 10 -> 46 on that one
+     * toggle, 21 new programs, and a FIRST HALL FRAME OF 11,561 ms against 37 ms for
+     * the second. That is the stall the tombstone in hallway.js is about.
+     * So: warm the house's variants too. Deliberately AFTER bootNotify(), on an idle
+     * callback, so it does NOT lengthen the wait behind the door — the visitor is let
+     * in first and this runs while they are looking round the bedroom.
+     * ⚠️ the unhide/compile/restore must stay in ONE synchronous task. compile()
+     * does not draw, but if a rAF frame landed between the unhide and the restore it
+     * would render the entire house over the bedroom. */
+    var warmHouse = function () {
+      var g = null;
+      try { g = (typeof hall !== "undefined" && hall) ? hall.group : null; } catch (e) { return; }
+      if (!g || g.visible) return;   // already visible = nothing to pre-warm
+      var t0 = (performance && performance.now) ? performance.now() : 0;
+      g.visible = true;
+      try { (post && post.compileFor) ? post.compileFor(scene, camera) : renderer.compile(scene, camera); } catch (e) { }
+      g.visible = false;
+      boot.houseWarmMs = Math.round(((performance && performance.now) ? performance.now() : 0) - t0);
+      try { boot.programs = renderer.info.programs.length; } catch (e) { }
+    };
+    if (window.requestIdleCallback) window.requestIdleCallback(warmHouse, { timeout: 4000 });
+    else setTimeout(warmHouse, 900);
   }
   /* ?slowboot=2500 holds the door shut for that many ms after everything is in.
    * The loading screen is otherwise almost impossible to test on a warm cache —

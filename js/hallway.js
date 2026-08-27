@@ -3728,9 +3728,21 @@ export function buildHallway(ctx) {
   // walls don't stand in front of it.)
   [[4.7, 3.0, 0.2, -9.9, 1.05, 8.5],       // back
    [0.2, 3.0, 4.4, -12.15, 1.05, 6.4],     // west
-   [0.2, 3.0, 0.88, -7.65, 1.05, 4.64],    // east, north of the man door
-   [0.2, 3.0, 2.48, -7.65, 1.05, 7.36],    // east, south of it
-   [0.2, 0.46, 1.04, -7.65, 2.32, 5.60],   // east header over it
+   /* ⚠️⚠️ DERIVED FROM GDO, NOT HARDCODED — this wall was SEALING THE DOOR.
+    * The man door moved south to z 7.45..8.49. The INTERIOR wall was correctly
+    * re-derived at the same time (see `[[4.35, GDO.z0], [GDO.z1, 8.45]]` further
+    * down), but this exterior shell kept its old split and left its opening at
+    * z 5.08..6.12 — so the real doorway was buried inside the solid 6.12..8.60
+    * slab, and the garage walk (P.gdoor2 -> P.gmid) drove the camera through solid
+    * wall on EVERY entry. Nothing noticed for months because no camera ever stood
+    * outside the garage's east side to look at it.
+    * The lesson is the pattern, not the numbers: a constant was made authoritative
+    * on one side of a wall and left hardcoded on the other. Both sides read GDO now,
+    * so they cannot disagree again. */
+   [0.2, 3.0, GDO.z0 - 4.20, -7.65, 1.05, (4.20 + GDO.z0) / 2],        // east, north of the man door
+   [0.2, 3.0, 8.60 - GDO.z1, -7.65, 1.05, (GDO.z1 + 8.60) / 2],        // east, south of it
+   [0.2, 2.55 - GDO.y1, GDO.z1 - GDO.z0, -7.65,                        // east header over it
+    (GDO.y1 + 2.55) / 2, (GDO.z0 + GDO.z1) / 2],
    [1.15, 2.3, 0.2, -8.125, 0.70, 4.30],   // north, east of the opening
    [0.15, 2.3, 0.2, -12.175, 0.70, 4.30],  // north, the sliver west of it
    [4.7, 0.7, 0.2, -9.9, 2.20, 4.30],      // north header over the opening

@@ -49,7 +49,8 @@ the room first opened — a crayon banner goes up over the shelf. Tab walks the 
 a keyboard; Enter opens what you've landed on. The whole thing is Three.js — primitives,
 generated textures, a handful of AI-generated props and one patrolling tin robot —
 no build step, no framework, native ES modules, a film-grade post chain (bloom,
-per-room colour grade, grain) and per-room light gating so it runs cool.
+per-room colour grade, grain). Every light stays on: per-room light gating was
+tried and reverted — see HANDOFF.md.
 
 ## Running locally
 

@@ -224,6 +224,19 @@ export function createPost(renderer, scene, camera) {
   };
   api.setTime = function (t) { compMat.uniforms.uTime.value = t; };
 
+  /* ⚠️⚠️ COMPILE AGAINST THE TARGET WE ACTUALLY DRAW INTO.
+   * three.js only applies tone mapping when the current render target is null, and
+   * toneMapping is part of the program cache key — so the SAME material drawn to the
+   * canvas and drawn into sceneRT are two different programs. A warm-up that calls
+   * renderer.compile() with no target bound therefore builds the canvas variants and
+   * the first real frame throws them away. Bind sceneRT first and the warm-up builds
+   * the ones the post chain will really ask for. */
+  api.compileFor = function (sc, cam) {
+    if (!api.available || !api.enabled) { renderer.compile(sc, cam); return; }
+    var prev = renderer.getRenderTarget();
+    renderer.setRenderTarget(sceneRT);
+    try { renderer.compile(sc, cam); } finally { renderer.setRenderTarget(prev); }
+  };
   api.render = function () {
     if (!api.enabled) { renderer.setRenderTarget(null); renderer.render(scene, camera); return; }
     // 1) the room, into HDR (linear — tone mapping does not run for a non-null target)

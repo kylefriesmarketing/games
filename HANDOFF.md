@@ -297,14 +297,30 @@ JSON-LD, sitemap).
 - **The photo button** shoots through the MAIN renderer + post chain from the
   live camera (resize→render→toDataURL→restore in one synchronous task). The
   second GL context is gone.
-- **Per-space light gating** (hallway.js, above glowTick): every point light
-  classified once by position against `SPACE_BOUNDS`; only the current space's
-  set + sightline neighbours (LG_ALLOW) stays visible. Bedroom's 7 practicals
-  gate too (room.js tick, bedVis). Outdoor lights never gate. Census: bedroom
-  7 / porch 16 / garage 17 / kitchen 23 / hall 29, from a flat ~49. Lights
-  must NEVER toggle `.visible` per-event (shader recompile) — passing car,
-  truck, pool, CRT and aquarium all drive **intensity** now; `dimLights`
-  registry ticks the once-constant practicals at `base*dim`.
+- ⚠️⚠️ **Per-space light gating: BUILT, MEASURED, REVERTED — DO NOT REBUILD IT.**
+  This entry used to describe it as shipped ("Census: bedroom 7 / porch 16 /
+  garage 17 / kitchen 23 / hall 29, from a flat ~49") and the README advertised
+  "per-room light gating so it runs cool". Both were wrong for months. It gated
+  every point light by position against `SPACE_BOUNDS` so only the current
+  space's set stayed visible — and it was THE LAG: three.js bakes
+  NUM_POINT_LIGHTS into the shader program cache key, so a per-room light count
+  meant a per-room program set and a full recompile storm on every transition
+  (81 → 149 programs, 289 ms worst frame, 147 ms average). Reverted in 6ae02be
+  ("Revert the per-space light gating: it was the lag"); the tombstone with the
+  full numbers is at hallway.js ~8717. Every light is on, all the time.
+  ⚠️ The same cache key still bites at ONE remaining toggle — `hall.group`
+  hides ~36 lights while you are in the bedroom, so visible lights swing 10 ↔ 46
+  when you step out. Measured 2026-08-27: that cost **21 new programs and an
+  11,561 ms first frame in the hall** (second frame 37 ms). The fix is NOT to
+  gate anything: `warmHouse` (room.js, on an idle callback after the door opens)
+  un-hides the house and pre-compiles its variants through `post.compileFor`,
+  which binds the post chain's sceneRT so the programs match what actually gets
+  drawn (toneMapping is part of the cache key and only applies to a null target).
+  Result: **2 new programs, 502 ms**, and boot is unchanged because it runs
+  after `bootNotify()`.
+  Lights must still NEVER toggle `.visible` per-event — passing car, truck,
+  pool, CRT and aquarium all drive **intensity**; the `dimLights` registry ticks
+  the once-constant practicals at `base*dim`.
 
 **Parked / next candidates:**
 - Chameleon was fully removed from the hub for copyright (computer shows a
