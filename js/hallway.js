@@ -20,6 +20,8 @@
  * whose hints tell you what they'd take. The wall fills in as you play.
  */
 import * as THREE from "three";
+import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
+import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
 import { mat, box, canvasTex, esc } from "./util.js";
 function canvasTexLinear(w, h, draw) { return canvasTex(w, h, draw, true); }   // masks/dust/rain: see util.js
 import * as PROFILE from "./profile.js";
@@ -36,6 +38,55 @@ export function buildHallway(ctx) {
    * bedroom version assumes — a floor at y 0 — by taking the floor height per call.
    * ⚠️ y must sit ABOVE any rug (the rugs are at +0.008..0.012) or the decal z-fights
    * the rug instead of shading it: +0.016 over the floor, the bedroom's convention. */
+  /* ================= HERO PROPS: BAKED GLBs OVER THE BOX SKETCHES =================
+   * The bedroom's furniture is baked models; the rest of the house was boxes. Each
+   * call replaces one prop's procedural sketch with a generated GLB when (and only
+   * when) the file arrives — a 404 keeps the boxes, exactly like the texture pass.
+   * ⚠️ THE CONTACT SHADOW SURVIVES: plant()'s disc is child[0] of most prop
+   * groups, and the hide list at each call site deliberately excludes it. Hide the
+   * disc and the new prop floats — the grounding cue is the disc, not the mesh.
+   * ⚠️ CLICKABILITY IS COPIED, NOT ASSUMED: picking raycasts the `pick` array,
+   * so every GLB mesh goes through ctx.clickable with the old prop's own name,
+   * action and hint, and inherits its userData.space. A silent swap that forgot
+   * this would leave a prop you can see but not hover — the 74%-null-action audit
+   * taught us how invisible that failure is.
+   * ⚠️ fit.ry rotates BEFORE measuring, so the box fit is of the turned model.
+   * Deferred + uncounted: never touches the boot gate. */
+  var housePropLoader = null;
+  function propSwap(key, parent, hide, fit, proto) {
+    if (!housePropLoader) {
+      var dr = new DRACOLoader(); dr.setDecoderPath("assets/lib/draco/");
+      housePropLoader = new GLTFLoader(); housePropLoader.setDRACOLoader(dr);
+    }
+    housePropLoader.load("assets/props/house/" + key + ".glb", function (g) {
+      try {
+        var pd = proto || null;
+        if (!pd) hide.forEach(function (m) { if (!pd && m.userData && m.userData.name) pd = m; });
+        var inner = new THREE.Group();
+        inner.rotation.y = fit.ry || 0;
+        inner.add(g.scene);
+        var bb = new THREE.Box3().setFromObject(inner);
+        var size = bb.getSize(new THREE.Vector3());
+        var sc = fit.w / Math.max(0.001, size.x);
+        if (fit.d) sc = Math.min(sc, fit.d / Math.max(0.001, size.z));
+        if (fit.h) sc = Math.min(sc, fit.h / Math.max(0.001, size.y));
+        inner.scale.setScalar(sc);
+        bb.setFromObject(inner);
+        var c = bb.getCenter(new THREE.Vector3());
+        inner.position.set((fit.x || 0) - c.x, (fit.y || 0) - bb.min.y, (fit.z || 0) - c.z);
+        inner.traverse(function (o) {
+          if (!o.isMesh) return;
+          if (fit.tint && o.material && o.material.color) {
+            o.material = o.material.clone(); o.material.color.multiplyScalar(1).multiply(new THREE.Color(fit.tint));
+          }
+          if (pd) { ctx.clickable(o, pd.userData.name, pd.userData.action, pd.userData.hint); o.userData.space = pd.userData.space; }
+        });
+        parent.add(inner);
+        hide.forEach(function (m) { m.visible = false; });
+      } catch (e) { }
+    }, undefined, function () { /* 404: the box sketch stays */ });
+  }
+
   function plant(parent, rx, rz, op, floorY) {
     if (!ctx.contactShadow) return null;
     return ctx.contactShadow(parent, rx, rz, op, (floorY || 0) + 0.016);
@@ -490,6 +541,8 @@ export function buildHallway(ctx) {
     [-0.58, 0.58].forEach(function (cx) {
       var cush = box(1.06, 0.14, 0.72, mat(0x7a8768, 0.92)); cush.position.set(cx, 0.44, 0.02); cg.add(cush); });
     cg.children.forEach(function (m) { ltag(m, 'the good couch', null, 'plastic came off it in 1994 and it has been downhill since.'); });
+    // the baked couch, when its file exists; child[0] is plant()'s shadow disc — keep it
+    propSwap('couch', cg, cg.children.slice(1), { w: 2.35, d: 1.15, ry: 0 });
     /* ⚠️ NO PI TURN ON THE GROUP. The screen is built on the cabinet's local -z face, so
      * turning the whole group put it on the SOUTH side — the television was facing the
      * wall and showing the couch its back. Left unturned the screen looks north at the
@@ -1882,6 +1935,8 @@ export function buildHallway(ctx) {
         pil.position.set(px, 0.66, -0.76); pil.rotation.z = (pi ? -1 : 1) * 0.06; bg.add(pil);
       });
       grp(0, bg, 'their bed', 'made every morning before anyone else is up, and it shows.');
+      // child[0] is the under-bed shadow — the strongest grounding cue the room has
+      propSwap('bed', bg, bg.children.slice(1), { w: 1.70, d: 2.10, ry: 0 });
       [[-1.66, 0.06], [1.62, -0.05]].forEach(function (ns, ni) {
         var nx = cx - 0.75 + ns[0], nz = RZ0 + 0.70;
         var ng = new THREE.Group(); ng.position.set(nx, fl, nz); ng.rotation.y = ns[1]; add(ng);
@@ -2812,9 +2867,10 @@ export function buildHallway(ctx) {
   fridge.position.set(frX, 0.86, KZ1 - 0.5); kadd(fridge);
   var frSplit = box(0.8, 0.02, 0.74, mat(0xbfbdb2, 0.5));
   frSplit.position.set(frX, 1.22, KZ1 - 0.5); kadd(frSplit);
+  var frHnds = [];   // captured so the baked fridge can retire them with the rest
   [[0.62, 0.5], [1.5, 0.28]].forEach(function (hh) {
     var hnd = box(0.04, hh[1], 0.04, mat(0xbfbdb2, 0.35));
-    hnd.position.set(frX - 0.33, hh[0], KZ1 - 0.87); kadd(hnd);
+    hnd.position.set(frX - 0.33, hh[0], KZ1 - 0.87); kadd(hnd); frHnds.push(hnd);
   });
   // the door: magnets, a shopping list, and the kid's drawings of the games
   var frDoorT = canvasTex(192, 256, function (c, w, h) {
@@ -2843,6 +2899,9 @@ export function buildHallway(ctx) {
     new THREE.MeshStandardMaterial({ map: frDoorT, roughness: 0.44 }));
   frDoor.position.set(frX, 0.86, KZ1 - 0.865); frDoor.rotation.y = Math.PI; kadd(frDoor);
   ktag(frDoor, "the fridge", null, "it hums like it knows something. it has always hummed like that.");
+  // the baked fridge: door faces -z like frDoor; the glow light stays
+  propSwap("fridge", kitG, [fridge, frSplit, frDoor].concat(frHnds),
+    { x: frX, z: KZ1 - 0.5, w: 0.82, d: 0.88, h: 1.80, ry: Math.PI }, frDoor);
   var frGlow = new THREE.PointLight(0xbfe8d8, 0.28, 2.4, 2);
   frGlow.position.set(frX, 1.0, KZ1 - 1.0); kadd(frGlow);
 
@@ -5853,6 +5912,7 @@ export function buildHallway(ctx) {
   });
   var gShelf2 = box(0.34, 0.03, 0.22, mat(0x6b5638, 0.85)); gShelf2.position.set(0.42, 0.62, 0); grillG.add(gShelf2);
   grillG.children.forEach(function (m) { btag(m, "the grill", null, "dad has a system. do not ask about the system."); });
+  propSwap('grill', grillG, grillG.children.slice(), { w: 0.85, h: 1.05, ry: 0 });
   // the slip 'n slide, still out from the weekend
   var slideStrip = new THREE.Mesh(new THREE.PlaneGeometry(0.92, 4.4),
     new THREE.MeshStandardMaterial({ color: 0xe8d24a, roughness: 0.35,
@@ -6959,6 +7019,7 @@ export function buildHallway(ctx) {
   ppG.children.forEach(function (m) {
     bstag(m, "the ping-pong table", null, "best of five. best of seven. best of ELEVEN, fine.");
   });
+  propSwap('pingpong', ppG, ppG.children.slice(), { w: 2.45, d: 1.40, ry: 0 });
   // the aquarium — the green light the hall has been promising for months
   var aqCab = box(0.9, 0.62, 0.42, mat(0x4a3524, 0.85)); aqCab.position.set(2.82, BSM.fl + 0.31, 2.55); add(aqCab);
   var aqGlass = new THREE.Mesh(new THREE.BoxGeometry(0.82, 0.5, 0.36),
