@@ -228,6 +228,16 @@ screen, light, season, tour, profile, audio, cat, posters, extras).
   syntax only.
 - **kidSay bubble detection**: the browser normalizes style attrs (adds spaces) —
   search for the text, not the exact style string.
+- **Photographing with `__room.camera` renders a uniform navy** (its view state is
+  tick-managed and the tick never runs in the pane; moving it does nothing).
+  Build a FRESH `new THREE.PerspectiveCamera`, set position + lookAt +
+  `updateMatrixWorld(true)`, `renderer.setRenderTarget(null)`, then render →
+  toDataURL same-task. Verified working 2026-08-29 (the shelf art pass shots).
+- **Spine art (2026-08-29)**: playable spines = generated art (assets/tex/spines/)
+  composited under canvas titles in `spineTex` — the procedural design always
+  paints FIRST, so a missing art file degrades to the old spine, never a blank.
+  opts.over is the only painter that survives art mode (Dracula's footnote).
+  Filler books slice `spines/decor.jpg` (8 equal panels) by texture offset.
 - **Fingerprint refactors**: capture a ~19-field scene/state fingerprint before
   and after; prove noisy fields noisy before accepting drift.
 - Balance/AI work in Age of Toys: see that project's own docs (`CLAUDE.md` at the
