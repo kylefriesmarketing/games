@@ -7677,6 +7677,52 @@ export function buildHallway(ctx) {
    * that tuning away and every look would have to re-solve ten materials against ten
    * textures. Lerping from the CAPTURED base keeps every relationship and makes a new
    * look two numbers. */
+  /* ================= THE HOUSE GETS REAL ART (2026-08-29, ~24cr) =================
+   * The bedroom always looked better than the rest of the house for one measurable
+   * reason: hallway.js referenced assets/ ZERO times — every surface out here was
+   * procedural canvas paint. These are generated textures for the twelve biggest
+   * surfaces, palette-matched to each canvas painter's own hexes so every tint,
+   * LOOK lerp and phase grade composes exactly as before.
+   * HOW THE SWAP WORKS — and why it is this and not new materials: each image is
+   * drawn INTO the texture's existing canvas. The canvas IS the texture's Source,
+   * and every clone (paperWallM / lawnM / blockM / plankWallM all clone) shares it,
+   * so ONE draw updates every wall panel at its own calibrated repeat. No material
+   * is created, so LOOK_MATS stays complete and the paint system never notices.
+   * ⚠️ the canvas is RESIZED to the image (256 -> 512): sharper, same object.
+   * ⚠️ materials with a DERIVED bump (bumpFrom snapshots the canvas at build)
+   * get their bump REGENERATED, or the old procedural board-edges ghost under the
+   * new art as phantom relief.
+   * ⚠️ fetched OUTSIDE the boot counter on purpose: the house is hidden while
+   * the door card is up, so these streaming in late is invisible, and the door
+   * must not wait on 640 KB of wallpaper. A 404 simply keeps the procedural paint.
+   * ⚠️ palette rule for future additions: match the PAINTER's colours, not the
+   * rendered ones — tints multiply on top and must keep meaning the same thing. */
+  var HOUSE_ART = [
+    ["hwall", hwallT], ["plank", plankT], ["runner", runT], ["lino", linoT],
+    ["kwall", kWallT], ["tile", tileT], ["side", sideT], ["grass", grassT],
+    ["deck", deckT], ["cinder", cinderT], ["panel", panelT], ["garfloor", garFloorT],
+  ];
+  function houseArtSwap(tex, img) {
+    var cv = tex.image;
+    cv.width = img.naturalWidth; cv.height = img.naturalHeight;
+    cv.getContext("2d").drawImage(img, 0, 0);
+    tex.needsUpdate = true;
+    // nudge every material bound to this canvas (clones share the Source but carry
+    // their own version), and re-derive any bump that was baked from the old paint
+    LOOK_MATS.forEach(function (m) {
+      if (!m.map || m.map.image !== cv) return;
+      m.map.needsUpdate = true;
+      if (m.bumpMap && m.bumpMap.image !== cv) {
+        var nb = bumpFrom(m.map, 1.7);
+        if (nb) { nb.repeat.copy(m.map.repeat); nb.offset.copy(m.map.offset); m.bumpMap = nb; }
+      }
+    });
+  }
+  HOUSE_ART.forEach(function (pair) {
+    var img = new Image();
+    img.onload = function () { try { houseArtSwap(pair[1], img); } catch (e) { } };
+    img.src = "assets/tex/house/" + pair[0] + ".jpg";
+  });
   var LOOK_MATS = [hwallM, plankM, runner.material, oakM, kWallM, lamM,
                    sidingM, grassM, deckM, bFenceM, pdeckM,
                    garWallM, garFloorM, benchM, poolConcM, panelM,
