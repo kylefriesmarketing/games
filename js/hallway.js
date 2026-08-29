@@ -83,6 +83,10 @@ export function buildHallway(ctx) {
         });
         parent.add(inner);
         hide.forEach(function (m) { m.visible = false; });
+        // fit.onPlaced(top): lets a call site re-seat loose props that sat on the
+        // SKETCH’s surface — the fruit bowl was placed on a 0.74 table and the bake
+        // came out 0.61: sixteen centimetres of floating fruit until this ran.
+        if (fit.onPlaced) try { fit.onPlaced((fit.y || 0) + (bb.max.y - bb.min.y)); } catch (e2) { }
       } catch (e) { }
     }, undefined, function () { /* 404: the box sketch stays */ });
   }
@@ -2917,11 +2921,20 @@ export function buildHallway(ctx) {
 
   // --- the table, where the actual living gets done
   var tblT = box(1.15, 0.05, 0.78, lamM); tblT.position.set(KCX + 0.55, 0.74, KCZ + 1.05); kadd(tblT);
+  var tblLegs = [];   // captured so the baked table can retire them with the top
   [[-0.5, -0.32], [0.5, -0.32], [-0.5, 0.32], [0.5, 0.32]].forEach(function (l) {
     var lg = box(0.05, 0.72, 0.05, mat(0x8a6a44, 0.7));
-    lg.position.set(KCX + 0.55 + l[0], 0.36, KCZ + 1.05 + l[1]); kadd(lg);
+    lg.position.set(KCX + 0.55 + l[0], 0.36, KCZ + 1.05 + l[1]); kadd(lg); tblLegs.push(lg);
   });
   ktag(tblT, "the kitchen table", null, "homework, cereal, and every difficult conversation this house has had.");
+  /* ⚠️ h is capped just under the sketch's 0.74 top so the fruit bowl — placed on
+   * the OLD surface height — keeps sitting on the table instead of floating over it. */
+  propSwap('ktable', kitG, [tblT].concat(tblLegs),
+    { x: KCX + 0.55, z: KCZ + 1.05, w: 1.15, d: 0.80, h: 0.76, ry: 0,
+      onPlaced: function (top) {   // re-seat the bowl and fruit on the REAL top
+        var dy = (top + 0.004) - 0.768;
+        [bowl2, bowlBase].concat(kFruit).forEach(function (m) { m.position.y += dy; });
+      } }, tblT);
   // ⚠️ chairs are GROUPS so they can be turned. Built inline they could only ever sit
   // square to the table, which is the one thing chairs in a lived-in kitchen never do.
   // (The old inline version also carried a third number per chair that nothing read.)
@@ -3469,11 +3482,16 @@ export function buildHallway(ctx) {
   // a chair nobody has sat in since the summer
   var chSeat = box(0.5, 0.06, 0.46, mat(0x6a7a5e, 0.9)); chSeat.position.set(PX0 + 0.85, 0.42, PZ1 + 0.62); yadd(chSeat);
   var chBack = box(0.5, 0.5, 0.06, mat(0x6a7a5e, 0.9)); chBack.position.set(PX0 + 0.85, 0.68, PZ1 + 0.4); yadd(chBack);
+  var chLegs = [];
   [[-0.21, -0.19], [0.21, -0.19], [-0.21, 0.19], [0.21, 0.19]].forEach(function (l) {
     var lg = box(0.05, 0.4, 0.05, mat(0x5a6a50, 0.9));
-    lg.position.set(PX0 + 0.85 + l[0], 0.2, PZ1 + 0.62 + l[1]); yadd(lg);
+    lg.position.set(PX0 + 0.85 + l[0], 0.2, PZ1 + 0.62 + l[1]); yadd(lg); chLegs.push(lg);
   });
   ytag(chSeat, "the porch chair", null, "one chair. there used to be two.");
+  // the baked lawn chair — green and white webbing, the one every porch had.
+  // back sits streetward of the seat, so the chair faces the front door (+z).
+  propSwap('lawnchair', chSeat.parent, [chSeat, chBack].concat(chLegs),
+    { x: PX0 + 0.85, z: PZ1 + 0.53, w: 0.60, h: 0.82, ry: 0 }, chSeat);
   // steps down to the path
   [[0, -0.06], [1, -0.19], [2, -0.32]].forEach(function (s) {
     var stp = box(1.5, 0.13, 0.32, pdeckM);
@@ -6066,6 +6084,15 @@ export function buildHallway(ctx) {
   launG.children.forEach(function (m) {
     if (m.isMesh) tag(m, "the laundry", null, "the laundry. one sock has been down here since 1997.");
   });
+  /* ⚠️ the machines are children [0..n-4]; the basket, the wash pile and the 1997
+   * sock are the LAST THREE and they STAY — they are the joke, and the baked machines
+   * would bury it. One bake serves both machines; the dryer instance is tinted a
+   * shade warmer so the pair reads as two appliances that aged differently. */
+  var launMachines = launG.children.slice(0, launG.children.length - 3);
+  propSwap('washer', launG, launMachines,
+    { x: 0, z: -0.34, w: 0.64, d: 0.64, h: 0.92, ry: -Math.PI / 2 }, launG.children[0]);
+  propSwap('washer', launG, [],
+    { x: 0, z: 0.34, w: 0.64, d: 0.64, h: 0.92, ry: -Math.PI / 2, tint: 0xf2e9d8 }, launG.children[0]);
   tag(sock, "the lost sock", null, "the sock. its twin is upstairs, which is not open yet.");
 
   // --- THE MUD ROOM: boots, leashes, a bowl, and the prints that prove a dog
@@ -6952,6 +6979,9 @@ export function buildHallway(ctx) {
   var afghan = box(0.72, 0.05, 0.55, mat(0x8a2f2a, 0.98));
   afghan.position.set(-0.55, 1.02, 0.30); afghan.rotation.x = -0.25; couchG.add(afghan);
   couchG.children.forEach(function (m) { bstag(m, "the couch", null, "it eats remotes. it has eaten three."); });
+  // the baked corduroy couch; the afghan goes with the sketch, which is a real loss —
+  // if anyone ever bakes an afghan, it goes back on
+  propSwap('dencouch', couchG, couchG.children.slice(), { w: 2.05, d: 1.0, ry: Math.PI });
   var ctG = new THREE.Group(); ctG.position.set(0.6, BSM.fl, 2.92); add(ctG);
   var ctTop = box(1.05, 0.06, 0.55, mat(0x6b5638, 0.85)); ctTop.position.y = 0.40; ctG.add(ctTop);
   [[-0.46, -0.2], [0.46, -0.2], [-0.46, 0.2], [0.46, 0.2]].forEach(function (cl2) {
@@ -7080,6 +7110,11 @@ export function buildHallway(ctx) {
   bikeG2.children.forEach(function (m) {
     bstag(m, "the exercise bike", null, "january's big idea. it faces the wall now, and it knows why.");
   });
+  // the group already carries the face-the-wall PI turn; ry here only maps the bake's
+  // forward (+z, handlebars) onto the sketch's long axis (x)
+  // ⚠️ d 0.5 bound the first fit and shipped a 53 cm toy bike — the bake is deeper
+  // than the sketch. Height is the axis that must match a bike; let depth follow.
+  propSwap('exbike', bikeG2, bikeG2.children.slice(), { w: 1.10, d: 0.90, h: 1.02, ry: Math.PI / 2 });
   /* ---- THE ARCADE CORNER ---------------------------------------------------------
    * Two full-size cabinets against the block wall: BLOODRIFT (moved down from the
    * bedroom — a cabinet belongs in a den, and at 1.0 scale instead of the 0.85 the
@@ -7772,6 +7807,10 @@ export function buildHallway(ctx) {
     ["hwall", hwallT], ["plank", plankT], ["runner", runT], ["lino", linoT],
     ["kwall", kWallT], ["tile", tileT], ["side", sideT], ["grass", grassT],
     ["deck", deckT], ["cinder", cinderT], ["panel", panelT], ["garfloor", garFloorT],
+    // batch 2 (2026-08-29): garage walls, chimney brick, front walk, road, cabinets.
+    // oak ships with its baked knob CROPPED OFF: oakM stretches ONE tile across long
+    // upper-cabinet runs, and a stretched knob reads as a dinner plate.
+    ["garwall", garWallT], ["brick", brickT], ["conc", concT], ["asph", asphT], ["oak", oakT],
   ];
   function houseArtSwap(tex, img) {
     var cv = tex.image;
