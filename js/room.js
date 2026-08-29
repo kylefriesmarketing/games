@@ -2869,7 +2869,10 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
     // the loader still recovers via its 404 handler, but every visitor eats a console
     // error on load. Delete the flag the day a real print lands in assets/tex.
     { key: "bloodrift", label: "BLOODRIFT", url: BLOODRIFT_URL, painted: true, tip: "BLOODRIFT — three realities, one wound" },
-    { key: "victorylap", label: "VICTORY LAP", url: VICTORY_LAP_URL, painted: true, tip: "VICTORY LAP — an open town you keep not leaving" },
+    // Flag deleted 2026-08-29 per the note above: poster-victorylap.jpg is a real
+    // 512x768 print now, matching the other fifteen. POSTER_PAINT.victorylap stays
+    // as the 404 fallback — the loader still reaches it if the file ever goes missing.
+    { key: "victorylap", label: "VICTORY LAP", url: VICTORY_LAP_URL, tip: "VICTORY LAP — an open town you keep not leaving" },
   ];
   var POSTER_CYCLE = [{ key: "none", label: "(bare wall)" }].concat(POSTER_ART); // cycling to "none" takes the frame down
   var posterByKey = { none: POSTER_CYCLE[0] };
