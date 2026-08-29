@@ -7707,16 +7707,35 @@ export function buildHallway(ctx) {
     cv.width = img.naturalWidth; cv.height = img.naturalHeight;
     cv.getContext("2d").drawImage(img, 0, 0);
     tex.needsUpdate = true;
-    // nudge every material bound to this canvas (clones share the Source but carry
-    // their own version), and re-derive any bump that was baked from the old paint
-    LOOK_MATS.forEach(function (m) {
-      if (!m.map || m.map.image !== cv) return;
-      m.map.needsUpdate = true;
-      if (m.bumpMap && m.bumpMap.image !== cv) {
-        var nb = bumpFrom(m.map, 1.7);
-        if (nb) { nb.repeat.copy(m.map.repeat); nb.offset.copy(m.map.offset); m.bumpMap = nb; }
-      }
+    /* ⚠️⚠️ NUDGE CONSUMERS FOUND BY SCENE TRAVERSE, NOT A REGISTRY. The first
+     * version walked LOOK_MATS — and for TWO of the twelve textures the art NEVER
+     * REACHED THE SCREEN, silently: linoT's and tileT's only consumers are ground()
+     * clones, and ground() never joins LOOK_EXTRA. r160 only re-uploads a texture
+     * whose OWN version changed while bound (setTexture2D gates on
+     * texture.version !== __version before the shared-Source check is even reached),
+     * so a canvas swap the bound clones were never told about draws the OLD pixels
+     * forever — no error, and the canvas itself reads back as swapped. The kitchen
+     * floor and backsplash shipped exactly that way and the review caught it.
+     * The traverse finds every rendered material whatever list it lives in, and it
+     * also catches the bump-cloned landing pieces and livFloorM, which are in NO
+     * registry at all. A registry is a claim; the scene is the truth. */
+    var touched = 0;
+    scene.traverse(function (o) {
+      if (!o.isMesh || !o.material) return;
+      (Array.isArray(o.material) ? o.material : [o.material]).forEach(function (m) {
+        if (!m.map || m.map.image !== cv) return;
+        m.map.needsUpdate = true; touched++;
+        if (m.bumpMap && m.bumpMap.image !== cv) {
+          var nb = bumpFrom(m.map, 1.7);
+          if (nb) { nb.repeat.copy(m.map.repeat); nb.offset.copy(m.map.offset); m.bumpMap = nb; }
+        }
+      });
     });
+    // and the unrendered base + registry entries, so a later consumer starts fresh
+    LOOK_MATS.forEach(function (m) {
+      if (m.map && m.map.image === cv) m.map.needsUpdate = true;
+    });
+    return touched;
   }
   HOUSE_ART.forEach(function (pair) {
     var img = new Image();
