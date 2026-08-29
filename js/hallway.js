@@ -22,7 +22,7 @@
 import * as THREE from "three";
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
 import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
-import { mat, box, canvasTex, esc } from "./util.js";
+import { mat, box, canvasTex, esc, loadJSON, saveJSON } from "./util.js";
 function canvasTexLinear(w, h, draw) { return canvasTex(w, h, draw, true); }   // masks/dust/rain: see util.js
 import * as PROFILE from "./profile.js";
 import * as AUDIO from "./audio.js";
@@ -212,13 +212,41 @@ export function buildHallway(ctx) {
    * over it — a material that is not in it silently stops taking the paint, which is
    * exactly the bug the comment on LOOK_MATS already records happening twice. */
   var LOOK_EXTRA = [];
-  function paperWallM(lenU, lenV, rough) {
-    var t = hwallT.clone(); t.needsUpdate = true;
+  /* ============ PER-ROOM CUSTOMIZATION: THE ROOM FAMILIES =======================
+   * Rooms used to share canvases (living + upstairs walls were hwallT clones, their
+   * floors plankT clones) — which is exactly what per-room wallpaper must UNSHARE.
+   * famTex(baseT, artKey) births a room its OWN canvas texture that starts as a
+   * pixel copy of the base (so an uncustomized room is indistinguishable from v75),
+   * keeps an `asFound` snapshot for the reset path, and registers in HOUSE_ART_FAM
+   * so the default art loader paints it too. Swapping a room's paper = drawing into
+   * the family canvas — every per-panel clone shares it as Source, so one draw
+   * reaches every wall at its own calibrated repeat. */
+  var HOUSE_ART_FAM = [];
+  function famTex(baseT, artKey) {
+    var src = baseT.image;
+    var t = canvasTex(src.width, src.height, function (c) { c.drawImage(src, 0, 0); });
+    t.wrapS = baseT.wrapS; t.wrapT = baseT.wrapT; t.repeat.copy(baseT.repeat);
+    var snap = document.createElement("canvas");
+    snap.width = src.width; snap.height = src.height;
+    snap.getContext("2d").drawImage(src, 0, 0);
+    t.userData.asFound = snap; t.userData.customIdx = 0;
+    HOUSE_ART_FAM.push([artKey, t]);
+    return t;
+  }
+  /* ⚠️ livFloorFamT is declared OUT HERE, not in the living room's IIFE, because
+   * the HOUSE_ROOMS table at the bottom of the file must reference it — an IIFE-local
+   * would ReferenceError the whole hallway at boot (the review caught exactly that). */
+  var livWallFamT, upWallFamT, livFloorFamT;
+  function paperWallM(lenU, lenV, rough, srcT) {
+    var t = (srcT || hwallT).clone(); t.needsUpdate = true;
     t.wrapS = t.wrapT = THREE.RepeatWrapping;
     t.repeat.set(Math.max(0.2, lenU) * 0.789, Math.max(0.2, lenV) * 0.471);  // the 5.07 m run's own measured density
     var m = new THREE.MeshStandardMaterial({ map: t, roughness: rough == null ? 0.95 : rough });
     LOOK_EXTRA.push(m); return m;
   }
+  // the rooms that used to wear the hall's paper and floor get their own rolls
+  livWallFamT = famTex(hwallT, "hwall"); upWallFamT = famTex(hwallT, "hwall");
+  livFloorFamT = famTex(plankT, "plank");
   // the WEST wall is cut for the kitchen doorway — third hole in this house, same
   // lesson each time: a door you can walk through needs an opening, not a slab
   var KDO = { z0: -0.90, z1: 0.20, y1: 2.16 };
@@ -453,7 +481,7 @@ export function buildHallway(ctx) {
      * that drew the boards 1.1 cm wide and turned the nail heads into 4.7 cm dashes.
      * Cloned at the hall's own measured density, so the boards match through the door
      * — which is what the tooltip has always claimed. */
-    var livFloorT = plankT.clone(); livFloorT.needsUpdate = true;
+    var livFloorT = livFloorFamT; livFloorT.needsUpdate = true;   // the outer-scope family
     livFloorT.wrapS = livFloorT.wrapT = THREE.RepeatWrapping;
     livFloorT.repeat.set((LIV.x1 - LIV.x0) * 0.387, (LIV.z1 - LIV.z0) * 0.327);
     var livFloorM = new THREE.MeshStandardMaterial({ map: livFloorT, roughness: 0.9 });
@@ -469,7 +497,7 @@ export function buildHallway(ctx) {
      [0.10, LIV.ce, LIV.z1 - LIV.z0 + 0.2, LIV.x0 - 0.05, LIV.ce / 2, (LIV.z0 + LIV.z1) / 2],
      [LIV_SE - LIV.x0, LIV.ce, 0.10, (LIV.x0 + LIV_SE) / 2, LIV.ce / 2, LIV.z1 + 0.05]
     ].forEach(function (w) {
-      var m2 = box(w[0], w[1], w[2], paperWallM(Math.max(w[0], w[2]), w[1], 0.94)); m2.position.set(w[3], w[4], w[5]); add(m2);
+      var m2 = box(w[0], w[1], w[2], paperWallM(Math.max(w[0], w[2]), w[1], 0.94, livWallFamT)); m2.position.set(w[3], w[4], w[5]); add(m2);
     });
     // the front window: this room looks down the drive at the street
     var LWZ = LIV.z0 + 1.30, LWW = 1.70, LWY0 = 0.95, LWY1 = 2.10;
@@ -1456,7 +1484,7 @@ export function buildHallway(ctx) {
    * 2.6 m per tile; the landing's biggest piece is 11.58 x 10.65, so the same repeat
    * stretched the grain nearly four times. It gets its own clone at the hall's
    * measured density (0.387 tiles/m in U, 0.327 in V) rather than the hall's numbers. */
-  var upFloorT = plankT.clone(); upFloorT.needsUpdate = true;
+  var upFloorT = famTex(plankT, "plank"); upFloorT.needsUpdate = true;
   upFloorT.wrapS = upFloorT.wrapT = THREE.RepeatWrapping; upFloorT.repeat.set(4.5, 3.5);
   var upFloorM = new THREE.MeshStandardMaterial({ map: upFloorT, roughness: 0.9 });
   // what the storey above looks like from beneath: the hall ceiling’s own colour, so
@@ -1507,11 +1535,11 @@ export function buildHallway(ctx) {
     // the outer walls of the storey
     [[UPF.x1 - UPF.x0 + 0.2, 0.10, (UPF.x0 + UPF.x1) / 2, UPF.z0 - 0.05],
      [UPF.x1 - UPF.x0 + 0.2, 0.10, (UPF.x0 + UPF.x1) / 2, UPF.z1 + 0.05]].forEach(function (w) {
-      var m2 = box(w[0], UPF.ce - UPF.fl, w[1], paperWallM(Math.max(w[0], w[1]), UPF.ce - UPF.fl));
+      var m2 = box(w[0], UPF.ce - UPF.fl, w[1], paperWallM(Math.max(w[0], w[1]), UPF.ce - UPF.fl, undefined, upWallFamT));
       m2.position.set(w[2], (UPF.fl + UPF.ce) / 2, w[3]); add(m2);
     });
     [UPF.x0 - 0.05, UPF.x1 + 0.05].forEach(function (wx) {
-      var m3 = box(0.10, UPF.ce - UPF.fl, UPF.z1 - UPF.z0, paperWallM(UPF.z1 - UPF.z0, UPF.ce - UPF.fl));
+      var m3 = box(0.10, UPF.ce - UPF.fl, UPF.z1 - UPF.z0, paperWallM(UPF.z1 - UPF.z0, UPF.ce - UPF.fl, undefined, upWallFamT));
       m3.position.set(wx, (UPF.fl + UPF.ce) / 2, (UPF.z0 + UPF.z1) / 2); add(m3);
     });
     /* the corridor's north wall, with the three doorways cut into it. The stairwell
@@ -1537,7 +1565,7 @@ export function buildHallway(ctx) {
       DOORS.forEach(function (d) { if (Math.abs(mid - d.x) < d.w / 2) isDoor = true; });
       var h0 = isDoor ? UPF.fl + 2.05 : UPF.fl, h1 = UPF.ce;
       if (h1 - h0 < 0.02) continue;
-      var seg = box(a1 - a0, h1 - h0, 0.10, paperWallM(a1 - a0, h1 - h0));
+      var seg = box(a1 - a0, h1 - h0, 0.10, paperWallM(a1 - a0, h1 - h0, undefined, upWallFamT));
       seg.position.set(mid, (h0 + h1) / 2, LAN.z0 - 0.05); add(seg);
     }
     /* ⚠️⚠️ THE CORRIDOR'S SOUTH WALL DID NOT EXIST. LAN.z1 appeared in this block only
@@ -1564,12 +1592,12 @@ export function buildHallway(ctx) {
      * z = 2.450 and traded one leak for 20 flashing rays — the same mistake this whole
      * pass has been about. Overlap, never abut. */
     [STW.x0 - 0.13, STW.x1 + 0.13].forEach(function (wx) {
-      var shw = box(0.10, (UPF.ce - UPF.fl) + 0.10, STW.z1 - LAN.z1 - 0.05, paperWallM(STW.z1 - LAN.z1 - 0.05, (UPF.ce - UPF.fl) + 0.10));
+      var shw = box(0.10, (UPF.ce - UPF.fl) + 0.10, STW.z1 - LAN.z1 - 0.05, paperWallM(STW.z1 - LAN.z1 - 0.05, (UPF.ce - UPF.fl) + 0.10, undefined, upWallFamT));
       shw.position.set(wx, (UPF.fl + UPF.ce) / 2 - 0.05, (LAN.z1 + 0.05 + STW.z1) / 2); add(shw);
     });
     [[UPF.x0, STW.x0], [STW.x1, UPF.x1]].forEach(function (r2) {
       if (r2[1] - r2[0] < 0.02) return;
-      var sw2 = box(r2[1] - r2[0], UPF.ce - UPF.fl, 0.10, paperWallM(r2[1] - r2[0], UPF.ce - UPF.fl));
+      var sw2 = box(r2[1] - r2[0], UPF.ce - UPF.fl, 0.10, paperWallM(r2[1] - r2[0], UPF.ce - UPF.fl, undefined, upWallFamT));
       sw2.position.set((r2[0] + r2[1]) / 2, (UPF.fl + UPF.ce) / 2, LAN.z1 + 0.05); add(sw2);
     });
     // the doors themselves, shut, each with its handle and its own light under it
@@ -1898,7 +1926,7 @@ export function buildHallway(ctx) {
    * fixture you can actually see. Each room is one person's evidence. */
   (function () {
     [-8.00, -0.20].forEach(function (dx) {                 // the two dividing walls
-      var dw = box(0.10, UPF.ce - UPF.fl, RZ1 - RZ0 + 0.24, paperWallM(RZ1 - RZ0 + 0.24, UPF.ce - UPF.fl));
+      var dw = box(0.10, UPF.ce - UPF.fl, RZ1 - RZ0 + 0.24, paperWallM(RZ1 - RZ0 + 0.24, UPF.ce - UPF.fl, undefined, upWallFamT));
       dw.position.set(dx, (UPF.fl + UPF.ce) / 2, (RZ0 + RZ1) / 2); add(dw);
     });
     function rtag(m, ri, name, hint) {
@@ -7814,7 +7842,12 @@ export function buildHallway(ctx) {
   ];
   function houseArtSwap(tex, img) {
     var cv = tex.image;
-    cv.width = img.naturalWidth; cv.height = img.naturalHeight;
+    /* ⚠️ naturalWidth || width: the reset path feeds this function a CANVAS
+     * snapshot, and a canvas has no naturalWidth — undefined coerces the canvas to
+     * 0x0 and every panel sharing it uploads BLACK. Both reviews caught it. */
+    var iw = img.naturalWidth || img.width, ih = img.naturalHeight || img.height;
+    if (!iw || !ih) return 0;
+    cv.width = iw; cv.height = ih;
     cv.getContext("2d").drawImage(img, 0, 0);
     tex.needsUpdate = true;
     /* ⚠️⚠️ NUDGE CONSUMERS FOUND BY SCENE TRAVERSE, NOT A REGISTRY. The first
@@ -7847,10 +7880,141 @@ export function buildHallway(ctx) {
     });
     return touched;
   }
+  /* the family canvases join the default-art run; hwall and plank now feed several
+   * canvases each, so fetches are grouped by key — one Image per unique file. */
+  HOUSE_ART = HOUSE_ART.concat(HOUSE_ART_FAM);
+  var HOUSE_ART_BY_KEY = {};
   HOUSE_ART.forEach(function (pair) {
+    (HOUSE_ART_BY_KEY[pair[0]] = HOUSE_ART_BY_KEY[pair[0]] || []).push(pair[1]);
+  });
+  Object.keys(HOUSE_ART_BY_KEY).forEach(function (key) {
     var img = new Image();
-    img.onload = function () { try { houseArtSwap(pair[1], img); } catch (e) { } };
-    img.src = "assets/tex/house/" + pair[0] + ".jpg";
+    img.onload = function () {
+      HOUSE_ART_BY_KEY[key].forEach(function (t) {
+        t.userData.defaultImg = img;    // the reset verb wants this even when skipped
+        /* ⚠️ a restored CUSTOM room must not be overpainted by later-arriving
+         * default art. customIdx is claimed synchronously at boot, so the guard —
+         * not timing — decides the race. */
+        if (t.userData.customIdx > 0) return;
+        try { houseArtSwap(t, img); } catch (e) { }
+      });
+    };
+    img.src = "assets/tex/house/" + key + ".jpg";
+  });
+
+  /* ============ PER-ROOM CUSTOMIZATION: STATE + APPLY ============================
+   * The bedroom's decor drawer drives these through hall.rooms (exported below).
+   * One localStorage key, indices into two shared option lists; a room at defaults
+   * costs zero extra requests, a 404 keeps current pixels and persists nothing. */
+  var HOUSE_ROOMS = {
+    hall:     { label: "the hall",        wall: hwallT,      floor: plankT },
+    kitchen:  { label: "the kitchen",     wall: kWallT,      floor: linoT },
+    living:   { label: "the living room", wall: livWallFamT, floor: livFloorFamT },
+    upstairs: { label: "upstairs",        wall: upWallFamT,  floor: upFloorT },
+    garage:   { label: "the garage",      wall: garWallT,    floor: garFloorT },
+    basement: { label: "the basement",    wall: panelT,      floor: "slab" },
+  };
+  /* ⚠️ BASE textures (hall/kitchen/garage/basement walls) never went through
+   * famTex, so they had no asFound snapshot — and reset-with-art-404 on those rooms
+   * would have thrown inside a click handler. Snapshot every room texture NOW, at
+   * build time, while the pixels are still the procedural paint. */
+  Object.keys(HOUSE_ROOMS).forEach(function (rk) {
+    ["wall", "floor"].forEach(function (kind) {
+      var t = HOUSE_ROOMS[rk][kind];
+      if (!t || t === "slab" || !t.image || t.userData.asFound) return;
+      var snap = document.createElement("canvas");
+      snap.width = t.image.width; snap.height = t.image.height;
+      snap.getContext("2d").drawImage(t.image, 0, 0);
+      t.userData.asFound = snap;
+      if (t.userData.customIdx === undefined) t.userData.customIdx = 0;
+    });
+  });
+  var HOUSE_SPACE2ROOM = { hall: "hall", kitchen: "kitchen", living: "living",
+    upstairs: "upstairs", room0: "upstairs", room1: "upstairs", room2: "upstairs",
+    garage: "garage", basement: "basement" };
+  // [label, path, treasures needed] — the wp prints keep the bedroom's own price
+  // tags (arcade is 5 treasures THERE; free here would undercut the loop next door)
+  var HOUSE_WALL_OPTS = [
+    ["as found", null, 0],
+    ["glow stars", "assets/tex/wp-stars.webp", 0],
+    ["pinstripe", "assets/tex/wp-stripe.webp", 1],
+    ["daisy field", "assets/tex/wp-floral.webp", 2],
+    ["knotty pine", "assets/tex/wp-pine.webp", 3],
+    ["spooky cute", "assets/tex/wp-spooky.webp", 4],
+    ["arcade grid", "assets/tex/wp-arcade.webp", 5],
+    ["rosebuds", "assets/tex/house/wp-rosebud.jpg", 2],
+    ["cream paint", "assets/tex/house/kwall.jpg", 0],
+    ["panelling", "assets/tex/house/panel.jpg", 1],
+  ];
+  var HOUSE_FLOOR_OPTS = [
+    ["as found", null, 0],
+    ["dark planks", "assets/tex/house/plank.jpg", 0],
+    ["oak boards", "assets/tex/fl-oak.webp", 0],
+    ["shag", "assets/tex/fl-shag.webp", 1],
+    ["lino", "assets/tex/house/lino.jpg", 0],
+    ["kitchen tile", "assets/tex/house/tile.jpg", 1],
+    ["garage grey", "assets/tex/house/garfloor.jpg", 0],
+    ["deck boards", "assets/tex/house/deck.jpg", 2],
+  ];
+  var houseRoomState = loadJSON("house-rooms") || { v: 1 };
+  function houseSlabApply(idx, opt) {
+    /* the basement floor is the one mapless material in the system: attach or
+     * detach a map directly. ⚠️ material.needsUpdate = true is MANDATORY when a
+     * mapless material first gains a map — without it the slab renders black. */
+    if (!idx || !opt[1]) {
+      bsFloorM.map = null; bsFloorM.bumpMap = null; bsFloorM.needsUpdate = true; return;
+    }
+    if (!bsFloorM.userData.swapT) {
+      var st = canvasTex(512, 512, function () { });
+      st.wrapS = st.wrapT = THREE.RepeatWrapping; st.repeat.set(3.4, 2.8);
+      bsFloorM.userData.swapT = st;
+    }
+    var st2 = bsFloorM.userData.swapT;
+    var img = new Image();
+    img.onload = function () {
+      var cv = st2.image; cv.width = img.naturalWidth; cv.height = img.naturalHeight;
+      cv.getContext("2d").drawImage(img, 0, 0); st2.needsUpdate = true;
+      bsFloorM.map = st2; bsFloorM.needsUpdate = true;
+    };
+    img.src = opt[1];
+  }
+  function houseTexApply(rk, kind, idx, persist) {
+    var room = HOUSE_ROOMS[rk]; if (!room) return;
+    var opts = kind === "wall" ? HOUSE_WALL_OPTS : HOUSE_FLOOR_OPTS;
+    var opt = opts[idx]; if (!opt) return;
+    if (persist !== false && (opt[2] || 0) > treasures()) return;   // locked swatch
+    function remember() {
+      if (persist === false) return;
+      houseRoomState[rk] = houseRoomState[rk] || {};
+      houseRoomState[rk][kind === "wall" ? "w" : "f"] = idx;
+      saveJSON("house-rooms", houseRoomState);
+    }
+    var target = room[kind];
+    if (target === "slab") { houseSlabApply(idx, opt); remember(); return; }
+    if (!idx || !opt[1]) {   // back to as found
+      target.userData.customIdx = 0;
+      var d = target.userData.defaultImg || target.userData.asFound;
+      if (d) houseArtSwap(target, d);
+      remember(); return;
+    }
+    /* claim the texture SYNCHRONOUSLY so the default-art loader cannot overpaint a
+     * restored room, whatever order the two fetches land in */
+    target.userData.customIdx = idx;
+    var img = new Image();
+    img.onload = function () { houseArtSwap(target, img); remember(); };
+    img.onerror = function () {
+      target.userData.customIdx = 0;
+      if (target.userData.defaultImg) try { houseArtSwap(target, target.userData.defaultImg); } catch (e) { }
+      try { ctx.kidSay("that roll of paper never showed up.", 4); } catch (e2) { }
+    };
+    img.src = opt[1];
+  }
+  // boot restore: only rooms with a saved nonzero index fetch anything
+  Object.keys(houseRoomState).forEach(function (rk) {
+    if (rk === "v") return;
+    var st3 = houseRoomState[rk]; if (!st3 || !HOUSE_ROOMS[rk]) return;
+    if (st3.w > 0) houseTexApply(rk, "wall", st3.w, false);
+    if (st3.f > 0) houseTexApply(rk, "floor", st3.f, false);
   });
   var LOOK_MATS = [hwallM, plankM, runner.material, oakM, kWallM, lamM,
                    sidingM, grassM, deckM, bFenceM, pdeckM,
@@ -9177,6 +9341,26 @@ export function buildHallway(ctx) {
     // audit hooks: the per-panel materials the helpers build are invisible from
     // outside, and whether the house LOOKS reach them is exactly the thing that
     // breaks silently. applyLook lets a test paint the house and measure it.
-    lookMats: function () { return LOOK_MATS.length; }, applyLook: applyLook
+    lookMats: function () { return LOOK_MATS.length; }, applyLook: applyLook,
+    /* per-room customization, driven by the bedroom's decor drawer */
+    rooms: {
+      roomFor: function (sp) { return HOUSE_SPACE2ROOM[sp] || null; },
+      label: function (rk) { return HOUSE_ROOMS[rk] ? HOUSE_ROOMS[rk].label : rk; },
+      state: function (rk) { return houseRoomState[rk] || {}; },
+      locked: function (kind, i) {
+        var o = (kind === "wall" ? HOUSE_WALL_OPTS : HOUSE_FLOOR_OPTS)[i];
+        return !!o && (o[2] || 0) > treasures();
+      },
+      need: function (kind, i) {
+        var o = (kind === "wall" ? HOUSE_WALL_OPTS : HOUSE_FLOOR_OPTS)[i];
+        return o ? (o[2] || 0) : 0;
+      },
+      apply: houseTexApply,
+      wash: function (rk) {
+        houseTexApply(rk, "wall", 0); houseTexApply(rk, "floor", 0);
+        delete houseRoomState[rk]; saveJSON("house-rooms", houseRoomState);
+      },
+      WALL_OPTS: HOUSE_WALL_OPTS, FLOOR_OPTS: HOUSE_FLOOR_OPTS,
+    }
   };
 }

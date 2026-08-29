@@ -1322,45 +1322,125 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
    * marks — and each spine now carries its own: the magic shop's plum-black and gold,
    * Dante's ink and ember, the airmail envelope, the black-figure amphora, the
    * manuscript with the red-ink correction. opts = { rule, before(g,w,h), after(g,w,h),
-   * glow, font }; before paints under the title, after paints over it. */
+   * glow, font }; before paints under the title, after paints over it.
+   * THE ART PASS (2026-08-29): opts.art = a generated painted spine (assets/tex/spines/).
+   * The procedural design is ALWAYS painted first, so a missing or slow art file
+   * degrades to the old spine, never to a blank. When the art lands the canvas is
+   * repainted: art full-bleed, then the title on a soft label plate (opts.plate tints
+   * it, opts.rule borders it), then opts.over — the only procedural painter that
+   * survives art mode (before/after belong to the procedural design). before/after/over
+   * all keep drawing in 128x512 coords; the canvas is 256x1024 behind a 2x transform. */
   function spineTex(text, bg, fg, opts) {
     opts = opts || {};
-    return canvasTex(128, 512, function (g, w, h) {
-      g.fillStyle = bg; g.fillRect(0, 0, w, h);
-      if (opts.before) { g.save(); opts.before(g, w, h); g.restore(); }
-      g.strokeStyle = opts.rule || "rgba(255,255,255,0.22)"; g.lineWidth = 5;
-      g.strokeRect(9, 9, w - 18, h - 18);
+    var W = 256, H = 1024;
+    var c = document.createElement("canvas"); c.width = W; c.height = H;
+    var g = c.getContext("2d");
+    var tex = new THREE.CanvasTexture(c); tex.anisotropy = 8; tex.colorSpace = THREE.SRGBColorSpace;
+    function grain() { // cloth weave, side shading, head/tail caps — free depth on every spine
+      g.globalAlpha = 0.045;
+      for (var y = 0; y < H; y += 3) { g.fillStyle = (y / 3) % 2 ? "#000000" : "#ffffff"; g.fillRect(0, y, W, 1); }
+      g.globalAlpha = 1;
+      var gx = g.createLinearGradient(0, 0, W, 0);
+      gx.addColorStop(0, "rgba(0,0,0,0.30)"); gx.addColorStop(0.09, "rgba(0,0,0,0)");
+      gx.addColorStop(0.91, "rgba(0,0,0,0)"); gx.addColorStop(1, "rgba(0,0,0,0.32)");
+      g.fillStyle = gx; g.fillRect(0, 0, W, H);
+      var gy = g.createLinearGradient(0, 0, 0, H);
+      gy.addColorStop(0, "rgba(255,255,255,0.10)"); gy.addColorStop(0.025, "rgba(0,0,0,0.16)"); gy.addColorStop(0.055, "rgba(0,0,0,0)");
+      gy.addColorStop(0.945, "rgba(0,0,0,0)"); gy.addColorStop(0.975, "rgba(0,0,0,0.18)"); gy.addColorStop(1, "rgba(255,255,255,0.08)");
+      g.fillStyle = gy; g.fillRect(0, 0, W, H);
+    }
+    function title(artMode) {
       g.save();
-      g.fillStyle = fg; g.textAlign = "center"; g.textBaseline = "middle";
-      g.translate(w / 2, h / 2); g.rotate(-Math.PI / 2);
+      g.translate(W / 2, H / 2); g.rotate(-Math.PI / 2);
       var face = opts.font || "Georgia, serif";
-      g.font = "bold 44px " + face;
-      var t = text, size = 44;
-      while (g.measureText(t).width > h - 70 && size > 22) { size -= 2; g.font = "bold " + size + "px " + face; }
-      if (opts.glow) { g.shadowColor = opts.glow; g.shadowBlur = 14; }
-      g.fillText(t, 0, 0);
+      var size = 88; g.font = "bold " + size + "px " + face;
+      while (g.measureText(text).width > H - 140 && size > 44) { size -= 4; g.font = "bold " + size + "px " + face; }
+      if (artMode) { // a soft label plate so the title reads over paint
+        var tw = g.measureText(text).width, pw = tw / 2 + 36, ph = size * 0.72;
+        g.fillStyle = opts.plate || "rgba(12,10,10,0.48)";
+        g.beginPath();
+        if (g.roundRect) g.roundRect(-pw, -ph, pw * 2, ph * 2, 16); else g.rect(-pw, -ph, pw * 2, ph * 2);
+        g.fill();
+        if (opts.rule) { g.strokeStyle = opts.rule; g.lineWidth = 2.5; g.stroke(); }
+      }
+      g.fillStyle = fg; g.textAlign = "center"; g.textBaseline = "middle";
+      if (opts.glow) { g.shadowColor = opts.glow; g.shadowBlur = 28; }
+      else if (artMode) { g.shadowColor = "rgba(0,0,0,0.5)"; g.shadowBlur = 10; }
+      g.fillText(text, 0, 0);
       g.restore();
-      if (opts.after) { g.save(); opts.after(g, w, h); g.restore(); }
+    }
+    g.fillStyle = bg; g.fillRect(0, 0, W, H);
+    if (opts.before) { g.save(); g.scale(2, 2); opts.before(g, 128, 512); g.restore(); }
+    grain();
+    g.strokeStyle = opts.rule || "rgba(255,255,255,0.22)"; g.lineWidth = 10;
+    g.strokeRect(18, 18, W - 36, H - 36);
+    title(false);
+    if (opts.after) { g.save(); g.scale(2, 2); opts.after(g, 128, 512); g.restore(); }
+    if (opts.art) {
+      var im = new Image();
+      im.onload = function () {
+        g.clearRect(0, 0, W, H);
+        g.drawImage(im, 0, 0, W, H);
+        title(true);
+        if (opts.over) { g.save(); g.scale(2, 2); opts.over(g, 128, 512); g.restore(); }
+        tex.needsUpdate = true;
+      };
+      im.src = opts.art;
+    }
+    return tex;
+  }
+  // the art pass: shared page-edge + per-colour cloth textures. Sharing MATERIALS is
+  // safe here — the hover highlight clones per-mesh and restores, never mutating the
+  // originals (see highlightOn).
+  var pageEdgeT = canvasTex(128, 64, function (g, w, h) {
+    g.fillStyle = "#e6dcc4"; g.fillRect(0, 0, w, h);
+    for (var x = 0; x < w; x += 2) { // pages stack along u (the book's width axis)
+      g.globalAlpha = 0.08 + Math.random() * 0.14;
+      g.fillStyle = Math.random() < 0.5 ? "#b9ac8d" : "#d5c9ab";
+      g.fillRect(x, 0, 1, h);
+    }
+    g.globalAlpha = 1;
+  });
+  var pageEdgeM = new THREE.MeshStandardMaterial({ map: pageEdgeT, roughness: 0.92 });
+  var coverClothM = {};
+  function coverMat(color) { // tinted cloth board with a blind-stamped border
+    if (coverClothM[color]) return coverClothM[color];
+    var t = canvasTex(128, 256, function (g, w, h) {
+      g.fillStyle = "#" + color.toString(16).padStart(6, "0"); g.fillRect(0, 0, w, h);
+      g.globalAlpha = 0.05;
+      for (var y = 0; y < h; y += 2) { g.fillStyle = y % 4 ? "#000000" : "#ffffff"; g.fillRect(0, y, w, 1); }
+      g.globalAlpha = 1;
+      g.strokeStyle = "rgba(0,0,0,0.25)"; g.lineWidth = 3; g.strokeRect(8, 8, w - 16, h - 16);
+      g.strokeStyle = "rgba(255,255,255,0.08)"; g.lineWidth = 2; g.strokeRect(11, 11, w - 22, h - 22);
+      var gx = g.createLinearGradient(0, 0, w, 0);
+      gx.addColorStop(0, "rgba(0,0,0,0.20)"); gx.addColorStop(0.12, "rgba(0,0,0,0)");
+      gx.addColorStop(0.88, "rgba(0,0,0,0)"); gx.addColorStop(1, "rgba(0,0,0,0.22)");
+      g.fillStyle = gx; g.fillRect(0, 0, w, h);
     });
+    coverClothM[color] = new THREE.MeshStandardMaterial({ map: t, roughness: 0.62 });
+    return coverClothM[color];
   }
   // a standing book: spine faces +z (the camera)
   function book(w, h, colors, spineT) {
-    var pageM = mat(0xe6dcc4, 0.95), coverM = mat(colors, 0.6);
+    var coverM = coverMat(colors);
     var spineM = spineT ? new THREE.MeshStandardMaterial({ map: spineT, roughness: 0.55 }) : coverM;
     // BoxGeometry material order: +x, -x, +y, -y, +z, -z
-    var b = new THREE.Mesh(new THREE.BoxGeometry(w, h, 0.34), [coverM, coverM, pageM, coverM, spineM, coverM]);
+    var b = new THREE.Mesh(new THREE.BoxGeometry(w, h, 0.34), [coverM, coverM, pageEdgeM, coverM, spineM, coverM]);
     b.castShadow = true;
     return b;
   }
   var PLAY = [
     { t: "SOUTH", c: 0x2e5877, url: BASE + "south/", tip: "SOUTH — bring all 27 home",
       sp: { bg: "#0a0f18", fg: "#e7e5dc", rule: "rgba(224,168,74,0.55)",            // panel navy, bone, one amber lantern
+        art: "assets/tex/spines/south.jpg", plate: "rgba(4,6,12,0.62)", glow: "rgba(224,168,74,0.30)",
         after: function (g, w, h) { g.fillStyle = "#e0a84a"; g.beginPath(); g.arc(w / 2, h - 42, 5, 0, 7); g.fill(); } } },
     { t: "STILL BREATHING", c: 0x9a3b1e, url: BASE + "still-breathing/", tip: "STILL BREATHING — four true ordeals",
       sp: { bg: "#05070a", fg: "#e7e3d8", rule: "rgba(230,96,58,0.6)",              // the dark instrument panel, one warn-orange vital
+        art: "assets/tex/spines/stillbreathing.jpg", plate: "rgba(5,7,10,0.62)", glow: "rgba(230,96,58,0.28)",
         after: function (g, w, h) { g.strokeStyle = "#7cc47a"; g.lineWidth = 3; g.beginPath(); g.arc(w / 2, 44, 9, 0, 7); g.stroke(); } } },
     { t: "NINE CIRCLES", c: 0x8a6a24, url: BASE + "nine-circles/", tip: "NINE CIRCLES — a descent",
-      sp: { bg: "#0b0a09", fg: "#d8cfc0", rule: "rgba(201,163,92,0.6)",             // engraved ink, Dante's gold, an ember
+      sp: { bg: "#0b0a09", fg: "#c9a35c", rule: "rgba(201,163,92,0.6)",             // engraved ink, Dante's gold, an ember
+        art: "assets/tex/spines/ninecircles.jpg", plate: "rgba(20,17,14,0.66)", glow: "rgba(196,85,42,0.32)",
         after: function (g, w, h) { g.fillStyle = "#c4552a"; g.beginPath(); g.arc(w / 2, h - 44, 6, 0, 7); g.fill();
           g.fillStyle = "#7e2020"; g.beginPath(); g.arc(w / 2, h - 44, 3, 0, 7); g.fill(); } } },
     { t: "CHOOSE WISELY", c: 0x53386b, url: BASE + "choose-wisely/", tip: "CHOOSE WISELY — the shop remembers you",
@@ -1374,7 +1454,9 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
             for (var k = 16; k < w - 16; k += 16) { g.fillRect(k, band[0] + 6, 8, 8); g.fillRect(k + 8, band[0] + 14, 8, 8); }
           });
         } } },
-    { t: "TIDEBOUND", c: 0x2e6f63, url: "https://dumb-tony.github.io/GameRepos/tidebound/", tip: "TIDEBOUND — the island that isn't on any chart (Dumb Tony's)" },
+    { t: "TIDEBOUND", c: 0x2e6f63, url: "https://dumb-tony.github.io/GameRepos/tidebound/", tip: "TIDEBOUND — the island that isn't on any chart (Dumb Tony's)",
+      sp: { bg: "#16394d", fg: "#efe6d2", rule: "rgba(242,169,59,0.4)",             // sea-teal, cream, an amber lamp — from Tony's own poster
+        art: "assets/tex/spines/tidebound.jpg", plate: "rgba(22,57,77,0.58)", glow: "rgba(242,169,59,0.30)" } },
     { t: "ELEMENTARY", c: 0xc0392b, url: BASE + "sherlock/", tip: "ELEMENTARY — observe, infer, and live with being wrong",
       sp: { bg: "#0b0d0e", fg: "#e9e3d2", rule: "rgba(192,57,43,0.6)",             // ink, bone paper, and the red thread across four pinned cards
         before: function (g, w, h) {
@@ -1386,14 +1468,20 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
         } } },
     { t: "CURIOUSER", c: 0xc67fd6, url: BASE + "alice/", tip: "CURIOUSER — Alice in Wonderland; wake as yourself",
       sp: { bg: "#171026", fg: "#f1e9d6", rule: "rgba(198,127,214,0.45)", glow: "#c67fd6",   // the game's own title glow
+        art: "assets/tex/spines/curiouser.jpg", plate: "rgba(18,12,30,0.55)",
         after: function (g, w, h) { g.fillStyle = "#d8433c"; g.font = "bold 22px Georgia, serif"; g.textAlign = "center";
           g.fillText("\u2665", w / 2, 52); g.fillText("\u2666", w / 2, h - 36);
           g.fillStyle = "#f1e9d6"; g.fillText("\u2660", w / 2 - 26, h - 36); g.fillText("\u2663", w / 2 + 26, h - 36); } } },
     { t: "DRACULA", c: 0xb31f2b, url: BASE + "dracula/", tip: "DRACULA — the ensemble hunt; argue with the book",
       sp: { bg: "#e6dcc2", fg: "#2a1d14", rule: "rgba(42,29,20,0.35)",              // the manuscript, with the red-ink correction
+        art: "assets/tex/spines/dracula.jpg", plate: "rgba(230,220,194,0.62)",
         // +170, not +70: canvas-y is ALONG the rotated title, and +70 painted the
         // red ink across the D and R; +170 clears the word and reads as a footnote
         after: function (g, w, h) { g.save(); g.translate(w / 2, h / 2 + 170); g.rotate(-Math.PI / 2);
+          g.fillStyle = "#b31f2b"; g.font = "italic 15px Georgia, serif"; g.textAlign = "center";
+          g.fillText("(it could not)", 0, 0); g.restore(); },
+        // the footnote is the one procedural mark that must survive onto the painted spine
+        over: function (g, w, h) { g.save(); g.translate(w / 2, h / 2 + 170); g.rotate(-Math.PI / 2);
           g.fillStyle = "#b31f2b"; g.font = "italic 15px Georgia, serif"; g.textAlign = "center";
           g.fillText("(it could not)", 0, 0); g.restore(); } } },
     { t: "G FOR GEORGE", c: 0x33507a, url: BASE + "george/", tip: "G FOR GEORGE — the true Great Escape; 336 feet to the trees",
@@ -1407,6 +1495,7 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
   ];
   var DECOR = [0x3b4a55, 0x5e3a3a, 0x39543e, 0x584a2e, 0x46485e, 0x2f3e4a, 0x64513a];
   var bookByTitle = {}; // WHAT'S OUT hides individual playable books by title
+  var decorBooks = []; // the filler books, dressed from one painted strip of anonymous spines
   // two rows; playable books stand tall and slightly proud of the row
   [0, 1].forEach(function (row) {
     var y = boardY[row], xCursor = -caseW / 2 + 0.22, d = 0;
@@ -1429,10 +1518,25 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
           var dec = book(w2, h2, DECOR[(d++) % DECOR.length], null);
           dec.position.set(xCursor + w2 / 2, y + h2 / 2, 0.04);
           if (Math.random() < 0.25) { dec.rotation.z = -0.09; dec.position.y -= 0.012; }
+          decorBooks.push(dec);
           shelfG.add(dec);
           xCursor += w2 + 0.028;
         }
       }
+    });
+  });
+  // the art pass: the anonymous filler books each wear one spine cut from a painted
+  // strip of eight (assets/tex/spines/decor.jpg). Clones share the image; only the
+  // window differs. Until (or unless) it loads they keep their flat cloth colour.
+  texLoader.load("assets/tex/spines/decor.jpg", function (t) {
+    t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 8;
+    t.wrapS = t.wrapT = THREE.ClampToEdgeWrapping;
+    var N = 8;
+    decorBooks.forEach(function (dec, i) {
+      var ti = t.clone(); ti.needsUpdate = true;
+      ti.repeat.set(1 / N * 0.88, 0.96);
+      ti.offset.set(((i * 3 + 1) % N) / N + (1 / N) * 0.06, 0.02);
+      dec.material[4] = new THREE.MeshStandardMaterial({ map: ti, roughness: 0.7 });
     });
   });
   shelfG.position.set(-1.3, 0, -2.32); scene.add(shelfG);
@@ -5593,6 +5697,15 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
                  : dwTabName === "walls" ? dwWallsHTML() : dwTabName === "saved" ? dwSavedHTML() : dwStuffHTML();
     var inp = document.getElementById("dw-name-inp");
     if (inp) inp.value = paintState.name || "";
+    /* ⚠️ while the paint tab shows a HOUSE room, the actions row (undo/photo/
+     * share) and the footer's 'reset the room' still aim at the BEDROOM — hiding
+     * one and relabelling the other keeps a kitchen-header panel from wiping the
+     * bedroom on a mis-click. Review finding C2. */
+    var inHouse = dwTabName === "paint" && hall && hall.space && hall.space() !== "bedroom";
+    var actsEl = document.getElementById("dw-actions");
+    if (actsEl) actsEl.style.display = inHouse ? "none" : "";
+    var resetEl = document.getElementById("dw-reset");
+    if (resetEl) resetEl.textContent = inHouse ? "reset the bedroom" : "reset the room";
   }
   var renamingSlot = -1, freshArmed = false; // "start fresh" asks twice before it wipes
   function dwSavedHTML() {
@@ -5696,6 +5809,22 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
       dwRender();
     } else if ((key = b.getAttribute("data-paint"))) {
       pushUndo(); setPaint(key, +b.getAttribute("data-i")); dwRender(); clickSfx(1600);
+    } else if (b.getAttribute("data-hwall") != null || b.getAttribute("data-hfloor") != null || act === "housewash") {
+      /* the house rooms: no pushUndo — house state lives OUTSIDE roomStateBlob and
+       * the undo stack (both bedroom-scoped); per-room 'as found' is the undo */
+      var hrk = hall.rooms ? hall.rooms.roomFor(hall.space()) : null;
+      if (hrk) {
+        if (act === "housewash") { hall.rooms.wash(hrk); dwRender(); clickSfx(900); }
+        else {
+          var hkind = b.getAttribute("data-hwall") != null ? "wall" : "floor";
+          var hidx = +(b.getAttribute("data-hwall") != null ? b.getAttribute("data-hwall") : b.getAttribute("data-hfloor"));
+          if (hall.rooms.locked(hkind, hidx)) {
+            var hneed = hall.rooms.need(hkind, hidx) - collectiblesEarned();
+            try { kidSay("that one's still packed away — find " + hneed + " more treasure" + (hneed === 1 ? "" : "s") + " first.", 4); } catch (eh) { }
+            clickSfx(700);
+          } else { hall.rooms.apply(hrk, hkind, hidx); setTimeout(dwRender, 60); clickSfx(1600); }
+        }
+      }
     } else if ((key = b.getAttribute("data-tex"))) {
       var ti = +b.getAttribute("data-i"), topt = MAT_TEX[key].opts[ti];
       if (topt && matTexLocked(topt)) {
@@ -6099,7 +6228,54 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
   }
 
   /* ---- the paint tab (lives in the drawer — swatches preview live) --------------- */
+  /* ============ THE DRAWER PAINTS THE ROOM YOU ARE STANDING IN ==================
+   * Kyle: 'each room should have customization like the OG room'. The paint tab
+   * forks on hall.space(): the bedroom keeps today's panel byte-for-byte; a house
+   * room gets wallpaper + floor swatches driven through hall.rooms (hallway.js);
+   * the porch and back yard get a one-line excuse. The other four tabs stay
+   * bedroom-scoped everywhere — they edit persisted bedroom state, which is
+   * coherent at a distance; live paint of a room you cannot see is not.
+   * ⚠️ 'the drawer follows you between rooms' was DESIGNED and then PROVEN
+   * unreachable by review: with the drawer open you cannot change rooms at all
+   * (decorPointerDown swallows every canvas click, the keyboard path returns on
+   * decorMode, walk mode clamps to the current box, and the bedroom transition
+   * force-closes the drawer). The flow is: walk somewhere, THEN open the drawer. */
+  function houseRoomHTML(rk) {
+    var R = hall.rooms, st = R.state(rk), earned = collectiblesEarned();
+    var html = '<div class="dw-hint">🎨 ' + esc(R.label(rk)) + " — you're painting the room you're standing in</div>";
+    if (rk === 'kitchen' || rk === 'living')
+      html += '<div class="dw-sec">the hall owns the doorway wall — it keeps its own paper</div>';
+    if (rk === 'hall')
+      html += '<div class="dw-sec">the stairs go with the hall floor</div>';
+    if (rk === 'basement')
+      html += '<div class="dw-sec">the cinder walls are the foundation — the panelling takes the paper</div>';
+    function rowFor(kind, attr, cur) {
+      var opts = kind === 'wall' ? R.WALL_OPTS : R.FLOOR_OPTS;
+      var h2 = '<div class="dw-sw dw-tex">';
+      opts.forEach(function (o, i) {
+        var lk = R.locked(kind, i), need = R.need(kind, i);
+        h2 += '<button type="button" data-' + attr + '="' + i + '"' +
+          (i === cur ? ' class="on"' : lk ? ' class="locked"' : '') +
+          (o[1] ? ' style="background-image:url(' + o[1] + ')"' : '') +
+          ' title="' + (lk ? 'find ' + need + ' treasure' + (need === 1 ? '' : 's') + ' to unlock ' + o[0] : o[0]) + '"' +
+          ' aria-label="' + o[0] + (lk ? ' (locked)' : '') + '">' + (lk ? '🔒' : o[1] ? '' : '✕') + '</button>';
+      });
+      return h2 + '</div>';
+    }
+    html += '<div class="dw-sec">the wallpaper — ' + earned + ' treasure' + (earned === 1 ? '' : 's') + ' found</div>';
+    html += rowFor('wall', 'hwall', st.w || 0);
+    html += '<div class="dw-sec">the floor</div>';
+    html += rowFor('floor', 'hfloor', st.f || 0);
+    html += '<div class="dw-sw"><button type="button" class="dw-wide" data-act="housewash">back to as found</button></div>';
+    return html;
+  }
   function dwPaintHTML() {
+    var sp = hall && hall.space ? hall.space() : "bedroom";
+    if (sp !== "bedroom" && hall.rooms) {
+      var rk = hall.rooms.roomFor(sp);
+      return rk ? houseRoomHTML(rk)
+        : '<div class="dw-hint">out here the weather does the decorating.</div>';
+    }
     var html = '<div class="dw-hint">same room, your colors — watch it change as you click</div>';
     var earned = collectiblesEarned();
     html += '<div class="dw-sec">whole-room looks — ' + earned + " treasure" + (earned === 1 ? "" : "s") + " found</div>";
