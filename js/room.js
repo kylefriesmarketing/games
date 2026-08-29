@@ -6785,6 +6785,27 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
   /* returns true when it has taken the camera for this frame */
   function tpUpdate(dt) {
     if (!tp.on) return false;
+    /* ⚠️⚠️ YIELD, DON'T FIGHT. Two owners outrank the walk camera:
+     * 1. A DOOR TRANSITION. hall.enter() flies the camera on a rail that is advanced
+     *    by hall.camTick — which runs AFTER this function in tick()'s chain. The
+     *    first version returned true here every frame, so clicking a door STARTED
+     *    the transition, hall.busy went true, and the flight never advanced a frame:
+     *    'you can't open doors in walk mode'. While the hall is busy, walk yields
+     *    the camera and drops its keys (a key held into a doorway otherwise marches
+     *    him mid-flight).
+     * 2. A SCRIPTED KID BEAT. Clicking a game summons the boy (kidSummon sets mode
+     *    'summon'), and walk mode overwrote kidState.tx every frame — the two
+     *    systems fought over one body. While mode is not 'player', walk waits; when
+     *    the beat ends (mode returns to 'roam'), walk RECLAIMS him and re-latches
+     *    the camera to wherever he now faces. */
+    if (hall.busy && hall.busy()) { tp.keys = {}; tp.combo = ""; return false; }
+    if (kidState.mode !== "player") {
+      if (kidState.mode === "roam") {
+        kidState.mode = "player"; kidState.via = false; kidState.station = null; kidState.ignoreObs = -1;
+        kidState.tx = kid.position.x; kidState.tz = kid.position.z;
+        tp.yaw = Math.atan2(kidState.faceX || 0, kidState.faceZ || 1); tp.combo = "";
+      } else { return false; }
+    }
     var k = tp.keys;
     var fwd = ((k.w || k.arrowup) ? 1 : 0) - ((k.s || k.arrowdown) ? 1 : 0);
     var side = ((k.d || k.arrowright) ? 1 : 0) - ((k.a || k.arrowleft) ? 1 : 0);
@@ -6805,7 +6826,10 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
     if (fwd || side) {
       if (combo !== tp.combo) {
         tp.combo = combo;
-        var lx = sy * fwd + cy * side, lz = cy * fwd - sy * side;
+        /* ⚠️ screen-right for a camera looking along (sy, cy) is (-cy, sy) — the
+         * cross product of forward with world-up, not its mirror. The first version
+         * used (+cy, -sy) and D walked him screen-LEFT; playtested as 'inverse'. */
+        var lx = sy * fwd - cy * side, lz = cy * fwd + sy * side;
         var L = Math.sqrt(lx * lx + lz * lz) || 1;
         tp.dirX = lx / L; tp.dirZ = lz / L;
       }
@@ -6848,6 +6872,14 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
     var fy = kid.position.y;
     var cx = kid.position.x - Math.sin(tp.yaw) * TP_DIST;
     var cz = kid.position.z - Math.cos(tp.yaw) * TP_DIST;
+    /* ⚠️ THE CAMERA OBEYS THE SAME WALLS HE DOES. Following at a fixed 2.9 m put
+     * the camera through the wall whenever he walked toward one — you watched him
+     * from inside the plaster. Every walkable space here is a convex box, so the fix
+     * is a clamp into the SAME bounds tpClamp uses (slightly tighter than his,
+     * because the camera has no radius but does have a near plane), not a raycast. */
+    var cb = tpBounds(), cbb = cb.box, cm = 0.26;
+    cx = Math.max(cbb.x[0] + cm, Math.min(cbb.x[1] - cm, cx));
+    cz = Math.max(cbb.z[0] + cm, Math.min(cbb.z[1] - cm, cz));
     var ease = Math.min(1, dt * 5);
     camera.position.x += (cx - camera.position.x) * ease;
     camera.position.y += ((fy + TP_HEIGHT) - camera.position.y) * ease;

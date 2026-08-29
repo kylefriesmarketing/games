@@ -2899,11 +2899,21 @@ export function buildHallway(ctx) {
     new THREE.MeshStandardMaterial({ map: frDoorT, roughness: 0.44 }));
   frDoor.position.set(frX, 0.86, KZ1 - 0.865); frDoor.rotation.y = Math.PI; kadd(frDoor);
   ktag(frDoor, "the fridge", null, "it hums like it knows something. it has always hummed like that.");
-  // the baked fridge: door faces -z like frDoor; the glow light stays
+  /* the baked fridge moved to the SOUTH-WEST CORNER and turned to FACE THE DOOR
+   * (Kyle: a highlight piece when you walk in). The doorway is at z -0.90..0.20 on
+   * the east wall and the fridge front now aims straight down that sightline —
+   * magnets and the kid’s drawing greet you from across the room. ry = PI/2 maps
+   * the bake’s +z front to +x (east); back sits near the west wall (KX0).
+   * ⚠️ the PROCEDURAL fallback (a 404 keeps it) still stands in the old spot
+   * against the south wall — fine, it was never the highlight. */
   propSwap("fridge", kitG, [fridge, frSplit, frDoor].concat(frHnds),
-    { x: frX, z: KZ1 - 0.5, w: 0.82, d: 0.88, h: 1.80, ry: Math.PI }, frDoor);
+    { x: KX0 + 0.55, z: -0.15, w: 0.82, d: 0.88, h: 1.80, ry: Math.PI / 2 }, frDoor);
+  /* ⚠️ the glow moved WITH the fridge to the SW corner — and the first attempt
+   * read frGlow one line above its own , which is hoisted-undefined, and took
+   * the whole module down at boot. Same class as the paperM trap: set the position
+   * ON the declaration line, never before it. */
   var frGlow = new THREE.PointLight(0xbfe8d8, 0.28, 2.4, 2);
-  frGlow.position.set(frX, 1.0, KZ1 - 1.0); kadd(frGlow);
+  frGlow.position.set(KX0 + 1.25, 1.0, -0.15); kadd(frGlow);
 
   // --- the table, where the actual living gets done
   var tblT = box(1.15, 0.05, 0.78, lamM); tblT.position.set(KCX + 0.55, 0.74, KCZ + 1.05); kadd(tblT);
