@@ -557,7 +557,7 @@ document.getElementById("room-return").addEventListener("click", function(e){ e.
       var pr = boot.progress();
       if (bar) bar.style.width = Math.round((pr.settled ? pr.frac : 0.04) * 100) + "%";
       if (txt) txt.textContent = pr.settled
-        ? "unpacking the room · " + pr.done + " of " + pr.total
+        ? "unpacking the house · " + pr.done + " of " + pr.total
         : "waking the room…";
       setTimeout(tick, 120);
     })();

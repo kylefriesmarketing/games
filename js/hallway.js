@@ -53,12 +53,15 @@ export function buildHallway(ctx) {
    * ⚠️ fit.ry rotates BEFORE measuring, so the box fit is of the turned model.
    * Deferred + uncounted: never touches the boot gate. */
   var housePropLoader = null;
+  var bootN2 = (ctx && ctx.bootCount) || { glb: function () { }, glbDone: function () { } };
   function propSwap(key, parent, hide, fit, proto) {
     if (!housePropLoader) {
       var dr = new DRACOLoader(); dr.setDecoderPath("assets/lib/draco/");
       housePropLoader = new GLTFLoader(); housePropLoader.setDRACOLoader(dr);
     }
+    bootN2.glb();                    // the door card waits for the furniture now
     housePropLoader.load("assets/props/house/" + key + ".glb", function (g) {
+      bootN2.glbDone();
       try {
         var pd = proto || null;
         if (!pd) hide.forEach(function (m) { if (!pd && m.userData && m.userData.name) pd = m; });
@@ -88,7 +91,7 @@ export function buildHallway(ctx) {
         // came out 0.61: sixteen centimetres of floating fruit until this ran.
         if (fit.onPlaced) try { fit.onPlaced((fit.y || 0) + (bb.max.y - bb.min.y)); } catch (e2) { }
       } catch (e) { }
-    }, undefined, function () { /* 404: the box sketch stays */ });
+    }, undefined, function () { bootN2.glbDone(); /* 404: the box sketch stays */ });
   }
 
   function plant(parent, rx, rz, op, floorY) {
@@ -7887,8 +7890,11 @@ export function buildHallway(ctx) {
   HOUSE_ART.forEach(function (pair) {
     (HOUSE_ART_BY_KEY[pair[0]] = HOUSE_ART_BY_KEY[pair[0]] || []).push(pair[1]);
   });
+  var bootN = ctx.bootCount || { tex: function () { }, texDone: function () { }, glb: function () { }, glbDone: function () { } };
   Object.keys(HOUSE_ART_BY_KEY).forEach(function (key) {
     var img = new Image();
+    bootN.tex();                     // the door card waits for the house's art now
+    img.onerror = function () { bootN.texDone(); };
     img.onload = function () {
       HOUSE_ART_BY_KEY[key].forEach(function (t) {
         t.userData.defaultImg = img;    // the reset verb wants this even when skipped
@@ -7898,6 +7904,7 @@ export function buildHallway(ctx) {
         if (t.userData.customIdx > 0) return;
         try { houseArtSwap(t, img); } catch (e) { }
       });
+      bootN.texDone();
     };
     img.src = "assets/tex/house/" + key + ".jpg";
   });

@@ -249,7 +249,30 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
     var _now = function () { return (performance && performance.now) ? performance.now() : 0; };
     boot.loadMs = Math.round(_now() - boot.t0);
     var _c0 = _now();
-    try { renderer.compile(scene, camera); } catch (e) { }
+    /* ⚠️⚠️ THE HOUSE IS COMPILED BEHIND THE CARD NOW, not on an idle timer after
+     * the door opens. Kyle's playtest: 'the first 2-3 minutes are awful, then it
+     * settles' — that was the house still arriving around him: 17 textures, 11
+     * furniture GLBs and the shader warm-up all streamed POST-boot by design, each
+     * arrival a little stall. Those assets are counted in the gate now (hallway.js
+     * registers them through ctx.bootCount), so by the time bootDone runs the whole
+     * house is resident — and this one synchronous unhide/compile/rehide builds
+     * every program against the HOUSE's own light count while the card is still up.
+     * ⚠️ one task, no frame between unhide and rehide, or the house paints over
+     * the bedroom. ⚠️ compileFor binds the post chain's sceneRT: toneMapping is
+     * part of the program cache key, and canvas-variant programs are thrown away. */
+    var _hg = null;
+    try { _hg = (typeof hall !== "undefined" && hall) ? hall.group : null; } catch (e) { }
+    var _hgVis = _hg ? _hg.visible : null;
+    if (_hg) _hg.visible = true;
+    try { (post && post.compileFor) ? post.compileFor(scene, camera) : renderer.compile(scene, camera); } catch (e) { }
+    /* and DRAW it once: compile builds programs but does not upload geometry or
+     * textures — the first real house frame still paid ~470 ms of first-bind
+     * uploads. The door card is a full-screen DOM overlay, so this frame is
+     * invisible, and the two bedroom drawFrames below repaint the canvas before
+     * the card ever lifts. */
+    try { drawFrame(); } catch (e) { }
+    if (_hg) _hg.visible = _hgVis;
+    boot.houseWarmed = true;
     try { drawFrame(); drawFrame(); } catch (e) { }   // and warm the post chain
     boot.compileMs = Math.round(_now() - _c0);
     boot.tookMs = Math.round(((performance && performance.now) ? performance.now() : 0) - boot.t0);
@@ -274,6 +297,7 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
     var warmHouse = function () {
       var g = null;
       try { g = (typeof hall !== "undefined" && hall) ? hall.group : null; } catch (e) { return; }
+      if (boot.houseWarmed) return;  // bootDone already compiled the whole house
       if (!g || g.visible) return;   // already visible = nothing to pre-warm
       var t0 = (performance && performance.now) ? performance.now() : 0;
       g.visible = true;
@@ -315,7 +339,7 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
         (boot.glb - boot.glbDone) + " model(s) and " + (boot.tex - boot.texDone) + " texture(s) never arrived"); } catch (e) { }
       bootDone();
     }
-  }, 15000);
+  }, 20000);
   // count textures where they are asked for, whoever asks
   (function (realLoad) {
     texLoader.load = function (url, onLoad, onProg, onErr) {
@@ -1946,6 +1970,15 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
     // A closure, not a number: COLLECT is declared far below this call, and the
     // count changes the moment you come back from a game.
     treasures: function () { return collectiblesEarned(); },
+    /* the house's art + furniture join the SAME loading gate the bedroom uses, so
+     * the door card waits for the whole house — Kyle's own diagnosis, and the right
+     * one: a longer honest load beats minutes of arrival stutter after entry. */
+    bootCount: {
+      tex: function () { boot.tex++; },
+      texDone: function () { boot.texDone++; boot.tick(); },
+      glb: function () { boot.glb++; },
+      glbDone: function () { boot.glbDone++; boot.tick(); },
+    },
     onEnter: function () { // leaving the bedroom tidies up after itself
       if (decorMode) decorSet(false);
       endTour(true);
