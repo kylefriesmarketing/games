@@ -3660,6 +3660,7 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
     { x: -12.60, z: 3.58, r: 0.75 },   // the big set
     { x: -12.60, z: 2.30, r: 0.70 },   // the coffee table
     { x: -16.35, z: 3.50, r: 0.40 },   // the corner lamp
+  { x: -15.45, z: 1.95, r: 0.55 },   // the reading chair (v81)
   ];
   var KID_UP_OBSTACLES = [
     { x: -8.10, z: 1.55, r: 0.55 },    // the hall table

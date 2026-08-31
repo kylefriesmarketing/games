@@ -89,7 +89,13 @@ export function buildHallway(ctx) {
         // fit.onPlaced(top): lets a call site re-seat loose props that sat on the
         // SKETCH’s surface — the fruit bowl was placed on a 0.74 table and the bake
         // came out 0.61: sixteen centimetres of floating fruit until this ran.
-        if (fit.onPlaced) try { fit.onPlaced((fit.y || 0) + (bb.max.y - bb.min.y)); } catch (e2) { }
+        /* onPlaced(top, box): box = the prop's footprint in PARENT coords, so a call
+         * site can seat a surviving ANIMATED SCREEN onto the baked body's face —
+         * the trick that lets the retro TVs keep their living static and channels. */
+        var _h = bb.max.y - bb.min.y, _sx = (bb.max.x - bb.min.x) / 2, _sz = (bb.max.z - bb.min.z) / 2;
+        var _box = { x0: (fit.x || 0) - _sx, x1: (fit.x || 0) + _sx,
+                     z0: (fit.z || 0) - _sz, z1: (fit.z || 0) + _sz, top: (fit.y || 0) + _h };
+        if (fit.onPlaced) try { fit.onPlaced(_box.top, _box); } catch (e2) { }
       } catch (e) { }
     }, undefined, function () { bootN2.glbDone(); /* 404: the box sketch stays */ });
   }
@@ -578,6 +584,21 @@ export function buildHallway(ctx) {
     cg.children.forEach(function (m) { ltag(m, 'the good couch', null, 'plastic came off it in 1994 and it has been downhill since.'); });
     // the baked couch, when its file exists; child[0] is plant()'s shadow disc — keep it
     propSwap('couch', cg, cg.children.slice(1), { w: 2.35, d: 1.15, ry: 0 });
+    /* THE READING CHAIR — the room had seating for exactly one couch. It stands in
+     * front of the front window (the window people watch from gets its watching
+     * chair) and angles at the set: ry 1.10 aims the seat at the screen while
+     * keeping the nothing-in-here-is-square rule. Clearances measured against the
+     * basket (0.36), the couch arm (1.18) and the lamp (1.79). Sketch boxes stand
+     * in until armchair.glb arrives; a 404 keeps them. */
+    var chG = new THREE.Group(); chG.position.set(-15.45, 0, 1.95); chG.rotation.y = 1.10; add(chG);
+    plant(chG, 0.52, 0.50, 0.50, 0);
+    var chSeat2 = box(0.72, 0.36, 0.70, tweedM); chSeat2.position.y = 0.26; chG.add(chSeat2);
+    var chBack2 = box(0.72, 0.52, 0.20, tweedM); chBack2.position.set(0, 0.62, 0.28); chG.add(chBack2);
+    [-0.34, 0.34].forEach(function (ax) {
+      var chArm = box(0.16, 0.24, 0.66, tweedM); chArm.position.set(ax, 0.50, 0); chG.add(chArm);
+    });
+    chG.children.forEach(function (m) { ltag(m, 'the reading chair', null, 'the window seat. first pick on movie night, and everyone knows it.'); });
+    propSwap('armchair', chG, chG.children.slice(1), { w: 0.80, d: 0.86, h: 0.95, ry: Math.PI }, chSeat2);
     /* ⚠️ NO PI TURN ON THE GROUP. The screen is built on the cabinet's local -z face, so
      * turning the whole group put it on the SOUTH side — the television was facing the
      * wall and showing the couch its back. Left unturned the screen looks north at the
@@ -661,6 +682,31 @@ export function buildHallway(ctx) {
     var aBase = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.06, 0.03, 12), mat(0x2b2e33, 0.5));
     aBase.position.set(0, 1.30, 0.10); sg.add(aBase);
     sg.children.forEach(function (m) { ltag(m, 'the big set', null, 'twenty-seven inches and it took two people to carry.'); });
+    /* THE BAKED CRT, at last — held back for two versions because a baked TV has
+     * dead glass. The answer: the bake is only the BODY. The stand (children 1-7)
+     * and the shadow disc (0) stay; the cabinet, bezel, dials, grille and aerial
+     * (8-9, 11-32) hand over to the GLB; and scr — the curved EMISSIVE glass whose
+     * flicker livLightH drives every frame — SURVIVES and is re-seated 8 mm proud
+     * of the baked front, so the new set still glows, still flickers with the
+     * channel light, still reads as ON. Front is local -z (no PI turn on sg — the
+     * comment above the group is law), so the bake's +z face needs ry PI, and the
+     * re-seat targets box.z0. */
+    propSwap('bigset', sg,
+      sg.children.filter(function (m, i) { return i >= 8 && m !== scr; }),
+      { x: 0, z: 0, y: 0.52, w: 1.04, d: 0.72, h: 0.85, ry: Math.PI,
+        onPlaced: function (top, box) {
+          /* ⚠️ the curved glass is ~0.87 wide — WIDER than the baked set — and
+           * photographed as a glowing dinner plate floating in front of it. It hides;
+           * a flat plane SIZED TO THE BAKED FACE takes over, sharing scr.material by
+           * REFERENCE so livLightH.scr keeps driving the flicker (clone it and the
+           * channel light dies — the recon’s own warning). */
+          scr.visible = false;
+          var glow = new THREE.Mesh(new THREE.PlaneGeometry(0.46, 0.36), scr.material);
+          glow.rotation.y = Math.PI;   // the plane faces -z, at the couch
+          glow.position.set(0, 0.52 + (top - 0.52) * 0.56, box.z0 - 0.006);
+          sg.add(glow);
+          ltag(glow, 'the big set', null, 'twenty-seven inches and it took two people to carry.');
+        } }, sg.children[8]);
     // the video, because there was always a video under the television
     // ⚠️ y 0.60 was inside the cabinet body (0.52..1.28). The bay's clear height runs
     // 0.04..0.46, so the video sits at 0.115 with its face at the bay's front edge.
@@ -2890,6 +2936,15 @@ export function buildHallway(ctx) {
   var hoodLip = box(0.78, 0.06, 0.56, mat(0xc4c6c2, 0.45));
   hoodLip.position.set(cookX, 1.58, KZ0 + 0.32); kadd(hoodLip);
   ktag(cooker, "the cooker", null, "four rings, one of which has always been the good one.");
+  /* the baked range. The HOOD is architecture, not appliance — the upper cupboards
+   * stop at UP1 to make room for it, so it is deliberately NOT in the hide list.
+   * The burner rings are the only TorusGeometry meshes in kitG (verified), so they
+   * are captured by filter rather than by editing their forEach. h capped at 1.30:
+   * the hood lip sits at 1.58 and the bake's back panel must clear under it. */
+  propSwap('stove', kitG,
+    [cooker, hob, ovenDoor, ovenGlass, ovenBar].concat(
+      kitG.children.filter(function (o) { return o.geometry && o.geometry.type === 'TorusGeometry'; })),
+    { x: cookX, z: COOK_Z, w: 0.62, d: 0.62, h: 1.30, ry: 0 }, cooker);
 
   // --- THE FRIDGE, and it hums, because the hallway door promised it would
   /* ⚠️ the fridge stands against the SOUTH wall, so when that wall came north for
@@ -6122,8 +6177,11 @@ export function buildHallway(ctx) {
   var launMachines = launG.children.slice(0, launG.children.length - 3);
   propSwap('washer', launG, launMachines,
     { x: 0, z: -0.34, w: 0.64, d: 0.64, h: 0.92, ry: -Math.PI / 2 }, launG.children[0]);
-  propSwap('washer', launG, [],
-    { x: 0, z: 0.34, w: 0.64, d: 0.64, h: 0.92, ry: -Math.PI / 2, tint: 0xf2e9d8 }, launG.children[0]);
+  /* a REAL front-loading dryer now (Kyle's ask) — the tinted second washer was a
+   * placeholder. Same footprint, no tint: the bake carries its own colour.
+   * ⚠️ h stays under ~1.05: the mud-room leash hangs to 1.14 over this spot. */
+  propSwap('dryer', launG, [],
+    { x: 0, z: 0.34, w: 0.64, d: 0.64, h: 0.95, ry: -Math.PI / 2 }, launG.children[0]);
   tag(sock, "the lost sock", null, "the sock. its twin is upstairs, which is not open yet.");
 
   // --- THE MUD ROOM: boots, leashes, a bowl, and the prints that prove a dog
@@ -7067,6 +7125,20 @@ export function buildHallway(ctx) {
   cartG.children.forEach(function (m) {
     bstag(m, "the TV", null, "channel 3, holding its breath. it is waiting for a player.");
   });
+  /* the baked PORTABLE rides the cart the old crt box rode; the cart, wheels,
+   * console, pads and cartridges all stay — only the crt body (child 10) hands
+   * over. crtScr, the ANIMATED STATIC plane bsmTick scrolls and flickers every
+   * frame, survives and re-seats onto the portable's face (+z, toward the couch),
+   * and tvLite keeps strobing the room. Static on a woodgrain portable: correct. */
+  propSwap('portable', cartG, [crt],
+    { x: 0, z: -0.02, y: 0.785, w: 0.68, d: 0.58, h: 0.62, ry: 0,
+      onPlaced: function (top, box) {
+        /* the full-size static plane ECLIPSED the portable behind it — shrink it to
+         * the portable’s own screen and seat it on the face; bsmTick still scrolls
+         * and flickers the same material every frame. */
+        crtScr.scale.set(0.62, 0.68, 1);
+        crtScr.position.set(-0.03, 0.785 + (top - 0.785) * 0.55, box.z1 + 0.004);
+      } }, crt);
   // ping-pong, north half
   var ppG = new THREE.Group(); ppG.position.set(-2.1, BSM.fl, -0.75); add(ppG);
   var ppT = canvasTex(128, 76, function (c, w, h) {
@@ -7834,6 +7906,20 @@ export function buildHallway(ctx) {
    * must not wait on 640 KB of wallpaper. A 404 simply keeps the procedural paint.
    * ⚠️ palette rule for future additions: match the PAINTER's colours, not the
    * rendered ones — tints multiply on top and must keep meaning the same thing. */
+  /* THE OLD SET — the first CRT bake finally has a home. It could not replace the
+   * living TVs (their screens are ALIVE — channels, static), but the attic is the
+   * room of things replaced-not-thrown-away, and a dead television with its face
+   * to the wall of boxes is practically the room's thesis. Dark glass is CORRECT
+   * here. Placed in the open floor by the rolled rug, leaning into the room's
+   * everything-slightly-askew rule; no kid obstacle (upstairs uses room boxes). */
+  (function () {
+    var oldTvG = new THREE.Group(); oldTvG.position.set(0.75, 3.45, 0.42); add(oldTvG);
+    var otSketch = box(0.68, 0.52, 0.5, mat(0x33302b, 0.7)); otSketch.position.y = 0.26; oldTvG.add(otSketch);
+    ctx.clickable(otSketch, "the old set", null, "it still worked when it came up here. it probably still does.");
+    otSketch.userData.space = "room2";
+    propSwap('bigset', oldTvG, [otSketch], { w: 0.72, d: 0.55, h: 0.60, ry: 1.2 }, otSketch);
+  })();
+
   var HOUSE_ART = [
     ["hwall", hwallT], ["plank", plankT], ["runner", runT], ["lino", linoT],
     ["kwall", kWallT], ["tile", tileT], ["side", sideT], ["grass", grassT],
