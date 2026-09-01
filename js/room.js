@@ -754,16 +754,20 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
    * works right up until you are INSIDE the room — walking, or riding the doorway
    * transition in from the hall — and then you can see straight out of the bedroom
    * into the back yard: fence, siding and night sky, over your own shoulder.
-   * So the wall exists now, and it HIDES ITSELF for the camera it would block.
-   * ⚠️ keyed off the CAMERA's z, not off walk mode: the hall->bedroom transition
-   * flies the camera in at z ~2.1 and that is exactly where the hole was reported.
+   * ⚠⚠ v82: the wall is ONE-SIDED now, not self-hiding. The old visibility
+   * toggle (camera.z < 3.40) POPPED in full view every time the entry transition
+   * carried the camera through the wall plane — Kyle watched the rear wall vanish
+   * as he walked in. A FrontSide plane facing INTO the room is the dollhouse-wall
+   * trick with zero state: solid from inside, backface-culled from behind, and a
+   * camera passing through it never sees a pop because from behind it was never
+   * drawn. The raycaster respects material.side too, so clicks from the resting
+   * camera pass straight through it, same as when it used to hide.
    * ⚠️ built with sideWallM so it joins wallSideMats and therefore the paint box
    * and MAT_TEX — a wall built with a bare material silently stops repainting. */
-  var southWall = box(8.7, 3.4, 0.1, sideWallM(8.7, 3.4));
+  var southWall = new THREE.Mesh(new THREE.PlaneGeometry(8.7, 3.4), sideWallM(8.7, 3.4));
+  southWall.rotation.y = Math.PI;   // face normal points INTO the room
   southWall.position.set(0, 1.7, 3.55); scene.add(southWall);
-  function updateRoomShell() {
-    southWall.visible = camera.position.z < 3.40;
-  }
+  function updateRoomShell() { /* retired — the one-sided wall needs no toggling */ }
   var stripe = new THREE.Mesh(new THREE.PlaneGeometry(8.7, 0.28), mat(0x8a4d5e, 0.95)); // 90s wallpaper border
   stripe.position.set(0, 2.6, -2.54); scene.add(stripe);
   var skirt = new THREE.Mesh(new THREE.PlaneGeometry(8.7, 0.14), mat(0x2a2019, 0.85));
@@ -1988,6 +1992,9 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
       glb: function () { boot.glb++; },
       glbDone: function () { boot.glbDone++; boot.tick(); },
     },
+    /* the hall's paint can (and anything else in the house) can open the decor
+     * drawer straight onto the paint tab for the room you are standing in */
+    openPaint: function () { decorSet(true); dwTab("paint"); },
     onEnter: function () { // leaving the bedroom tidies up after itself
       if (decorMode) decorSet(false);
       endTour(true);
@@ -4133,6 +4140,10 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
   document.getElementById("nb-close").addEventListener("click", function () {
     document.getElementById("notebook").classList.remove("open");
   });
+  // clicking the dark around the card closes it too — on touch there is no Esc
+  document.getElementById("notebook").addEventListener("click", function (e) {
+    if (e.target === this) this.classList.remove("open");
+  });
 
   /* ---- picking / hover / parallax -------------------------------------------- */
   var ray = new THREE.Raycaster(), mouse = new THREE.Vector2(-2, -2), hovered = null;
@@ -4679,7 +4690,16 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
     if (b) b.textContent = on ? "done decorating" : "decorate";
     tip.classList.remove("show");
     document.body.style.cursor = "default";
-    if (on) { dwTab(dwTabName); dismissNudge(); endTour(true); } // the drawer wakes up on whatever tab it was left on
+    if (on) {
+      /* in the house the drawer opens ON THE PAINT TAB: 'stuff' is bedroom
+       * furniture, and the reason a visitor opens the drawer out there is to
+       * repaint the room they are standing in (Kyle: 'no way to change the
+       * walls in the hallway'). In the bedroom: whatever tab it was left on. */
+      var inHouse2 = false;
+      try { inHouse2 = !!(hall.rooms && hall.rooms.roomFor(hall.space())); } catch (e3) { }
+      dwTab(inHouse2 ? "paint" : dwTabName);
+      dismissNudge(); endTour(true);
+    }
     if (on && !decorSaidLine) {
       decorSaidLine = true;
       try { kidSay("rearranging? okay — mom will never believe it wasn't me.", 4.5); } catch (e) { }
@@ -4702,6 +4722,15 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
     decorSelect(selCfg && selCfg.kind === "coll" ? selCfg : null);
   }
   function decorTick(t, dt) {
+    /* the button is the only decor entry the house rooms have, so it has to SAY
+     * so — 'decorate' reads as a bedroom thing and nobody ever clicked it out
+     * there. Cheap: one textContent compare per frame, writes only on change. */
+    var db0 = document.getElementById("decor-btn");
+    if (db0 && !decorMode) {
+      var want0 = "decorate";
+      try { if (hall.rooms && hall.rooms.roomFor(hall.space())) want0 = "🎨 paint this room"; } catch (e0) { }
+      if (db0.textContent !== want0) db0.textContent = want0;
+    }
     for (var i = 0; i < movables.length; i++) {
       var c = movables[i], rg = c.__ring;
       if (rg) {
@@ -6268,6 +6297,19 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
     paintState[key] = val;
     saveJSON("room-paint", paintState);
     applyPaint();
+    /* THE MASTER SWITCH (Kyle): a wallpaper or floor picked in the MAIN ROOM
+     * flows out to every house room that has not made its own choice — rooms
+     * stay independent until you paint them individually, and personal picks
+     * always beat the house-wide one. Only the two material swaps propagate;
+     * tints, neon and weather stay the bedroom's own. */
+    if (key === "wallsTex" || key === "carpetTex") {
+      try {
+        var row9 = MAT_TEX[key === "wallsTex" ? "walls" : "carpet"];
+        var opt9 = row9.opts[val || 0];
+        if (hall.rooms && hall.rooms.applyAll)
+          hall.rooms.applyAll(key === "wallsTex" ? "wall" : "floor", opt9 && opt9[1] ? opt9[1] : null);
+      } catch (e9) { }
+    }
   }
 
   /* ---- the paint tab (lives in the drawer — swatches preview live) --------------- */

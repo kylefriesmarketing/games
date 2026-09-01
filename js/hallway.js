@@ -95,9 +95,136 @@ export function buildHallway(ctx) {
         var _h = bb.max.y - bb.min.y, _sx = (bb.max.x - bb.min.x) / 2, _sz = (bb.max.z - bb.min.z) / 2;
         var _box = { x0: (fit.x || 0) - _sx, x1: (fit.x || 0) + _sx,
                      z0: (fit.z || 0) - _sz, z1: (fit.z || 0) + _sz, top: (fit.y || 0) + _h };
-        if (fit.onPlaced) try { fit.onPlaced(_box.top, _box); } catch (e2) { }
+        if (fit.onPlaced) try { fit.onPlaced(_box.top, _box, inner); } catch (e2) { }
       } catch (e) { }
     }, undefined, function () { bootN2.glbDone(); /* 404: the box sketch stays */ });
+  }
+
+  /* ⚠️ SEAT A LIVING SCREEN ON THE BAKE'S REAL GLASS, NOT ITS BBOX FACE. The
+   * bbox front face is the BEZEL — the glass sits recessed inside it, so a plane
+   * seated at box.z1 hovers millimetres in front of the set (Kyle: 'floating in
+   * front of where the screen really should be'). A ray fired at the plane's own
+   * centre, straight at the face, passes through the bezel opening and hits the
+   * recessed glass; the plane seats 2 mm proud of THAT surface. dir +1 = the
+   * face is +z in parent coords, -1 = -z. Bezel edges in front of the seated
+   * plane then FRAME it, exactly like glass behind a real bezel. Falls back to
+   * the bbox seat if the ray somehow misses. */
+  function seatOnGlass(parent, root, plane, dir, fallbackZ) {
+    /* ⚠️ NOT first-hit-at-centre: image_to_3d reads dark glass as DEPTH, so
+     * these bakes have cave-like screen recesses — a centre ray fell 15-45 cm in
+     * and buried the den static inside the set (measured, then rewritten). Nine
+     * rays across the plane’s own footprint, and the FRONT-MOST hit wins: the
+     * plane seats 2 mm proud of the closest feature under it, so it can never be
+     * occluded and never floats more than 2 mm — flush by construction. */
+    try {
+      parent.updateWorldMatrix(true, true);
+      var pw = ((plane.geometry.parameters && plane.geometry.parameters.width) || 0.4) * Math.abs(plane.scale.x) / 2;
+      var ph = ((plane.geometry.parameters && plane.geometry.parameters.height) || 0.3) * Math.abs(plane.scale.y) / 2;
+      var d = new THREE.Vector3(0, 0, -dir).transformDirection(parent.matrixWorld).normalize();
+      var best = null;
+      [[0, 0], [-pw, 0], [pw, 0], [0, -ph], [0, ph],
+       [-pw, -ph], [pw, -ph], [-pw, ph], [pw, ph]].forEach(function (s9) {
+        var org = new THREE.Vector3(plane.position.x + s9[0], plane.position.y + s9[1], dir > 0 ? 5 : -5);
+        parent.localToWorld(org);
+        var hits = new THREE.Raycaster(org, d, 0.01, 30).intersectObject(root, true);
+        if (!hits.length) return;
+        var z = parent.worldToLocal(hits[0].point.clone()).z;
+        if (best === null || (dir > 0 ? z > best : z < best)) best = z;
+      });
+      if (best !== null) { plane.position.z = best + dir * 0.002; return; }
+    } catch (e) { }
+    plane.position.z = fallbackZ;
+  }
+
+  /* ⚠️ THE TV FIT. seatOnGlass answers 'how deep'; this answers 'where and how
+   * big'. Seated at the true depth, the authored plane no longer matched the
+   * bake: the den static spilled past the portable's tapered body and the big
+   * set's glow floated small and high inside its glass (photographed). A dense
+   * ray grid over a window around the plane finds the SCREEN RECESS — cells
+   * deeper than the bezel front by 6 mm, within 12 cm of the recess median
+   * (throws out cave-throughs) — and the plane snaps to that region's centre,
+   * size (plus half a cell of bleed, so it tucks under the bezel lip) and
+   * shallowest depth. No plausible recess → seat flush at the local face. */
+  function fitScreenToRecess(parent, root, plane, dir, fallbackZ) {
+    var geomW = (plane.geometry.parameters && plane.geometry.parameters.width) || 0.4;
+    var geomH = (plane.geometry.parameters && plane.geometry.parameters.height) || 0.3;
+    try {
+      parent.updateWorldMatrix(true, true);
+      var hw = geomW * Math.abs(plane.scale.x) * 0.85, hh = geomH * Math.abs(plane.scale.y) * 0.85;
+      var d = new THREE.Vector3(0, 0, -dir).transformDirection(parent.matrixWorld).normalize();
+      var NX = 17, NY = 13, pts = [], front = null;
+      for (var iy = 0; iy < NY; iy++) for (var ix = 0; ix < NX; ix++) {
+        var ox = -hw + 2 * hw * ix / (NX - 1), oy = -hh + 2 * hh * iy / (NY - 1);
+        var org = new THREE.Vector3(plane.position.x + ox, plane.position.y + oy, dir > 0 ? 5 : -5);
+        parent.localToWorld(org);
+        var hits = new THREE.Raycaster(org, d, 0.01, 30).intersectObject(root, true);
+        if (!hits.length) continue;
+        var z = parent.worldToLocal(hits[0].point.clone()).z;
+        pts.push({ x: plane.position.x + ox, y: plane.position.y + oy, z: z });
+        if (front === null || (dir > 0 ? z > front : z < front)) front = z;
+      }
+      if (front === null) { plane.position.z = fallbackZ; return; }
+      var rec = pts.filter(function (p) { return (dir > 0 ? front - p.z : p.z - front) > 0.006; });
+      if (rec.length >= 12) {
+        var zs = rec.map(function (p) { return p.z; }).sort(function (a, b) { return a - b; });
+        var med = zs[zs.length >> 1];
+        rec = rec.filter(function (p) { return Math.abs(p.z - med) < 0.12; });
+      }
+      if (rec.length >= 12) {
+        var x0 = 1e9, x1 = -1e9, y0 = 1e9, y1 = -1e9, shal = null;
+        rec.forEach(function (p) {
+          if (p.x < x0) x0 = p.x; if (p.x > x1) x1 = p.x;
+          if (p.y < y0) y0 = p.y; if (p.y > y1) y1 = p.y;
+          if (shal === null || (dir > 0 ? p.z > shal : p.z < shal)) shal = p.z;
+        });
+        var w = x1 - x0, h = y1 - y0;
+        /* ⚠️ a recess that fills the window in BOTH axes is not an aperture,
+         * it is a FLAT FACE behind a protruding knob: the big set grew to 1.8x
+         * and papered its whole cabinet white before this guard existed. */
+        var fullX = w >= 2 * hw * 0.96, fullY = h >= 2 * hh * 0.96;
+        if (w > 0.14 && h > 0.10 && !(fullX && fullY)) {
+          plane.position.x = (x0 + x1) / 2; plane.position.y = (y0 + y1) / 2;
+          plane.scale.x = (w + 2 * hw / (NX - 1)) / geomW;
+          plane.scale.y = (h + 2 * hh / (NY - 1)) / geomH;
+          plane.position.z = shal + dir * 0.003;
+          return;
+        }
+      }
+      /* FLAT-FACE TV: no aperture to snap to, so fit the glass to centred TV
+       * fractions of the measured face rectangle (median depth throws out the
+       * knobs) — 74% x 66% reads as a 70s console screen and slightly
+       * over-covers the print so no doubled edge ever shows. */
+      var zsA = pts.map(function (p) { return p.z; }).sort(function (a, b) { return a - b; });
+      var medA = zsA[zsA.length >> 1];
+      var face = pts.filter(function (p) { return Math.abs(p.z - medA) < 0.012; });
+      if (face.length >= 20) {
+        var fx0 = 1e9, fx1 = -1e9, fy0 = 1e9, fy1 = -1e9;
+        face.forEach(function (p) {
+          if (p.x < fx0) fx0 = p.x; if (p.x > fx1) fx1 = p.x;
+          if (p.y < fy0) fy0 = p.y; if (p.y > fy1) fy1 = p.y;
+        });
+        if (fx1 - fx0 > geomW * 0.8 && fy1 - fy0 > geomH * 0.8) {
+          plane.position.x = (fx0 + fx1) / 2; plane.position.y = (fy0 + fy1) / 2;
+          plane.scale.x = 0.74 * (fx1 - fx0) / geomW;
+          plane.scale.y = 0.66 * (fy1 - fy0) / geomH;
+          /* ⚠️ NOT the median depth: CRT glass BULGES, and a median seat put
+           * the plane inside the tube — it rendered as a white balloon poking
+           * through the curve. Seat at the bulge APEX: front-most depth within
+           * the central 60% of the rect, which also excludes the knobs. */
+          var cxA = (fx0 + fx1) / 2, cyA = (fy0 + fy1) / 2;
+          var rwA = (fx1 - fx0) * 0.3, rhA = (fy1 - fy0) * 0.3, apex = null;
+          pts.forEach(function (p) {
+            if (Math.abs(p.x - cxA) > rwA || Math.abs(p.y - cyA) > rhA) return;
+            if (apex === null || (dir > 0 ? p.z > apex : p.z < apex)) apex = p.z;
+          });
+          plane.position.z = (apex === null ? medA : apex) + dir * 0.003;
+          return;
+        }
+      }
+      plane.position.z = front + dir * 0.002;  // flat face, no recess: seat flush on it
+      return;
+    } catch (e) { }
+    plane.position.z = fallbackZ;
   }
 
   function plant(parent, rx, rz, op, floorY) {
@@ -171,6 +298,25 @@ export function buildHallway(ctx) {
       fl.rotation.x = -Math.PI / 2; fl.receiveShadow = true;
       fl.position.set((r[0] + r[1]) / 2, 0.0045, (r[2] + r[3]) / 2); add(fl);
     });
+
+  /* THE PAINTING THINGS — the in-world way into per-room decor (Kyle: 'there is
+   * still no way to change the walls'). A can with its lid off, a brush across
+   * the top, a dried spill: click it anywhere and the drawer opens on the paint
+   * tab for the room you are STANDING IN. It lives in the hall, against the west
+   * wall by the bedroom door, because every room in the house starts here. */
+  var pcanG = new THREE.Group(); pcanG.position.set(-7.15, 0, 2.35); add(pcanG);
+  var pcan = new THREE.Mesh(new THREE.CylinderGeometry(0.075, 0.075, 0.095, 12), mat(0xb8b2a4, 0.5));
+  pcan.position.y = 0.0475; pcanG.add(pcan);
+  var plid = new THREE.Mesh(new THREE.CylinderGeometry(0.078, 0.078, 0.012, 12), mat(0x8a4d5e, 0.55));
+  plid.position.set(0.13, 0.011, 0.06); plid.rotation.z = 0.06; pcanG.add(plid);
+  var pbrush = box(0.035, 0.02, 0.16, mat(0xc9a45a, 0.85));
+  pbrush.position.set(0, 0.105, 0.01); pbrush.rotation.y = 0.5; pcanG.add(pbrush);
+  var pdrip = new THREE.Mesh(new THREE.CircleGeometry(0.06, 10), mat(0x8a4d5e, 0.6));
+  pdrip.rotation.x = -Math.PI / 2; pdrip.position.set(-0.1, 0.007, -0.05); pcanG.add(pdrip);
+  pcanG.children.forEach(function (m) {
+    tag(m, "the painting things", function () { if (ctx.openPaint) ctx.openPaint(); },
+      "mom said we could repaint — click, then paint the room you're standing in");
+  });
 
   // the runner — every 90s hallway has one, dark red with a tired gold border
   var runT = canvasTex(256, 1024, function (c, w, h) {
@@ -694,7 +840,7 @@ export function buildHallway(ctx) {
     propSwap('bigset', sg,
       sg.children.filter(function (m, i) { return i >= 8 && m !== scr; }),
       { x: 0, z: 0, y: 0.52, w: 1.04, d: 0.72, h: 0.85, ry: Math.PI,
-        onPlaced: function (top, box) {
+        onPlaced: function (top, box, root) {
           /* ⚠️ the curved glass is ~0.87 wide — WIDER than the baked set — and
            * photographed as a glowing dinner plate floating in front of it. It hides;
            * a flat plane SIZED TO THE BAKED FACE takes over, sharing scr.material by
@@ -704,6 +850,10 @@ export function buildHallway(ctx) {
           var glow = new THREE.Mesh(new THREE.PlaneGeometry(0.46, 0.36), scr.material);
           glow.rotation.y = Math.PI;   // the plane faces -z, at the couch
           glow.position.set(0, 0.52 + (top - 0.52) * 0.56, box.z0 - 0.006);
+          /* box.z0 is the BEZEL plane — the glass recess is deeper, and seated
+           * there the glow floated in front of the set (Kyle). Ray the bake at
+           * the plane's centre and seat 2 mm proud of the actual glass. */
+          fitScreenToRecess(sg, root, glow, -1, box.z0 - 0.006);
           sg.add(glow);
           ltag(glow, 'the big set', null, 'twenty-seven inches and it took two people to carry.');
         } }, sg.children[8]);
@@ -3243,6 +3393,16 @@ export function buildHallway(ctx) {
     : "HOME BREW — the first batch brews itself · click to open the brewery";
   function brewGo() { window.location.href = "https://kylefriesmarketing.github.io/home-brew/"; }
   brewG.traverse(function (o) { if (o.isMesh) ktag(o, "HOME BREW", brewGo, brewHint); });
+  /* the baked six-pack (it says HOMEBREW on the bottle). The tier-menu chalk plane
+   * and the champion's tag KEEP their painted text — generated bakes garble words,
+   * the same reason the TVs keep their screens — and re-lean against the bake. */
+  propSwap('brewkit', brewG,
+    brewG.children.filter(function (o) { return o !== brewMenu && o !== champTag; }),
+    { x: 0.02, w: 0.42, d: 0.36, h: 0.36, ry: 0,
+      onPlaced: function (top, box) {
+        brewMenu.position.set(-0.01, 0.075, box.z0 - 0.006);
+        champTag.position.set(0.15, 0.05, box.z1 + 0.006);
+      } }, brewMenu);
   // ceiling light
   var kLampShade = new THREE.Mesh(new THREE.CylinderGeometry(0.26, 0.34, 0.2, 16, 1, true),
     new THREE.MeshStandardMaterial({ color: 0xf0e6cc, roughness: 0.7, side: THREE.DoubleSide }));
@@ -4060,6 +4220,39 @@ export function buildHallway(ctx) {
     .forEach(function (m) {
       ytag(m, "QUARRY", qGo, "QUARRY — something came down out past the treeline · click to go hunting");
     });
+  /* the generated I-SAW-IT painting goes INTO the sign's own canvas (Kyle's call:
+   * 'that should just be an image'). Two rules from the recon:
+   * 1. THE WORDMARK IS THE PORTAL at 26 m — generated text cannot be trusted with
+   *    it, so QUARRY + the amber frame + the scanlines are re-drawn IN CODE on top.
+   * 2. the old flat emissive (0x9a7f4e @ .85) would lift the whole painting to a
+   *    uniform amber glow — the material moves to emissiveMap so the glow follows
+   *    the pixels, and needsUpdate is set because a NEW MAP SLOT recompiles. */
+  (function () {
+    var img = new Image();
+    img.onload = function () {
+      /* ⚠️ NEVER RESIZE AN ALREADY-UPLOADED CANVAS TEXTURE. WebGL2 allocates
+       * immutable texStorage2D at first upload (128x96 here), so a resized
+       * canvas can never re-upload into it: the CPU canvas held this painting
+       * while the GPU kept showing the old fang — measured both in one load.
+       * Fresh canvas, fresh CanvasTexture, swap BOTH material slots. */
+      var cv = document.createElement('canvas'); cv.width = 640; cv.height = 480;
+      var c = cv.getContext('2d');
+      c.drawImage(img, 0, 0, 640, 480);
+      c.fillStyle = 'rgba(8,7,4,0.52)'; c.fillRect(16, 16, 608, 88);
+      c.strokeStyle = '#c99a4e'; c.lineWidth = 8; c.strokeRect(10, 10, 620, 460);
+      c.fillStyle = '#ffd98a'; c.font = 'bold 66px Courier New, monospace'; c.textAlign = 'center';
+      c.fillText('QUARRY', 320, 84);
+      c.fillStyle = 'rgba(0,0,0,0.10)';
+      for (var sy = 0; sy < 480; sy += 6) c.fillRect(0, sy, 640, 2);
+      var newT = new THREE.CanvasTexture(cv);
+      newT.colorSpace = THREE.SRGBColorSpace; newT.anisotropy = 4;
+      var m5 = qBoard.material;
+      m5.map = newT; m5.emissiveMap = newT;
+      m5.emissive.set(0xffffff); m5.emissiveIntensity = 0.55;
+      m5.needsUpdate = true; qSignT.dispose();
+    };
+    img.src = 'assets/tex/house/quarrysign.jpg';
+  })();
 
   /* ---- FRESH CUT: the mower, abandoned mid-stripe on its own front lawn ------- */
   var mowG = new THREE.Group(); mowG.position.set(-7.15, GROUND + 0.02, -9.8); mowG.rotation.y = -0.5; yadd(mowG);
@@ -4097,6 +4290,13 @@ export function buildHallway(ctx) {
     : "FRESH CUT — the lawn won't mow itself · click to start the mower";
   function fcGo() { window.location.href = "https://kylefriesmarketing.github.io/fresh-cut/"; }
   mowG.traverse(function (o) { if (o.isMesh) ytag(o, "FRESH CUT", fcGo, fcHint); });
+  /* the baked mower — swapped INSIDE mowG so the toolbox stash's visibility toggle
+   * ('left out mid-job' / 'back in the shed') keeps working on the same group, and
+   * the groundShade disc (a separate yardG mesh) is untouched. The proto carries
+   * fcGo + the DYNAMIC fcHint (lawn count from fc-save), so the portal survives. */
+  // ⚠️ drive the fit by HEIGHT: w-bound gave a knee-high 0.37 m mower
+  propSwap('mower', mowG, mowG.children.slice(),
+    { w: 0.80, d: 1.35, h: 0.85, ry: Math.PI }, mowG.children[0]);
   var slMoths = [];
   for (var sm = 0; sm < 4; sm++) {
     var smo = new THREE.Mesh(new THREE.PlaneGeometry(0.06, 0.04),
@@ -4671,6 +4871,16 @@ export function buildHallway(ctx) {
       window.location.href = "https://kylefriesmarketing.github.io/here-comes-the-truck/";
     }, "HERE COMES THE TRUCK — you caught it. click before it's gone");
   });
+  /* the baked truck rides INSIDE truckG: the 5-minute drive-by driver owns the
+   * GROUP's position/rotation and never touches children, so the animation, the
+   * jingle timer and tkLite (which follows on yardG) all keep working untouched.
+   * ⚠️ the driver runs the truck with rotation.y = PI and the sketch's CAB at
+   * local +x leading the motion — ry PI/2 maps the bake's +z nose onto +x so the
+   * baked truck also drives nose-first, serving window to the kerb. */
+  // ⚠️ the bake's length runs along ITS OWN x (a side-on bake), so ry PI/2
+  // turned it SIDEWAYS: a 1.3 m long truck. ry 0 keeps length on x, nose at +x.
+  propSwap('icetruck', truckG, truckG.children.slice(),
+    { w: 5.6, d: 2.2, h: 3.4, ry: 0 }, truckG.children[0]);
   // ⚠️ the truck starts its first run at 40s, not at 300. A five-minute wait before
   // the mechanic even exists means most visitors never learn it is there.
   var truckT = TRUCK_CYCLE - 40, truckJing = 0, truckSeen = false;
@@ -7132,12 +7342,14 @@ export function buildHallway(ctx) {
    * and tvLite keeps strobing the room. Static on a woodgrain portable: correct. */
   propSwap('portable', cartG, [crt],
     { x: 0, z: -0.02, y: 0.785, w: 0.68, d: 0.58, h: 0.62, ry: 0,
-      onPlaced: function (top, box) {
+      onPlaced: function (top, box, root) {
         /* the full-size static plane ECLIPSED the portable behind it — shrink it to
          * the portable’s own screen and seat it on the face; bsmTick still scrolls
          * and flickers the same material every frame. */
         crtScr.scale.set(0.62, 0.68, 1);
         crtScr.position.set(-0.03, 0.785 + (top - 0.785) * 0.55, box.z1 + 0.004);
+        // the bbox face is the cabinet lip, not the tube — seat on the real glass
+        fitScreenToRecess(cartG, root, crtScr, 1, box.z1 + 0.004);
       } }, crt);
   // ping-pong, north half
   var ppG = new THREE.Group(); ppG.position.set(-2.1, BSM.fl, -0.75); add(ppG);
@@ -7364,7 +7576,7 @@ export function buildHallway(ctx) {
     return cab;
   }
   var brTint2 = (brSave.top && BR_TINTS[brSave.top]) || 0xc4232f;
-  makeCab(0.15, -1.88, 0.05, {
+  var cabBR = makeCab(0.15, -1.88, 0.05, {
     name: "BLOODRIFT", url: "https://kylefriesmarketing.github.io/bloodrift/",
     hint: brSave.wins ? "BLOODRIFT — " + brSave.wins + " win" + (brSave.wins === 1 ? "" : "s") + " on this machine · click to fight"
                       : "BLOODRIFT — 20 fighters, four realities, one wound · click to fight",
@@ -7415,7 +7627,7 @@ export function buildHallway(ctx) {
       g.closePath(); g.fill();
     },
   });
-  makeCab(1.35, -1.88, -0.05, {
+  var cabTLI = makeCab(1.35, -1.88, -0.05, {
     name: "THE LAST ISSUE", url: "https://kylefriesmarketing.github.io/the-last-issue-demo/",
     hint: tliSave ? "THE LAST ISSUE — " + tliSave + " issue" + (tliSave === 1 ? "" : "s") + " printed · make another"
                   : "THE LAST ISSUE — build your own superhero, one issue at a time",
@@ -7470,6 +7682,35 @@ export function buildHallway(ctx) {
       g.fillStyle = "rgba(255,255,255,0.12)";
       for (var hd4 = 0; hd4 < 160; hd4++) g.fillRect((hd4 * 31) % w, h * 0.6 + (hd4 * 17) % (h * 0.4), 2, 2);
     },
+  });
+
+  /* THE BAKED CABINETS — the two arcade portals get real bodies. The v81 TV law
+   * applies twice over: each cabinet's SCREEN [child 23] and MARQUEE [child 26] are
+   * canvas-emissive planes carrying the games' actual cover art and wordmarks —
+   * they survive the swap and re-seat proud of the baked front (+z). Their glow
+   * PointLights live outside the groups in dimLights and keep breathing. The
+   * ±3-degree toe-in lives on the GROUPS, so the bakes inherit it — that lean is
+   * what makes it an arcade corner and not furniture. NO plant() disc in makeCab:
+   * child[0] is the kick plinth, so the hide filter is by-screen-and-marquee only.
+   * ⚠️ fit d stays under 0.78 — the block wall's inner face is 8 cm behind. */
+  [[cabBR, 'arcade1'], [cabTLI, 'arcade2']].forEach(function (pair) {
+    var cab5 = pair[0];
+    var scr5 = cab5.children[23], mq5 = cab5.children[26];
+    propSwap(pair[1], cab5,
+      cab5.children.filter(function (m) { return m !== scr5 && m !== mq5; }),
+      /* d-bound made squat 1.08 m cabinets — 3/4-view bakes run DEEP. z nudges
+       * forward so d 0.84 still clears the block wall 8 cm behind the backs. */
+      { z: 0.05, w: 0.82, d: 0.84, h: 1.62, ry: 0,
+        onPlaced: function (top, box, root) {
+          /* scale the sketch's screen/marquee HEIGHTS by top/1.59 (the sketch cab
+           * was 1.59) so both land INSIDE each bake — the two bakes came out
+           * different heights (1.26 / 1.62) and BLOODRIFT's marquee floated in air.
+           * Heights FIRST: seatOnGlass rays at the plane's new centre. */
+          var f5 = top / 1.59;
+          scr5.position.y = 1.16 * f5; mq5.position.y = 1.45 * f5;
+          seatOnGlass(cab5, root, scr5, 1, box.z1 + 0.005);
+          seatOnGlass(cab5, root, mq5, 1, box.z1 + 0.005);
+        } }, cab5.children[1]);
   });
 
   // utility corner: water heater, furnace, and the boxes that never made the move
@@ -8109,6 +8350,22 @@ export function buildHallway(ctx) {
     if (st3.w > 0) houseTexApply(rk, "wall", st3.w, false);
     if (st3.f > 0) houseTexApply(rk, "floor", st3.f, false);
   });
+  /* THE MASTER SWITCH's saved half: the bedroom's house-wide pick (set through
+   * rooms.applyAll below) re-skins every room that never made its OWN choice.
+   * Runs after the per-room loop but never touches a room with its own entry,
+   * so order between the two passes cannot matter. */
+  (function () {
+    var allR = houseRoomState.all;
+    if (!allR) return;
+    ["w", "f"].forEach(function (kk) {
+      if (!(allR[kk] > 0)) return;
+      Object.keys(HOUSE_ROOMS).forEach(function (rk) {
+        var own = houseRoomState[rk] && houseRoomState[rk][kk];
+        if (own > 0) return;
+        houseTexApply(rk, kk === "w" ? "wall" : "floor", allR[kk], false);
+      });
+    });
+  })();
   var LOOK_MATS = [hwallM, plankM, runner.material, oakM, kWallM, lamM,
                    sidingM, grassM, deckM, bFenceM, pdeckM,
                    garWallM, garFloorM, benchM, poolConcM, panelM,
@@ -9452,6 +9709,34 @@ export function buildHallway(ctx) {
       wash: function (rk) {
         houseTexApply(rk, "wall", 0); houseTexApply(rk, "floor", 0);
         delete houseRoomState[rk]; saveJSON("house-rooms", houseRoomState);
+        /* a washed room stops being independent — it rejoins the house-wide
+         * look, if the bedroom has set one */
+        var al = houseRoomState.all || {};
+        if (al.w > 0) houseTexApply(rk, "wall", al.w, false);
+        if (al.f > 0) houseTexApply(rk, "floor", al.f, false);
+      },
+      /* THE MASTER SWITCH (Kyle's rule): called from the bedroom's setPaint when
+       * its wallpaper/floor changes. `file` is the bedroom print's filename (or
+       * null for as-found); matched by basename because the house options store
+       * full paths. Rooms with their own saved pick are skipped — independence
+       * means personal choices always beat the house-wide one. persist:false on
+       * the per-room applies: the choice is stored ONCE, in .all, so a later
+       * bedroom change (or as-found) flows through the same rooms again. */
+      applyAll: function (kind, file) {
+        var opts = kind === "wall" ? HOUSE_WALL_OPTS : HOUSE_FLOOR_OPTS;
+        var idx = 0;
+        if (file) for (var i2 = 1; i2 < opts.length; i2++) {
+          var p2 = opts[i2][1];
+          if (p2 && p2.slice(p2.lastIndexOf("/") + 1) === file) { idx = i2; break; }
+        }
+        houseRoomState.all = houseRoomState.all || {};
+        houseRoomState.all[kind === "wall" ? "w" : "f"] = idx;
+        saveJSON("house-rooms", houseRoomState);
+        Object.keys(HOUSE_ROOMS).forEach(function (rk) {
+          var own = houseRoomState[rk] && houseRoomState[rk][kind === "wall" ? "w" : "f"];
+          if (own > 0) return;
+          houseTexApply(rk, kind, idx, false);
+        });
       },
       WALL_OPTS: HOUSE_WALL_OPTS, FLOOR_OPTS: HOUSE_FLOOR_OPTS,
     }

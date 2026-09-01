@@ -136,9 +136,13 @@ body.listing #walk-toggle{display:none}
 #notebook{position:fixed;inset:0;z-index:20;display:none;align-items:center;justify-content:center;
   background:rgba(5,7,10,.72)}
 #notebook.open{display:flex}
+/* ⚠ the card caps at the viewport and only its BODY scrolls — page 2 (the awards)
+   outgrew the screen and carried the nav and close buttons off the bottom with it */
 .nb-card{width:min(420px,92vw);background:#efe6d0;color:#3a2e20;border-radius:4px;
-  padding:26px 28px;box-shadow:0 30px 80px rgba(0,0,0,.6);transform:rotate(-.6deg)}
+  padding:26px 28px;box-shadow:0 30px 80px rgba(0,0,0,.6);transform:rotate(-.6deg);
+  max-height:86vh;display:flex;flex-direction:column}
 .nb-card h2{font-size:18px;letter-spacing:.08em;margin-bottom:14px;border-bottom:1px dashed #b7a888;padding-bottom:8px}
+.nb-body{overflow-y:auto;min-height:0;overscroll-behavior:contain;padding-right:6px}
 .nb-row{display:flex;justify-content:space-between;gap:14px;padding:7px 0;font-size:15px;border-bottom:1px dotted #cfc0a0}
 .nb-row b{font-family:"Inter",sans-serif;font-size:12.5px;letter-spacing:.03em}
 /* the cross-game card + its awards */
