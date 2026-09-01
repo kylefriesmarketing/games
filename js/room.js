@@ -1360,10 +1360,12 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
     var c = document.createElement("canvas"); c.width = W; c.height = H;
     var g = c.getContext("2d");
     var tex = new THREE.CanvasTexture(c); tex.anisotropy = 8; tex.colorSpace = THREE.SRGBColorSpace;
-    function grain() { // cloth weave, side shading, head/tail caps — free depth on every spine
-      g.globalAlpha = 0.045;
-      for (var y = 0; y < H; y += 3) { g.fillStyle = (y / 3) % 2 ? "#000000" : "#ffffff"; g.fillRect(0, y, W, 1); }
-      g.globalAlpha = 1;
+    // ⚠️ the BINDING lives here, not in the art. Generated spine art is cropped to
+    // pure flat cloth (no baked edges — those sat inboard of the box corner and read
+    // as "the image doesn't line up with the binding", Kyle 2026-08-29); these
+    // gradients draw the hinge/cap shading AT the texture border, which IS the mesh
+    // corner, so paint and binding agree on every book by construction.
+    function edgeShade() {
       var gx = g.createLinearGradient(0, 0, W, 0);
       gx.addColorStop(0, "rgba(0,0,0,0.30)"); gx.addColorStop(0.09, "rgba(0,0,0,0)");
       gx.addColorStop(0.91, "rgba(0,0,0,0)"); gx.addColorStop(1, "rgba(0,0,0,0.32)");
@@ -1372,6 +1374,12 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
       gy.addColorStop(0, "rgba(255,255,255,0.10)"); gy.addColorStop(0.025, "rgba(0,0,0,0.16)"); gy.addColorStop(0.055, "rgba(0,0,0,0)");
       gy.addColorStop(0.945, "rgba(0,0,0,0)"); gy.addColorStop(0.975, "rgba(0,0,0,0.18)"); gy.addColorStop(1, "rgba(255,255,255,0.08)");
       g.fillStyle = gy; g.fillRect(0, 0, W, H);
+    }
+    function grain() { // cloth weave + the binding shading — free depth on every spine
+      g.globalAlpha = 0.045;
+      for (var y = 0; y < H; y += 3) { g.fillStyle = (y / 3) % 2 ? "#000000" : "#ffffff"; g.fillRect(0, y, W, 1); }
+      g.globalAlpha = 1;
+      edgeShade();
     }
     function title(artMode) {
       g.save();
@@ -1405,6 +1413,7 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
       im.onload = function () {
         g.clearRect(0, 0, W, H);
         g.drawImage(im, 0, 0, W, H);
+        edgeShade(); // the binding is drawn at the mesh corners, never baked in the art
         title(true);
         if (opts.over) { g.save(); g.scale(2, 2); opts.over(g, 128, 512); g.restore(); }
         tex.needsUpdate = true;
