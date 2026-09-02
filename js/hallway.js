@@ -940,11 +940,11 @@ export function buildHallway(ctx) {
           crtMask(scr.material, 0.3);   // rounded tube face; edges melt into the bake's glass
           var glow = new THREE.Mesh(new THREE.PlaneGeometry(0.46, 0.36), scr.material);
           glow.rotation.y = Math.PI;   // the plane faces -z, at the couch
-          glow.position.set(0, 0.52 + (top - 0.52) * 0.56, box.z0 - 0.006);
-          /* box.z0 is the BEZEL plane — the glass recess is deeper, and seated
-           * there the glow floated in front of the set (Kyle). Ray the bake at
-           * the plane's centre and seat 2 mm proud of the actual glass. */
-          fitScreenToRecess(sg, root, glow, -1, box.z0 - 0.006);
+          /* CALIBRATED (ruler-marker photo): printed glass centre (0, 0.989),
+           * 0.647 x 0.508; plane = print / mask-lit 0.86; z at the glass bulge
+           * apex measured by the earlier probe and photographed flush. */
+          glow.position.set(0, 0.989, -0.341);
+          glow.scale.set(0.752 / 0.46, 0.597 / 0.36, 1);
           sg.add(glow);
           ltag(glow, 'the big set', null, 'twenty-seven inches and it took two people to carry.');
         } }, sg.children[8]);
@@ -7464,14 +7464,16 @@ export function buildHallway(ctx) {
   propSwap('portable', cartG, [crt],
     { x: 0, z: -0.02, y: 0.785, w: 0.68, d: 0.58, h: 0.62, ry: 0,
       onPlaced: function (top, box, root) {
-        /* the full-size static plane ECLIPSED the portable behind it — shrink it to
-         * the portable’s own screen and seat it on the face; bsmTick still scrolls
-         * and flickers the same material every frame. */
-        crtScr.scale.set(0.62, 0.68, 1);
-        crtMask(crtScr.material, 0.32); // rounder: the 0.24 corners poked out of the aperture
-        crtScr.position.set(-0.03, 0.785 + (top - 0.785) * 0.55, box.z1 + 0.004);
-        // the bbox face is the cabinet lip, not the tube — seat on the real glass
-        fitScreenToRecess(cartG, root, crtScr, 1, box.z1 + 0.004);
+        /* CALIBRATED (ruler-marker photo): the portable's printed screen sits
+         * LEFT of centre — (-0.048, 1.000), 0.278 x 0.228 — which no geometry
+         * probe could see (the print is texture, not shape). plane = print /
+         * mask-lit 0.86; z 0.163 measured flush by the aperture probe. bsmTick
+         * still scrolls and flickers the same material every frame. */
+        crtMask(crtScr.material, 0.32);
+        var gw2 = (crtScr.geometry.parameters && crtScr.geometry.parameters.width) || 0.46;
+        var gh2 = (crtScr.geometry.parameters && crtScr.geometry.parameters.height) || 0.345;
+        crtScr.scale.set(0.323 / gw2, 0.268 / gh2, 1);
+        crtScr.position.set(-0.048, 1.000, 0.163);
       } }, crt);
   // ping-pong, north half
   var ppG = new THREE.Group(); ppG.position.set(-2.1, BSM.fl, -0.75); add(ppG);
@@ -7827,21 +7829,27 @@ export function buildHallway(ctx) {
    * TLI also scales up 1.15 so our living art fully covers the bake's brighter
    * printed screen (a mismatched ring of print peeked around the mask). */
   /* TLI at 1.15x leaned out of the raked face (a tall plane spans more rake——the seat is front-most, so the deep top edge floats). 1.0 + centre ON the print: both arts are the same cover, so the thin print ring around the mask is invisible, which is exactly why BLOODRIFT already worked. */
-  /* pair[4] picks the SEAT per bake, both photographed: BLOODRIFT's monitor is
-   * a CAVE — the centre ray buried its art 12 cm deep behind the printed glass,
-   * so it keeps the 9-ray front-most; TLI's monitor is a solid raked face where
-   * front-most caught the jutting control panel — it keeps the centre ray. */
-  [[cabBR, 'arcade1', 0.73, 1, 'front'], [cabTLI, 'arcade2', 0.60, 1, 'centre']].forEach(function (pair) {
+  /* pair[2] = the CALIBRATED print rect {cx, cy, w, h} in cab-local units
+   * (ruler-marker photos): our living art lands exactly on each bake's own
+   * printed screen, art-on-art, no stretch. pair[3] picks the SEAT per bake,
+   * both photographed: BLOODRIFT's monitor is a CAVE (9-ray front-most);
+   * TLI's is a solid raked face (centre ray — front-most caught the jutting
+   * control panel). */
+  [[cabBR, 'arcade1', { cx: 0.016, cy: 0.928, w: 0.469, h: 0.334 }, 'front'],
+   [cabTLI, 'arcade2', { cx: 0.000, cy: 1.009, w: 0.460, h: 0.276 }, 'centre']].forEach(function (pair) {
     var cab5 = pair[0];
     var scr5 = cab5.children[23];
     crtMask(scr5.material, 0.12);
-    scr5.scale.set(pair[3], pair[3], 1);
     propSwap(pair[1], cab5,
       cab5.children.filter(function (m) { return m !== scr5; }),
       { z: 0.05, w: 0.82, d: 0.84, h: 1.62, ry: 0,
         onPlaced: function (top, box, root) {
-          scr5.position.y = pair[2] * top;
-          if (pair[4] === 'front') { seatOnGlass(cab5, root, scr5, 1, box.z1 + 0.005); return; }
+          var r5 = pair[2];
+          var gw5 = (scr5.geometry.parameters && scr5.geometry.parameters.width) || 0.46;
+          var gh5 = (scr5.geometry.parameters && scr5.geometry.parameters.height) || 0.345;
+          scr5.scale.set(r5.w / gw5, r5.h / gh5, 1);
+          scr5.position.x = r5.cx; scr5.position.y = r5.cy;
+          if (pair[3] === 'front') { seatOnGlass(cab5, root, scr5, 1, box.z1 + 0.005); return; }
           try {
             cab5.updateWorldMatrix(true, true);
             var org9 = new THREE.Vector3(scr5.position.x, scr5.position.y, 5);
