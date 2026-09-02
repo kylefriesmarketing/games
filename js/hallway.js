@@ -115,16 +115,26 @@ export function buildHallway(ctx) {
     var c = document.createElement("canvas"); c.width = 256; c.height = 192;
     var g = c.getContext("2d");
     g.fillStyle = "#000"; g.fillRect(0, 0, 256, 192);
+    /* ⚠️ v2 after close-up photos: the white region is INSET (18/14 px) so the
+     * feather ENDS at the plane edge — v1 ran it to the border and the den's
+     * static bled a frost halo onto the portable's body. Blur 3, not 5: the
+     * big set's glow dissolved into an oval balloon. Scanlines every 3rd row
+     * read as tube texture and take the flat-white edge off the bright frames. */
+    var mx = 18, my = 14;
     var rad = Math.floor(192 * (cornerFrac || 0.25));
     g.fillStyle = "#fff";
     g.beginPath();
-    g.moveTo(rad + 8, 8);
-    g.arcTo(248, 8, 248, 184, rad); g.arcTo(248, 184, 8, 184, rad);
-    g.arcTo(8, 184, 8, 8, rad); g.arcTo(8, 8, 248, 8, rad);
+    g.moveTo(mx + rad, my);
+    g.arcTo(256 - mx, my, 256 - mx, 192 - my, rad);
+    g.arcTo(256 - mx, 192 - my, mx, 192 - my, rad);
+    g.arcTo(mx, 192 - my, mx, my, rad);
+    g.arcTo(mx, my, 256 - mx, my, rad);
     g.closePath(); g.fill();
-    try { g.filter = "blur(5px)"; g.drawImage(c, 0, 0); g.filter = "none"; } catch (e) { }
-    var v = g.createRadialGradient(128, 96, 55, 128, 96, 175);
-    v.addColorStop(0, "rgba(0,0,0,0)"); v.addColorStop(1, "rgba(0,0,0,0.6)");
+    try { g.filter = "blur(3px)"; g.drawImage(c, 0, 0); g.filter = "none"; } catch (e) { }
+    g.fillStyle = "rgba(0,0,0,0.15)";
+    for (var sy = 0; sy < 192; sy += 3) g.fillRect(0, sy, 256, 1);
+    var v = g.createRadialGradient(128, 96, 62, 128, 96, 172);
+    v.addColorStop(0, "rgba(0,0,0,0)"); v.addColorStop(1, "rgba(0,0,0,0.5)");
     g.fillStyle = v; g.fillRect(0, 0, 256, 192);
     var t = new THREE.CanvasTexture(c);
     m.alphaMap = t; m.transparent = true; m.needsUpdate = true;
@@ -214,8 +224,15 @@ export function buildHallway(ctx) {
         var fullX = w >= 2 * hw * 0.96, fullY = h >= 2 * hh * 0.96;
         if (w > 0.14 && h > 0.10 && !(fullX && fullY)) {
           plane.position.x = (x0 + x1) / 2; plane.position.y = (y0 + y1) / 2;
-          plane.scale.x = (w + 2 * hw / (NX - 1)) / geomW;
-          plane.scale.y = (h + 2 * hh / (NY - 1)) / geomH;
+          /* 0.97x aperture, no bleed: with the mask's inset the LIT region ends
+           * ~0.83x aperture, comfortably inside — the +half-cell bleed left the
+           * den's static frosting the body around its screen (photographed). */
+          /* 0.78, measured from photos: the detected bbox includes the recess
+           * SLOPES around the glass, running ~21% over the visible hole — at
+           * 0.97 the den's static still frosted the body. Lit region ends at
+           * ~0.67x detected = ~0.97x the visible aperture. */
+          plane.scale.x = 0.73 * w / geomW;
+          plane.scale.y = 0.73 * h / geomH;
           plane.position.z = shal + dir * 0.003;
           return;
         }
@@ -235,8 +252,12 @@ export function buildHallway(ctx) {
         });
         if (fx1 - fx0 > geomW * 0.8 && fy1 - fy0 > geomH * 0.8) {
           plane.position.x = (fx0 + fx1) / 2; plane.position.y = (fy0 + fy1) / 2;
-          plane.scale.x = 0.74 * (fx1 - fx0) / geomW;
-          plane.scale.y = 0.66 * (fy1 - fy0) / geomH;
+          /* 0.92/0.82 because the v2 mask insets its lit region ~14%: the LIT
+           * area lands at ~0.79/0.71 of the face — the measured span of the big
+           * set's printed glass. v1's 0.74/0.66 lit a cloud in the middle of a
+           * dead screen (photographed). */
+          plane.scale.x = 0.92 * (fx1 - fx0) / geomW;
+          plane.scale.y = 0.82 * (fy1 - fy0) / geomH;
           /* ⚠️ NOT the median depth: CRT glass BULGES, and a median seat put
            * the plane inside the tube — it rendered as a white balloon poking
            * through the curve. Seat at the bulge APEX: front-most depth within
@@ -324,7 +345,25 @@ export function buildHallway(ctx) {
    [W_IN, E_IN, HOLE.z1, Z_S],          // south of the hole, full width
    [HOLE.x1, E_IN, HOLE.z0, HOLE.z1]]   // beside the hole, east sliver
     .forEach(function (r) {
-      var fl = new THREE.Mesh(new THREE.PlaneGeometry(r[1] - r[0], r[3] - r[2]), plankM);
+      /* ⚠️ per-piece DENSITY (audit): the shared plankM repeat (1.2 x 4) was
+       * tuned for one 3.1 x 12.25 plane, so the three split pieces disagreed
+       * up to 12.9x — Kyle's 'pattern is thinner in some parts'. Every piece
+       * now computes repeat from its own size at the living room's reference
+       * density (0.387/0.327 tiles per metre) and world-aligns its offset so
+       * boards keep phase across the hole seam. Clones share the canvas
+       * Source, so houseArtSwap still repaints them and rebuilds their bumps. */
+      var w9 = r[1] - r[0], d9 = r[3] - r[2];
+      var pm9 = plankM.clone();
+      pm9.map = plankT.clone();
+      pm9.map.repeat.set(w9 * 0.387, d9 * 0.327);
+      pm9.map.offset.set(r[0] * 0.387, -r[3] * 0.327);
+      pm9.map.needsUpdate = true;
+      if (pm9.bumpMap) {
+        pm9.bumpMap = pm9.bumpMap.clone();
+        pm9.bumpMap.repeat.copy(pm9.map.repeat); pm9.bumpMap.offset.copy(pm9.map.offset);
+        pm9.bumpMap.needsUpdate = true;
+      }
+      var fl = new THREE.Mesh(new THREE.PlaneGeometry(w9, d9), pm9);
       fl.rotation.x = -Math.PI / 2; fl.receiveShadow = true;
       fl.position.set((r[0] + r[1]) / 2, 0.0045, (r[2] + r[3]) / 2); add(fl);
     });
@@ -477,6 +516,27 @@ export function buildHallway(ctx) {
       var seg = box(0.1, p[3] - p[2], p[1] - p[0], paperWallM(p[1] - p[0], p[3] - p[2]));
       seg.position.set(E_IN + 0.05, (p[2] + p[3]) / 2, (p[0] + p[1]) / 2); add(seg);
     });
+  /* THE BEDROOM'S BACK WALL, SKINNED FOR THE HALL (Kyle: painting the hall
+   * doesn't paint the wall that is the exterior of the boys room). The hall has
+   * NO east wall of its own for z -3.45..3.45 — you were looking at the raw
+   * back faces of the bedroom's left/leftS/leftL slabs, whose material is the
+   * BEDROOM's wallpaper and repaints only from the bedroom's paint box. Three
+   * west-facing planes flat on that face — polygonOffset, never a proud
+   * position (the gallery frames hang 12 mm off this plaster) — cut around the
+   * doorway, in paperWallM clones so they join the hall's paint family and the
+   * LOOKS tints automatically. Header starts at y 2.06: the door slab tops out
+   * at 2.05 and swings through this plane's z-range. */
+  [[5.09, 3.4, 1.7, -0.905],     // Z_N .. the doorway's north edge
+   [0.89, 3.4, 1.7, 3.005],      // the doorway's south edge .. BED_END
+   [0.92, 1.34, 2.73, 2.10]]     // the header over the opening ONLY
+    .forEach(function (p9) {
+      var m9 = paperWallM(p9[0], p9[1]);
+      m9.polygonOffset = true; m9.polygonOffsetFactor = -6; m9.polygonOffsetUnits = -6;
+      var sk9 = new THREE.Mesh(new THREE.PlaneGeometry(p9[0], p9[1]), m9);
+      sk9.rotation.y = -Math.PI / 2;
+      sk9.position.set(E_IN - 0.004, p9[2], p9[3]); add(sk9);
+    });
+
   // the NORTH cap is cut too, now that the front door opens onto a real porch.
   // (Same lesson as capS: a door you can walk through needs a hole, not a slab.)
   var FDO = { x0: FRONT_X - 0.63, x1: FRONT_X + 0.63, y1: 2.30 };
@@ -1524,7 +1584,18 @@ export function buildHallway(ctx) {
   /* ---- the stairs ------------------------------------------------------------ */
   // UP: eight steps against the west wall, climbing north into the dark, a rope
   // of tape across the second one. The upstairs is real; it just isn't YOURS yet.
-  var stairM = new THREE.MeshStandardMaterial({ map: plankT, roughness: 0.88 });
+  /* ⚠️ the audit's worst offender: stairM squeezed the FULL hall repeat onto
+   * every 0.33 m tread face — 38x too dense, 32 one-centimetre 'planks' per
+   * step after an oak swap. One material per tread size class, each at the
+   * reference density; identical boards per tread is how real stairs look. */
+  function stairMat(w9, d9) {
+    var t9 = plankT.clone();
+    t9.repeat.set(w9 * 0.387, d9 * 0.327); t9.needsUpdate = true;
+    return new THREE.MeshStandardMaterial({ map: t9, roughness: 0.88 });
+  }
+  var stairM = stairMat(0.92, 0.325);      // the up-flight treads
+  var nosingM = stairMat(0.92, 0.62);      // the wider nosing at the top
+  var dstepM = stairMat(0.79, 0.24);       // the basement flight
   /* ⚠️⚠️ THE FLIGHT MOVED OFF THE WEST WALL AND INTO THE MIDDLE OF THE HALL. Hard
    * against the wall is right for an eight-step stub that stops at z -3.0. A full
    * nineteen-riser run has to reach z 2.04, and along the west wall that is straight
@@ -1595,7 +1666,7 @@ export function buildHallway(ctx) {
   /* ⚠️ THE TOP TREAD ENDED AT z 2.7625 AND THE FLOOR STARTED AT 2.45 — a 31 cm hole
    * you walked over on the way up. A real stair finishes with a nosing that laps the
    * landing; one mesh closes it and is what the joinery would actually be. */
-  var nosing = new THREE.Mesh(new THREE.BoxGeometry(0.92, UP_TREAD_H, 0.62), stairM);
+  var nosing = new THREE.Mesh(new THREE.BoxGeometry(0.92, UP_TREAD_H, 0.62), nosingM);
   nosing.position.set(STAIR_X, UP_Y - UP_TREAD_H / 2, UP_Z0 - 16 * UP_GO);
   nosing.castShadow = nosing.receiveShadow = true; add(nosing);
   // the rail up the open side
@@ -1626,7 +1697,7 @@ export function buildHallway(ctx) {
   // is ELEVEN risers: the original five stopped at y -1.0 in a room that needs
   // to reach -2.42, a staircase into nothing.
   for (var ds = 0; ds < 11; ds++) {
-    var dstep = new THREE.Mesh(new THREE.BoxGeometry(HOLE.x1 - HOLE.x0 - 0.06, 0.16, 0.24), stairM);
+    var dstep = new THREE.Mesh(new THREE.BoxGeometry(HOLE.x1 - HOLE.x0 - 0.06, 0.16, 0.24), dstepM);
     dstep.position.set((HOLE.x0 + HOLE.x1) / 2, -0.1 - ds * 0.21, HOLE.z0 + 0.16 + ds * 0.19); add(dstep);
   }
   /* ⚠️ THE SHAFT. A hole in a floor is not an opening until it has SIDES. Cutting
@@ -1746,8 +1817,17 @@ export function buildHallway(ctx) {
       fl.rotation.x = -Math.PI / 2; fl.position.set((r[0] + r[1]) / 2, UPF.fl + 0.005, (r[2] + r[3]) / 2);
       /* ⚠️ the landing was the one floor in the house with no relief — the hall,
        * the kitchen, the living room and the garage all carry a bump. */
-      var upB = bumpFrom(upFloorT, 1.8);
-      if (upB) { upB.repeat.copy(upFloorT.repeat); fl.material = fl.material.clone(); fl.material.bumpMap = upB; fl.material.bumpScale = 0.9; }
+      /* per-piece density (audit: the 1.12 m stairwell sliver ran 8-10x denser
+       * than the slabs beside it — a visible seam straight through her room).
+       * Same recipe as the hall floor: own map clone at reference density,
+       * world-aligned offset, bump follows the clone. */
+      fl.material = fl.material.clone();
+      fl.material.map = upFloorT.clone();
+      fl.material.map.repeat.set((r[1] - r[0]) * 0.387, (r[3] - r[2]) * 0.327);
+      fl.material.map.offset.set(r[0] * 0.387, -r[3] * 0.327);
+      fl.material.map.needsUpdate = true;
+      var upB = bumpFrom(fl.material.map, 1.8);
+      if (upB) { upB.repeat.copy(fl.material.map.repeat); upB.offset.copy(fl.material.map.offset); fl.material.bumpMap = upB; fl.material.bumpScale = 0.9; }
       fl.receiveShadow = true; add(fl);
       /* ⚠️ A PlaneGeometry HAS ONE FACE. This one points up, so from underneath the
        * storey above had NO FLOOR — stand in the hall, look up the stairwell, and you
@@ -1932,9 +2012,9 @@ export function buildHallway(ctx) {
         blending: THREE.AdditiveBlending, depthWrite: false }));
     acSpill.rotation.x = -Math.PI / 2;
     acSpill.position.set(acX, UPF.fl + 0.014, LAN.z1 - 0.16); add(acSpill);
-    var acLite = new THREE.PointLight(0xffb877, 0.30, 3.4, 2.0);
+    var acLite = new THREE.PointLight(0xffb877, 0.42, 3.4, 2.0);
     acLite.position.set(acX, UPF.fl + 0.55, LAN.z1 - 0.30); add(acLite);
-    dimLights.push({ l: acLite, base: 0.30 });
+    dimLights.push({ l: acLite, base: 0.42 });
     // a chair on the landing that is not for sitting on, which every house has
     var lchG = new THREE.Group();
     lchG.position.set(1.85, UPF.fl, LAN.z0 + 0.42); lchG.rotation.y = -0.72; add(lchG);
@@ -2306,6 +2386,11 @@ export function buildHallway(ctx) {
         cur2.position.set(cx - 0.30 + cxo, fl + 1.42, RZ0 + 0.09); cur2.rotation.z = (cxi ? -1 : 1) * 0.012; add(cur2);
         rtag(cur2, 0, 'the curtains', 'they never quite meet in the middle. they have stopped trying.');
       });
+      // the streetlight through the road-facing glass — the cold half the lamps
+      // need (the attic gable pattern; sw:false, the switch can't turn off the road)
+      var wl0 = new THREE.PointLight(0x9fc0e0, 0.26, 4.5, 2.0);
+      wl0.position.set(cx - 0.30, fl + 1.30, RZ0 + 0.45); add(wl0);
+      roomLite(wl0, wgl.material, 0.26, 0.30, false);
       var ovh = new THREE.Mesh(new THREE.SphereGeometry(0.17, 14, 10),
         new THREE.MeshStandardMaterial({ color: 0xf2ead6, emissive: 0xffd9a0, emissiveIntensity: 0.34,
           roughness: 0.85, transparent: true, opacity: 0.9 }));
@@ -2313,7 +2398,7 @@ export function buildHallway(ctx) {
       rtag(ovh, 0, 'their ceiling light', 'a paper globe. it has been meaning to be replaced since it went up.');
       var ol = new THREE.PointLight(0xffd2a0, 0.50, 7.5, 1.9);
       ol.position.set(cx, UPF.ce - 0.40, RZ0 + 1.9); add(ol);
-      roomLite(ol, ovh.material, 0.72, 0.44);
+      roomLite(ol, ovh.material, 0.48, 0.34);   // the reading lamp (0.85) is the key now, 1.8:1
       /* ⚠️ MEASURED 73% BoxGeometry and 3.47 meshes per prop, against the bedroom's
        * 37.5% and 5.8. Boxes are the fast way to say 'furniture' and the reason a room
        * reads as blocked-out rather than built. Everything below is deliberately round
@@ -2475,7 +2560,7 @@ export function buildHallway(ctx) {
         }
         var fli = new THREE.PointLight(0xffa0d0, 0.26, 4.5, 2.0);
         fli.position.set(cx, fl + 1.85, RZ0 + 0.35); add(fli);
-        roomLite(fli, null, 0.26, 0);
+        roomLite(fli, null, 0.34, 0);   // the pink string is this room's hue identity
       })();
       var bean = new THREE.Mesh(new THREE.SphereGeometry(0.44, 12, 9), mat(0x4f9a5e, 0.95));
       bean.scale.set(1, 0.60, 0.92); bean.position.set(cx - 1.55, fl + 0.26, RZ1 - 0.80); bean.rotation.y = 0.75; add(bean);
@@ -2531,7 +2616,7 @@ export function buildHallway(ctx) {
       rtag(hcl, 1, 'her ceiling light', 'the shade has a horse on it. it was chosen at six and defended ever since.');
       var hli = new THREE.PointLight(0xffd2a0, 0.44, 7.0, 1.9);
       hli.position.set(cx, UPF.ce - 0.40, RZ0 + 1.9); add(hli);
-      roomLite(hli, hcl.material, 0.54, 0.36);
+      roomLite(hli, hcl.material, 0.40, 0.30);   // desk lamp 0.92 keys at 2.3:1
     })();
 
     /* ============== THE ATTIC - warm, and it smells like old paper ============== */
@@ -2601,9 +2686,9 @@ export function buildHallway(ctx) {
       var beam = new THREE.Mesh(new THREE.PlaneGeometry(0.52, 2.3), new THREE.MeshBasicMaterial({
         color: 0xfff0d0, transparent: true, opacity: 0.06, blending: THREE.AdditiveBlending, depthWrite: false }));
       beam.position.set(UPF.x1 - 1.05, fl + 0.80, RZ0 + 1.70); beam.rotation.set(0, -Math.PI / 2, 0.44); add(beam);
-      var awl = new THREE.PointLight(0x9fc0e0, 0.22, 4.0, 2.0);
+      var awl = new THREE.PointLight(0x9fc0e0, 0.28, 4.0, 2.0);
       awl.position.set(UPF.x1 - 0.60, fl + 1.20, RZ0 + 1.70); add(awl);
-      roomLite(awl, agl.material, 0.22, 0.40, false);   // this one is the sun
+      roomLite(awl, agl.material, 0.28, 0.40, false);   // this one is the sun
       var arug = new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.16, 1.70, 12), mat(0x7a5548, 0.96));
       arug.rotation.z = Math.PI / 2; arug.rotation.y = 0.26;
       arug.position.set(cx - 1.45, fl + 0.16, RZ1 - 0.42); add(arug);
@@ -2940,7 +3025,7 @@ export function buildHallway(ctx) {
   // ⚠️ repeat 11, not 6: the canvas draws a 2x2 tile grid, so at 6 the "tiles" were
   // 45cm across and read as a chequerboard floor rather than lino.
   var kFloor = new THREE.Mesh(new THREE.PlaneGeometry(KX1 - KX0, KZ1 - KZ0),
-    ground(linoT, 11, 11, 0xffffff, 0.55, 0.6));
+    ground(linoT, 11, 7.77, 0xffffff, 0.55, 0.6));   // square cells on a 5.45x3.85 room (11x11 skewed 42%)
   kFloor.rotation.x = -Math.PI / 2; kFloor.position.set(KCX, 0.005, KCZ); kadd(kFloor);
   ktag(kFloor, "the kitchen floor", null, "lino. there is a worn track from the fridge to the kettle.");
 
@@ -3441,9 +3526,9 @@ export function buildHallway(ctx) {
   var kBulb = new THREE.Mesh(new THREE.SphereGeometry(0.05, 12, 10),
     new THREE.MeshStandardMaterial({ color: 0xfff4dc, emissive: 0xffdca6, emissiveIntensity: 1.6, roughness: 0.4 }));
   kBulb.position.set(KCX, KCEIL - 0.32, KCZ); kadd(kBulb);
-  var kLight = new THREE.PointLight(0xffe0b4, 2.4, 8.5, 1.6);
+  var kLight = new THREE.PointLight(0xffe0b4, 2.4, 8.5, 1.8);   // decay 1.8: a pool over the table, falloff at the walls
   kLight.position.set(KCX, KCEIL - 0.4, KCZ); kadd(kLight);
-  var kFill = new THREE.PointLight(0xffeccc, 0.45, 9, 2);
+  var kFill = new THREE.PointLight(0xaebfd8, 0.45, 9, 2);   // the night sky over the sink, not a second warm wash
   kFill.position.set(KCX, 1.5, KCZ); kadd(kFill);
 
   /* ---- the kitchen, lived in ---------------------------------------------------
@@ -6618,7 +6703,7 @@ export function buildHallway(ctx) {
   }
   var bulbS = bulbAt(1.9, 0xffd9a0), bulbN = bulbAt(-2.2, 0xffd9a0),
       bulbB = bulbAt(6.4, 0xffd9a0); // the back stretch got its own after the extension
-  var hallFill = new THREE.PointLight(0xffe4c0, 0.5, 11, 2); // the soft everything-light halls have
+  var hallFill = new THREE.PointLight(0x9fb4d8, 0.5, 11, 2); // the streetlight through the door glass — the bedroom's warm-vs-cool recipe
   hallFill.position.set(XC, 2.1, 0.6); add(hallFill);
   var lightsOn = true;
   var pull = new THREE.Mesh(new THREE.CylinderGeometry(0.004, 0.004, 0.24, 6), mat(0xd8d2c0, 0.8));
@@ -6698,7 +6783,7 @@ export function buildHallway(ctx) {
   /* ⚠️ its own aspect: the sill is 3.40 x 0.40, so the floor material’s square 2x2
    * repeat drew the concrete 8.5x wider than tall across it. */
   var gSillT = garFloorT.clone(); gSillT.needsUpdate = true;
-  gSillT.wrapS = gSillT.wrapT = THREE.RepeatWrapping; gSillT.repeat.set(2, 0.24);
+  gSillT.wrapS = gSillT.wrapT = THREE.RepeatWrapping; gSillT.repeat.set(1.51, 0.195); // matches the slab's 0.444/0.488 density (was 23-32% finer)
   var gSillM = new THREE.MeshStandardMaterial({ map: gSillT, roughness: 0.98 });
   LOOK_EXTRA.push(gSillM);
   var gSill = box(3.40, 0.40, 0.10, gSillM); gSill.position.set(-10.40, -0.28, 4.41); add(gSill);
@@ -7194,6 +7279,11 @@ export function buildHallway(ctx) {
   gBead.position.set(-9.51, 1.66, 6.20); add(gBead);
   var garLite = new THREE.PointLight(0xffe0b0, 1.7, 6.5, 1.9);
   garLite.position.set(-9.60, 1.80, 6.20); add(garLite);
+  // the streetlight seeping under the roll door — the cold half the bare bulb
+  // needs (key:seep 1.7:0.30 ≈ 5.7:1, the bedroom's ratio family)
+  var garMoon = new THREE.PointLight(0x8fa8c8, 0.30, 5.5, 2.0);
+  garMoon.position.set(-9.85, 0.45, 8.0); add(garMoon);
+  dimLights.push({ l: garMoon, base: 0.30 });
   function togGarLight() { garOn = !garOn; AUDIO.clickSfx && AUDIO.clickSfx(garOn ? 1200 : 700); }
   [gChain, gBead, gBulb].forEach(function (m) { gtag(m, "the pull chain", togGarLight, "the pull chain — clack."); });
 
@@ -7378,7 +7468,7 @@ export function buildHallway(ctx) {
          * the portable’s own screen and seat it on the face; bsmTick still scrolls
          * and flickers the same material every frame. */
         crtScr.scale.set(0.62, 0.68, 1);
-        crtMask(crtScr.material, 0.24); // static behind a rounded tube face, not a sticker
+        crtMask(crtScr.material, 0.32); // rounder: the 0.24 corners poked out of the aperture
         crtScr.position.set(-0.03, 0.785 + (top - 0.785) * 0.55, box.z1 + 0.004);
         // the bbox face is the cabinet lip, not the tube — seat on the real glass
         fitScreenToRecess(cartG, root, crtScr, 1, box.z1 + 0.004);
@@ -7725,15 +7815,42 @@ export function buildHallway(ctx) {
    * what makes it an arcade corner and not furniture. NO plant() disc in makeCab:
    * child[0] is the kick plinth, so the hide filter is by-screen-and-marquee only.
    * ⚠️ fit d stays under 0.78 — the block wall's inner face is 8 cm behind. */
-  /* ⚠️ NO OVERLAY SCREENS ON THE CABINETS — Kyle's call ('get rid of the
-   * floating screens all together'). The bakes carry their own printed screens
-   * and marquees; the canvas planes hide with the rest of the sketch. The glow
-   * PointLights live in dimLights outside these groups and keep breathing.
-   * d-bound note stands: z nudges forward so d 0.84 clears the block wall. */
-  [[cabBR, 'arcade1'], [cabTLI, 'arcade2']].forEach(function (pair) {
+  /* THE LIVING SCREENS, SECOND ATTEMPT (Kyle: 'if we can make it work for the
+   * TVs lets try the cabinets'). v82's raw floating planes were deleted on his
+   * call; this is the TV treatment instead — the cover-art SCREEN [23] survives
+   * wearing crtMask (squarer arcade corners) and seats on the bake's raked
+   * monitor face via seatOnGlass. The MARQUEE [26] stays deleted forever: the
+   * bakes print their own marquees, and the floating marquee was the worst of
+   * it. Heights scale by top/1.59 (the sketch cab's height) per bake. */
+  /* per-bake numbers, photographed: BLOODRIFT's monitor centre sits at 0.73 of
+   * its height, THE LAST ISSUE's at 0.65 — one formula cannot fit both bakes.
+   * TLI also scales up 1.15 so our living art fully covers the bake's brighter
+   * printed screen (a mismatched ring of print peeked around the mask). */
+  /* TLI at 1.15x leaned out of the raked face (a tall plane spans more rake——the seat is front-most, so the deep top edge floats). 1.0 + centre ON the print: both arts are the same cover, so the thin print ring around the mask is invisible, which is exactly why BLOODRIFT already worked. */
+  /* pair[4] picks the SEAT per bake, both photographed: BLOODRIFT's monitor is
+   * a CAVE — the centre ray buried its art 12 cm deep behind the printed glass,
+   * so it keeps the 9-ray front-most; TLI's monitor is a solid raked face where
+   * front-most caught the jutting control panel — it keeps the centre ray. */
+  [[cabBR, 'arcade1', 0.73, 1, 'front'], [cabTLI, 'arcade2', 0.60, 1, 'centre']].forEach(function (pair) {
     var cab5 = pair[0];
-    propSwap(pair[1], cab5, cab5.children.slice(),
-      { z: 0.05, w: 0.82, d: 0.84, h: 1.62, ry: 0 }, cab5.children[1]);
+    var scr5 = cab5.children[23];
+    crtMask(scr5.material, 0.12);
+    scr5.scale.set(pair[3], pair[3], 1);
+    propSwap(pair[1], cab5,
+      cab5.children.filter(function (m) { return m !== scr5; }),
+      { z: 0.05, w: 0.82, d: 0.84, h: 1.62, ry: 0,
+        onPlaced: function (top, box, root) {
+          scr5.position.y = pair[2] * top;
+          if (pair[4] === 'front') { seatOnGlass(cab5, root, scr5, 1, box.z1 + 0.005); return; }
+          try {
+            cab5.updateWorldMatrix(true, true);
+            var org9 = new THREE.Vector3(scr5.position.x, scr5.position.y, 5);
+            cab5.localToWorld(org9);
+            var d9 = new THREE.Vector3(0, 0, -1).transformDirection(cab5.matrixWorld).normalize();
+            var h9 = new THREE.Raycaster(org9, d9, 0.01, 30).intersectObject(root, true);
+            scr5.position.z = h9.length ? cab5.worldToLocal(h9[0].point.clone()).z + 0.004 : box.z1 + 0.005;
+          } catch (e9) { scr5.position.z = box.z1 + 0.005; }
+        } }, cab5.children[1]);
   });
 
   // utility corner: water heater, furnace, and the boxes that never made the move
@@ -8029,9 +8146,9 @@ export function buildHallway(ctx) {
   var bsBulb = new THREE.Mesh(new THREE.SphereGeometry(0.04, 10, 8),
     new THREE.MeshStandardMaterial({ color: 0xfff2d8, emissive: 0xffd9a0, emissiveIntensity: 1.4, roughness: 0.4 }));
   bsBulb.position.set(-6.97, BSM.ce - 0.28, 2.35); add(bsBulb);
-  var bsStairLite = new THREE.PointLight(0xffe0b0, 1.25, 3.9, 1.8);
+  var bsStairLite = new THREE.PointLight(0xffe0b0, 0.85, 3.9, 1.8);
   bsStairLite.position.set(-6.97, BSM.ce - 0.35, 2.35); add(bsStairLite);
-  dimLights.push({ l: bsStairLite, base: 1.25 });
+  dimLights.push({ l: bsStairLite, base: 0.85 });
   var bsUpHit = new THREE.Mesh(new THREE.BoxGeometry(1.1, 1.9, 1.3),
     new THREE.MeshBasicMaterial({ transparent: true, opacity: 0, depthWrite: false }));
   bsUpHit.position.set(-6.9, BSM.fl + 0.95, 2.3); add(bsUpHit);
@@ -8330,7 +8447,7 @@ export function buildHallway(ctx) {
     }
     if (!bsFloorM.userData.swapT) {
       var st = canvasTex(512, 512, function () { });
-      st.wrapS = st.wrapT = THREE.RepeatWrapping; st.repeat.set(3.4, 2.8);
+      st.wrapS = st.wrapT = THREE.RepeatWrapping; st.repeat.set(3.4, 2.22);   // square tiles on the 10.7x7 slab
       bsFloorM.userData.swapT = st;
     }
     var st2 = bsFloorM.userData.swapT;
@@ -9473,12 +9590,17 @@ export function buildHallway(ctx) {
   function glowTick(t, dt, dim) {
     var on = lightsOn ? 1 : 0.06;
     var breathe = 0.94 + 0.06 * Math.sin(t * 0.8);
-    [bulbS, bulbN, bulbB].forEach(function (b) {
-      b.light.intensity = 3.4 * dim * on * breathe;
-      b.bulb.material.emissiveIntensity = 2.0 * dim * on;
-      if (b.halo) b.halo.material.opacity = 0.34 * dim * on * breathe;
+    /* asymmetric on purpose (the lighting pass): three identical 3.4 bulbs lit
+     * the hall to an even amber wash — the flattest space per light spent.
+     * bulbS by the bedroom door stays the key; the corridor now has brighter
+     * and dimmer stretches, and the cool fill gives shadows a temperature. */
+    [[bulbS, 3.4], [bulbN, 2.0], [bulbB, 2.6]].forEach(function (p) {
+      var b = p[0], k9 = p[1] / 3.4;
+      b.light.intensity = p[1] * dim * on * breathe;
+      b.bulb.material.emissiveIntensity = 2.0 * k9 * dim * on;
+      if (b.halo) b.halo.material.opacity = 0.34 * k9 * dim * on * breathe;
     });
-    hallFill.intensity = 0.72 * dim * on;
+    hallFill.intensity = 0.34 * dim * on;
     for (var dl6 = 0; dl6 < dimLights.length; dl6++) dimLights[dl6].l.intensity = dimLights[dl6].base * dim;
     /* the living room and the landing, which used to be outside every ticker in the
      * file. Same `dim * on * breathe` term as the hall bulbs so they read as being on
@@ -9487,8 +9609,8 @@ export function buildHallway(ctx) {
     if (livLightH) {
       var lon = livOn ? 1 : 0.05;
       // living: 23.9 luma post-sRGB, k=2.35 measured to reach 33 — moody but readable
-      livLightH.lamp.intensity = 1.70 * dim * lon * breathe;
-      livLightH.ceil.intensity = 1.25 * dim * lon * breathe;
+      livLightH.lamp.intensity = 1.95 * dim * lon * breathe;
+      livLightH.ceil.intensity = 0.72 * dim * lon * breathe;   // 2.7:1 to the lamp — the pool reads
       livLightH.shade.emissiveIntensity = 0.50 * dim * lon;
       livLightH.bowl.emissiveIntensity = 0.42 * dim * lon;
       // the set flickers on its own schedule — a CRT does not breathe with the house
@@ -9500,9 +9622,9 @@ export function buildHallway(ctx) {
       var uon = upOn ? 1 : 0.05;
       // the landing dropped 36 luma in the sRGB fix — the biggest fall in the house
       upLightH.a.intensity = 1.90 * dim * uon * breathe;
-      upLightH.b.intensity = 1.10 * dim * uon * breathe;
+      upLightH.b.intensity = 0.62 * dim * uon * breathe;   // west end dims — corridor depth
       upLightH.bulbA.emissiveIntensity = 1.10 * dim * uon;
-      upLightH.bulbB.emissiveIntensity = 0.95 * dim * uon;
+      upLightH.bulbB.emissiveIntensity = 0.80 * dim * uon;
       /* ⚠️ THE SMOKE ALARM'S LED WAS A CONSTANT. It is the cheapest possible ambient
        * system and the most convincing: a 120 ms blink every 42 seconds, which is what
        * the real ones do, and the only thing moving up here at 3 a.m. */
@@ -9544,8 +9666,8 @@ export function buildHallway(ctx) {
     // tiniest bit — that's the compressor cycling, which is the hum made visible
     /* kitchen: measured 128 mean luma against the bedroom's 40 — three families too
      * bright, mostly its own lights. Binary-searched to ~88 at k=0.42 of the old set. */
-    kLight.intensity = 0.60 * dim;
-    kFill.intensity = 0.20 * dim;
+    kLight.intensity = 0.78 * dim;   // compensates the tighter decay at the table
+    kFill.intensity = 0.12 * dim;
     kUnder.intensity = 0.55 * dim * kStripOn;
     strip.material.emissiveIntensity = 0.9 * dim * kStripOn;
     frGlow.intensity = (0.24 + 0.06 * Math.sin(t * 1.7)) * dim;

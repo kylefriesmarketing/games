@@ -15,7 +15,7 @@
  * several a day — deleted 13 MB of props along with the code and every visitor
  * re-downloaded the entire house. The shell is bumped freely; the asset bucket is
  * bumped only when a prop is re-exported under a name it already had. */
-var SHELL_CACHE = "the-room-shell-v83"; // v83: paint really repaints, CRT masks, cabinet overlays out
+var SHELL_CACHE = "the-room-shell-v84"; // v84: hall east skin, floor density, whole-house lighting, living screens everywhere
 var ASSET_CACHE = "the-room-assets-v1"; // bump ONLY when an existing asset changes
 var CACHE = SHELL_CACHE;                // kept: older code in this file reads it
 var SHELL = ["./", "./index.html", "./manifest.webmanifest", "./icon.svg",
