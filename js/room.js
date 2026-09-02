@@ -5640,13 +5640,16 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
   var decorStyle = document.createElement("style");
   decorStyle.textContent =
     "#decor-btn{position:fixed;top:106px;right:22px;z-index:6;font-family:'Inter',sans-serif;font-size:10px;" +
-    "letter-spacing:.16em;text-transform:uppercase;color:var(--dim);background:rgba(10,14,20,.6);" +
-    "border:1px solid var(--line);border-radius:6px;padding:8px 12px;cursor:pointer}" +
-    "#decor-btn:hover{color:var(--bone);border-color:var(--dim)}" +
+    "letter-spacing:.16em;text-transform:uppercase;color:var(--dim);" +
+    "background:linear-gradient(rgba(20,16,12,.72),rgba(10,10,14,.72));" +
+    "border:1px solid #3a3226;border-radius:8px;padding:8px 12px;cursor:pointer;" +
+    "transition:color .15s,border-color .15s,transform .15s;box-shadow:0 2px 10px rgba(0,0,0,.35)}" +
+    "#decor-btn:hover{color:#ffdca0;border-color:#8a6f4a;transform:translateY(-1px)}" +
     "body.decorating #decor-btn{color:#ffd9a0;border-color:#8a6f4a}" +
     "body.listing #decor-btn,body.no3d #decor-btn{display:none}" +
     "#decor-drawer{position:fixed;top:12px;right:12px;bottom:12px;width:292px;z-index:8;display:none;" +
-    "flex-direction:column;background:rgba(9,13,20,.87);border:1px solid var(--line);border-radius:12px;" +
+    "flex-direction:column;background:linear-gradient(rgba(24,18,13,.92),rgba(12,10,10,.92));" +
+    "border:1px solid #3a2f22;border-radius:14px;box-shadow:0 18px 50px rgba(0,0,0,.5);" +
     "backdrop-filter:blur(6px);font-family:'Inter',sans-serif;color:var(--bone)}" +
     "body.decorating #decor-drawer{display:flex}" +
     "body.listing #decor-drawer,body.no3d #decor-drawer{display:none!important}" +
@@ -5655,7 +5658,7 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
     "#dw-tabs button{flex:1 1 auto;min-width:46px;font-family:inherit;font-size:9px;letter-spacing:.02em;text-transform:uppercase;" +
     "color:var(--dim);background:none;border:1px solid var(--line);border-radius:7px;padding:7px 2px;" +
     "cursor:pointer;position:relative;white-space:nowrap}" +
-    "#dw-tabs button.on{color:#ffd9a0;border-color:#8a6f4a;background:rgba(255,194,125,.08)}" +
+    "#dw-tabs button.on{color:#241a10;border-color:#c9a45a;background:linear-gradient(#ffd9a0,#e8b876);font-weight:700}" +
     "#dw-new{position:absolute;top:1px;right:5px;color:#ff5aa8;font-size:9px}" +
     "#dw-sel{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:8px 10px;" +
     "border-bottom:1px dashed var(--line);font-size:11.5px;color:#ffd9a0}" +
@@ -5667,8 +5670,12 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
     "#dw-foot button{flex:1;font-family:inherit;font-size:10px;letter-spacing:.1em;text-transform:uppercase;" +
     "color:var(--dim);background:none;border:1px solid var(--line);border-radius:6px;padding:8px 4px;cursor:pointer}" +
     "#dw-foot button:hover,#dw-sel button:hover:not(:disabled),#dw-tabs button:hover{color:var(--bone);border-color:var(--dim)}" +
-    ".dw-hint{font-size:11px;font-style:italic;color:var(--faint);margin-bottom:10px}" +
-    ".dw-sec{font-size:9.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--faint);margin:12px 0 5px}" +
+    "#dw-done{color:#241a10!important;background:linear-gradient(#ffd9a0,#e8b876)!important;" +
+    "border-color:#c9a45a!important;font-weight:700}" +
+    "#dw-done:hover{background:linear-gradient(#ffe4b8,#f0c488)!important}" +
+    ".dw-hint{font-family:Georgia,serif;font-size:12px;font-style:italic;color:#d9c9a8;margin-bottom:10px}" +
+    ".dw-sec{font-family:Georgia,serif;font-style:italic;font-size:11.5px;text-transform:lowercase;letter-spacing:.03em;" +
+    "color:#c9b284;margin:14px 0 6px;border-bottom:1px dotted rgba(201,178,132,.35);padding-bottom:3px}" +
     ".dw-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:7px}" +
     ".dw-card{font-family:inherit;color:inherit;background:rgba(255,255,255,.04);border:1px solid var(--line);" +
     "border-radius:7px;padding:7px 4px;text-align:center;cursor:pointer}" +
@@ -5689,8 +5696,11 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
     ".dw-sw button{width:30px;height:30px;border-radius:50%;cursor:pointer;border:2px solid var(--line);padding:0}" +
     ".dw-sw button.on{border-color:#ffd9a0;box-shadow:0 0 0 2px rgba(9,13,20,1),0 0 0 4px #8a6f4a}" +
     // material swatches: little rectangles that show the actual print
-    ".dw-sw.dw-tex button{width:44px;height:30px;border-radius:7px;background-size:cover;background-position:center;" +
-    "background-color:#1a2130;color:#8fa0b8;font-size:13px;line-height:1}" +
+    ".dw-sw.dw-tex button{width:48px;height:34px;border-radius:8px;background-size:cover;background-position:center;" +
+    "background-color:#1a2130;color:#8fa0b8;font-size:13px;line-height:1;" +
+    "transition:transform .12s,box-shadow .12s}" +
+    ".dw-sw.dw-tex button:hover{transform:scale(1.07)}" +
+    ".dw-sw.dw-tex button.on{box-shadow:0 0 0 2px #241a10,0 0 0 4px #ffd9a0;transform:scale(1.04)}" +
     ".dw-sw.dw-tex button.locked{filter:grayscale(.85) brightness(.6)}" +
     // the poster-frame cyclers (◀ TITLE ▶)
     ".dw-cyc{display:flex;align-items:center;gap:6px}" +

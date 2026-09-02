@@ -101,16 +101,20 @@ body.listing #vignette,body.no3d #vignette{display:none}
 .hud h1{font-family:"Inter","Segoe UI",system-ui,sans-serif;font-weight:800;
   font-size:26px;letter-spacing:.06em;margin-top:4px;text-shadow:0 2px 12px rgba(0,0,0,.7)}
 .hud .hint{font-size:12px;color:var(--dim);font-style:italic;margin-top:4px}
+/* v85: the top-right chips share one warm family — soft night glass, an amber
+   breath on hover, and a lift so they feel like switches rather than labels */
 #list-toggle{position:fixed;top:22px;right:22px;z-index:6;font-family:"Inter",sans-serif;
   font-size:10px;letter-spacing:.16em;text-transform:uppercase;color:var(--dim);
-  background:rgba(10,14,20,.6);border:1px solid var(--line);border-radius:6px;
-  padding:8px 12px;cursor:pointer}
-#list-toggle:hover{color:var(--bone);border-color:var(--dim)}
+  background:linear-gradient(rgba(20,16,12,.72),rgba(10,10,14,.72));border:1px solid #3a3226;border-radius:8px;
+  padding:8px 12px;cursor:pointer;transition:color .15s,border-color .15s,transform .15s;
+  box-shadow:0 2px 10px rgba(0,0,0,.35)}
+#list-toggle:hover{color:#ffdca0;border-color:#8a6f4a;transform:translateY(-1px)}
 #walk-toggle{position:fixed;top:22px;right:112px;z-index:6;font-family:"Inter",sans-serif;
   font-size:10px;letter-spacing:.16em;text-transform:uppercase;color:var(--dim);
-  background:rgba(10,14,20,.6);border:1px solid var(--line);border-radius:6px;
-  padding:8px 12px;cursor:pointer}
-#walk-toggle:hover{color:var(--bone);border-color:var(--dim)}
+  background:linear-gradient(rgba(20,16,12,.72),rgba(10,10,14,.72));border:1px solid #3a3226;border-radius:8px;
+  padding:8px 12px;cursor:pointer;transition:color .15s,border-color .15s,transform .15s;
+  box-shadow:0 2px 10px rgba(0,0,0,.35)}
+#walk-toggle:hover{color:#ffdca0;border-color:#8a6f4a;transform:translateY(-1px)}
 /* ⚠️ the top-right column runs on a 42px rhythm and room.js INJECTS into it at
    runtime: #wel-btn 64, #decor-btn 106 and #decor-nudge 142 are all injected by
    js/room.js, so the whole column below #list-toggle is spoken for — and #decor-nudge
@@ -126,10 +130,13 @@ body.listing #walk-toggle{display:none}
    the arrow keys are going to move the boy or do nothing. */
 #walk-toggle[aria-pressed="true"]{color:#ffdca0;border-color:#7a6134;
   background:rgba(60,44,18,.55)}
+/* the tooltip is the most-seen piece of UI in the whole house — every hover.
+   v85: a little cream paper label in the storybook's own voice, not a dev chip */
 #tip{position:fixed;z-index:7;transform:translate(-50%,-100%);pointer-events:none;
-  font-family:"Inter",sans-serif;font-size:12px;letter-spacing:.04em;color:var(--bone);
-  background:rgba(8,12,18,.88);border:1px solid var(--line);border-radius:6px;
-  padding:7px 11px;opacity:0;transition:opacity .18s;white-space:nowrap}
+  font-family:Georgia,serif;font-size:12.5px;letter-spacing:.01em;color:#3a2e20;
+  background:linear-gradient(#f4ecd8,#eadfc4);border:1px solid #c9b892;border-radius:7px;
+  padding:8px 12px;opacity:0;transition:opacity .18s;white-space:nowrap;
+  box-shadow:0 4px 14px rgba(0,0,0,.45),inset 0 1px 0 rgba(255,255,255,.5)}
 #tip.show{opacity:1}
 
 /* ---- the notebook panel ---- */
@@ -137,11 +144,23 @@ body.listing #walk-toggle{display:none}
   background:rgba(5,7,10,.72)}
 #notebook.open{display:flex}
 /* ⚠ the card caps at the viewport and only its BODY scrolls — page 2 (the awards)
-   outgrew the screen and carried the nav and close buttons off the bottom with it */
-.nb-card{width:min(420px,92vw);background:#efe6d0;color:#3a2e20;border-radius:4px;
-  padding:26px 28px;box-shadow:0 30px 80px rgba(0,0,0,.6);transform:rotate(-.6deg);
-  max-height:86vh;display:flex;flex-direction:column}
-.nb-card h2{font-size:18px;letter-spacing:.08em;margin-bottom:14px;border-bottom:1px dashed #b7a888;padding-bottom:8px}
+   outgrew the screen and carried the nav and close buttons off the bottom with it.
+   v85: it looks like the notebook it claims to be — ruled paper, a red margin
+   line, two bits of tape holding the page down, a handwritten-ish header. */
+.nb-card{width:min(420px,92vw);color:#3a2e20;border-radius:4px;
+  padding:26px 28px 26px 40px;box-shadow:0 30px 80px rgba(0,0,0,.6);transform:rotate(-.6deg);
+  max-height:86vh;display:flex;flex-direction:column;position:relative;
+  background:
+    linear-gradient(90deg,transparent 26px,rgba(196,88,74,.35) 26px,rgba(196,88,74,.35) 27.5px,transparent 27.5px),
+    repeating-linear-gradient(#efe6d0 0 26px,rgba(122,150,170,.16) 26px 27px),
+    #efe6d0}
+.nb-card:before,.nb-card:after{content:"";position:absolute;top:-9px;width:64px;height:20px;
+  background:rgba(252,248,236,.72);border:1px solid rgba(180,165,130,.4);
+  box-shadow:0 1px 4px rgba(0,0,0,.18)}
+.nb-card:before{left:34px;transform:rotate(-4deg)}
+.nb-card:after{right:34px;transform:rotate(3deg)}
+.nb-card h2{font-family:Georgia,serif;font-style:italic;font-size:19px;letter-spacing:.04em;
+  margin-bottom:14px;border-bottom:1px dashed #b7a888;padding-bottom:8px}
 .nb-body{overflow-y:auto;min-height:0;overscroll-behavior:contain;padding-right:6px}
 .nb-row{display:flex;justify-content:space-between;gap:14px;padding:7px 0;font-size:15px;border-bottom:1px dotted #cfc0a0}
 .nb-row b{font-family:"Inter",sans-serif;font-size:12.5px;letter-spacing:.03em}
@@ -156,12 +175,14 @@ body.listing #walk-toggle{display:none}
 .nb-ach.locked{opacity:.5}
 .nb-ach.locked .nb-ach-i{color:#a89268}
 #nb-close{margin-top:16px;font-family:"Inter",sans-serif;font-size:11px;letter-spacing:.14em;
-  text-transform:uppercase;background:none;border:1px solid #b7a888;border-radius:5px;
-  padding:8px 14px;cursor:pointer;color:#5a4632}
+  text-transform:uppercase;background:#5a4632;border:1px solid #5a4632;border-radius:7px;
+  padding:9px 14px;cursor:pointer;color:#f4ecd8;transition:background .15s}
+#nb-close:hover{background:#6e5840}
 #nb-nav{display:flex;align-items:center;justify-content:center;gap:16px;margin-top:14px;
   font-family:"Inter",sans-serif;font-size:11px;letter-spacing:.08em;color:#8a7a5e}
-#nb-nav button{background:none;border:1px solid #b7a888;border-radius:5px;
-  padding:4px 10px;cursor:pointer;color:#5a4632;font-size:11px}
+#nb-nav button{background:none;border:1px solid #b7a888;border-radius:50%;
+  width:32px;height:32px;cursor:pointer;color:#5a4632;font-size:12px;transition:background .15s}
+#nb-nav button:hover:not(:disabled){background:rgba(90,70,50,.12)}
 #nb-nav button:disabled{opacity:.3;cursor:default}
 
 /* ---- fallback / list view (the old shelf) ---- */
