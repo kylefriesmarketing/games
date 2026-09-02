@@ -7829,35 +7829,32 @@ export function buildHallway(ctx) {
    * TLI also scales up 1.15 so our living art fully covers the bake's brighter
    * printed screen (a mismatched ring of print peeked around the mask). */
   /* TLI at 1.15x leaned out of the raked face (a tall plane spans more rake——the seat is front-most, so the deep top edge floats). 1.0 + centre ON the print: both arts are the same cover, so the thin print ring around the mask is invisible, which is exactly why BLOODRIFT already worked. */
-  /* pair[2] = the CALIBRATED print rect {cx, cy, w, h} in cab-local units
-   * (ruler-marker photos): our living art lands exactly on each bake's own
-   * printed screen, art-on-art, no stretch. pair[3] picks the SEAT per bake,
-   * both photographed: BLOODRIFT's monitor is a CAVE (9-ray front-most);
-   * TLI's is a solid raked face (centre ray — front-most caught the jutting
-   * control panel). */
-  [[cabBR, 'arcade1', { cx: 0.016, cy: 0.928, w: 0.469, h: 0.334 }, 'front'],
-   [cabTLI, 'arcade2', { cx: 0.000, cy: 1.009, w: 0.460, h: 0.276 }, 'centre']].forEach(function (pair) {
+  /* pair[2] = the FULLY CALIBRATED screen {cx, cy, w, h, tilt, z}, all measured:
+   * rects from ruler-marker photos, tilt + depth from a ray sweep down each
+   * rect's centre column. ⚠️ THE TILT IS THE WHOLE FIX for 'not flush / half
+   * blocked': a VERTICAL plane seated at centre depth on a raked face pokes
+   * out at the top and buries at the bottom — invisible in a straight-on shot,
+   * half-occluded from every real standing angle. TLI's face is a clean plane
+   * leaning back 13 deg (slope -0.227, z 0.081 -> 0.018 across the rect);
+   * BLOODRIFT's is a steep 28 deg rake (z 0.107 -> -0.002 over y 0.76..0.97)
+   * diving under a forward overhang at the top — the art tucks under the hood
+   * like a real recessed CRT. h is measured ALONG the raked face (vertical
+   * print height / cos(tilt)), and the seat rides 5-6 mm proud of the face. */
+  [[cabBR, 'arcade1', { cx: 0.016, cy: 0.928, w: 0.469, h: 0.377, tilt: -0.48, z: 0.041 }],
+   [cabTLI, 'arcade2', { cx: 0.000, cy: 1.009, w: 0.460, h: 0.283, tilt: -0.224, z: 0.0595 }]].forEach(function (pair) {
     var cab5 = pair[0];
     var scr5 = cab5.children[23];
     crtMask(scr5.material, 0.12);
     propSwap(pair[1], cab5,
       cab5.children.filter(function (m) { return m !== scr5; }),
       { z: 0.05, w: 0.82, d: 0.84, h: 1.62, ry: 0,
-        onPlaced: function (top, box, root) {
+        onPlaced: function (top, box) {
           var r5 = pair[2];
           var gw5 = (scr5.geometry.parameters && scr5.geometry.parameters.width) || 0.46;
           var gh5 = (scr5.geometry.parameters && scr5.geometry.parameters.height) || 0.345;
           scr5.scale.set(r5.w / gw5, r5.h / gh5, 1);
-          scr5.position.x = r5.cx; scr5.position.y = r5.cy;
-          if (pair[3] === 'front') { seatOnGlass(cab5, root, scr5, 1, box.z1 + 0.005); return; }
-          try {
-            cab5.updateWorldMatrix(true, true);
-            var org9 = new THREE.Vector3(scr5.position.x, scr5.position.y, 5);
-            cab5.localToWorld(org9);
-            var d9 = new THREE.Vector3(0, 0, -1).transformDirection(cab5.matrixWorld).normalize();
-            var h9 = new THREE.Raycaster(org9, d9, 0.01, 30).intersectObject(root, true);
-            scr5.position.z = h9.length ? cab5.worldToLocal(h9[0].point.clone()).z + 0.004 : box.z1 + 0.005;
-          } catch (e9) { scr5.position.z = box.z1 + 0.005; }
+          scr5.position.set(r5.cx, r5.cy, r5.z);
+          scr5.rotation.x = r5.tilt;
         } }, cab5.children[1]);
   });
 
