@@ -767,7 +767,13 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
   var southWall = new THREE.Mesh(new THREE.PlaneGeometry(8.7, 3.4), sideWallM(8.7, 3.4));
   southWall.rotation.y = Math.PI;   // face normal points INTO the room
   southWall.position.set(0, 1.7, 3.55); scene.add(southWall);
-  function updateRoomShell() { /* retired — the one-sided wall needs no toggling */ }
+  function updateRoomShell() {
+    /* ⚠️ hidden ONLY while a scripted door-flight owns the camera: the entry
+     * path crosses the wall plane mid-swing, and even one-sided the wall sweeps
+     * the frame for a few frames — Kyle read it as the camera hitching. At rest
+     * and in walk mode it stays solid; from outside it is backface-culled. */
+    try { southWall.visible = !hall.busy(); } catch (e) { southWall.visible = true; }
+  }
   var stripe = new THREE.Mesh(new THREE.PlaneGeometry(8.7, 0.28), mat(0x8a4d5e, 0.95)); // 90s wallpaper border
   stripe.position.set(0, 2.6, -2.54); scene.add(stripe);
   var skirt = new THREE.Mesh(new THREE.PlaneGeometry(8.7, 0.14), mat(0x2a2019, 0.85));

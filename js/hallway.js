@@ -100,6 +100,36 @@ export function buildHallway(ctx) {
     }, undefined, function () { bootN2.glbDone(); /* 404: the box sketch stays */ });
   }
 
+  /* ⚠️ WHY THE BEDROOM TV READS BETTER (Kyle asked): its screen was BUILT WITH
+   * its body — rounded tube corners, content sitting behind dark glass edges.
+   * A raw bright rectangle on a photographic bake reads as a sticker. crtMask
+   * gives the shared screen material a CRT face: rounded-rect alphaMap with a
+   * soft feather and a corner vignette, so the plane fades into the bake's own
+   * dark glass at the edges and the content looks like it is INSIDE the set.
+   * ⚠️ applied to the SHARED material, never a clone — livLightH and bsmTick
+   * drive these by reference and a clone kills the animation. r160 gives
+   * alphaMap its own uv transform, so the den's scrolling static slides under
+   * a mask that stays put. Alpha reads the GREEN channel: the mask is painted
+   * white-on-black, opaque, no canvas-alpha premultiply surprises. */
+  function crtMask(m, cornerFrac) {
+    var c = document.createElement("canvas"); c.width = 256; c.height = 192;
+    var g = c.getContext("2d");
+    g.fillStyle = "#000"; g.fillRect(0, 0, 256, 192);
+    var rad = Math.floor(192 * (cornerFrac || 0.25));
+    g.fillStyle = "#fff";
+    g.beginPath();
+    g.moveTo(rad + 8, 8);
+    g.arcTo(248, 8, 248, 184, rad); g.arcTo(248, 184, 8, 184, rad);
+    g.arcTo(8, 184, 8, 8, rad); g.arcTo(8, 8, 248, 8, rad);
+    g.closePath(); g.fill();
+    try { g.filter = "blur(5px)"; g.drawImage(c, 0, 0); g.filter = "none"; } catch (e) { }
+    var v = g.createRadialGradient(128, 96, 55, 128, 96, 175);
+    v.addColorStop(0, "rgba(0,0,0,0)"); v.addColorStop(1, "rgba(0,0,0,0.6)");
+    g.fillStyle = v; g.fillRect(0, 0, 256, 192);
+    var t = new THREE.CanvasTexture(c);
+    m.alphaMap = t; m.transparent = true; m.needsUpdate = true;
+  }
+
   /* ⚠️ SEAT A LIVING SCREEN ON THE BAKE'S REAL GLASS, NOT ITS BBOX FACE. The
    * bbox front face is the BEZEL — the glass sits recessed inside it, so a plane
    * seated at box.z1 hovers millimetres in front of the set (Kyle: 'floating in
@@ -847,6 +877,7 @@ export function buildHallway(ctx) {
            * REFERENCE so livLightH.scr keeps driving the flicker (clone it and the
            * channel light dies — the recon’s own warning). */
           scr.visible = false;
+          crtMask(scr.material, 0.3);   // rounded tube face; edges melt into the bake's glass
           var glow = new THREE.Mesh(new THREE.PlaneGeometry(0.46, 0.36), scr.material);
           glow.rotation.y = Math.PI;   // the plane faces -z, at the couch
           glow.position.set(0, 0.52 + (top - 0.52) * 0.56, box.z0 - 0.006);
@@ -7347,6 +7378,7 @@ export function buildHallway(ctx) {
          * the portable’s own screen and seat it on the face; bsmTick still scrolls
          * and flickers the same material every frame. */
         crtScr.scale.set(0.62, 0.68, 1);
+        crtMask(crtScr.material, 0.24); // static behind a rounded tube face, not a sticker
         crtScr.position.set(-0.03, 0.785 + (top - 0.785) * 0.55, box.z1 + 0.004);
         // the bbox face is the cabinet lip, not the tube — seat on the real glass
         fitScreenToRecess(cartG, root, crtScr, 1, box.z1 + 0.004);
@@ -7693,24 +7725,15 @@ export function buildHallway(ctx) {
    * what makes it an arcade corner and not furniture. NO plant() disc in makeCab:
    * child[0] is the kick plinth, so the hide filter is by-screen-and-marquee only.
    * ⚠️ fit d stays under 0.78 — the block wall's inner face is 8 cm behind. */
+  /* ⚠️ NO OVERLAY SCREENS ON THE CABINETS — Kyle's call ('get rid of the
+   * floating screens all together'). The bakes carry their own printed screens
+   * and marquees; the canvas planes hide with the rest of the sketch. The glow
+   * PointLights live in dimLights outside these groups and keep breathing.
+   * d-bound note stands: z nudges forward so d 0.84 clears the block wall. */
   [[cabBR, 'arcade1'], [cabTLI, 'arcade2']].forEach(function (pair) {
     var cab5 = pair[0];
-    var scr5 = cab5.children[23], mq5 = cab5.children[26];
-    propSwap(pair[1], cab5,
-      cab5.children.filter(function (m) { return m !== scr5 && m !== mq5; }),
-      /* d-bound made squat 1.08 m cabinets — 3/4-view bakes run DEEP. z nudges
-       * forward so d 0.84 still clears the block wall 8 cm behind the backs. */
-      { z: 0.05, w: 0.82, d: 0.84, h: 1.62, ry: 0,
-        onPlaced: function (top, box, root) {
-          /* scale the sketch's screen/marquee HEIGHTS by top/1.59 (the sketch cab
-           * was 1.59) so both land INSIDE each bake — the two bakes came out
-           * different heights (1.26 / 1.62) and BLOODRIFT's marquee floated in air.
-           * Heights FIRST: seatOnGlass rays at the plane's new centre. */
-          var f5 = top / 1.59;
-          scr5.position.y = 1.16 * f5; mq5.position.y = 1.45 * f5;
-          seatOnGlass(cab5, root, scr5, 1, box.z1 + 0.005);
-          seatOnGlass(cab5, root, mq5, 1, box.z1 + 0.005);
-        } }, cab5.children[1]);
+    propSwap(pair[1], cab5, cab5.children.slice(),
+      { z: 0.05, w: 0.82, d: 0.84, h: 1.62, ry: 0 }, cab5.children[1]);
   });
 
   // utility corner: water heater, furnace, and the boxes that never made the move
@@ -8177,8 +8200,15 @@ export function buildHallway(ctx) {
      * 0x0 and every panel sharing it uploads BLACK. Both reviews caught it. */
     var iw = img.naturalWidth || img.width, ih = img.naturalHeight || img.height;
     if (!iw || !ih) return 0;
-    cv.width = iw; cv.height = ih;
-    cv.getContext("2d").drawImage(img, 0, 0);
+    /* ⚠️⚠️ NEVER RESIZE THE CANVAS — scale the art INTO its existing dimensions.
+     * WebGL2 texture storage is IMMUTABLE after first upload: resized-LARGER art
+     * failed its re-upload silently, so walls never changed on screen, and
+     * resized-SMALLER art uploaded into a corner of the old allocation, leaving
+     * bands of the PREVIOUS floor on the mesh — Kyle's 'remnants', verbatim,
+     * in every room. The quarry sign hit this same wall one wave earlier; this
+     * is the system-wide fix, and the state checks (customIdx, localStorage)
+     * were green the whole time because the CPU side worked perfectly. */
+    cv.getContext("2d").drawImage(img, 0, 0, iw, ih, 0, 0, cv.width, cv.height);
     tex.needsUpdate = true;
     /* ⚠️⚠️ NUDGE CONSUMERS FOUND BY SCENE TRAVERSE, NOT A REGISTRY. The first
      * version walked LOOK_MATS — and for TWO of the twelve textures the art NEVER
@@ -8306,8 +8336,11 @@ export function buildHallway(ctx) {
     var st2 = bsFloorM.userData.swapT;
     var img = new Image();
     img.onload = function () {
-      var cv = st2.image; cv.width = img.naturalWidth; cv.height = img.naturalHeight;
-      cv.getContext("2d").drawImage(img, 0, 0); st2.needsUpdate = true;
+      // scale-draw into the fixed 512x512 — resizing an uploaded canvas texture
+      // is the immutable-storage trap (see houseArtSwap)
+      var cv = st2.image;
+      cv.getContext("2d").drawImage(img, 0, 0, img.naturalWidth, img.naturalHeight, 0, 0, cv.width, cv.height);
+      st2.needsUpdate = true;
       bsFloorM.map = st2; bsFloorM.needsUpdate = true;
     };
     img.src = opt[1];
