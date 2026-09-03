@@ -7085,6 +7085,23 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
     { plane: "z", at: 1.05, span: [-4.06, -3.14], y: 3.45,   flag: "r1",    neg: "room1",   pos: "upstairs" },
     { plane: "z", at: 1.05, span: [1.44, 2.36], y: 3.45,     flag: "r2",    neg: "room2",   pos: "upstairs" },
   ];
+  /* THE WALKABLE STAIRS — the last click-to-fly transitions on the walking
+   * route. The boy's y rides a linear ramp over each flight's footprint; the
+   * guard-rail fence circle stands aside (ignoreObs) while he is on or near
+   * the run; crossing either end runs the same quietCross the doorways use.
+   * The 1.6 y-eligibility guard is load-bearing BOTH ways: walking UNDER the
+   * up-flight (floor 0 vs ramp ~1.9) and OVER the enclosed basement shaft
+   * (floor 0 vs ramp ~-1.8) both fail it and stay on the floor, while either
+   * mouth passes it and snaps on. Geometry measured off the builders:
+   * up-flight 16 risers x -7.45..-6.45, z 7.55 (y 0) -> 2.84 (y 3.45);
+   * down-flight 11 steps x -7.40..-6.55, z 0.35 (y 0) -> 2.55 (y -2.42). */
+  var STAIRS = [
+    { x: [-7.45, -6.45], zTop: 2.84, zBot: 7.55, yTop: 3.45, yBot: 0,
+      lo: "hall", hi: "upstairs", topSp: "upstairs", botSp: "hall", fence: { hall: 0 } },
+    { x: [-7.40, -6.55], zTop: 0.35, zBot: 2.55, yTop: 0, yBot: -2.42,
+      lo: "basement", hi: "hall", topSp: "hall", botSp: "basement", fence: { hall: 1 } },
+  ];
+  var tpStairFence = false, tpOnStair = -1;
   function quietCross(sp) {
     try { hall.setSpaceQuiet(sp); } catch (e) { }
     kidSpace = sp;
@@ -7116,6 +7133,10 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
       if (!open9) continue;
       if (dc.plane === "x") carveX = true; else carveZ = true;
     }
+    /* mid-stair the run axis stands aside too: the upstairs box ended 40 cm
+     * short of the descent’s crossing threshold and clamped him to a stop
+     * at z 7.05 forever (measured). Both flights run along z. */
+    if (tpOnStair >= 0) carveZ = true;
     if (!carveX) kid.position.x = Math.max(b.x[0] + m, Math.min(b.x[1] - m, kid.position.x));
     if (!carveZ) kid.position.z = Math.max(b.z[0] + m, Math.min(b.z[1] - m, kid.position.z));
     /* ⚠️ y is CLAMPED, never lerped. The house has three floor levels (the second
@@ -7188,6 +7209,25 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
         tp.yaw = Math.atan2(kidState.faceX || 0, kidState.faceZ || 1); tp.combo = "";
       } else { return false; }
     }
+    /* ⚠️ THE FENCE MUST STAND DOWN BEFORE MOVEMENT, NOT AFTER. kidStep's
+     * obstacle STEERING acts at range: with the stair fence live it deflected
+     * the boy around the staircase before the post-move pass could ever arm
+     * ignoreObs — he walked past the stairs at floor level forever (measured:
+     * z 7.9 -> 0.25 with y pinned at 0). Arming here, from last frame's
+     * position, wins the race for every frame that matters. */
+    var nearStair = false;
+    for (var sp0 = 0; sp0 < STAIRS.length; sp0++) {
+      var S0 = STAIRS[sp0];
+      if (kidSpace !== S0.lo && kidSpace !== S0.hi) continue;
+      if (kid.position.x < S0.x[0] - 0.45 || kid.position.x > S0.x[1] + 0.45) continue;
+      if (kid.position.z < S0.zTop - 0.45 || kid.position.z > S0.zBot + 0.45) continue;
+      var f0 = Math.max(0, Math.min(1, (kid.position.z - S0.zTop) / (S0.zBot - S0.zTop)));
+      if (Math.abs(kid.position.y - (S0.yTop + (S0.yBot - S0.yTop) * f0)) > 1.6) continue;
+      var fi0 = S0.fence[kidSpace];
+      if (fi0 !== undefined) { kidState.ignoreObs = fi0; tpStairFence = true; nearStair = true; }
+      break;
+    }
+    if (!nearStair && tpStairFence) { kidState.ignoreObs = -1; tpStairFence = false; }
     var k = tp.keys;
     var fwd = ((k.w || k.arrowup) ? 1 : 0) - ((k.s || k.arrowdown) ? 1 : 0);
     var side = ((k.d || k.arrowright) ? 1 : 0) - ((k.a || k.arrowleft) ? 1 : 0);
@@ -7259,6 +7299,36 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
       var side9 = (dw.plane === "x" ? kid.position.x : kid.position.z) < dw.at ? dw.neg : dw.pos;
       if (side9 !== kidSpace) { quietCross(side9); break; }
     }
+    /* the stair pass: snap to the ramp, cross at the ends. ⚠️ the entry
+     * gate (1.6) applies only when STEPPING ON — mid-run, the per-frame floor
+     * clamp (hall min -0.15) yanks him up BEFORE this pass, and gating every
+     * frame rejected the stair halfway down the basement flight (measured:
+     * the descent died at ramp -1.75 and he walked off at ceiling height).
+     * tpOnStair is the continuity that lets the ramp keep its claim. f is
+     * CLAMPED across the approach margins so walking off either end settles
+     * exactly on that floor instead of freezing y mid-air. */
+    var onStair = -1;
+    for (var si = 0; si < STAIRS.length; si++) {
+      var S = STAIRS[si];
+      if (kidSpace !== S.lo && kidSpace !== S.hi) continue;
+      if (kid.position.x < S.x[0] - 0.3 || kid.position.x > S.x[1] + 0.3) continue;
+      if (kid.position.z < S.zTop - 0.45 || kid.position.z > S.zBot + 0.45) continue;
+      var f9 = Math.max(0, Math.min(1, (kid.position.z - S.zTop) / (S.zBot - S.zTop)));
+      var ry9 = S.yTop + (S.yBot - S.yTop) * f9;
+      if (tpOnStair !== si && Math.abs(kid.position.y - ry9) > 1.6) continue;
+      kid.position.y = ry9;
+      if (f9 <= 0.02 && kidSpace !== S.topSp) quietCross(S.topSp);
+      else if (f9 >= 0.98 && kidSpace !== S.botSp) quietCross(S.botSp);
+      onStair = si;
+      break;
+    }
+    // stepping OFF a stair settles exactly on the floor it ends at (a margin
+    // frame could otherwise leave him standing a few cm high forever)
+    if (onStair < 0 && tpOnStair >= 0) {
+      var SL = STAIRS[tpOnStair];
+      kid.position.y = Math.abs(kid.position.y - SL.yTop) < Math.abs(kid.position.y - SL.yBot) ? SL.yTop : SL.yBot;
+    }
+    tpOnStair = onStair;
     updateRoomShell();
     var fy = kid.position.y;
     var cx = kid.position.x - Math.sin(tp.yaw) * TP_DIST;

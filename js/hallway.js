@@ -9067,7 +9067,7 @@ export function buildHallway(ctx) {
     if (mode !== "idle" || sp === space) return;
     var fromBed = space === "bedroom";
     space = sp;
-    var TOK = { hall: "north", kitchen: "room", living: "room", garage: "room",
+    var TOK = { hall: "north", kitchen: "room", living: "room", garage: "room", basement: "den",
       porch: "street", back: "pool", room0: "far", room1: "far", room2: "far",
       upstairs: "west", bedroom: "north" };
     facing = turnTo = TOK[sp] || "north"; turnK = 1;
