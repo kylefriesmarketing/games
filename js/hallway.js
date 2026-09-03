@@ -314,6 +314,12 @@ export function buildHallway(ctx) {
   function tag(m, name, action, hint) { // hall clickables carry a space tag for the pick filter
     clickable(m, name, action, hint); m.userData.space = "hall"; return m;
   }
+  /* every game portal routes through the kid AND the overlay: ctx.openGame
+   * keeps the house alive under the game, and __nav makes room.js's click
+   * dispatcher walk the boy over before it opens — the same ritual the
+   * bedroom doors have always had. Kyle: 'the boy should walk over to it
+   * before it opens — EVERY game', 'every game needs a return to room button'. */
+  function hgo(url) { var f = function () { ctx.openGame(url); }; f.__nav = url; return f; }
 
   // wood plank floor, drawn — slightly raised so it never fights the bedroom
   // floor slab, which extends under the hall's east edge
@@ -3407,7 +3413,7 @@ export function buildHallway(ctx) {
   var ssHint = ssName
     ? "SHORT STAFFED — " + ssName + "'s apron, still on the hook · click to take a shift"
     : "SHORT STAFFED — somebody's shift starts eventually · click to clock in";
-  function ssGo() { window.location.href = "https://kylefriesmarketing.github.io/short-staffed/"; }
+  function ssGo() { ctx.openGame("https://kylefriesmarketing.github.io/short-staffed/"); } ssGo.__nav = "https://kylefriesmarketing.github.io/short-staffed/";
   [apron, apHook].forEach(function (m) { ktag(m, "SHORT STAFFED", ssGo, ssHint); });
   /* the ticket wheel — world.js:581, the most diner object there is — on a little
    * shelf under the hook, with one order ticket leaning by it (white body, gold top
@@ -3507,7 +3513,7 @@ export function buildHallway(ctx) {
   var brewHint = brewHas
     ? "HOME BREW — the brewery's still running · click to check the tanks"
     : "HOME BREW — the first batch brews itself · click to open the brewery";
-  function brewGo() { window.location.href = "https://kylefriesmarketing.github.io/home-brew/"; }
+  function brewGo() { ctx.openGame("https://kylefriesmarketing.github.io/home-brew/"); } brewGo.__nav = "https://kylefriesmarketing.github.io/home-brew/";
   brewG.traverse(function (o) { if (o.isMesh) ktag(o, "HOME BREW", brewGo, brewHint); });
   /* the baked six-pack (it says HOMEBREW on the bottle). The tier-menu chalk plane
    * and the champion's tag KEEP their painted text — generated bakes garble words,
@@ -4265,7 +4271,7 @@ export function buildHallway(ctx) {
     ? "VICTORY LAP — " + vlSave.runs + " week" + (vlSave.runs === 1 ? "" : "s") + " tried, " +
       vlSave.known + "/4 of the town learned · one more"
     : "VICTORY LAP — an open town you keep not leaving · click to try the week";
-  function vlGo() { window.location.href = "https://kylefriesmarketing.github.io/victory-lap/"; }
+  function vlGo() { ctx.openGame("https://kylefriesmarketing.github.io/victory-lap/"); } vlGo.__nav = "https://kylefriesmarketing.github.io/victory-lap/";
   [slPost, slHead, slLamp].forEach(function (m) { ytag(m, "VICTORY LAP", vlGo, vlLampHint); });
   // a flyer taped to the pole, the way game doorways get marked out here
   var vlFlyT = canvasTex(96, 128, function (c, w, h) {
@@ -4331,7 +4337,7 @@ export function buildHallway(ctx) {
       emissive: 0x9a7f4e, emissiveIntensity: 0.85 }));
   qBoard.position.set(0, 1.14, 0.03); qSignG.add(qBoard);
   groundShade(-8.5, -31.0, 0.5, 0.22, 0.4);
-  function qGo() { window.location.href = "https://kylefriesmarketing.github.io/quarry/"; }
+  function qGo() { ctx.openGame("https://kylefriesmarketing.github.io/quarry/"); } qGo.__nav = "https://kylefriesmarketing.github.io/quarry/";
   [qBoard].concat(qSignG.children.filter(function (m) { return m !== qBoard; }))
     .forEach(function (m) {
       ytag(m, "QUARRY", qGo, "QUARRY — something came down out past the treeline · click to go hunting");
@@ -4404,7 +4410,7 @@ export function buildHallway(ctx) {
   var fcHint = fcLawns > 0
     ? "FRESH CUT — " + fcLawns + " of 48 lawns cut · the grass grew back"
     : "FRESH CUT — the lawn won't mow itself · click to start the mower";
-  function fcGo() { window.location.href = "https://kylefriesmarketing.github.io/fresh-cut/"; }
+  function fcGo() { ctx.openGame("https://kylefriesmarketing.github.io/fresh-cut/"); } fcGo.__nav = "https://kylefriesmarketing.github.io/fresh-cut/";
   mowG.traverse(function (o) { if (o.isMesh) ytag(o, "FRESH CUT", fcGo, fcHint); });
   /* the baked mower — swapped INSIDE mowG so the toolbox stash's visibility toggle
    * ('left out mid-job' / 'back in the shed') keeps working on the same group, and
@@ -4983,9 +4989,7 @@ export function buildHallway(ctx) {
   // on yardG, not truckG, for the same recompile reason as passLite above
   var tkLite = new THREE.PointLight(0xffd9a0, 0, 14, 1.7); tkLite.position.set(-0.3, 1.7, -2.2); yardG.add(tkLite);
   truckG.children.forEach(function (m) {
-    ytag(m, "HERE COMES THE TRUCK", function () {
-      window.location.href = "https://kylefriesmarketing.github.io/here-comes-the-truck/";
-    }, "HERE COMES THE TRUCK — you caught it. click before it's gone");
+    ytag(m, "HERE COMES THE TRUCK", hgo("https://kylefriesmarketing.github.io/here-comes-the-truck/"), "HERE COMES THE TRUCK — you caught it. click before it's gone");
   });
   /* the baked truck rides INSIDE truckG: the 5-minute drive-by driver owns the
    * GROUP's position/rotation and never touches children, so the animation, the
@@ -6081,7 +6085,7 @@ export function buildHallway(ctx) {
     new THREE.MeshBasicMaterial({ transparent: true, opacity: 0, depthWrite: false }));
   zooHit.position.set(-0.02, 0.22, 0.02); zooG.add(zooHit);
   [zooHit].forEach(function (m) {
-    btag(m, "CLEAN THE ZOO", function () { window.location.href = "https://kylefriesmarketing.github.io/clean-the-zoo/"; },
+    btag(m, "CLEAN THE ZOO", hgo("https://kylefriesmarketing.github.io/clean-the-zoo/"),
       zooSave
         ? "CLEAN THE ZOO — " + zooSave + " animal" + (zooSave === 1 ? "" : "s") + " home so far · click for the rest"
         : "CLEAN THE ZOO — 1,500 animals, ten habitats, one very long morning");
@@ -6192,7 +6196,7 @@ export function buildHallway(ctx) {
   // three quarters of its own diameter — which reads as a wire, not a leash lying down.
   bbCord.position.set(POOL.x0 - 0.80, GROUND + 0.043, POOL.z0 + 1.06); badd(bbCord);
   [bbBody, bbLeash, bbCord].forEach(function (m) {
-    btag(m, "SURF", function () { window.location.href = "https://kylefriesmarketing.github.io/surf/"; },
+    btag(m, "SURF", hgo("https://kylefriesmarketing.github.io/surf/"),
       surfSave.best
         ? "SURF — best ride " + surfSave.best + " · the pool is practice. click for the ocean"
         : "SURF — the wave carries you because the water moves. click for the ocean");
@@ -6328,7 +6332,7 @@ export function buildHallway(ctx) {
   // ⚠️ same stale-list problem: the kiln builds 17 meshes and this list named 8, so
   // the steel bands and the shelf legs answered no hover at all.
   [kBody, kLid, kDoor, spy, flue, flueCap, kShelf, kBucket].concat(kilnExtra).forEach(function (m) {
-    btag(m, "THE KILN", function () { window.location.href = "https://kylefriesmarketing.github.io/the-kiln/"; },
+    btag(m, "THE KILN", hgo("https://kylefriesmarketing.github.io/the-kiln/"),
       kilnSave.firings
         ? "THE KILN — " + kilnSave.firings + " firings, " + kilnSave.effects + " of 16 surfaces seen. click to load it again"
         : "THE KILN — load it blind, fire it, and wait. you find out when it is cold. click to fire");
@@ -7214,7 +7218,7 @@ export function buildHallway(ctx) {
   var biteParts = [bob, bobTop, bobAnt];
   [rodG, tackG].forEach(function (gr) { gr.traverse(function (m) { if (m.isMesh) biteParts.push(m); }); });
   biteParts.forEach(function (m) {
-    gtag(m, "BITE", function () { window.location.href = "https://kylefriesmarketing.github.io/bite/"; },
+    gtag(m, "BITE", hgo("https://kylefriesmarketing.github.io/bite/"),
       biteSave.sp
         /* ⚠️ biteSave parses `casts` and `mayor` and then reads only `sp`. The mayor is
          * BITE's signature — the one fish nobody believes you caught — and it was sitting
@@ -7264,7 +7268,7 @@ export function buildHallway(ctx) {
     }) }));
   mayBookLbl.position.set(0.05, 0.0262, -0.28); mayBookLbl.rotation.x = -Math.PI / 2; mayBookLbl.rotation.z = 0.3; mayG.add(mayBookLbl);
   mayG.traverse(function (m) {
-    if (m.isMesh) gtag(m, "BITE", function () { window.location.href = "https://kylefriesmarketing.github.io/bite/"; },
+    if (m.isMesh) gtag(m, "BITE", hgo("https://kylefriesmarketing.github.io/bite/"),
       "the bobber will tell you. everyone's seen the mayor once.");
   });
   var garOn = true;
@@ -7636,8 +7640,9 @@ export function buildHallway(ctx) {
   llLite.position.set(2.88, BSM.fl + 1.30, 3.05); add(llLite);
   function llGo() {
     try { localStorage.setItem("room-visited-lastlocal", "1"); } catch (e) { }
-    window.location.href = "https://kylefriesmarketing.github.io/last-local/";
+    ctx.openGame("https://kylefriesmarketing.github.io/last-local/");
   }
+  llGo.__nav = "https://kylefriesmarketing.github.io/last-local/";
   llG.traverse(function (m) {
     if (m.isMesh) bstag(m, "THE LAST LOCAL", llGo,
       "THE LAST LOCAL \u2014 serve the tourists, save the bar, mind the pigs. co-op, Copperhead MT \u00b7 click to clock in");
@@ -7695,7 +7700,7 @@ export function buildHallway(ctx) {
     cl3.position.set(cx, BSM.fl + 1.05, cz + 0.62); add(cl3);
     dimLights.push({ l: cl3, base: 0.6 });
     cab.traverse(function (o) {
-      if (o.isMesh) bstag(o, opts.name, function () { window.location.href = opts.url; }, opts.hint);
+      if (o.isMesh) bstag(o, opts.name, hgo(opts.url), opts.hint);
     });
     return cab;
   }
@@ -8023,7 +8028,7 @@ export function buildHallway(ctx) {
   // ⚠️ traverse, not children: each soldier is a GROUP of four little meshes, so a
   // pass over direct children tagged the mat and the blocks and skipped every man.
   lwG.traverse(function (m) {
-    if (m.isMesh) bstag(m, "TOYBOX: LAST WATCH", function () { window.location.href = "https://kylefriesmarketing.github.io/last-watch/"; },
+    if (m.isMesh) bstag(m, "TOYBOX: LAST WATCH", hgo("https://kylefriesmarketing.github.io/last-watch/"),
       lwSave.best
         ? "TOYBOX: LAST WATCH — furthest wave " + lwSave.best + ". the line held that long. click to stand it again"
         : "TOYBOX: LAST WATCH — the toys hold the line until morning, and kills pay marbles. click to take the watch");
@@ -8141,7 +8146,7 @@ export function buildHallway(ctx) {
    * moment anybody adds a mesh; traverse the group, the way its neighbour already does. */
   hxG.traverse(function (m) {
     if (!m.isMesh) return;
-    bstag(m, "THE HAUNT", function () { window.location.href = "https://kylefriesmarketing.github.io/the-haunt/"; },
+    bstag(m, "THE HAUNT", hgo("https://kylefriesmarketing.github.io/the-haunt/"),
       hauntSave.nights
         ? "THE HAUNT — " + hauntSave.nights + " nights run. click to open the gate again"
         : "THE HAUNT — you run the haunted house. timing is the whole trick. click to open");

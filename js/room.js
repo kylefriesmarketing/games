@@ -491,7 +491,51 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
     u.name = name; u.action = action; u.hint = hint || "click to open";
     pick.push(mesh); return mesh;
   }
-  function go(url) { var f = function () { markVisited(url); window.location.href = url; }; f.__nav = url; return f; } // __nav marks doorway actions — THE KID walks to those
+  function go(url) { var f = function () { openGame(url); }; f.__nav = url; return f; } // __nav marks doorway actions — THE KID walks to those
+  /* ⚠️⚠️ GAMES OPEN IN AN OVERLAY NOW, NOT BY NAVIGATION (Kyle: coming back
+   * meant browser-back, a full reload into the bedroom, and the whole walk
+   * again — 'repetitive and tedious'). An iframe over the FROZEN house keeps
+   * every bit of state — the room you were in, the camera, the kid standing
+   * at the machine — so '⌂ back to the house' returns you EXACTLY where you
+   * stood. Same-origin only: GitHub Pages sends no frame-blocking headers and
+   * those games are ours; the two dumb-tony games still NAVIGATE (framing a
+   * third-party origin would partition its localStorage and split its saves).
+   * The 3D loop pauses via gamePaused, the tape stops via followVisibility,
+   * and a service-worker deploy mid-game defers its reload to close. */
+  var gamePaused = false, gameWrap = null;
+  function openGame(url) {
+    markVisited(url);
+    if (url.indexOf("//kylefriesmarketing.github.io") < 0) { window.location.href = url; return; }
+    if (gameWrap) return;
+    gameWrap = document.createElement("div"); gameWrap.id = "game-wrap";
+    var ifr = document.createElement("iframe");
+    ifr.id = "game-frame"; ifr.src = url;
+    ifr.allow = "fullscreen; pointer-lock; gamepad; autoplay";
+    ifr.allowFullscreen = true;
+    var btn = document.createElement("button");
+    btn.id = "game-home"; btn.type = "button"; btn.textContent = "⌂ back to the house";
+    btn.addEventListener("click", closeGame);
+    gameWrap.appendChild(ifr); gameWrap.appendChild(btn);
+    document.body.appendChild(gameWrap);
+    gamePaused = true; window.__gameOpen = true;
+    try { AUDIO.followVisibility(true); } catch (e) { }
+    // nothing focuses the iframe for you — without this, WASD keeps hitting the house
+    setTimeout(function () { try { ifr.focus(); } catch (e) { } }, 60);
+  }
+  function closeGame() {
+    if (!gameWrap) return;
+    try { gameWrap.querySelector("iframe").src = "about:blank"; } catch (e) { } // encourage teardown
+    gameWrap.remove(); gameWrap = null;
+    gamePaused = false; window.__gameOpen = false;
+    if (window.__reloadOnGameClose) { location.reload(); return; } // a deploy landed mid-game
+    try { AUDIO.followVisibility(document.hidden); } catch (e) { }
+    /* no camera hard-set: zoomT = -1 hands the camera back and the per-frame
+     * lerp eases it out of the lean — it reads as putting the toy down */
+    zoomT = -1; pendingNav = null; navTarget = null;
+    if (kidState.mode === "open" || kidState.mode === "stand" || kidState.mode === "summon") {
+      kidState.mode = "roam"; kidState.via = false; kidPickStation();
+    }
+  }
   var BASE = "https://kylefriesmarketing.github.io/";
   // Declared up here because BOTH the duffel bag and its wall poster read it, and the
   // poster is built earlier in the file. Empty string ⇒ both revert to "coming soon".
@@ -2001,6 +2045,7 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
     /* the hall's paint can (and anything else in the house) can open the decor
      * drawer straight onto the paint tab for the room you are standing in */
     openPaint: function () { decorSet(true); dwTab("paint"); },
+    openGame: openGame, // every hallway portal opens over the frozen house
     onEnter: function () { // leaving the bedroom tidies up after itself
       if (decorMode) decorSet(false);
       endTour(true);
@@ -2440,7 +2485,7 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
   })();
   if (window.__entered) window.__roomEnter(); // card clicked before this module loaded
   document.addEventListener("visibilitychange", function () { // the tape pauses when you leave
-    AUDIO.followVisibility(document.hidden);
+    AUDIO.followVisibility(document.hidden || gamePaused); // …and stays paused under a game
   });
 
   /* ---- DUST MOTES: the whole room's air, lit by whatever they drift through -----
@@ -3884,6 +3929,12 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
       var md = Math.sqrt(mx * mx + mz * mz), need = o.r + KID_R + 0.05;
       if (md < need && md > 0.001) { tx = o.x + mx / md * need; tz = o.z + mz / md * need; }
     }
+    /* he follows you around the house, but if he is in a DIFFERENT room (or
+     * lagging a beat behind on the follow) he cannot walk this one — the
+     * camera performs the ceremony alone and the game still opens. Bedroom
+     * meshes carry no space tag, so absent means bedroom. */
+    var mSpace = mesh.userData.space || "bedroom";
+    if (kidSpace !== mSpace) { kidStartZoom(); return; }
     kidState.mode = "summon"; kidState.t = 0; kidState.walkT = 0;
     kidGoto(tx, tz); // stage through the hub if the chest (or anything) is in the way
     setTimeout(function () { if (pendingNav) { var f = pendingNav; pendingNav = null; f(); } }, 4800); // failsafe — the door opens even if the tab hides
@@ -4150,6 +4201,16 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
   document.getElementById("notebook").addEventListener("click", function (e) {
     if (e.target === this) this.classList.remove("open");
   });
+  /* the list view rides the same overlay. Modified clicks (ctrl/cmd/shift/
+   * middle) keep native open-in-new-tab; in the no-WebGL fallback this module
+   * never evaluates, so the anchors there still navigate natively. */
+  document.getElementById("shelf-view").addEventListener("click", function (e) {
+    if (e.ctrlKey || e.metaKey || e.shiftKey || e.button === 1) return;
+    var a = e.target && e.target.closest ? e.target.closest("a.game") : null;
+    if (!a || !a.href) return;
+    e.preventDefault();
+    openGame(a.href);
+  });
 
   /* ---- picking / hover / parallax -------------------------------------------- */
   var ray = new THREE.Raycaster(), mouse = new THREE.Vector2(-2, -2), hovered = null;
@@ -4252,6 +4313,10 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
     tip.textContent = m.userData.hint; tip.classList.add("show");
   }
   window.addEventListener("keydown", function (e) {
+    /* while a game is open, keys only reach here when the PARENT has focus
+     * (a click on the chip's padding) — Enter/Space could summon the kid
+     * under the game. Escape closes; everything else is the game's. */
+    if (gamePaused) { if (e.key === "Escape") closeGame(); return; }
     if (e.key === "Escape") {
       var sto = document.getElementById("store-ov");
       if (sto && sto.classList.contains("open")) { closeStore(); return; }
@@ -7178,6 +7243,7 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
       return n2 === "input" || n2 === "textarea" || n2 === "select" || t.isContentEditable;
     }
     window.addEventListener("keydown", function (e) {
+      if (gamePaused) return; // the game owns the keyboard
       if (editable(e.target) || e.ctrlKey || e.metaKey || e.altKey) return;
       var key = (e.key || "").toLowerCase();
       if (key === "c") { tpSet(!tp.on); e.preventDefault(); return; }
@@ -7189,6 +7255,7 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
       }
     });
     window.addEventListener("keyup", function (e) {
+      if (gamePaused) return;
       var key = (e.key || "").toLowerCase();
       if (tp.keys[key]) { tp.keys[key] = false; e.preventDefault(); }
     });
@@ -7199,6 +7266,8 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
 
   function tick() {
     requestAnimationFrame(tick);
+    // a game has the screen: the whole house holds its breath (and its GPU)
+    if (gamePaused) { lastT = performance.now() / 1000; return; }
     var t = performance.now() / 1000, dt = Math.min(t - lastT, 0.1); lastT = t;
     // with no pointer to follow (phones, or just resting), take a slow look around
     var idle = t - pointerMovedAt > 6;
@@ -7887,6 +7956,7 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
   window.__room = { audit: audit, // one call to prove the room is still geometrically sane
     // the walk mode, exposed so it can be driven and measured without a keyboard
     walk: function (on) { tpSet(on === undefined ? !tp.on : on); return tp.on; },
+    game: { open: openGame, close: closeGame, isOpen: function () { return !!gameWrap; } },
     walkState: tp,
     /* ⚠️ requestAnimationFrame is SUSPENDED in the embedded review browser, so tick()
      * never runs there and walking cannot be verified by waiting. walkStep advances
