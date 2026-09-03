@@ -970,12 +970,16 @@ export function buildHallway(ctx) {
     [vcr, vslot, vclk].forEach(function (m) {
       ltag(m, 'the video', null, 'still blinking 12:00. it has been blinking 12:00 since it came out of the box.');
     });
-    var ct = box(1.20, 0.06, 0.56, woodM); ct.position.set(-12.60, 0.40, 2.30); add(ct);
-    (function () { var sh = plant(g, 0.58, 0.38, 0.45, 0); if (sh) sh.position.set(-12.60, 0.016, 2.30); })();   // coffee table
+    /* ⚠️ moved front-LEFT of the couch (was -12.60, 2.30 — dead centre of the
+     * couch–TV line, where its circle + theirs sealed the room in walk mode:
+     * Kyle could not walk through). At (-13.30, 2.16) the couch–TV corridor at
+     * x -12.6 is a real lane; the matching obstacle circle moved in room.js. */
+    var ct = box(1.20, 0.06, 0.56, woodM); ct.position.set(-13.30, 0.40, 2.16); add(ct);
+    (function () { var sh = plant(g, 0.58, 0.38, 0.45, 0); if (sh) sh.position.set(-13.30, 0.016, 2.16); })();   // coffee table
     [[-0.53, -0.22], [0.53, -0.22], [-0.53, 0.22], [0.53, 0.22]].forEach(function (lp) {
-      var lg2 = box(0.06, 0.40, 0.06, woodM); lg2.position.set(-12.60 + lp[0], 0.20, 2.30 + lp[1]); add(lg2); });
+      var lg2 = box(0.06, 0.40, 0.06, woodM); lg2.position.set(-13.30 + lp[0], 0.20, 2.16 + lp[1]); add(lg2); });
     ltag(ct, 'the coffee table', null, 'one ring you can still see, from before anyone used coasters.');
-    var rem = box(0.06, 0.025, 0.17, mat(0x2b2e33, 0.6)); rem.position.set(-12.30, 0.445, 2.40); rem.rotation.y = 0.4; add(rem);
+    var rem = box(0.06, 0.025, 0.17, mat(0x2b2e33, 0.6)); rem.position.set(-13.00, 0.445, 2.26); rem.rotation.y = 0.4; add(rem);
     ltag(rem, 'the remote', null, 'found. put it back where it was.');
     var lampG = new THREE.Group(); lampG.position.set(-16.35, 0, 3.50); add(lampG);
     plant(lampG, 0.28, 0.28, 0.40, 0);
@@ -1601,7 +1605,22 @@ export function buildHallway(ctx) {
   }
   var stairM = stairMat(0.92, 0.325);      // the up-flight treads
   var nosingM = stairMat(0.92, 0.62);      // the wider nosing at the top
-  var dstepM = stairMat(0.79, 0.24);       // the basement flight
+  /* ⚠️ the basement flight does NOT follow hall floor paint (Kyle). Its
+   * texture is an independent canvas COPY of the plank pixels: houseArtSwap
+   * matches consumers by shared canvas Source, so a copy is invisible to the
+   * hall’s repaints — the stairs into the basement keep their own boards. */
+  var dstepM = (function () {
+    var m9 = stairMat(0.79, 0.24);
+    var cv9 = document.createElement("canvas");
+    cv9.width = plankT.image.width; cv9.height = plankT.image.height;
+    cv9.getContext("2d").drawImage(plankT.image, 0, 0);
+    var t9 = new THREE.CanvasTexture(cv9);
+    t9.wrapS = t9.wrapT = THREE.RepeatWrapping;
+    t9.colorSpace = THREE.SRGBColorSpace;
+    t9.repeat.copy(m9.map.repeat);
+    m9.map = t9; m9.needsUpdate = true;
+    return m9;
+  })();      // the basement flight
   /* ⚠️⚠️ THE FLIGHT MOVED OFF THE WEST WALL AND INTO THE MIDDLE OF THE HALL. Hard
    * against the wall is right for an eight-step stub that stops at z -3.0. A full
    * nineteen-riser run has to reach z 2.04, and along the west wall that is straight
@@ -2018,9 +2037,9 @@ export function buildHallway(ctx) {
         blending: THREE.AdditiveBlending, depthWrite: false }));
     acSpill.rotation.x = -Math.PI / 2;
     acSpill.position.set(acX, UPF.fl + 0.014, LAN.z1 - 0.16); add(acSpill);
-    var acLite = new THREE.PointLight(0xffb877, 0.42, 3.4, 2.0);
+    var acLite = new THREE.PointLight(0xffb877, 0.5, 3.4, 2.0);
     acLite.position.set(acX, UPF.fl + 0.55, LAN.z1 - 0.30); add(acLite);
-    dimLights.push({ l: acLite, base: 0.42 });
+    dimLights.push({ l: acLite, base: 0.5 });
     // a chair on the landing that is not for sitting on, which every house has
     var lchG = new THREE.Group();
     lchG.position.set(1.85, UPF.fl, LAN.z0 + 0.42); lchG.rotation.y = -0.72; add(lchG);
@@ -2331,7 +2350,7 @@ export function buildHallway(ctx) {
           grp(0, lg, 'the reading lamp', 'left on most nights. the other one has learned to sleep through it.');
           var nl2 = new THREE.PointLight(0xffd2a0, 0.62, 3.6, 1.9);
           nl2.position.set(nx, fl + 0.88, nz); add(nl2);
-          var rlEnt = roomLite(nl2, sh2.material, 0.85, 0.58);
+          var rlEnt = roomLite(nl2, sh2.material, 1.1, 0.7);
           // ⚠️ the hint said it gets left on most nights, and there was no way to turn
           // it off. A fixture whose own description is about being switched has to be.
           lg.children.forEach(function (m) {
@@ -2404,7 +2423,7 @@ export function buildHallway(ctx) {
       rtag(ovh, 0, 'their ceiling light', 'a paper globe. it has been meaning to be replaced since it went up.');
       var ol = new THREE.PointLight(0xffd2a0, 0.50, 7.5, 1.9);
       ol.position.set(cx, UPF.ce - 0.40, RZ0 + 1.9); add(ol);
-      roomLite(ol, ovh.material, 0.48, 0.34);   // the reading lamp (0.85) is the key now, 1.8:1
+      roomLite(ol, ovh.material, 0.62, 0.4);   // the reading lamp keys; whole room lifted to bedroom level
       /* ⚠️ MEASURED 73% BoxGeometry and 3.47 meshes per prop, against the bedroom's
        * 37.5% and 5.8. Boxes are the fast way to say 'furniture' and the reason a room
        * reads as blocked-out rather than built. Everything below is deliberately round
@@ -2514,7 +2533,7 @@ export function buildHallway(ctx) {
       grp(1, dl, 'the desk lamp', 'angled at the wall and not the desk, because that is how she likes it.');
       var dlite = new THREE.PointLight(0xffd2a0, 0.66, 3.6, 1.9);
       dlite.position.set(cx + 1.14, fl + 1.08, RZ0 + 0.68); add(dlite);
-      var dlEnt = roomLite(dlite, dh.material, 0.92, 0.72);
+      var dlEnt = roomLite(dlite, dh.material, 1.15, 0.85);
       dl.children.forEach(function (m) {
         if (m.userData && m.userData.name) m.userData.action = function () {
           dlEnt.on = !dlEnt.on; AUDIO.clickSfx && AUDIO.clickSfx(dlEnt.on ? 1650 : 1100);
@@ -2622,7 +2641,7 @@ export function buildHallway(ctx) {
       rtag(hcl, 1, 'her ceiling light', 'the shade has a horse on it. it was chosen at six and defended ever since.');
       var hli = new THREE.PointLight(0xffd2a0, 0.44, 7.0, 1.9);
       hli.position.set(cx, UPF.ce - 0.40, RZ0 + 1.9); add(hli);
-      roomLite(hli, hcl.material, 0.40, 0.30);   // desk lamp 0.92 keys at 2.3:1
+      roomLite(hli, hcl.material, 0.52, 0.36);   // desk lamp keys; lifted to bedroom level
     })();
 
     /* ============== THE ATTIC - warm, and it smells like old paper ============== */
@@ -2673,7 +2692,7 @@ export function buildHallway(ctx) {
         'you pull the flex, not a switch, and you do it by feel because the switch is at the bottom.'); });
       var alite = new THREE.PointLight(0xffd2a0, 0.80, 5.6, 1.9);
       alite.position.set(cx - 0.30, fl + 1.55, RZ1 - 0.55); add(alite);
-      var alEnt = roomLite(alite, abulb.material, 1.30, 1.15);   // attic: k=1.76 measured
+      var alEnt = roomLite(alite, abulb.material, 1.55, 1.3);   // attic: k=1.76 measured, lifted to bedroom level
       // the hint already says you pull the flex, not a switch. Now you can.
       [abulb, aflex].forEach(function (m) {
         m.userData.action = function () {
@@ -7285,9 +7304,9 @@ export function buildHallway(ctx) {
   garLite.position.set(-9.60, 1.80, 6.20); add(garLite);
   // the streetlight seeping under the roll door — the cold half the bare bulb
   // needs (key:seep 1.7:0.30 ≈ 5.7:1, the bedroom's ratio family)
-  var garMoon = new THREE.PointLight(0x8fa8c8, 0.30, 5.5, 2.0);
+  var garMoon = new THREE.PointLight(0x8fa8c8, 0.36, 5.5, 2.0);
   garMoon.position.set(-9.85, 0.45, 8.0); add(garMoon);
-  dimLights.push({ l: garMoon, base: 0.30 });
+  dimLights.push({ l: garMoon, base: 0.36 });
   function togGarLight() { garOn = !garOn; AUDIO.clickSfx && AUDIO.clickSfx(garOn ? 1200 : 700); }
   [gChain, gBead, gBulb].forEach(function (m) { gtag(m, "the pull chain", togGarLight, "the pull chain — clack."); });
 
@@ -8156,16 +8175,16 @@ export function buildHallway(ctx) {
   lampPole.position.set(1.85, BSM.fl + 0.675, 3.85); add(lampPole);
   var lampShade = new THREE.Mesh(new THREE.ConeGeometry(0.19, 0.24, 12, 1, true), mat(0xd8b46a, 0.8));
   lampShade.position.set(1.85, BSM.fl + 1.42, 3.85); add(lampShade);
-  var bsLamp = new THREE.PointLight(0xffd9a0, 2.1, 5.2, 1.8);
+  var bsLamp = new THREE.PointLight(0xffd9a0, 2.5, 5.2, 1.8);
   bsLamp.position.set(1.85, BSM.fl + 1.3, 3.85); add(bsLamp);
-  dimLights.push({ l: bsLamp, base: 2.1 });
+  dimLights.push({ l: bsLamp, base: 2.5 });
   bstag(lampShade, "the lamp", null, "the click of it is the sound of the evening starting.");
   var bsBulb = new THREE.Mesh(new THREE.SphereGeometry(0.04, 10, 8),
     new THREE.MeshStandardMaterial({ color: 0xfff2d8, emissive: 0xffd9a0, emissiveIntensity: 1.4, roughness: 0.4 }));
   bsBulb.position.set(-6.97, BSM.ce - 0.28, 2.35); add(bsBulb);
-  var bsStairLite = new THREE.PointLight(0xffe0b0, 0.85, 3.9, 1.8);
+  var bsStairLite = new THREE.PointLight(0xffe0b0, 1.0, 3.9, 1.8);
   bsStairLite.position.set(-6.97, BSM.ce - 0.35, 2.35); add(bsStairLite);
-  dimLights.push({ l: bsStairLite, base: 0.85 });
+  dimLights.push({ l: bsStairLite, base: 1.0 });
   var bsUpHit = new THREE.Mesh(new THREE.BoxGeometry(1.1, 1.9, 1.3),
     new THREE.MeshBasicMaterial({ transparent: true, opacity: 0, depthWrite: false }));
   bsUpHit.position.set(-6.9, BSM.fl + 0.95, 2.3); add(bsUpHit);
@@ -8872,6 +8891,21 @@ export function buildHallway(ctx) {
    * In the hall the camera stands at the south end and looks the length of it —
    * the front door far ahead, every future room on the way. Same mouse-parallax
    * feel as the bedroom so the two spaces read as one house. */
+  /* SEAMLESS WALK-THROUGH DOORS (Kyle: "click a door, open and close it, walk
+   * in and out as I please"). In walk mode a door click flips a STATE FLAG
+   * (the closet pattern) instead of starting a flight; glowTick eases the
+   * swing, tpClamp carves the wall plane while the door stands open, and
+   * crossing the threshold runs setSpaceQuiet — every arrival side effect
+   * except the camera. Fixed-camera mode keeps the flights untouched. */
+  var dOpen = { bed: false, kit: false, liv: false, gar: false, front: false,
+                back: false, r0: false, r1: false, r2: false };
+  var dAnim = { bed: 0, kit: 0, liv: 0, gar: 0, front: 0, back: 0, r0: 0, r1: 0, r2: 0 };
+  function walkToggle(flag) {
+    if (!(ctx.isWalking && ctx.isWalking())) return false;
+    dOpen[flag] = !dOpen[flag];
+    AUDIO.ratchetSfx && AUDIO.ratchetSfx();
+    return true;
+  }
   var space = "bedroom", mode = "idle", tt = 0, seen = { hall: false };
   var facing = "north", turnTo = "north", turnK = 1; // which end of the hall you're facing
   try { seen.hall = !!localStorage.getItem("room-hall-seen"); } catch (e) { }
@@ -8988,6 +9022,7 @@ export function buildHallway(ctx) {
   };
   var c0 = new THREE.Vector3(), l0 = new THREE.Vector3(); // where the walk started
   function enter() {
+    if (walkToggle("bed")) return;
     if (mode !== "idle" || space === "hall") return;
     if (ctx.onEnter) ctx.onEnter();
     mode = "entering"; tt = 0;
@@ -9015,6 +9050,7 @@ export function buildHallway(ctx) {
    * change the waypoint list mid-move and rebuild the curve under the walk. */
   var leaveViaRest = false;
   function leave() {
+    if (walkToggle("bed")) return;
     if (mode !== "idle" && mode !== "turning") return;
     if (space !== "hall") return;
     leaveViaRest = camera.position.z > P.rest.z + 0.35;
@@ -9024,7 +9060,28 @@ export function buildHallway(ctx) {
     if (ctx.onLeave) ctx.onLeave();
   }
   function toggleDoor() { if (space === "hall") leave(); else if (space === "bedroom") enter(); }
+  /* the walk-mode arrival: everything a flight's end does EXCEPT the camera.
+   * mode stays idle throughout, so busy() never trips and the walk camera
+   * keeps the frame — that is the whole seamlessness. */
+  function setSpaceQuiet(sp) {
+    if (mode !== "idle" || sp === space) return;
+    var fromBed = space === "bedroom";
+    space = sp;
+    var TOK = { hall: "north", kitchen: "room", living: "room", garage: "room",
+      porch: "street", back: "pool", room0: "far", room1: "far", room2: "far",
+      upstairs: "west", bedroom: "north" };
+    facing = turnTo = TOK[sp] || "north"; turnK = 1;
+    if (stashOpenKey) closeStash();
+    AUDIO.clickSfx && AUDIO.clickSfx(500);
+    if (fromBed) { try { ctx.onEnter(); } catch (e9) { } }
+    if (sp === "hall" && !seen.hall) {
+      seen.hall = true;
+      try { localStorage.setItem("room-hall-seen", "1"); } catch (e9) { }
+    }
+    syncTurnBtn();
+  }
   function enterKitchen() {
+    if (walkToggle("kit")) return;
     if (mode !== "idle" || space !== "hall") return;
     mode = "kitchenIn"; tt = 0;
     c0.copy(camera.position); l0.copy(lookAt);
@@ -9032,12 +9089,14 @@ export function buildHallway(ctx) {
     if (turnBtn) turnBtn.style.display = "none";
   }
   function leaveKitchen() {
+    if (walkToggle("kit")) return;
     if (mode !== "idle" && mode !== "turning") return;
     if (space !== "kitchen") return;
     mode = "kitchenOut"; tt = 0;
     c0.copy(camera.position); l0.copy(lookAt);
   }
   function enterRoom(i) {
+    if (walkToggle("r" + i)) return;
     if (mode !== "idle" && mode !== "turning") return;
     if (space !== "upstairs") return;
     upRoom = i;
@@ -9054,6 +9113,7 @@ export function buildHallway(ctx) {
     if (turnBtn) turnBtn.style.display = "none";
   }
   function leaveRoom() {
+    if (isRoomSp(space) && walkToggle("r" + space.charAt(4))) return;
     if (mode !== "idle" && mode !== "turning") return;
     if (!isRoomSp(space)) return;
     mode = "roomOut"; tt = 0;
@@ -9073,6 +9133,7 @@ export function buildHallway(ctx) {
     c0.copy(camera.position); l0.copy(lookAt);
   }
   function enterLiving() {
+    if (walkToggle("liv")) return;
     if (mode !== "idle" || space !== "hall") return;
     mode = "livingIn"; tt = 0;
     c0.copy(camera.position); l0.copy(lookAt);
@@ -9080,12 +9141,14 @@ export function buildHallway(ctx) {
     if (turnBtn) turnBtn.style.display = "none";
   }
   function leaveLiving() {
+    if (walkToggle("liv")) return;
     if (mode !== "idle" && mode !== "turning") return;
     if (space !== "living") return;
     mode = "livingOut"; tt = 0;
     c0.copy(camera.position); l0.copy(lookAt);
   }
   function enterGarage() {
+    if (walkToggle("gar")) return;
     if (mode !== "idle" || space !== "hall") return;
     mode = "garageIn"; tt = 0;
     c0.copy(camera.position); l0.copy(lookAt);
@@ -9093,6 +9156,7 @@ export function buildHallway(ctx) {
     if (turnBtn) turnBtn.style.display = "none";
   }
   function leaveGarage() {
+    if (walkToggle("gar")) return;
     if (mode !== "idle" && mode !== "turning") return;
     if (space !== "garage") return;
     mode = "garageOut"; tt = 0;
@@ -9112,6 +9176,7 @@ export function buildHallway(ctx) {
     c0.copy(camera.position); l0.copy(lookAt);
   }
   function enterBack() {
+    if (walkToggle("back")) return;
     if (mode !== "idle" || space !== "hall") return;
     mode = "backIn"; tt = 0;
     c0.copy(camera.position); l0.copy(lookAt);
@@ -9119,6 +9184,7 @@ export function buildHallway(ctx) {
     if (turnBtn) turnBtn.style.display = "none";
   }
   function leaveBack() {
+    if (walkToggle("back")) return;
     if (mode !== "idle" && mode !== "turning") return;
     if (space !== "back") return;
     mode = "backOut"; tt = 0;
@@ -9127,6 +9193,7 @@ export function buildHallway(ctx) {
   // ⚠️ the front door's swing is driven by the SAME tt as the walk, exactly like
   // the bedroom door — so the slab is always open by the time the camera is in it
   function stepOut() {
+    if (walkToggle("front")) return;
     if (mode !== "idle" || space !== "hall") return;
     mode = "out"; tt = 0;
     c0.copy(camera.position); l0.copy(lookAt);
@@ -9134,6 +9201,7 @@ export function buildHallway(ctx) {
     if (turnBtn) turnBtn.style.display = "none";
   }
   function stepIn() {
+    if (walkToggle("front")) return;
     if (mode !== "idle" || space !== "porch") return;
     mode = "in"; tt = 0;
     c0.copy(camera.position); l0.copy(lookAt);
@@ -9276,15 +9344,7 @@ export function buildHallway(ctx) {
     // bedroom door is shut when you're in there, so none of it is visible — but it
     // was still costing 258 draw calls a frame. Kept up during transitions, when
     // the door is open and you really are looking down it.
-    g.visible = space !== "bedroom" || mode !== "idle";
-    yardG.visible = space !== "bedroom";
-    // the bedroom's OUTSIDE is only ever looked at from the back lawn — and if it
-    // is up at any other time it is a wall across the walk to the hallway
-    var claddingUp = space === "back" || mode === "backIn" || mode === "backOut";
-    for (var bsV = 0; bsV < bedShell.length; bsV++) bedShell[bsV].visible = claddingUp;
-    // ⚠️ the livG gate is GONE, and that is the whole point of the move: on the west
-    // side the room is nowhere near the bedroom camera, so it is simply part of the house.
-    if (stashOpenKey && mode !== "idle") closeStash();   // walking away shuts the box
+    visTick();
     if (mode === "kitchenIn" || mode === "kitchenOut") {   // through the kitchen door
       tt = Math.min(1, tt + dt / 2.1);
       var kk = mode === "kitchenIn" ? tt : 1 - tt;
@@ -9295,9 +9355,9 @@ export function buildHallway(ctx) {
       else walk([c0, P.kdoor2, P.kdoor1], [l0, P.kdoorL, P.look], tt);
       camera.position.copy(_v); lookAt.copy(_w); camera.lookAt(lookAt);
       if (tt >= 1) {
-        if (mode === "kitchenIn") { space = "kitchen"; facing = turnTo = "room"; kDoorPivot.rotation.y = -2.0; }
+        if (mode === "kitchenIn") { space = "kitchen"; facing = turnTo = "room"; kDoorPivot.rotation.y = -2.0; dOpen.kit = true; dAnim.kit = -2.0; }
         else {
-          space = "hall"; facing = turnTo = "north"; kDoorPivot.rotation.y = 0;
+          space = "hall"; facing = turnTo = "north"; kDoorPivot.rotation.y = 0; dOpen.kit = false; dAnim.kit = 0;
           AUDIO.clickSfx && AUDIO.clickSfx(500);
         }
         turnK = 1; mode = "idle"; syncTurnBtn();
@@ -9318,8 +9378,8 @@ export function buildHallway(ctx) {
       else walk([c0, P.rmid, P.rd2, P.rd1, P.uprest], [l0, P.rlookB, P.uplook, P.uplook, P.uplook], tt);
       camera.position.copy(_v); lookAt.copy(_w); camera.lookAt(lookAt);
       if (tt >= 1) {
-        if (mode === "roomIn") { space = UPR[upRoom].sp; facing = turnTo = "far"; }
-        else { space = "upstairs"; facing = turnTo = "west"; AUDIO.clickSfx && AUDIO.clickSfx(500); }
+        if (mode === "roomIn") { space = UPR[upRoom].sp; facing = turnTo = "far"; dOpen["r" + upRoom] = true; dAnim["r" + upRoom] = 1; }
+        else { space = "upstairs"; facing = turnTo = "west"; AUDIO.clickSfx && AUDIO.clickSfx(500); dOpen["r" + upRoom] = false; dAnim["r" + upRoom] = 0; }
         turnK = 1; mode = "idle"; syncTurnBtn();
       }
       return true;
@@ -9346,9 +9406,9 @@ export function buildHallway(ctx) {
       else walk([c0, P.ldoor2, P.ldoor1], [l0, P.ldoorL, P.lookS], tt);
       camera.position.copy(_v); lookAt.copy(_w); camera.lookAt(lookAt);
       if (tt >= 1) {
-        if (mode === "livingIn") { space = "living"; facing = turnTo = "room"; lDoorPivot.rotation.y = 2.05; }
+        if (mode === "livingIn") { space = "living"; facing = turnTo = "room"; lDoorPivot.rotation.y = 2.05; dOpen.liv = true; dAnim.liv = 2.05; }
         else {
-          space = "hall"; facing = turnTo = "south"; lDoorPivot.rotation.y = 0;
+          space = "hall"; facing = turnTo = "south"; lDoorPivot.rotation.y = 0; dOpen.liv = false; dAnim.liv = 0;
           AUDIO.clickSfx && AUDIO.clickSfx(500);
         }
         turnK = 1; mode = "idle"; syncTurnBtn();
@@ -9365,9 +9425,9 @@ export function buildHallway(ctx) {
       else walk([c0, P.gmid, P.gdoor2, P.gdoor1], [l0, P.gdoorL, P.gdoorL, P.lookS], tt);
       camera.position.copy(_v); lookAt.copy(_w); camera.lookAt(lookAt);
       if (tt >= 1) {
-        if (mode === "garageIn") { space = "garage"; facing = turnTo = "room"; gDoorPivot.rotation.y = 2.0; }
+        if (mode === "garageIn") { space = "garage"; facing = turnTo = "room"; gDoorPivot.rotation.y = 2.0; dOpen.gar = true; dAnim.gar = 2.0; }
         else {
-          space = "hall"; facing = turnTo = "south"; gDoorPivot.rotation.y = 0;
+          space = "hall"; facing = turnTo = "south"; gDoorPivot.rotation.y = 0; dOpen.gar = false; dAnim.gar = 0;
           AUDIO.clickSfx && AUDIO.clickSfx(500);
         }
         turnK = 1; mode = "idle"; syncTurnBtn();
@@ -9410,9 +9470,9 @@ export function buildHallway(ctx) {
       else walk([c0, P.bdoor2, P.bdoor1], [l0, P.bdoorL, P.lookS], tt);
       camera.position.copy(_v); lookAt.copy(_w); camera.lookAt(lookAt);
       if (tt >= 1) {
-        if (mode === "backIn") { space = "back"; facing = turnTo = "pool"; slideK(1); }
+        if (mode === "backIn") { space = "back"; facing = turnTo = "pool"; slideK(1); dOpen.back = true; dAnim.back = 1; }
         else {
-          space = "hall"; facing = turnTo = "south"; slideK(0);
+          space = "hall"; facing = turnTo = "south"; slideK(0); dOpen.back = false; dAnim.back = 0;
           AUDIO.clickSfx && AUDIO.clickSfx(500);
         }
         turnK = 1; mode = "idle"; syncTurnBtn();
@@ -9430,9 +9490,9 @@ export function buildHallway(ctx) {
       else walk([c0, P.fdoor2, P.fdoor1, P.rest], [l0, P.porchB, P.look, P.look], tt);
       camera.position.copy(_v); lookAt.copy(_w); camera.lookAt(lookAt);
       if (tt >= 1) {
-        if (mode === "out") { space = "porch"; facing = turnTo = "street"; fPivot.rotation.y = -1.95; }
+        if (mode === "out") { space = "porch"; facing = turnTo = "street"; fPivot.rotation.y = -1.95; dOpen.front = true; dAnim.front = -1.95; }
         else {
-          space = "hall"; facing = turnTo = "north"; fPivot.rotation.y = 0;
+          space = "hall"; facing = turnTo = "north"; fPivot.rotation.y = 0; dOpen.front = false; dAnim.front = 0;
           AUDIO.clickSfx && AUDIO.clickSfx(500);
         }
         turnK = 1; mode = "idle"; syncTurnBtn();
@@ -9452,11 +9512,12 @@ export function buildHallway(ctx) {
              leaveViaRest ? [l0, P.look, P.doorL, BED_LOOK] : [l0, P.doorL, BED_LOOK], tt);
       camera.position.copy(_v); lookAt.copy(_w); camera.lookAt(lookAt);
       if (tt >= 1) {
-        if (mode === "entering") { space = "hall"; if (ctx.doorPivot) ctx.doorPivot.rotation.y = 2.6; }
+        if (mode === "entering") { space = "hall"; if (ctx.doorPivot) ctx.doorPivot.rotation.y = 2.6; dOpen.bed = true; dAnim.bed = 2.6; }
         else { // home again; the door clicks shut and the bedroom camera glides back on its own
           space = "bedroom"; lookAt.copy(BED_LOOK);
           if (ctx.doorPivot) ctx.doorPivot.rotation.y = 0;
           AUDIO.clickSfx && AUDIO.clickSfx(500);
+          dOpen.bed = false; dAnim.bed = 0;
         }
         mode = "idle";
         facing = turnTo = "north"; turnK = 1; // you always arrive looking up the hall
@@ -9545,10 +9606,10 @@ export function buildHallway(ctx) {
      * of its three doors sat permanently behind the camera, and the way back out of
      * every one of those rooms was off screen. This is the other half of the one-way
      * trap fix: the back-hits above are only reachable once you can face them. */
-    var show = space === "hall" || space === "porch" || space === "kitchen" ||
+    var show = !(ctx.isWalking && ctx.isWalking()) && (space === "hall" || space === "porch" || space === "kitchen" ||
                space === "garage" || space === "back" || space === "basement" ||
                space === "living" || space === "upstairs" || isRoomSp(space) ||
-               mode === "entering";
+               mode === "entering");
     turnBtn.style.display = show ? "block" : "none";
     var next = flipOf(mode === "turning" ? turnTo : facing);
     // ⚠️ kitchen and garage share the room/door facing tokens, so "room" has to be
@@ -9604,20 +9665,33 @@ export function buildHallway(ctx) {
    * dim comes from the room (the bed's "five more minutes" fades the whole
    * house); the hall breathes with it. The TV flicker under the living room
    * door never stops. Nobody has ever seen the TV. */
+  /* ⚠️ extracted from camTick's top: camTick does not run while the walk camera
+   * owns the frame, so anything only IT maintained (hall/yard visibility) went
+   * stale in walk mode. glowTick runs unconditionally — both tickers call this.
+   * The dOpen.bed term keeps the hall RENDERED while the bedroom door stands
+   * open, so walking up to the doorway shows the hall instead of the void. */
+  function visTick() {
+    g.visible = space !== "bedroom" || mode !== "idle" || dOpen.bed || dAnim.bed > 0.03;
+    yardG.visible = space !== "bedroom";
+    var claddingUp = space === "back" || mode === "backIn" || mode === "backOut";
+    for (var bsV = 0; bsV < bedShell.length; bsV++) bedShell[bsV].visible = claddingUp;
+    if (stashOpenKey && mode !== "idle") closeStash();   // walking away shuts the box
+  }
   function glowTick(t, dt, dim) {
+    visTick();
     var on = lightsOn ? 1 : 0.06;
     var breathe = 0.94 + 0.06 * Math.sin(t * 0.8);
     /* asymmetric on purpose (the lighting pass): three identical 3.4 bulbs lit
      * the hall to an even amber wash — the flattest space per light spent.
      * bulbS by the bedroom door stays the key; the corridor now has brighter
      * and dimmer stretches, and the cool fill gives shadows a temperature. */
-    [[bulbS, 3.4], [bulbN, 2.0], [bulbB, 2.6]].forEach(function (p) {
+    [[bulbS, 4.3], [bulbN, 2.6], [bulbB, 3.3]].forEach(function (p) {
       var b = p[0], k9 = p[1] / 3.4;
       b.light.intensity = p[1] * dim * on * breathe;
       b.bulb.material.emissiveIntensity = 2.0 * k9 * dim * on;
       if (b.halo) b.halo.material.opacity = 0.34 * k9 * dim * on * breathe;
     });
-    hallFill.intensity = 0.34 * dim * on;
+    hallFill.intensity = 0.44 * dim * on;
     for (var dl6 = 0; dl6 < dimLights.length; dl6++) dimLights[dl6].l.intensity = dimLights[dl6].base * dim;
     /* the living room and the landing, which used to be outside every ticker in the
      * file. Same `dim * on * breathe` term as the hall bulbs so they read as being on
@@ -9626,8 +9700,8 @@ export function buildHallway(ctx) {
     if (livLightH) {
       var lon = livOn ? 1 : 0.05;
       // living: 23.9 luma post-sRGB, k=2.35 measured to reach 33 — moody but readable
-      livLightH.lamp.intensity = 1.95 * dim * lon * breathe;
-      livLightH.ceil.intensity = 0.72 * dim * lon * breathe;   // 2.7:1 to the lamp — the pool reads
+      livLightH.lamp.intensity = 2.35 * dim * lon * breathe;
+      livLightH.ceil.intensity = 0.95 * dim * lon * breathe;   // 2.5:1 to the lamp — the pool reads
       livLightH.shade.emissiveIntensity = 0.50 * dim * lon;
       livLightH.bowl.emissiveIntensity = 0.42 * dim * lon;
       // the set flickers on its own schedule — a CRT does not breathe with the house
@@ -9638,8 +9712,8 @@ export function buildHallway(ctx) {
     if (upLightH) {
       var uon = upOn ? 1 : 0.05;
       // the landing dropped 36 luma in the sRGB fix — the biggest fall in the house
-      upLightH.a.intensity = 1.90 * dim * uon * breathe;
-      upLightH.b.intensity = 0.62 * dim * uon * breathe;   // west end dims — corridor depth
+      upLightH.a.intensity = 2.3 * dim * uon * breathe;
+      upLightH.b.intensity = 0.85 * dim * uon * breathe;   // west end dims — corridor depth
       upLightH.bulbA.emissiveIntensity = 1.10 * dim * uon;
       upLightH.bulbB.emissiveIntensity = 0.80 * dim * uon;
       /* ⚠️ THE SMOKE ALARM'S LED WAS A CONSTANT. It is the cheapest possible ambient
@@ -9657,7 +9731,7 @@ export function buildHallway(ctx) {
     }
     // the garage bulb answers its own chain, not the hall switch
     var gon = garOn ? 1 : 0.03;
-    garLite.intensity = 1.7 * dim * gon * breathe;
+    garLite.intensity = 2.1 * dim * gon * breathe;
     gBulb.material.emissiveIntensity = 1.6 * dim * gon;
     gSpill.material.opacity = 0.12 * dim * gon;
     poolTick(t, dt);   // the water never stops, even seen through the glass
@@ -9683,8 +9757,8 @@ export function buildHallway(ctx) {
     // tiniest bit — that's the compressor cycling, which is the hum made visible
     /* kitchen: measured 128 mean luma against the bedroom's 40 — three families too
      * bright, mostly its own lights. Binary-searched to ~88 at k=0.42 of the old set. */
-    kLight.intensity = 0.78 * dim;   // compensates the tighter decay at the table
-    kFill.intensity = 0.12 * dim;
+    kLight.intensity = 1.08 * dim;   // compensates the tighter decay at the table
+    kFill.intensity = 0.16 * dim;
     kUnder.intensity = 0.55 * dim * kStripOn;
     strip.material.emissiveIntensity = 0.9 * dim * kStripOn;
     frGlow.intensity = (0.24 + 0.06 * Math.sin(t * 1.7)) * dim;
@@ -9698,6 +9772,28 @@ export function buildHallway(ctx) {
     cloAnim += (target - cloAnim) * Math.min(1, dt * 7);
     cloDoorP.rotation.y = cloAnim;
     bfB.rotation.y = -2 * cloAnim;
+    /* the walk-mode door swings — same lazy ease. Idle-gated so a flight's
+     * per-frame pivot writes are never fought; the flag syncs at each flight's
+     * end keep the two systems agreeing about every door's pose. */
+    if (mode === "idle") {
+      dAnim.bed += ((dOpen.bed ? 2.6 : 0) - dAnim.bed) * Math.min(1, dt * 7);
+      if (ctx.doorPivot) ctx.doorPivot.rotation.y = dAnim.bed;
+      dAnim.kit += ((dOpen.kit ? -2.0 : 0) - dAnim.kit) * Math.min(1, dt * 7);
+      kDoorPivot.rotation.y = dAnim.kit;
+      dAnim.liv += ((dOpen.liv ? 2.05 : 0) - dAnim.liv) * Math.min(1, dt * 7);
+      lDoorPivot.rotation.y = dAnim.liv;
+      dAnim.gar += ((dOpen.gar ? 2.0 : 0) - dAnim.gar) * Math.min(1, dt * 7);
+      gDoorPivot.rotation.y = dAnim.gar;
+      dAnim.front += ((dOpen.front ? -1.95 : 0) - dAnim.front) * Math.min(1, dt * 7);
+      fPivot.rotation.y = dAnim.front;
+      dAnim.back += ((dOpen.back ? 1 : 0) - dAnim.back) * Math.min(1, dt * 7);
+      slideK(dAnim.back);
+      for (var rd9 = 0; rd9 < 3; rd9++) {
+        var rk9 = "r" + rd9;
+        dAnim[rk9] += ((dOpen[rk9] ? 1 : 0) - dAnim[rk9]) * Math.min(1, dt * 7);
+        if (roomDoors[rd9]) roomDoors[rd9].rotation.y = roomDoorRest[rd9] + dAnim[rk9] * (1.92 - roomDoorRest[rd9]);
+      }
+    }
     // the big garage door rolls the same lazy way — slower, it weighs a lot more
     if (Math.abs(rollTarget - rollA) > 0.0004) {
       rollA += (rollTarget - rollA) * Math.min(1, dt * 1.6);
@@ -9816,6 +9912,7 @@ export function buildHallway(ctx) {
     active: function () { return space !== "bedroom" || mode !== "idle"; },
     busy: function () { return mode !== "idle"; },
     enter: enter, leave: leave, toggleDoor: toggleDoor,
+    setSpaceQuiet: setSpaceQuiet, doorOpen: function (f9) { return !!dOpen[f9]; },
     forceExit: function () { // bfcache restore etc: no walking, just be back home
       mode = "idle"; space = "bedroom";
       facing = turnTo = "north"; turnK = 1;
@@ -9824,6 +9921,7 @@ export function buildHallway(ctx) {
       fPivot.rotation.y = 0; kDoorPivot.rotation.y = 0; figT = 0; figG.visible = false;
       yardG.visible = false;   // camTick would do it next frame, but bfcache may not get one
       cloOpen = false; cloAnim = 0; cloDoorP.rotation.y = 0;
+      Object.keys(dOpen).forEach(function (k9) { dOpen[k9] = false; dAnim[k9] = 0; });
       gDoorPivot.rotation.y = 0; rollTarget = 0; rollA = 0; applyRoll(0);
       slideK(0);
     },

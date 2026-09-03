@@ -2046,6 +2046,7 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
      * drawer straight onto the paint tab for the room you are standing in */
     openPaint: function () { decorSet(true); dwTab("paint"); },
     openGame: openGame, // every hallway portal opens over the frozen house
+    isWalking: function () { return tp.on; }, // door clicks toggle a swing instead of a flight
     onEnter: function () { // leaving the bedroom tidies up after itself
       if (decorMode) decorSet(false);
       endTour(true);
@@ -3724,8 +3725,8 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
   ];
   var KID_LIVING_OBSTACLES = [
     { x: -12.60, z: 1.02, r: 1.05 },   // the good couch
-    { x: -12.60, z: 3.58, r: 0.75 },   // the big set
-    { x: -12.60, z: 2.30, r: 0.70 },   // the coffee table
+    { x: -12.60, z: 3.58, r: 0.68 },   // the big set
+    { x: -13.30, z: 2.16, r: 0.64 },   // the coffee table (front-left of the couch — the couch–TV lane is open)
     { x: -16.35, z: 3.50, r: 0.40 },   // the corner lamp
   { x: -15.45, z: 1.95, r: 0.55 },   // the reading chair (v81)
   ];
@@ -7068,6 +7069,28 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
    * ⚠️ those boxes are CAMERA clamps, padded ~0.15-0.20 OUTWARD past the real wall,
    * so the margin taken off them is bigger than the bedroom's — whose box is authored
    * tight to WALL_X here. Getting that backwards lets him stand inside the plaster. */
+  /* THE WALKABLE DOORWAYS (Kyle: seamless — open a door and just walk through).
+   * plane/at = the wall plane, span = the opening along the other axis, neg/pos
+   * = which space lies on each side of the plane. Same-floor pairs only: the
+   * stairs stay click-to-fly (there is no walkable stair geometry). World
+   * coords from the door builders; the r0-r2 spans are doorX ± 0.46. */
+  var DOORWAYS = [
+    { plane: "x", at: -4.30, span: [1.66, 2.54], y: 0,       flag: "bed",   neg: "hall",    pos: "bedroom" },
+    { plane: "x", at: -7.45, span: [-0.85, 0.15], y: 0,      flag: "kit",   neg: "kitchen", pos: "hall" },
+    { plane: "x", at: -7.45, span: [1.46, 2.36], y: 0,       flag: "liv",   neg: "living",  pos: "hall" },
+    { plane: "x", at: -7.45, span: [7.47, 8.47], y: 0,       flag: "gar",   neg: "garage",  pos: "hall" },
+    { plane: "z", at: -3.45, span: [-6.18, -5.22], y: 0,     flag: "front", neg: "porch",   pos: "hall" },
+    { plane: "z", at: 8.80, span: [-5.88, -4.80], y: 0,      flag: "back",  neg: "hall",    pos: "back" },
+    { plane: "z", at: 1.05, span: [-12.66, -11.74], y: 3.45, flag: "r0",    neg: "room0",   pos: "upstairs" },
+    { plane: "z", at: 1.05, span: [-4.06, -3.14], y: 3.45,   flag: "r1",    neg: "room1",   pos: "upstairs" },
+    { plane: "z", at: 1.05, span: [1.44, 2.36], y: 3.45,     flag: "r2",    neg: "room2",   pos: "upstairs" },
+  ];
+  function quietCross(sp) {
+    try { hall.setSpaceQuiet(sp); } catch (e) { }
+    kidSpace = sp;
+    kidState.ignoreObs = -1;   // obstacle indices mean different things per space
+    kidFollowT = -1; kidFollowTo = null;   // the boy IS the player — no follow-teleport
+  }
   var TP_BEDROOM = { x: [-4.25, 4.25], z: [-2.55, 3.45] };
   function tpBounds() {
     var b = null;
@@ -7076,8 +7099,25 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
   }
   function tpClamp() {
     var B = tpBounds(), b = B.box, m = B.m;
-    kid.position.x = Math.max(b.x[0] + m, Math.min(b.x[1] - m, kid.position.x));
-    kid.position.z = Math.max(b.z[0] + m, Math.min(b.z[1] - m, kid.position.z));
+    /* THE DOORWAY CARVE: while an OPEN door's mouth contains him, the wall
+     * plane on the crossing axis stands aside. A closed door blocks exactly as
+     * before, because without the carve this IS the old clamp. */
+    var carveX = false, carveZ = false;
+    for (var dwc = 0; dwc < DOORWAYS.length; dwc++) {
+      var dc = DOORWAYS[dwc];
+      if (kidSpace !== dc.neg && kidSpace !== dc.pos) continue;
+      if (Math.abs(kid.position.y - dc.y) > 1) continue;
+      var cpc = dc.plane === "x" ? kid.position.x : kid.position.z;
+      var spc = dc.plane === "x" ? kid.position.z : kid.position.x;
+      if (spc < dc.span[0] + KID_R || spc > dc.span[1] - KID_R) continue;
+      if (Math.abs(cpc - dc.at) > 0.9) continue;
+      var open9 = false;
+      try { open9 = hall.doorOpen(dc.flag); } catch (e9) { }
+      if (!open9) continue;
+      if (dc.plane === "x") carveX = true; else carveZ = true;
+    }
+    if (!carveX) kid.position.x = Math.max(b.x[0] + m, Math.min(b.x[1] - m, kid.position.x));
+    if (!carveZ) kid.position.z = Math.max(b.z[0] + m, Math.min(b.z[1] - m, kid.position.z));
     /* ⚠️ y is CLAMPED, never lerped. The house has three floor levels (the second
      * storey sits at 3.45) and a helper that dragged him toward 0 once walked him
      * through the landing and along the inside of the hall ceiling. Clamping can only
@@ -7210,6 +7250,15 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
     if (step > cap) step = cap; else if (step < -cap) step = -cap;
     tp.yaw += step;
     tpClamp();   // a space change can strand him outside the new room's box
+    for (var dwi = 0; dwi < DOORWAYS.length; dwi++) {
+      var dw = DOORWAYS[dwi];
+      if (kidSpace !== dw.neg && kidSpace !== dw.pos) continue;
+      if (Math.abs(kid.position.y - dw.y) > 1) continue;
+      var sp9 = dw.plane === "x" ? kid.position.z : kid.position.x;
+      if (sp9 < dw.span[0] || sp9 > dw.span[1]) continue;
+      var side9 = (dw.plane === "x" ? kid.position.x : kid.position.z) < dw.at ? dw.neg : dw.pos;
+      if (side9 !== kidSpace) { quietCross(side9); break; }
+    }
     updateRoomShell();
     var fy = kid.position.y;
     var cx = kid.position.x - Math.sin(tp.yaw) * TP_DIST;
