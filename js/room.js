@@ -239,8 +239,8 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
   boot.onReady = function (fn) { boot.ready ? fn() : boot.listeners.push(fn); };
   function bootNotify() { var l = boot.listeners; boot.listeners = []; l.forEach(function (f) { try { f(); } catch (e) { } }); }
   function bootDone() {
-    if (boot.ready) return;
-    boot.ready = true;
+    if (boot.ready || boot.compiling) return;
+    boot.compiling = true;
     /* ⚠️ THIS is the anti-glitch step, not the waiting. A material compiles its
      * GPU program the first time it is rendered, and this room has hundreds — so
      * the first seconds of walking around used to stutter as each new surface came
@@ -264,19 +264,32 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
     try { _hg = (typeof hall !== "undefined" && hall) ? hall.group : null; } catch (e) { }
     var _hgVis = _hg ? _hg.visible : null;
     if (_hg) _hg.visible = true;
-    try { (post && post.compileFor) ? post.compileFor(scene, camera) : renderer.compile(scene, camera); } catch (e) { }
-    /* and DRAW it once: compile builds programs but does not upload geometry or
-     * textures — the first real house frame still paid ~470 ms of first-bind
-     * uploads. The door card is a full-screen DOM overlay, so this frame is
-     * invisible, and the two bedroom drawFrames below repaint the canvas before
-     * the card ever lifts. */
-    try { drawFrame(); } catch (e) { }
-    if (_hg) _hg.visible = _hgVis;
-    boot.houseWarmed = true;
-    try { drawFrame(); drawFrame(); } catch (e) { }   // and warm the post chain
-    boot.compileMs = Math.round(_now() - _c0);
-    boot.tookMs = Math.round(((performance && performance.now) ? performance.now() : 0) - boot.t0);
-    bootNotify();
+    /* the compile prefers the ASYNC path (KHR_parallel_shader_compile): the
+     * driver links programs on background threads while the main thread idles
+     * behind the card. The old “one synchronous task or the house paints over
+     * the bedroom” law is now enforced by the GATE instead: tick() draws
+     * nothing until boot.ready, and ready only flips in finish() below. */
+    var finish = function () {
+      /* and DRAW it once: compile builds programs but does not upload geometry
+       * or textures — the first real house frame still paid ~470 ms of
+       * first-bind uploads. The door card is opaque; this frame is invisible,
+       * and the two bedroom drawFrames repaint before the card lifts. */
+      try { drawFrame(); } catch (e) { }
+      if (_hg) _hg.visible = _hgVis;
+      boot.houseWarmed = true;
+      try { drawFrame(); drawFrame(); } catch (e) { }   // and warm the post chain
+      boot.compileMs = Math.round(_now() - _c0);
+      boot.tookMs = Math.round(((performance && performance.now) ? performance.now() : 0) - boot.t0);
+      boot.ready = true;
+      bootNotify();
+    };
+    var syncCompile = function () {
+      try { (post && post.compileFor) ? post.compileFor(scene, camera) : renderer.compile(scene, camera); } catch (e) { }
+    };
+    var pAsync = null;
+    try { pAsync = (post && post.compileForAsync) ? post.compileForAsync(scene, camera) : null; } catch (e) { pAsync = null; }
+    if (pAsync && pAsync.then) pAsync.then(finish, function () { syncCompile(); finish(); });
+    else { syncCompile(); finish(); }
     /* ⚠️⚠️ AND NOW COMPILE THE HOUSE AGAINST THE HOUSE'S OWN LIGHTS.
      * The compile above is not wasted, but it is compiled against the wrong world.
      * three.js bakes NUM_POINT_LIGHTS / NUM_DIR_LIGHTS / NUM_HEMI_LIGHTS into the
@@ -7387,6 +7400,9 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
     requestAnimationFrame(tick);
     // a game has the screen: the whole house holds its breath (and its GPU)
     if (gamePaused) { lastT = performance.now() / 1000; return; }
+    // behind the opaque enter card there is nothing to draw — every frame here
+    // would be pure cost, and the first one is the six-second compile
+    if (!boot.ready) { lastT = performance.now() / 1000; return; }
     var t = performance.now() / 1000, dt = Math.min(t - lastT, 0.1); lastT = t;
     // with no pointer to follow (phones, or just resting), take a slow look around
     var idle = t - pointerMovedAt > 6;
@@ -7883,11 +7899,16 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
     renderOutside(camera.position.x);
     drawFrame();
   }
-  // Bake world matrices + paint one frame immediately, so picking works even
-  // before the animation loop has run (background tabs throttle rAF).
+  /* ⚠⚠ NO EVAL-TIME drawFrame. That one call cost 6.2 SECONDS (measured by
+   * bisection) — the synchronous first-frame shader compile + texture upload of
+   * the whole bedroom, executed during module eval, behind an OPAQUE enter card,
+   * and blocking the bedroom GLB fetches until it finished (they queued at
+   * t+7.1s). Picking only ever needed the MATRICES, which the bake below
+   * provides. The compile/upload work now happens once, inside bootDone’s
+   * behind-the-card compile, overlapped with nothing the user can see — and
+   * tick() skips rendering until the gate opens for the same reason. */
   scene.updateMatrixWorld(true);
   updateRoomShell();
-  drawFrame();
   tick();
   /* ============================================================================
    * ROOM AUDIT — run `__room.audit()` in the console.

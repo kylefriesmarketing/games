@@ -237,6 +237,22 @@ export function createPost(renderer, scene, camera) {
     renderer.setRenderTarget(sceneRT);
     try { renderer.compile(sc, cam); } finally { renderer.setRenderTarget(prev); }
   };
+  /* the async twin: KHR_parallel_shader_compile lets the driver link programs on
+   * its own threads instead of stalling ours per-program. Same sceneRT binding
+   * (toneMapping is part of the program cache key). Returns null when the
+   * renderer cannot do it — the caller falls back to the sync path. Nothing may
+   * RENDER while this is pending; the boot gate guarantees that. */
+  api.compileForAsync = function (sc, cam) {
+    if (!renderer.compileAsync) return null;
+    var prev = renderer.getRenderTarget();
+    if (api.available && api.enabled) renderer.setRenderTarget(sceneRT);
+    var done = function () { renderer.setRenderTarget(prev); };
+    try {
+      return renderer.compileAsync(sc, cam).then(
+        function (v) { done(); return v; },
+        function (e) { done(); throw e; });
+    } catch (e) { done(); return null; }
+  };
   api.render = function () {
     if (!api.enabled) { renderer.setRenderTarget(null); renderer.render(scene, camera); return; }
     // 1) the room, into HDR (linear — tone mapping does not run for a non-null target)
