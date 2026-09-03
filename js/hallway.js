@@ -7840,8 +7840,15 @@ export function buildHallway(ctx) {
    * diving under a forward overhang at the top — the art tucks under the hood
    * like a real recessed CRT. h is measured ALONG the raked face (vertical
    * print height / cos(tilt)), and the seat rides 5-6 mm proud of the face. */
-  [[cabBR, 'arcade1', { cx: 0.016, cy: 0.928, w: 0.469, h: 0.377, tilt: -0.48, z: 0.041 }],
-   [cabTLI, 'arcade2', { cx: 0.000, cy: 1.009, w: 0.460, h: 0.283, tilt: -0.224, z: 0.0595 }]].forEach(function (pair) {
+  /* v88 (Kyle: TLI too small at the top, BR too high/tilted with screen bare):
+   * rects grown from the PRINT zones to the full monitor OPENINGS — the mask
+   * margins are transparent, so the plane overhangs while its LIT region fills
+   * the opening exactly (lit = 0.859 x 0.854 of the plane). BR re-profiled to
+   * y 0.55..1.08: its recess is a convex curve; best-fit plane over the usable
+   * face (y 0.59..1.00) is 18.5 deg — more upright — with the whole plane
+   * biased 2 cm proud so the mid-curve bulge never buries it. */
+  [[cabBR, 'arcade1', { cx: 0.020, cy: 0.7945, w: 0.477, h: 0.503, tilt: -0.323, z: 0.099 }],
+   [cabTLI, 'arcade2', { cx: -0.004, cy: 1.033, w: 0.519, h: 0.454, tilt: -0.224, z: 0.058 }]].forEach(function (pair) {
     var cab5 = pair[0];
     var scr5 = cab5.children[23];
     crtMask(scr5.material, 0.12);
