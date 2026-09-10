@@ -590,7 +590,7 @@ document.getElementById("room-return").addEventListener("click", function(e){ e.
    * it, and ev.filename is empty for a resource failure. Capture is the only way to
    * hear it, and the target tells you it was a script. */
   window.addEventListener("error", function (ev) {
-    if (window.__roomBoot) return;
+    if (window.__roomEnter) return;   // the room is only really up once its tail has run — __roomBoot alone is set early in eval
     var t = ev && ev.target;
     if (t && (t.tagName === "SCRIPT" || (ev.filename || "").indexOf(".js") >= 0))
       fallBackToList("the room didn't load — here's the list");
@@ -626,6 +626,10 @@ document.getElementById("room-return").addEventListener("click", function(e){ e.
   function stepInside(){
     if (!enterEl || enterEl.classList.contains("gone")) return;
     if (!roomReady) { wanted = true; if (txt) txt.textContent = "one moment — nearly there"; return; }
+    /* ⚠️ the boot gate can close while the module graph has DIED after it (a late
+     * ReferenceError at the tail of room.js, 2026-09-10): the card said 'ready' and
+     * the click did nothing, forever. No door = the list. */
+    if (!window.__roomEnter) { fallBackToList("the room didn't finish loading — here's the list"); return; }
     enterEl.classList.add("gone");
     window.__entered = true;
     if (window.__roomEnter) window.__roomEnter();

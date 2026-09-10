@@ -15,7 +15,7 @@
  * several a day — deleted 13 MB of props along with the code and every visitor
  * re-downloaded the entire house. The shell is bumped freely; the asset bucket is
  * bumped only when a prop is re-exported under a name it already had. */
-var SHELL_CACHE = "the-room-shell-v99"; // v99: den.js shipped (v98 imported it without committing it — the house was dead on live), photo wall depth fix
+var SHELL_CACHE = "the-room-shell-v100"; // v100: den.js consistent again (v99 shipped a mid-edit snapshot that called finishSurfaces before it existed); the enter card falls back to the list if the room dies late
 var ASSET_CACHE = "the-room-assets-v1"; // bump ONLY when an existing asset changes
 var CACHE = SHELL_CACHE;                // kept: older code in this file reads it
 var SHELL = ["./", "./index.html", "./manifest.webmanifest", "./icon.svg",
