@@ -304,6 +304,14 @@ export function createPost(renderer, scene, camera) {
     });
   };
 
+  /* while a game runs in the overlay the house draws nothing, but ~150 MB of HDR
+   * MSAA + bloom targets stayed resident under the game's own WebGL app. Dispose
+   * the three targets only — the renderer re-allocates a disposed target on its
+   * next setRenderTarget, so nothing needs restoring (materials/quad stay). */
+  api.release = function () {
+    try { renderer.setRenderTarget(null); } catch (e) { }
+    sceneRT.dispose(); bloomA.dispose(); bloomB.dispose();
+  };
   api.dispose = function () {
     sceneRT.dispose(); bloomA.dispose(); bloomB.dispose();
     brightMat.dispose(); blurMat.dispose(); compMat.dispose(); quad.dispose();

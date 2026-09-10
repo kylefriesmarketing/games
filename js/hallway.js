@@ -752,8 +752,32 @@ export function buildHallway(ctx) {
     });
     // the front window: this room looks down the drive at the street
     var LWZ = LIV.z0 + 1.30, LWW = 1.70, LWY0 = 0.95, LWY1 = 2.10;
+    /* the view: every other window in the house shows SOMETHING; this one was a
+     * flat pale rectangle (photographed). Painted like the kitchen's: night sky,
+     * the drive running down to the street, the house across the road with its
+     * windows lit, a streetlight. Same canvas as map and emissiveMap so it glows
+     * softly like a lit window without lifting the frame around it. */
+    var lWinT = canvasTex(256, 176, function (c, w, h2) {
+      var sk = c.createLinearGradient(0, 0, 0, h2);
+      sk.addColorStop(0, "#101a33"); sk.addColorStop(0.55, "#22314e"); sk.addColorStop(1, "#3a4a5c");
+      c.fillStyle = sk; c.fillRect(0, 0, w, h2);
+      c.fillStyle = "#e9e4c8"; c.beginPath(); c.arc(w * 0.78, h2 * 0.18, 9, 0, Math.PI * 2); c.fill();   // the moon
+      c.fillStyle = "rgba(233,228,200,0.18)"; c.beginPath(); c.arc(w * 0.78, h2 * 0.18, 16, 0, Math.PI * 2); c.fill();
+      c.fillStyle = "#1c2620";                                                       // the house across the road
+      c.fillRect(w * 0.10, h2 * 0.40, w * 0.36, h2 * 0.22);
+      c.beginPath(); c.moveTo(w * 0.08, h2 * 0.40); c.lineTo(w * 0.28, h2 * 0.27); c.lineTo(w * 0.48, h2 * 0.40); c.closePath(); c.fill();
+      c.fillStyle = "#ffd98a"; c.fillRect(w * 0.16, h2 * 0.46, w * 0.06, h2 * 0.08); c.fillRect(w * 0.34, h2 * 0.46, w * 0.06, h2 * 0.08); // lit windows
+      c.fillStyle = "#2c3438"; c.fillRect(0, h2 * 0.62, w, h2 * 0.10);                   // the road
+      c.fillStyle = "#5a5650"; c.fillRect(w * 0.44, h2 * 0.72, w * 0.16, h2 * 0.28);      // the drive, running down to it
+      c.fillStyle = "#16210f"; c.fillRect(0, h2 * 0.72, w * 0.44, h2 * 0.28); c.fillRect(w * 0.60, h2 * 0.72, w * 0.40, h2 * 0.28); // lawn
+      c.fillStyle = "#8a8f96"; c.fillRect(w * 0.66, h2 * 0.30, 3, h2 * 0.34);            // the streetlight
+      var gl = c.createRadialGradient(w * 0.67, h2 * 0.30, 2, w * 0.67, h2 * 0.30, 26);
+      gl.addColorStop(0, "rgba(255,224,160,0.9)"); gl.addColorStop(1, "rgba(255,224,160,0)");
+      c.fillStyle = gl; c.fillRect(w * 0.67 - 26, h2 * 0.30 - 26, 52, 52);
+    });
+    lWinT.colorSpace = THREE.SRGBColorSpace;
     var glass = new THREE.Mesh(new THREE.PlaneGeometry(LWW, LWY1 - LWY0),
-      new THREE.MeshStandardMaterial({ color: 0x2a3a4e, emissive: 0x8fa6c8, emissiveIntensity: 0.4, roughness: 0.2 }));
+      new THREE.MeshStandardMaterial({ map: lWinT, emissive: 0xffffff, emissiveMap: lWinT, emissiveIntensity: 0.55, roughness: 0.2 }));
     /* ⚠️ THE SIGN. PlaneGeometry's front normal is +Z; rotating it about Y by θ gives
      * (sinθ, 0, cosθ). At -π/2 that is due WEST — out through the wall this window is
      * set into — and the material is FrontSide, so the room's most centred object was
@@ -3428,10 +3452,10 @@ export function buildHallway(ctx) {
   apron.position.set(KX0 + 0.07, 1.42, -0.62); apron.rotation.y = Math.PI / 2; apron.rotation.z = 0.04; kadd(apron);
   var apHook = new THREE.Mesh(new THREE.CylinderGeometry(0.012, 0.012, 0.09, 8), mat(0x8f959b, 0.4));
   apHook.rotation.z = Math.PI / 2; apHook.position.set(KX0 + 0.05, 1.74, -0.62); kadd(apHook);
-  var ssName = (function () { try { return localStorage.getItem("ss-name") || null; } catch (e) { return null; } })();
-  var ssHint = ssName
+  var ssNameRead = function () { try { return localStorage.getItem("ss-name") || null; } catch (e) { return null; } }; var ssName = ssNameRead();
+  var ssHint = function () { ssName = ssNameRead(); return ssName
     ? "SHORT STAFFED — " + ssName + "'s apron, still on the hook · click to take a shift"
-    : "SHORT STAFFED — somebody's shift starts eventually · click to clock in";
+    : "SHORT STAFFED — somebody's shift starts eventually · click to clock in"; };
   function ssGo() { ctx.openGame("https://kylefriesmarketing.github.io/short-staffed/"); } ssGo.__nav = "https://kylefriesmarketing.github.io/short-staffed/";
   [apron, apHook].forEach(function (m) { ktag(m, "SHORT STAFFED", ssGo, ssHint); });
   /* the ticket wheel — world.js:581, the most diner object there is — on a little
@@ -3528,10 +3552,10 @@ export function buildHallway(ctx) {
       c.fillText("the grand", w / 2, 12); c.fillText("ol' sudsy", w / 2, 22);
     }) }));
   champTag.position.set(0.19, 0.05, 0.066); champTag.rotation.x = -0.18; brewG.add(champTag);
-  var brewHas = (function () { try { return !!localStorage.getItem("mybrew-save-v1"); } catch (e) { return false; } })();
-  var brewHint = brewHas
+  var brewHasRead = function () { try { return !!localStorage.getItem("mybrew-save-v1"); } catch (e) { return false; } }; var brewHas = brewHasRead();
+  var brewHint = function () { brewHas = brewHasRead(); return brewHas
     ? "HOME BREW — the brewery's still running · click to check the tanks"
-    : "HOME BREW — the first batch brews itself · click to open the brewery";
+    : "HOME BREW — the first batch brews itself · click to open the brewery"; };
   function brewGo() { ctx.openGame("https://kylefriesmarketing.github.io/home-brew/"); } brewGo.__nav = "https://kylefriesmarketing.github.io/home-brew/";
   brewG.traverse(function (o) { if (o.isMesh) ktag(o, "HOME BREW", brewGo, brewHint); });
   /* the baked six-pack (it says HOMEBREW on the bottle). The tier-menu chalk plane
@@ -4277,7 +4301,7 @@ export function buildHallway(ctx) {
    * about a man who never leaves his home town, hung on the lamp that has buzzed
    * over this street forever. The crate in the hall stays as scenery; the DOORWAY
    * is out here now, under the light where you'd actually stand at 2am. */
-  var vlSave = (function () {
+  var vlSaveRead = function () {
     try {
       var m = JSON.parse(localStorage.getItem("vl-meta-v1") || "null");
       if (!m || !(m.runs > 0)) return null;
@@ -4285,11 +4309,11 @@ export function buildHallway(ctx) {
       ["window", "blind", "drop", "dog"].forEach(function (n) { if (k[n]) known++; });
       return { runs: m.runs, known: known };
     } catch (e) { return null; }
-  })();
-  var vlLampHint = vlSave
+  }; var vlSave = vlSaveRead();
+  var vlLampHint = function () { vlSave = vlSaveRead(); return vlSave
     ? "VICTORY LAP — " + vlSave.runs + " week" + (vlSave.runs === 1 ? "" : "s") + " tried, " +
       vlSave.known + "/4 of the town learned · one more"
-    : "VICTORY LAP — an open town you keep not leaving · click to try the week";
+    : "VICTORY LAP — an open town you keep not leaving · click to try the week"; };
   function vlGo() { ctx.openGame("https://kylefriesmarketing.github.io/victory-lap/"); } vlGo.__nav = "https://kylefriesmarketing.github.io/victory-lap/";
   [slPost, slHead, slLamp].forEach(function (m) { ytag(m, "VICTORY LAP", vlGo, vlLampHint); });
   // a flyer taped to the pole, the way game doorways get marked out here
@@ -4420,15 +4444,15 @@ export function buildHallway(ctx) {
    * integer and PLURALISING it. The count could never exceed one, so "N bags on the
    * kerb" was a fiction; what the flag actually means is "you have bagged at least
    * once". The real progress number lives in fc-save.done, so use that. */
-  var fcLawns = (function () { try {
+  var fcLawnsRead = function () { try {
     var m = JSON.parse(localStorage.getItem("fc-save") || "null");
     var c = m && m.done ? Object.keys(m.done).length : 0;
     if (c && m.done.daily) c -= 1;
     return c;
-  } catch (e) { return 0; } })();
-  var fcHint = fcLawns > 0
+  } catch (e) { return 0; } }; var fcLawns = fcLawnsRead();
+  var fcHint = function () { fcLawns = fcLawnsRead(); return fcLawns > 0
     ? "FRESH CUT — " + fcLawns + " of 48 lawns cut · the grass grew back"
-    : "FRESH CUT — the lawn won't mow itself · click to start the mower";
+    : "FRESH CUT — the lawn won't mow itself · click to start the mower"; };
   function fcGo() { ctx.openGame("https://kylefriesmarketing.github.io/fresh-cut/"); } fcGo.__nav = "https://kylefriesmarketing.github.io/fresh-cut/";
   mowG.traverse(function (o) { if (o.isMesh) ytag(o, "FRESH CUT", fcGo, fcHint); });
   /* the baked mower — swapped INSIDE mowG so the toolbox stash's visibility toggle
@@ -5973,10 +5997,10 @@ export function buildHallway(ctx) {
    * pens fenced with lolly sticks, a hand-lettered sign, and the animals sorted
    * into them — which is the game, in miniature, before you have played it.
    * West of the pool on open lawn, clear of the slip 'n slide and the grill. */
-  var zooSave = (function () {
+  var zooSaveRead = function () {
     try { var M = JSON.parse(localStorage.getItem("ctz-meta-v1") || "null");
       return (M && M.lifetime) || 0; } catch (e) { return 0; }
-  })();
+  }; var zooSave = zooSaveRead();
   var zooG = new THREE.Group(); zooG.position.set(XC - 2.35, GROUND, Z_S + 6.05);
   zooG.rotation.y = 0.28; badd(zooG);
   var zooParts = [];
@@ -6104,10 +6128,9 @@ export function buildHallway(ctx) {
     new THREE.MeshBasicMaterial({ transparent: true, opacity: 0, depthWrite: false }));
   zooHit.position.set(-0.02, 0.22, 0.02); zooG.add(zooHit);
   [zooHit].forEach(function (m) {
-    btag(m, "CLEAN THE ZOO", hgo("https://kylefriesmarketing.github.io/clean-the-zoo/"),
-      zooSave
+    btag(m, "CLEAN THE ZOO", hgo("https://kylefriesmarketing.github.io/clean-the-zoo/"), function () { zooSave = zooSaveRead(); return zooSave
         ? "CLEAN THE ZOO — " + zooSave + " animal" + (zooSave === 1 ? "" : "s") + " home so far · click for the rest"
-        : "CLEAN THE ZOO — 1,500 animals, ten habitats, one very long morning");
+        : "CLEAN THE ZOO — 1,500 animals, ten habitats, one very long morning"; });
   });
 
   /* ---- SURF: the boogie board dropped on the pool deck ---------------------------
@@ -6226,12 +6249,12 @@ export function buildHallway(ctx) {
    * the lawn with the shelf of waiting pots beside it — which is exactly where the
    * game's whole premise lives too: you load it blind, you fire it, and you do not
    * find out what the fire did until it is cold enough to open. */
-  var kilnSave = (function () {
+  var kilnSaveRead = function () {
     try {
       var m = JSON.parse(localStorage.getItem("kiln-save") || "null");
       return m ? { firings: m.firings || 0, effects: Object.keys(m.effects || {}).length } : { firings: 0, effects: 0 };
     } catch (e) { return { firings: 0, effects: 0 }; }
-  })();
+  }; var kilnSave = kilnSaveRead();
   /* ⚠️ MEASURE THE FOOTPRINT, do not eyeball the lawn. The first spot (-9.50, 11.30)
    * put the 1.9x1.7 pad straight through the grill, which stands at x -8.9..-7.93,
    * z 11.3..12.1 — the kettle ended up sitting ON the pad. This spot is the gap
@@ -6351,10 +6374,9 @@ export function buildHallway(ctx) {
   // ⚠️ same stale-list problem: the kiln builds 17 meshes and this list named 8, so
   // the steel bands and the shelf legs answered no hover at all.
   [kBody, kLid, kDoor, spy, flue, flueCap, kShelf, kBucket].concat(kilnExtra).forEach(function (m) {
-    btag(m, "THE KILN", hgo("https://kylefriesmarketing.github.io/the-kiln/"),
-      kilnSave.firings
+    btag(m, "THE KILN", hgo("https://kylefriesmarketing.github.io/the-kiln/"), function () { kilnSave = kilnSaveRead(); return kilnSave.firings
         ? "THE KILN — " + kilnSave.firings + " firings, " + kilnSave.effects + " of 16 surfaces seen. click to load it again"
-        : "THE KILN — load it blind, fire it, and wait. you find out when it is cold. click to fire");
+        : "THE KILN — load it blind, fire it, and wait. you find out when it is cold. click to fire"; });
   });
   btag(kPad, "the kiln pad", null, "poured one weekend so the kiln would stop sinking. it worked.");
 
@@ -6633,7 +6655,7 @@ export function buildHallway(ctx) {
   [[TBL_X, TBL_Z, 0.34, 0.26, 0.42],          // the hall table
    [-6.35, -2.55, 0.42, 0.36, 0.46],          // the moving boxes under the stairs
    [STAND_X, STAND_Z, 0.16, 0.16, 0.44],      // the umbrella stand
-   [W_IN + 0.36, 7.5, 0.40, 0.62, 0.44],      // the chest freezer
+   [FRZ_X, FRZ_Z, 0.40, 0.68, 0.44],          // the chest freezer (under the flight, where it now stands)
    [E_IN - 0.62, 6.60, 0.34, 0.46, 0.34]      // the mud room's boots, in their new spot
   ].forEach(function (s) { hDecal(add, kShadeT, s[0], 0.010, s[1], s[2], s[3], s[4]); });
 
@@ -7131,14 +7153,14 @@ export function buildHallway(ctx) {
    * in the grass last August still in the tray. Leaned into the SOUTH-WEST corner
    * on purpose: it is what the arrival camera is already looking at, since grest
    * aims down the long diagonal at the bench and the pegboard. */
-  var biteSave = (function () {
+  var biteSaveRead = function () {
     try {
       var m = JSON.parse(localStorage.getItem("bite-save") || "null");
       return m ? { sp: Object.keys(m.journal || {}).length, casts: m.casts || 0,
                    mayor: !!(m.mayor && m.mayor.landed),
                    spooned: !!(m.mayor && m.mayor.hooked && !m.mayor.landed) } : { sp: 0, casts: 0, mayor: false, spooned: false };
     } catch (e) { return { sp: 0, casts: 0, mayor: false, spooned: false }; }
-  })();
+  }; var biteSave = biteSaveRead();
   var rodG = new THREE.Group();
   /* ⚠️ THE NORTH-WEST CORNER, not the south-west one it started in. From grest —
    * the spot the camera actually arrives at — the tarped project car stands square
@@ -7237,15 +7259,14 @@ export function buildHallway(ctx) {
   var biteParts = [bob, bobTop, bobAnt];
   [rodG, tackG].forEach(function (gr) { gr.traverse(function (m) { if (m.isMesh) biteParts.push(m); }); });
   biteParts.forEach(function (m) {
-    gtag(m, "BITE", hgo("https://kylefriesmarketing.github.io/bite/"),
-      biteSave.sp
+    gtag(m, "BITE", hgo("https://kylefriesmarketing.github.io/bite/"), function () { biteSave = biteSaveRead(); return biteSave.sp
         /* ⚠️ biteSave parses `casts` and `mayor` and then reads only `sp`. The mayor is
          * BITE's signature — the one fish nobody believes you caught — and it was sitting
          * parsed in a variable, unspent, one ternary away from being the best line here. */
         ? (biteSave.mayor
             ? "BITE — the mayor came up once. nobody believed it · click to go back down"
             : "BITE — " + biteSave.sp + " of 15 logged at Mud Lake. click to go back down")
-        : "BITE — quiet fishing at Mud Lake. the water tells you everything. click to go");
+        : "BITE — quiet fishing at Mud Lake. the water tells you everything. click to go"; });
   });
   // the bare bulb, and the clack it answers to
   /* THE MAYOR — 47 inches of her, as the wooden trophy nobody believes (her exact
@@ -7586,7 +7607,7 @@ export function buildHallway(ctx) {
    * screens read your saves — same origin, same trick as everything else.
    * ⚠️ toe-in: the two machines angle 3 degrees toward each other, because
    * parallel cabinets read as furniture and angled ones read as an ARCADE. */
-  var brSave = (function () {
+  var brSaveRead = function () {
     try {
       var p = JSON.parse(localStorage.getItem("br-profile-v1") || "null");
       if (!p || !p.chars) return { wins: 0, top: null };
@@ -7598,7 +7619,7 @@ export function buildHallway(ctx) {
       }
       return { wins: wins, top: top };
     } catch (e) { return { wins: 0, top: null }; }
-  })();
+  }; var brSave = brSaveRead();
   var BR_TINTS = {
     /* ⚠️ VERIFIED AGAINST bloodrift/main.mjs:44-57 — the game's own faction table:
      *   THE VANGUARD #c9a227 (gold), APEX #d4af37, THE COURT #b8434e, THE SPIRAL
@@ -7726,8 +7747,8 @@ export function buildHallway(ctx) {
   var brTint2 = (brSave.top && BR_TINTS[brSave.top]) || 0xc4232f;
   var cabBR = makeCab(0.15, -1.88, 0.05, {
     name: "BLOODRIFT", url: "https://kylefriesmarketing.github.io/bloodrift/",
-    hint: brSave.wins ? "BLOODRIFT — " + brSave.wins + " win" + (brSave.wins === 1 ? "" : "s") + " on this machine · click to fight"
-                      : "BLOODRIFT — 20 fighters, four realities, one wound · click to fight",
+    hint: function () { brSave = brSaveRead(); return brSave.wins ? "BLOODRIFT — " + brSave.wins + " win" + (brSave.wins === 1 ? "" : "s") + " on this machine · click to fight"
+                      : "BLOODRIFT — 20 fighters, four realities, one wound · click to fight"; },
     trim: 0x8e1526, btnA: 0xd94b52, btnB: 0xe0a83c, glow: brTint2,
     screen: function (g, w, h) {
       var grd = g.createLinearGradient(0, 0, 0, h);
@@ -7932,7 +7953,7 @@ export function buildHallway(ctx) {
    * is exactly that: the playmat unrolled, block towers on the corners, and the men
    * facing the gap. Set up on the floor rather than a table on purpose — this is a
    * game that got played where there was room for it. */
-  var lwSave = (function () {
+  var lwSaveRead = function () {
     try {
       var pr = JSON.parse(localStorage.getItem("lw-prefs") || "null"), best = 0, maps = 0;
       /* ⚠️ lw-prefs.mapBests holds {wave, won} OBJECTS, not numbers. Math.max against
@@ -7943,7 +7964,7 @@ export function buildHallway(ctx) {
         var mv = pr.mapBests[k]; best = Math.max(best, (typeof mv === 'number' ? mv : (mv && mv.wave)) || 0); }
       return { best: best, maps: maps };
     } catch (e) { return { best: 0, maps: 0 }; }
-  })();
+  }; var lwSave = lwSaveRead();
   /* ⚠️⚠️ THE LALLY COLUMN STOOD DEAD IN FRONT OF THIS. Measured from the resting eye
    * at (-5.30, -0.82, 3.30): the bearing to the pole is -20.8 degrees and the bearing
    * to the diorama was -21.0 — two tenths of a degree apart — so 15 of its 37 meshes,
@@ -8047,20 +8068,19 @@ export function buildHallway(ctx) {
   // ⚠️ traverse, not children: each soldier is a GROUP of four little meshes, so a
   // pass over direct children tagged the mat and the blocks and skipped every man.
   lwG.traverse(function (m) {
-    if (m.isMesh) bstag(m, "TOYBOX: LAST WATCH", hgo("https://kylefriesmarketing.github.io/last-watch/"),
-      lwSave.best
+    if (m.isMesh) bstag(m, "TOYBOX: LAST WATCH", hgo("https://kylefriesmarketing.github.io/last-watch/"), function () { lwSave = lwSaveRead(); return lwSave.best
         ? "TOYBOX: LAST WATCH — furthest wave " + lwSave.best + ". the line held that long. click to stand it again"
-        : "TOYBOX: LAST WATCH — the toys hold the line until morning, and kills pay marbles. click to take the watch");
+        : "TOYBOX: LAST WATCH — the toys hold the line until morning, and kills pay marbles. click to take the watch"; });
   });
 
   /* ---- THE HAUNT: the box that only comes up once a year ----------------------
    * It lives in the basement eleven months of the year, which is the only honest
    * place for it. Flaps open because somebody was looking for the good skull. */
-  var hauntSave = (function () {
+  var hauntSaveRead = function () {
     try { var m = JSON.parse(localStorage.getItem("haunt-save") || "null");
       return m ? { nights: m.nights || 0, guests: m.seasonGuests || 0 } : { nights: 0, guests: 0 };
     } catch (e) { return { nights: 0, guests: 0 }; }
-  })();
+  }; var hauntSave = hauntSaveRead();
   /* ⚠️ under the ping-pong table (Kyle) — which is where a box of decorations
    * actually ends up, and it is the one bit of floor in the den that is permanently
    * spoken for. The table top sits at y 0.76 with 2.45 x 1.36 of clearance under it,
@@ -8165,10 +8185,9 @@ export function buildHallway(ctx) {
    * moment anybody adds a mesh; traverse the group, the way its neighbour already does. */
   hxG.traverse(function (m) {
     if (!m.isMesh) return;
-    bstag(m, "THE HAUNT", hgo("https://kylefriesmarketing.github.io/the-haunt/"),
-      hauntSave.nights
+    bstag(m, "THE HAUNT", hgo("https://kylefriesmarketing.github.io/the-haunt/"), function () { hauntSave = hauntSaveRead(); return hauntSave.nights
         ? "THE HAUNT — " + hauntSave.nights + " nights run. click to open the gate again"
-        : "THE HAUNT — you run the haunted house. timing is the whole trick. click to open");
+        : "THE HAUNT — you run the haunted house. timing is the whole trick. click to open"; });
   });
   // light: a warm floor lamp by the couch, and a bare bulb over the stairs
   var lampPole = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.03, 1.35, 8), mat(0x8a6a44, 0.7));
@@ -9120,6 +9139,7 @@ export function buildHallway(ctx) {
     c0.copy(camera.position); l0.copy(lookAt);
   }
   function enterUpstairs() {
+    if (ctx.isWalking && ctx.isWalking()) return;   // v91: in walk mode the stairs are WALKED — a click must not fly the camera off the boy
     if (mode !== "idle" || space !== "hall") return;
     mode = "upIn"; tt = 0;
     c0.copy(camera.position); l0.copy(lookAt);
@@ -9127,6 +9147,7 @@ export function buildHallway(ctx) {
     if (turnBtn) turnBtn.style.display = "none";
   }
   function leaveUpstairs() {
+    if (ctx.isWalking && ctx.isWalking()) return;   // v91: in walk mode the stairs are WALKED — a click must not fly the camera off the boy
     if (mode !== "idle" && mode !== "turning") return;
     if (space !== "upstairs") return;
     mode = "upOut"; tt = 0;
@@ -9163,6 +9184,7 @@ export function buildHallway(ctx) {
     c0.copy(camera.position); l0.copy(lookAt);
   }
   function enterBasement() {
+    if (ctx.isWalking && ctx.isWalking()) return;   // v91: in walk mode the stairs are WALKED — a click must not fly the camera off the boy
     if (mode !== "idle" || space !== "hall") return;
     mode = "basementIn"; tt = 0;
     c0.copy(camera.position); l0.copy(lookAt);
@@ -9170,6 +9192,7 @@ export function buildHallway(ctx) {
     if (turnBtn) turnBtn.style.display = "none";
   }
   function leaveBasement() {
+    if (ctx.isWalking && ctx.isWalking()) return;   // v91: in walk mode the stairs are WALKED — a click must not fly the camera off the boy
     if (mode !== "idle" && mode !== "turning") return;
     if (space !== "basement") return;
     mode = "basementOut"; tt = 0;
@@ -9671,7 +9694,7 @@ export function buildHallway(ctx) {
    * The dOpen.bed term keeps the hall RENDERED while the bedroom door stands
    * open, so walking up to the doorway shows the hall instead of the void. */
   function visTick() {
-    g.visible = space !== "bedroom" || mode !== "idle" || dOpen.bed || dAnim.bed > 0.03;
+    g.visible = space !== "bedroom" || mode !== "idle" || ((dOpen.bed || dAnim.bed > 0.03) && (!ctx.wantsHall || ctx.wantsHall()));
     yardG.visible = space !== "bedroom";
     var claddingUp = space === "back" || mode === "backIn" || mode === "backOut";
     for (var bsV = 0; bsV < bedShell.length; bsV++) bedShell[bsV].visible = claddingUp;
@@ -9912,7 +9935,7 @@ export function buildHallway(ctx) {
     active: function () { return space !== "bedroom" || mode !== "idle"; },
     busy: function () { return mode !== "idle"; },
     enter: enter, leave: leave, toggleDoor: toggleDoor,
-    setSpaceQuiet: setSpaceQuiet, doorOpen: function (f9) { return !!dOpen[f9]; },
+    setSpaceQuiet: setSpaceQuiet, doorOpen: function (f9) { return !!dOpen[f9]; }, syncTurnBtn: syncTurnBtn, syncVis: visTick,
     forceExit: function () { // bfcache restore etc: no walking, just be back home
       mode = "idle"; space = "bedroom";
       facing = turnTo = "north"; turnK = 1;

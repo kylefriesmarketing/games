@@ -1,6 +1,12 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
+<script>
+/* framed inside the house's own game overlay (a game's 'back to the house' link
+ * navigated ITS iframe here): hand control back to the parent instead of booting
+ * a second house inside the first. */
+if (window.top !== window.self) { try { window.top.postMessage({ house: "return" }, location.origin); } catch (e) {} document.documentElement.classList.add("framed"); }
+</script>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>THE HOUSE — games by Kyle Fries</title>
@@ -115,6 +121,13 @@ body.listing #vignette,body.no3d #vignette{display:none}
   padding:8px 12px;cursor:pointer;transition:color .15s,border-color .15s,transform .15s;
   box-shadow:0 2px 10px rgba(0,0,0,.35)}
 #walk-toggle:hover{color:#ffdca0;border-color:#8a6f4a;transform:translateY(-1px)}
+html.framed body{display:none}
+#walk-pad{position:fixed;left:18px;bottom:18px;z-index:6;display:grid;grid-template-columns:repeat(3,54px);grid-template-rows:repeat(2,54px);gap:6px;touch-action:none;user-select:none;-webkit-user-select:none}
+#walk-pad[hidden],body.listing #walk-pad,body.no3d #walk-pad{display:none}
+#walk-pad button{width:54px;height:54px;border-radius:14px;border:1px solid #6a5a3a;background:rgba(20,14,8,.55);color:#ffdca0;font-size:20px;line-height:1;padding:0;touch-action:none;-webkit-tap-highlight-color:transparent}
+#walk-pad button:active{background:rgba(255,220,160,.25)}
+#walk-pad button[data-dir=up]{grid-column:2;grid-row:1}#walk-pad button[data-dir=left]{grid-column:1;grid-row:2}
+#walk-pad button[data-dir=down]{grid-column:2;grid-row:2}#walk-pad button[data-dir=right]{grid-column:3;grid-row:2}
 /* ⚠️ the top-right column runs on a 42px rhythm and room.js INJECTS into it at
    runtime: #wel-btn 64, #decor-btn 106 and #decor-nudge 142 are all injected by
    js/room.js, so the whole column below #list-toggle is spoken for — and #decor-nudge
@@ -142,11 +155,15 @@ body.listing #walk-toggle{display:none}
 /* ---- the game overlay: every portal opens HERE, over the frozen house ---- */
 #game-wrap{position:fixed;inset:0;z-index:40;background:#05070a}
 #game-wrap iframe{width:100%;height:100%;border:0;display:block}
-#game-home{position:fixed;top:14px;left:14px;z-index:41;font-family:Georgia,serif;font-size:13px;
+/* a corner tab that hugs (0,0) — 14px in was exactly where games draw their HUD */
+#game-home{position:fixed;top:0;left:0;z-index:41;font-family:Georgia,serif;font-size:13px;
   color:#f4ecd8;background:linear-gradient(rgba(30,22,14,.94),rgba(14,11,9,.94));
-  border:1px solid #8a6f4a;border-radius:9px;padding:9px 14px;cursor:pointer;opacity:.85;
-  box-shadow:0 4px 18px rgba(0,0,0,.5);transition:transform .15s,border-color .15s,opacity .15s}
-#game-home:hover{transform:translateY(-1px);border-color:#ffd9a0;color:#ffdca0;opacity:1}
+  border:1px solid #8a6f4a;border-top:0;border-left:0;border-radius:0 0 12px 0;padding:7px 12px;cursor:pointer;opacity:.82;
+  box-shadow:0 4px 18px rgba(0,0,0,.5);transition:border-color .15s,opacity .15s,padding .15s}
+#game-home .gh-l{display:none}
+#game-home:hover,#game-home:focus-visible{border-color:#ffd9a0;color:#ffdca0;opacity:1;padding:9px 16px}
+#game-home:hover .gh-s,#game-home:focus-visible .gh-s{display:none}
+#game-home:hover .gh-l,#game-home:focus-visible .gh-l{display:inline}
 
 /* ---- the notebook panel ---- */
 #notebook{position:fixed;inset:0;z-index:20;display:none;align-items:center;justify-content:center;
@@ -290,6 +307,7 @@ body.no3d #enter,body.listing #enter{display:none}
 </div>
 <button id="list-toggle" type="button">list view</button>
 <button id="walk-toggle" type="button" aria-pressed="false" title="walk the boy around the room (C)">walk</button>
+<div id="walk-pad" hidden aria-label="walk"><button data-dir="up" aria-label="forward">▲</button><button data-dir="left" aria-label="left">◀</button><button data-dir="down" aria-label="back">▼</button><button data-dir="right" aria-label="right">▶</button></div>
 <div id="tip"></div>
 
 <!-- the notebook: your progress across every game (same-origin saves) -->
@@ -594,7 +612,7 @@ document.getElementById("room-return").addEventListener("click", function(e){ e.
       var pr = boot.progress();
       if (bar) bar.style.width = Math.round((pr.settled ? pr.frac : 0.04) * 100) + "%";
       if (txt) txt.textContent = pr.settled
-        ? "unpacking the house · " + pr.done + " of " + pr.total
+        ? ((window.__roomBoot && window.__roomBoot.compiling) ? "warming up the lights…" : "unpacking the house · " + pr.done + " of " + pr.total)
         : "waking the room…";
       setTimeout(tick, 120);
     })();
@@ -649,6 +667,10 @@ document.getElementById("room-return").addEventListener("click", function(e){ e.
       return c ? c + " / 15 missions" : null;
     }
   };
+  /* re-run when a game closes in the overlay: the page no longer reloads between
+   * games, so a ✓ earned in the iframe would otherwise wait for the next visit */
+  function shelfBadges(){
+  document.querySelectorAll("#shelf-view .g-done").forEach(function(d){ d.remove(); });
   document.querySelectorAll("#shelf-view a.game").forEach(function(a){
     for (var suffix in badge) {
       if (a.href.slice(-suffix.length) === suffix) {
@@ -661,6 +683,8 @@ document.getElementById("room-return").addEventListener("click", function(e){ e.
       }
     }
   });
+  }
+  window.__shelfBadges = shelfBadges; shelfBadges();
 })();
 </script>
 </body>

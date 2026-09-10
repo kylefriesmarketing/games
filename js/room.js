@@ -269,13 +269,29 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
      * behind the card. The old “one synchronous task or the house paints over
      * the bedroom” law is now enforced by the GATE instead: tick() draws
      * nothing until boot.ready, and ready only flips in finish() below. */
+    var finished = false;
     var finish = function () {
+      /* ⚠️ idempotent: the 20 s failsafe can call this while compileAsync is still
+       * pending, and the driver's own resolve then calls it AGAIN — re-hiding the
+       * hall you are standing in for a frame and overwriting the timings. */
+      if (finished) return;
+      finished = true; boot.compiling = false; boot.forceFinish = null;
       /* and DRAW it once: compile builds programs but does not upload geometry
        * or textures — the first real house frame still paid ~470 ms of
        * first-bind uploads. The door card is opaque; this frame is invisible,
        * and the two bedroom drawFrames repaint before the card lifts. */
       try { drawFrame(); } catch (e) { }
-      if (_hg) _hg.visible = _hgVis;
+      /* and now the BEDROOM's own variants. ⚠️ the gate means NO tick has run yet,
+       * so the snapshot above read the hall as visible (a Group's default) and the
+       * 'two bedroom frames' were house frames: the first live tick then hid the
+       * hall (54 -> 10 lights = recompile), rendered the window portal for the
+       * first time (a third light set) and built the lamp's shadow map — measured
+       * 762 + 1909 + 57 ms on the first frame after the card lifted. Put the house
+       * the way the first tick will (visTick's own rule), render the portal and the
+       * shadow once, then the two bedroom frames — all in this one task. */
+      try { hall.syncVis(); } catch (e) { if (_hg) _hg.visible = _hgVis; }
+      try { portalFrame = 0; renderOutside(0); } catch (e) { }
+      try { lampLight.shadow.needsUpdate = true; } catch (e) { }
       boot.houseWarmed = true;
       try { drawFrame(); drawFrame(); } catch (e) { }   // and warm the post chain
       boot.compileMs = Math.round(_now() - _c0);
@@ -283,6 +299,7 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
       boot.ready = true;
       bootNotify();
     };
+    boot.forceFinish = finish;   // the 20s failsafe can end a compile that never settles
     var syncCompile = function () {
       try { (post && post.compileFor) ? post.compileFor(scene, camera) : renderer.compile(scene, camera); } catch (e) { }
     };
@@ -350,7 +367,11 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
       boot.timedOut = true;
       try { console.warn("[room] opening the door on a timeout — " +
         (boot.glb - boot.glbDone) + " model(s) and " + (boot.tex - boot.texDone) + " texture(s) never arrived"); } catch (e) { }
-      bootDone();
+      /* ⚠️ bootDone() is inert while boot.compiling (its re-entry guard), so a
+       * compileAsync that never settled would leave the card up for good — the
+       * exact trap this timer exists to prevent. Force the finish instead. */
+      if (boot.compiling && boot.forceFinish) { try { boot.forceFinish(); } catch (e) { } }
+      else bootDone();
     }
   }, 20000);
   // count textures where they are asked for, whoever asks
@@ -526,29 +547,81 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
     ifr.allow = "fullscreen; pointer-lock; gamepad; autoplay";
     ifr.allowFullscreen = true;
     var btn = document.createElement("button");
-    btn.id = "game-home"; btn.type = "button"; btn.textContent = "⌂ back to the house";
-    btn.addEventListener("click", closeGame);
+    btn.id = "game-home"; btn.type = "button"; btn.title = "back to the house · Esc Esc";
+    /* a corner TAB, not a chip: top-left 14px is where several games draw their
+     * own HUD. It hugs the corner and grows on hover/focus. */
+    var gs = document.createElement("span"); gs.className = "gh-s"; gs.textContent = "⌂ house";
+    var gl = document.createElement("span"); gl.className = "gh-l"; gl.textContent = "⌂ back to the house · Esc Esc";
+    btn.appendChild(gs); btn.appendChild(gl);
+    btn.addEventListener("click", function () { closeGame(); });
+    /* the iframe holds the keyboard, so the parent's Escape never fired in play.
+     * Same origin: listen inside the frame on every load (a game may navigate).
+     * Esc Esc — pointer-lock games eat the first Escape to unlock. */
+    var escAt = 0;
+    ifr.addEventListener("load", function () {
+      try {
+        ifr.contentWindow.addEventListener("keydown", function (ev) {
+          if (ev.key !== "Escape") return;
+          var now = Date.now();
+          if (now - escAt < 1200) { escAt = 0; closeGame(); } else escAt = now;
+        }, true);
+      } catch (e) { }
+    });
     gameWrap.appendChild(ifr); gameWrap.appendChild(btn);
     document.body.appendChild(gameWrap);
+    /* Back means 'back to the house', not 'leave the hub': one history entry per
+     * open game; popstate closes it; the button/Esc paths unwind through history */
+    try { history.pushState({ house: "game", url: url }, "", location.href); } catch (e) { }
     gamePaused = true; window.__gameOpen = true;
+    try { post && post.release && post.release(); } catch (e) { }   // ~150 MB of HDR/bloom targets sat under the game's own WebGL app
+    try { if (lampLight.shadow.map) { lampLight.shadow.map.dispose(); lampLight.shadow.map = null; } } catch (e) { }
     try { AUDIO.followVisibility(true); } catch (e) { }
     // nothing focuses the iframe for you — without this, WASD keeps hitting the house
     setTimeout(function () { try { ifr.focus(); } catch (e) { } }, 60);
   }
-  function closeGame() {
+  function closeGame(fromPop) {
     if (!gameWrap) return;
-    try { gameWrap.querySelector("iframe").src = "about:blank"; } catch (e) { } // encourage teardown
-    gameWrap.remove(); gameWrap = null;
+    if (fromPop !== true) {
+      /* unwind our own entry so Back after closing leaves the hub as it always did;
+       * the popstate does the teardown. If a game navigated inside its frame, Back
+       * steps THAT first and no popstate reaches us — the timer finishes the job. */
+      var ours = false; try { ours = !!(history.state && history.state.house === "game"); } catch (e) { }
+      if (ours) { history.back(); setTimeout(function () { if (gameWrap) closeGame(true); }, 250); return; }
+    }
+    gameWrap.remove(); gameWrap = null;   // (no about:blank first — that adds a frame history entry)
     gamePaused = false; window.__gameOpen = false;
-    if (window.__reloadOnGameClose) { location.reload(); return; } // a deploy landed mid-game
+    try { post && post.restore && post.restore(); } catch (e) { }   // the render targets we released for the game
+    try { lampLight.shadow.needsUpdate = true; shadowDirty = 2; } catch (e) { }
+    if (window.__reloadOnGameClose) {
+      /* a deploy landed mid-game. The old shell already has everything it needs;
+       * a silent full reload here lost the exact place the overlay exists to keep. */
+      window.__reloadOnGameClose = false;
+      try { kidSay("the house got a fresh coat while you played — it's yours next time you come in.", 5); } catch (e) { }
+    }
     try { AUDIO.followVisibility(document.hidden); } catch (e) { }
     /* no camera hard-set: zoomT = -1 hands the camera back and the per-frame
      * lerp eases it out of the lean — it reads as putting the toy down */
-    zoomT = -1; pendingNav = null; navTarget = null;
+    zoomT = -1; pendingNav = null; navTarget = null; clearTimeout(navTimer);
+    try { window.__shelfBadges && window.__shelfBadges(); } catch (e) { }   // the list view's ✓ badges re-read the saves
     if (kidState.mode === "open" || kidState.mode === "stand" || kidState.mode === "summon") {
-      kidState.mode = "roam"; kidState.via = false; kidPickStation();
+      /* a beat before he wanders: the camera is still leaned into the machine,
+       * and bolting the instant you look away read as him fleeing, not putting
+       * the toy down. 'act' falls through to roam + kidPickStation when t runs out. */
+      if (tp.on) { kidState.mode = "roam"; kidState.via = false; }   // walk mode reclaims him from 'roam' ONLY — an 'act' beat would take the controls away for 2 s
+      else {
+        kidState.mode = "act"; kidState.t = 1.8 + Math.random() * 1.5; kidState.targetY = kid.position.y;
+        kidState.via = false; kidState.station = null;
+        try { setKidAction("idle", 0.3); } catch (e) { }
+      }
     }
   }
+  window.addEventListener("popstate", function () { if (gameWrap) closeGame(true); });
+  /* a game's own 'back to the house' link navigates ITS frame to the hub — which
+   * would boot a second house inside the first. index.html tells the parent
+   * instead; the parent closes the overlay. */
+  window.addEventListener("message", function (e) {
+    if (e.origin === location.origin && e.data && e.data.house === "return") closeGame();
+  });
   var BASE = "https://kylefriesmarketing.github.io/";
   // Declared up here because BOTH the duffel bag and its wall poster read it, and the
   // poster is built earlier in the file. Empty string ⇒ both revert to "coming soon".
@@ -2060,6 +2133,13 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
     openPaint: function () { decorSet(true); dwTab("paint"); },
     openGame: openGame, // every hallway portal opens over the frozen house
     isWalking: function () { return tp.on; }, // door clicks toggle a swing instead of a flight
+    /* an open bedroom door keeps the hall (49 point lights) in every bedroom
+     * fragment for as long as it stands open. Only when it can be SEEN: the boy
+     * near the door plane, or the camera facing it. */
+    wantsHall: function () {
+      if (tp.on && kid.position.x < -1.3) return true;
+      try { return camera.getWorldDirection(_wantV).x < -0.15; } catch (e) { return true; }
+    },
     onEnter: function () { // leaving the bedroom tidies up after itself
       if (decorMode) decorSet(false);
       endTour(true);
@@ -2461,6 +2541,12 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
   window.__roomEnter = function () {
     introT = noMotion ? 1 : 0; // reduced motion skips the dolly, keeps the music
     AUDIO.start(phase.rainG); powerLED.material.color.set(0xff3b30);
+    /* ⚠️ start() sets the rain bed to the HOUR's gain — a saved 'clear' sky hissed
+     * for up to an hour, and 'storm' lacked its 1.4x. applyWeather is the one
+     * authority for that volume; and a deferred enter (clicked while loading,
+     * then tabbed away) must not start the tape in a hidden tab. */
+    try { applyWeather(); } catch (e) { }
+    try { AUDIO.followVisibility(document.hidden || gamePaused); } catch (e) { }
     kidGreet = true; // he looks up and waves as you walk in
     try { // how many times you've stepped in before (drives his greeting)
       priorVisits = parseInt(localStorage.getItem("room-visits") || "0", 10) || 0;
@@ -3523,6 +3609,17 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
      * and fades as he climbs, so the grounding is not lost — it is the same technique
      * the other eleven free-standing props use. He still RECEIVES shadow. */
     root.traverse(function (o) { if (o.isMesh) { o.castShadow = false; o.receiveShadow = true; } });
+    /* ⚠️ THE BOY WAS PITCH BLACK OUTDOORS (photographed on the porch and the
+     * lawn). His bake exported metalness 1: a pure metal has no diffuse response,
+     * so indoors he only ever showed specular glints off the close point lights,
+     * and under the distant outdoor sun with no environment map he went black.
+     * A kid in a t-shirt is not metal. */
+    root.traverse(function (o) {
+      if (!o.isMesh) return;
+      (Array.isArray(o.material) ? o.material : [o.material]).forEach(function (m) {
+        if (m && m.metalness !== undefined) { m.metalness = 0; m.roughness = Math.max(m.roughness || 0, 0.6); m.needsUpdate = true; }
+      });
+    });
     markShadowDirty(3);   // he just replaced the stand-in: redraw without him in it
     for (var pi = pick.length - 1; pi >= 0; pi--) { // retire the stand-in's clickables
       if (pick[pi].userData.name === "the kid") pick.splice(pi, 1);
@@ -3536,7 +3633,13 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
     root.scale.setScalar(1.05 / 1.3);
     root.position.set(0, 0, 0);
     window.__kidRoot = root; // debug handle for scale/anchor checks
-    root.traverse(function (o) { if (o.isMesh) { clickable(o, "the kid", null, "that's the kid — this is his room"); o.userData.roams = true; } });
+    /* ⚠️ his 31k SKINNED triangles are never raycast: one invisible capsule carries
+     * the hint (material.visible false — the renderer skips it, Mesh.raycast does
+     * not). Registering every GLB mesh cost 25-37 ms per hover pick, and in walk
+     * mode the camera parks him at the aim point. */
+    var kidHit = new THREE.Mesh(new THREE.CapsuleGeometry(0.22, 0.62, 4, 10), new THREE.MeshBasicMaterial({ visible: false }));
+    kidHit.position.y = 0.55; kid.add(kidHit);
+    clickable(kidHit, "the kid", null, "that's the kid — this is his room"); kidHit.userData.roams = true;
     kidMixer = new THREE.AnimationMixer(root);
     if (g.animations && g.animations[0]) { // the base file carries the walk cycle
       kidActions.walk = kidMixer.clipAction(g.animations[0]);
@@ -3614,7 +3717,11 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
     { x: -4.60, z: -3.15, r: 0.42 }, // the hall table
     { x: -4.70, z: 5.45, r: 0.62 },  // the laundry
     { x: -4.62, z: 7.75, r: 0.5 },   // the boots
-    { x: -7.10, z: 7.50, r: 0.78 },  // the chest freezer
+    /* ⚠️ the chest freezer used to be fenced here at (-7.10, 7.50) — its OLD corner,
+     * which is now the FOOT of the up-flight. The freezer moved under the stairs
+     * (hallway.js FRZ_Z 5.20), inside the staircase circle above, and the fossil
+     * circle steered the walking boy off tread 0 every time (measured: x -6.95 ->
+     * -5.67 at z 8.4 -> 7.3, y pinned at 0). Never fence a prop by memory. */
   ];
   var KID_PORCH_OBSTACLES = [
     { x: -7.60, z: -5.23, r: 0.42 }, // the one chair
@@ -3746,7 +3853,8 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
   var KID_UP_OBSTACLES = [
     { x: -8.10, z: 1.55, r: 0.55 },    // the hall table
     { x: -10.90, z: 1.60, r: 0.45 },   // the hamper
-    { x: -4.90, z: 4.90, r: 1.10 },    // the stairwell: he is not falling down it
+    /* the stairwell used to be fenced at (-4.90, 4.90) — the OLD east-wall well. The
+     * real slot (x -7.55..-6.43, z 2.60..7.45) is guarded by tpClamp's void guard. */
   ];
   var KID_R0_OBSTACLES = [{ x: -12.60, z: -1.70, r: 1.20 }, { x: -16.15, z: 0.50, r: 0.75 }];
   var KID_R1_OBSTACLES = [{ x: -6.60, z: -1.90, r: 1.00 }, { x: -2.35, z: -2.65, r: 0.70 }];
@@ -3897,7 +4005,7 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
     kidFollowT -= dt;
     if (kidFollowT > 0 || !kidFollowTo) return;
     var ent = KID_ENTRY[kidFollowTo] || KID_ENTRY.bedroom;
-    kidSpace = kidFollowTo; kidFollowTo = null;
+    kidSpace = kidFollowTo; kidFollowTo = null; tpOnStair = -1; tpStairFence = false;   // a teleport is never mid-flight
     kidState.ignoreObs = -1;          // ⚠️ indices mean different things per space
     kidState.mode = "roam"; kidState.via = false; kidState.targetY = ent.y || 0;
     // ⚠️ this used to hardcode y 0, which is fine for every ground-floor space and
@@ -3923,13 +4031,31 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
       } catch (e) { }
     }
   }
-  var pendingNav = null, navTarget = null;
+  var pendingNav = null, navTarget = null, navTimer = 0, _wantV = new THREE.Vector3();
+  /* the hover line for a tagged thing. Save-derived hints are FUNCTIONS (re-read on
+   * every hover, so a game played in the overlay is reflected without a reload).
+   * In walk mode the doors toggle instead of flying, and the stairs are walked —
+   * the hint should say what a click DOES. */
+  function hintText(u) {
+    var h = (typeof u.hint === "function") ? u.hint() : u.hint;
+    if (h && tp.on) {
+      if (/click to go (up|down)\.?$/i.test(h) || /stairs/i.test(h)) h = h.replace(/\s*click to go (up|down)\.?$/i, " just walk $1 — the stairs are yours");
+      else h = h.replace(/click to (go in|go out|go back in|come in|step out onto the porch|go through)\.?$/i, "click to swing the door, then walk through");
+    }
+    return h;
+  }
   var zoomT = -1, zoomFrom = new THREE.Vector3(), zoomTo = new THREE.Vector3(),
       zoomLookFrom = new THREE.Vector3(), zoomLookTo = new THREE.Vector3();
   function kidSummon(mesh) {
     if (pendingNav) return;
     endTour(true);   // they've found their own way — the tour bows out
     pendingNav = mesh.userData.action; navTarget = mesh;
+    /* the failsafe is armed HERE, before the space check: a portal clicked from
+     * another room used to have none, so a stalled rAF left it never opening and
+     * every further click swallowed by `if (pendingNav) return`. Identity-captured
+     * so an old timer can never fire a LATER click's portal. */
+    var mine = pendingNav;
+    clearTimeout(navTimer); navTimer = setTimeout(function () { if (pendingNav === mine) { pendingNav = null; mine(); } }, 4800);
     kidState.fetchName = mesh.userData.name; // so he can react when he hands it over
     var box = new THREE.Box3().setFromObject(mesh);
     var c = box.getCenter(new THREE.Vector3()), sz = box.getSize(new THREE.Vector3());
@@ -3951,7 +4077,6 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
     if (kidSpace !== mSpace) { kidStartZoom(); return; }
     kidState.mode = "summon"; kidState.t = 0; kidState.walkT = 0;
     kidGoto(tx, tz); // stage through the hub if the chest (or anything) is in the way
-    setTimeout(function () { if (pendingNav) { var f = pendingNav; pendingNav = null; f(); } }, 4800); // failsafe — the door opens even if the tab hides
   }
   function kidStartZoom() {
     var bb = new THREE.Box3().setFromObject(navTarget);
@@ -4247,9 +4372,14 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
     var sp = m.userData.space || "bedroom";
     return sp === "both" || sp === hall.space();
   }
+  var pickVis = [];
   function pickAt() {
     ray.setFromCamera(mouse, camera);
-    var hits = ray.intersectObjects(pick, false);
+    /* the raycaster ignores .visible — 1,060 hidden sketch meshes (propSwap's box
+     * fallbacks) were triangle-tested on every hover. Cull by visibility first. */
+    pickVis.length = 0;
+    for (var pv = 0; pv < pick.length; pv++) if (pick[pv].visible !== false && visibleChain(pick[pv])) pickVis.push(pick[pv]);
+    var hits = ray.intersectObjects(pickVis, false);
     for (var i = 0; i < hits.length; i++) {
       if (visibleChain(hits[i].object) && inSpace(hits[i].object)) return hits[i].object; // put-away things pass clicks through
     }
@@ -4272,7 +4402,7 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
       else o.userData.action();
     }
     else if (o) {
-      tip.textContent = o.userData.hint; tip.classList.add("show");
+      tip.textContent = hintText(o.userData); tip.classList.add("show");
       setTimeout(function () { tip.classList.remove("show"); }, 1600);
     }
   });
@@ -4324,13 +4454,13 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
     m.getWorldPosition(kbV); kbV.project(camera);
     tip.style.left = ((kbV.x * 0.5 + 0.5) * window.innerWidth) + "px";
     tip.style.top = ((-kbV.y * 0.5 + 0.5) * window.innerHeight - 14) + "px";
-    tip.textContent = m.userData.hint; tip.classList.add("show");
+    tip.textContent = hintText(m.userData); tip.classList.add("show");
   }
   window.addEventListener("keydown", function (e) {
     /* while a game is open, keys only reach here when the PARENT has focus
      * (a click on the chip's padding) — Enter/Space could summon the kid
      * under the game. Escape closes; everything else is the game's. */
-    if (gamePaused) { if (e.key === "Escape") closeGame(); return; }
+    if (gamePaused) { if (e.key === "Escape") { closeGame(); e.preventDefault(); e.stopImmediatePropagation(); } return; }   // ⚠️ or the SAME event reaches the walk handler after gamePaused flips and switches walk mode off
     if (e.key === "Escape") {
       var sto = document.getElementById("store-ov");
       if (sto && sto.classList.contains("open")) { closeStore(); return; }
@@ -7109,12 +7239,12 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
    * up-flight 16 risers x -7.45..-6.45, z 7.55 (y 0) -> 2.84 (y 3.45);
    * down-flight 11 steps x -7.40..-6.55, z 0.35 (y 0) -> 2.55 (y -2.42). */
   var STAIRS = [
-    { x: [-7.45, -6.45], zTop: 2.84, zBot: 7.55, yTop: 3.45, yBot: 0,
+    { x: [-7.45, -6.45], zTop: 3.115, zBot: 7.515, yTop: 3.45, yBot: 0,   // tread TOPS (slope = UP_RISE/UP_GO); the footprint line had him 20 cm inside the top treads
       lo: "hall", hi: "upstairs", topSp: "upstairs", botSp: "hall", fence: { hall: 0 } },
-    { x: [-7.40, -6.55], zTop: 0.35, zBot: 2.55, yTop: 0, yBot: -2.42,
+    { x: [-7.40, -6.55], zTop: 0.49, zBot: 2.68, yTop: 0, yBot: -2.42,   // tread tops; the mesh flight ends at -2.12 over a -2.42 floor — the last 27 cm is a missing 12th riser
       lo: "basement", hi: "hall", topSp: "hall", botSp: "basement", fence: { hall: 1 } },
   ];
-  var tpStairFence = false, tpOnStair = -1;
+  var tpStairFence = false, tpOnStair = -1, tpCarved = {};   // tpCarved: the doorway planes standing aside THIS frame (the camera reads it too)
   function quietCross(sp) {
     try { hall.setSpaceQuiet(sp); } catch (e) { }
     kidSpace = sp;
@@ -7132,7 +7262,7 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
     /* THE DOORWAY CARVE: while an OPEN door's mouth contains him, the wall
      * plane on the crossing axis stands aside. A closed door blocks exactly as
      * before, because without the carve this IS the old clamp. */
-    var carveX = false, carveZ = false;
+    var carveX = false, carveZ = false, carved = {}; tpCarved = carved;
     for (var dwc = 0; dwc < DOORWAYS.length; dwc++) {
       var dc = DOORWAYS[dwc];
       if (kidSpace !== dc.neg && kidSpace !== dc.pos) continue;
@@ -7144,12 +7274,73 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
       var open9 = false;
       try { open9 = hall.doorOpen(dc.flag); } catch (e9) { }
       if (!open9) continue;
+      carved[dc.plane + dc.at] = true;   // the PLANE stands aside, not just this door
       if (dc.plane === "x") carveX = true; else carveZ = true;
     }
+    /* ⚠️ EVERY DOORWAY'S PLANE IS A WALL IN ITS OWN RIGHT, not just the edge of a
+     * bounds box. Three spaces have boxes that reach PAST their door plane —
+     * porch (z-max = HOUSE_F + 0.60), back (z-min = Z_S - 0.70) and upstairs (the
+     * whole storey, rooms included) — so the box never stopped him there: a CLOSED
+     * front door was walk-through from the porch side, and on the landing he walked
+     * straight through the z 1.05 wall into a bedroom at x -6.95, where there is no
+     * door at all (measured: z 2.82 -> 0.89 -> -2.98, kidSpace still 'upstairs').
+     * A door that is open AND has him in its mouth carved above and its whole
+     * PLANE is skipped — r0/r1/r2 share z 1.05 and kit/liv/gar share x -7.45, so
+     * skipping only the open door left its two siblings clamping him in the
+     * doorway (measured: r1 open, x -3.6, stuck at z 1.28). Everything else on
+     * the plane is plaster. Margin is his own radius, not the box margin — the
+     * hall's box already sits 0.4 inside the bedroom wall. */
+    var mp = KID_R + 0.05;
+    for (var dwp = 0; dwp < DOORWAYS.length; dwp++) {
+      var dp = DOORWAYS[dwp];
+      if (kidSpace !== dp.neg && kidSpace !== dp.pos) continue;
+      if (Math.abs(kid.position.y - dp.y) > 1) continue;
+      if (carved[dp.plane + dp.at]) continue;   // he is in an open mouth on this plane
+      if (dp.plane === "z" && tpOnStair >= 0) continue;   // both flights run along z
+      var neg9 = kidSpace === dp.neg;
+      if (dp.plane === "x") {
+        if (neg9) { if (kid.position.x > dp.at - mp) kid.position.x = dp.at - mp; }
+        else if (kid.position.x < dp.at + mp) kid.position.x = dp.at + mp;
+      } else {
+        if (neg9) { if (kid.position.z > dp.at - mp) kid.position.z = dp.at - mp; }
+        else if (kid.position.z < dp.at + mp) kid.position.z = dp.at + mp;
+      }
+    }
+    /* THE LANDING'S SOUTH WALL (LAN.z1 2.45): the upstairs box spans the storey, so
+     * the corridor was open to the dead bay behind it everywhere but the slot
+     * (STW x -7.55..-6.43), which is the up-flight's mouth and the void guard's job. */
+    if (kidSpace === "upstairs" && tpOnStair < 0 && (kid.position.x < -7.55 - KID_R || kid.position.x > -6.43 + KID_R) && kid.position.z > 2.45 - mp) kid.position.z = 2.45 - mp;
     /* mid-stair the run axis stands aside too: the upstairs box ended 40 cm
      * short of the descent’s crossing threshold and clamped him to a stop
      * at z 7.05 forever (measured). Both flights run along z. */
-    if (tpOnStair >= 0) carveZ = true;
+    if (tpOnStair >= 0) {
+      carveZ = true;
+      /* THE RAILS: a flight is left by its ends only. Stepping off sideways used to
+       * drop him through the rail onto the wrong floor (settled to the nearest END,
+       * then pinned at ceiling height by the space's y-clamp). */
+      var SR = STAIRS[tpOnStair];
+      kid.position.x = Math.max(SR.x[0] + KID_R, Math.min(SR.x[1] - KID_R, kid.position.x));
+    } else {
+      /* THE VOID GUARD: the upstairs slot over the up-flight and the hall floor over
+       * the basement flight are HOLES, and the underside of a flight is solid where
+       * it is lower than he is tall. Off the flight, its footprint is barred except
+       * the end he may step on from; he is pushed out the open side or back to that
+       * end, whichever is nearer (so walking under the low treads lands him on them). */
+      for (var sg = 0; sg < STAIRS.length; sg++) {
+        var SG = STAIRS[sg];
+        var hiS = kidSpace === SG.hi, loS = kidSpace === SG.lo;
+        if (!hiS && !loS) continue;
+        if (Math.abs(kid.position.y - (hiS ? SG.yTop : SG.yBot)) > 0.6) continue;
+        if (kid.position.x < SG.x[0] - KID_R || kid.position.x > SG.x[1] + KID_R) continue;
+        var fg = (kid.position.z - SG.zTop) / (SG.zBot - SG.zTop);
+        if (fg < 0 || fg > 1) continue;
+        if (hiS ? fg <= 0.12 : fg >= 0.88) continue;   // the end he steps on from
+        if (loS && (SG.yTop + (SG.yBot - SG.yTop) * fg) - SG.yBot > 1.5) continue;   // headroom under the high end
+        var dxE = (SG.x[1] + KID_R) - kid.position.x;
+        var dzB = (SG.zTop + (hiS ? 0.12 : 0.88) * (SG.zBot - SG.zTop)) - kid.position.z;
+        if (Math.abs(dxE) <= Math.abs(dzB)) kid.position.x += dxE; else kid.position.z += dzB;
+      }
+    }
     if (!carveX) kid.position.x = Math.max(b.x[0] + m, Math.min(b.x[1] - m, kid.position.x));
     if (!carveZ) kid.position.z = Math.max(b.z[0] + m, Math.min(b.z[1] - m, kid.position.z));
     /* ⚠️ y is CLAMPED, never lerped. The house has three floor levels (the second
@@ -7174,10 +7365,28 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
     var k = tp.keys;
     return !!(k.w || k.a || k.s || k.d || k.arrowup || k.arrowdown || k.arrowleft || k.arrowright);
   }
+  /* the touch pad: on a coarse pointer there are no arrow keys, and the walk button
+   * was a dead end — shown, promising WASD, with no way to move. */
+  var walkPad = document.getElementById("walk-pad"), walkCoarse = false;
+  try { walkCoarse = window.matchMedia("(pointer: coarse)").matches; } catch (e) { }
+  if (walkPad) {
+    var padKeys = { up: "arrowup", down: "arrowdown", left: "arrowleft", right: "arrowright" };
+    Array.prototype.forEach.call(walkPad.querySelectorAll("button"), function (bq) {
+      var kq = padKeys[bq.getAttribute("data-dir")];
+      var down = function (ev) { ev.preventDefault(); tp.keys[kq] = true; try { bq.setPointerCapture(ev.pointerId); } catch (e) { } };
+      var up = function (ev) { ev.preventDefault(); delete tp.keys[kq]; };
+      bq.addEventListener("pointerdown", down); bq.addEventListener("pointerup", up);
+      bq.addEventListener("pointercancel", up); bq.addEventListener("pointerleave", up);
+      bq.addEventListener("contextmenu", function (ev) { ev.preventDefault(); });
+    });
+  }
   function tpSet(on) {
     on = !!on;
     if (on === tp.on) return;
     tp.on = on;
+    tpOnStair = -1; tpStairFence = false;   // a toggle is never mid-flight
+    if (walkPad) walkPad.hidden = !(on && walkCoarse);
+    try { hall.syncTurnBtn && hall.syncTurnBtn(); } catch (e) { }   // the ⟲ button is gated on walking; re-sync now, not at the next facing change
     var btn = document.getElementById("walk-toggle");
     if (btn) { btn.setAttribute("aria-pressed", on ? "true" : "false"); btn.textContent = on ? "stop" : "walk"; }
     if (on) {
@@ -7191,7 +7400,7 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
       tp.combo = ""; tp.dirX = Math.sin(tp.yaw); tp.dirZ = Math.cos(tp.yaw);
       kid.visible = true;
       setKidAction("idle", 0.2);
-      try { kidSay("ok — arrow keys, or WASD.", 3.5); } catch (e) { }
+      try { kidSay(walkCoarse ? "ok — use the pad down there." : "ok — arrow keys, or WASD. click a door to swing it, then walk through.", 4.5); } catch (e) { }
     } else {
       tp.keys = {};
       kidState.mode = "roam"; kidState.walkT = 0; kidState.via = false;
@@ -7328,7 +7537,14 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
       if (kid.position.z < S.zTop - 0.45 || kid.position.z > S.zBot + 0.45) continue;
       var f9 = Math.max(0, Math.min(1, (kid.position.z - S.zTop) / (S.zBot - S.zTop)));
       var ry9 = S.yTop + (S.yBot - S.yTop) * f9;
-      if (tpOnStair !== si && Math.abs(kid.position.y - ry9) > 1.6) continue;
+      /* stepping ON happens at an END, from that end's floor. The old 1.6 m y-gate
+       * let him board from the SIDE — through the rail, the slot wall, the den
+       * stringer — with a vertical snap of up to 1.6 m. */
+      if (tpOnStair !== si) {
+        var fromTop = kidSpace === S.topSp && f9 <= 0.12 && Math.abs(kid.position.y - S.yTop) < 0.5;
+        var fromBot = kidSpace === S.botSp && f9 >= 0.88 && Math.abs(kid.position.y - S.yBot) < 0.5;
+        if (!fromTop && !fromBot) continue;
+      }
       kid.position.y = ry9;
       if (f9 <= 0.02 && kidSpace !== S.topSp) quietCross(S.topSp);
       else if (f9 >= 0.98 && kidSpace !== S.botSp) quietCross(S.botSp);
@@ -7339,7 +7555,7 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
     // frame could otherwise leave him standing a few cm high forever)
     if (onStair < 0 && tpOnStair >= 0) {
       var SL = STAIRS[tpOnStair];
-      kid.position.y = Math.abs(kid.position.y - SL.yTop) < Math.abs(kid.position.y - SL.yBot) ? SL.yTop : SL.yBot;
+      kid.position.y = kidSpace === SL.topSp ? SL.yTop : SL.yBot;   // HIS space's floor, never the nearest end's
     }
     tpOnStair = onStair;
     updateRoomShell();
@@ -7354,6 +7570,47 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
     var cb = tpBounds(), cbb = cb.box, cm = 0.26;
     cx = Math.max(cbb.x[0] + cm, Math.min(cbb.x[1] - cm, cx));
     cz = Math.max(cbb.z[0] + cm, Math.min(cbb.z[1] - cm, cz));
+
+    /* the doorway planes hold the camera too — the upstairs box spans the whole
+     * storey, so descending the flight used to put the camera through the landing
+     * wall into a bedroom. An open mouth he is standing in lets it follow. */
+    for (var dwq = 0; dwq < DOORWAYS.length; dwq++) {
+      var dq = DOORWAYS[dwq];
+      if (kidSpace !== dq.neg && kidSpace !== dq.pos) continue;
+      if (Math.abs(fy - dq.y) > 2) continue;
+      if (tpCarved[dq.plane + dq.at]) continue;
+      var negq = kidSpace === dq.neg;
+      if (dq.plane === "x") cx = negq ? Math.min(cx, dq.at - cm) : Math.max(cx, dq.at + cm);
+      else cz = negq ? Math.min(cz, dq.at - cm) : Math.max(cz, dq.at + cm);
+    }
+    /* over a flight the camera rides the ramp: never under the treads behind him on
+     * the way down (measured: 0.07 m above the ramp line, i.e. inside the steps, in
+     * the frames after he stepped off at the foot — so this keys on where the CAMERA
+     * is, not on whether he is still on the stair), and never up through the hall
+     * ceiling beyond the foot on the way up. Standing under the high end of a flight
+     * is allowed — it is a real place — so a camera under >1.2 m of headroom stays. */
+    /* ⚠️ the camera EASES toward (cx, cz): it trails higher up the flight than its
+     * target on the way down, so the ramp is read at BOTH the target and where the
+     * camera actually is (measured with the target alone: 0.07 m above the ramp
+     * line at the foot — inside the treads). */
+    if (kidSpace === "upstairs" && (cx < -7.55 - 0.3 || cx > -6.43 + 0.3) && cz > 2.45 - cm) cz = 2.45 - cm;   // the landing's south wall holds the camera too
+    var camZs = [cz, camera.position.z];
+    for (var sq = 0; sq < STAIRS.length; sq++) {
+      var SC = STAIRS[sq];
+      if (kidSpace !== SC.lo && kidSpace !== SC.hi) continue;
+      if (cx < SC.x[0] - 0.35 || cx > SC.x[1] + 0.35) continue;
+      for (var qz = 0; qz < 2; qz++) {
+        var czq = camZs[qz];
+        if (czq < SC.zTop - 0.1 || czq > SC.zBot + 0.1) continue;
+        var fc = Math.max(0, Math.min(1, (czq - SC.zTop) / (SC.zBot - SC.zTop)));
+        var rcy = SC.yTop + (SC.yBot - SC.yTop) * fc;
+        if (tpOnStair !== sq && kidSpace === SC.lo && rcy > kid.position.y + 2.2) continue;   // under the high end: real headroom
+        fy = Math.max(fy, rcy);
+      }
+    }
+    if (kidSpace === STAIRS[0].lo && (cz > STAIRS[0].zBot + 0.2 || camera.position.z > STAIRS[0].zBot + 0.2)) {
+      try { fy = Math.min(fy, hall.bounds.hall.y[1] - 0.6 - TP_HEIGHT - 0.25); } catch (e0) { }
+    }
     var ease = Math.min(1, dt * 5);
     camera.position.x += (cx - camera.position.x) * ease;
     camera.position.y += ((fy + TP_HEIGHT) - camera.position.y) * ease;
@@ -7554,7 +7811,7 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
     if (kidMixer) kidMixer.update(dt); // clips always advance now (idle/sit/lie animate in place)
     updateKidBubble(); // keep his speech bubble over his head
     // his contact shadow has to sit on the same floor he does, not always on y 0.02
-    var ksY = (kidState.station && kidState.station.y) || 0;
+    var ksY = tp.on ? kid.position.y : ((kidState.station && kidState.station.y) || 0);   // player mode has no station: the disc follows him down the flight
     kidShadow.position.set(kid.position.x, ksY + 0.02, kid.position.z);
     kidShadow.material.opacity = 0.5 * Math.max(0, 1 - Math.max(0, kid.position.y - ksY) * 3.2);
     if ((frameCount % 120) === 0) applyPhase(); // the room checks the clock
@@ -7874,13 +8131,13 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
       }
       decorTick(t, dt);
     } else {
-      var o = (t - pointerMovedAt < 0.35 || (frameCount & 3) === 0) ? pickAt() : hovered;
+      var o = (tp.on && tp.moving) ? hovered : ((t - pointerMovedAt < 0.35 || (frameCount & 3) === 0) ? pickAt() : hovered);   // no hover picks mid-stride (pointerdown picks directly)
       if (o !== hovered) {
         highlightOff(hovered);
         hovered = o;
         document.body.style.cursor = o ? "pointer" : "default";
         if (o) {
-          tip.textContent = o.userData.hint; tip.classList.add("show");
+          tip.textContent = hintText(o.userData); tip.classList.add("show");
           highlightOn(o);
         } else tip.classList.remove("show");
       }
