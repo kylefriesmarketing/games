@@ -3225,7 +3225,7 @@ export function buildHallway(ctx) {
   var SK_X = KX0 + 0.36, SK_Z = KCZ - 0.6;
   var basin = new THREE.Mesh(new THREE.PlaneGeometry(0.42, 0.34),
     new THREE.MeshStandardMaterial({ color: 0x64696d, roughness: 0.3, metalness: 0.5,
-      polygonOffset: true, polygonOffsetFactor: 0, polygonOffsetUnits: -2 /* constant bias only: a slope-scaled -6 on a wall eats whatever hangs in front of it at walking angles (the photo wall lesson) */ }));
+      polygonOffset: true, polygonOffsetFactor: -6, polygonOffsetUnits: -6 }));
   basin.rotation.x = -Math.PI / 2; basin.position.set(SK_X, CT_TOP, SK_Z); kadd(basin);
   [[0, -0.19, 0.50, 0.04], [0, 0.19, 0.50, 0.04], [-0.23, 0, 0.04, 0.42], [0.23, 0, 0.04, 0.42]]
     .forEach(function (rb) {
@@ -3623,7 +3623,7 @@ export function buildHallway(ctx) {
   function kDecal(tex, x, y, z, rx, rz, op, ry) {
     var m = new THREE.Mesh(new THREE.PlaneGeometry(rx * 2, rz * 2),
       new THREE.MeshBasicMaterial({ map: tex, transparent: true, opacity: op, depthWrite: false,
-        polygonOffset: true, polygonOffsetFactor: 0, polygonOffsetUnits: -2 /* constant bias only: a slope-scaled -6 on a wall eats whatever hangs in front of it at walking angles (the photo wall lesson) */ }));
+        polygonOffset: true, polygonOffsetFactor: -6, polygonOffsetUnits: -6 }));
     m.rotation.x = -Math.PI / 2; if (ry) m.rotation.z = ry;
     m.position.set(x, y, z); m.renderOrder = 2; kadd(m); return m;
   }
@@ -4072,7 +4072,7 @@ export function buildHallway(ctx) {
   function groundShade(x, z, rx, rz, op, y) {
     var m = new THREE.Mesh(shadeGeo, new THREE.MeshBasicMaterial({
       map: shadeTex, transparent: true, opacity: op == null ? 0.5 : op,
-      depthWrite: false, polygonOffset: true, polygonOffsetFactor: 0, polygonOffsetUnits: -2 /* constant bias only: a slope-scaled -6 on a wall eats whatever hangs in front of it at walking angles (the photo wall lesson) */,
+      depthWrite: false, polygonOffset: true, polygonOffsetFactor: -6, polygonOffsetUnits: -6,
     }));
     m.rotation.x = -Math.PI / 2; m.scale.set(rx * 2, rz * 2, 1);
     m.position.set(x, y == null ? GROUND + 0.015 : y, z);
@@ -6660,7 +6660,7 @@ export function buildHallway(ctx) {
   function hDecal(addFn, tex, x, y, z, rx, rz, op) {
     var m = new THREE.Mesh(new THREE.PlaneGeometry(rx * 2, rz * 2),
       new THREE.MeshBasicMaterial({ map: tex, transparent: true, opacity: op, depthWrite: false,
-        polygonOffset: true, polygonOffsetFactor: 0, polygonOffsetUnits: -2 /* constant bias only: a slope-scaled -6 on a wall eats whatever hangs in front of it at walking angles (the photo wall lesson) */ }));
+        polygonOffset: true, polygonOffsetFactor: -6, polygonOffsetUnits: -6 }));
     m.rotation.x = -Math.PI / 2; m.position.set(x, y, z); m.renderOrder = 2; addFn(m); return m;
   }
   // contact shade under the heavy things, so they sit IN the hall instead of on it
@@ -7750,7 +7750,7 @@ export function buildHallway(ctx) {
     [-1, 1].forEach(function (sd2) {
       var sm2 = new THREE.Mesh(new THREE.PlaneGeometry(AD2 - 0.02, 0.76),
         new THREE.MeshStandardMaterial({ map: sdT, roughness: 0.8,
-          polygonOffset: true, polygonOffsetFactor: 0, polygonOffsetUnits: -2 /* constant bias only: a slope-scaled -6 on a wall eats whatever hangs in front of it at walking angles (the photo wall lesson) */ }));
+          polygonOffset: true, polygonOffsetFactor: -6, polygonOffsetUnits: -6 }));
       sm2.position.set(sd2 * (AW2 / 2 + 0.004), 0.49, 0); sm2.rotation.y = sd2 * Math.PI / 2; cab.add(sm2);
     });
     var cl3 = new THREE.PointLight(opts.glow, 0.6, 3.0, 2);
