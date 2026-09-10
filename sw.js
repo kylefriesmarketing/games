@@ -15,7 +15,7 @@
  * several a day — deleted 13 MB of props along with the code and every visitor
  * re-downloaded the entire house. The shell is bumped freely; the asset bucket is
  * bumped only when a prop is re-exported under a name it already had. */
-var SHELL_CACHE = "the-room-shell-v94"; // v94: the second review workflow — copy, a11y, touch, the SW sweep
+var SHELL_CACHE = "the-room-shell-v95"; // v95: undo persists, treasures ride furniture, the tour waits, a pump that settles once, a modal welcome
 var ASSET_CACHE = "the-room-assets-v1"; // bump ONLY when an existing asset changes
 var CACHE = SHELL_CACHE;                // kept: older code in this file reads it
 var SHELL = ["./", "./index.html", "./manifest.webmanifest", "./icon.svg",
@@ -49,7 +49,6 @@ self.addEventListener("activate", function (e) {
     return Promise.all(keys.map(function (k) {
       if (k.indexOf("the-room-") !== 0) return null;   // ⚠️ CacheStorage is per ORIGIN: every game on kylefriesmarketing.github.io shares it — never touch another game's buckets (and they used to sweep ours)
       if (k === SHELL_CACHE || k === ASSET_CACHE) return null;
-      if (k.indexOf("the-room-assets-") === 0) return null;   // a future asset bucket
       return caches.delete(k);
     }));
   }).then(function () { return self.clients.claim(); }));
@@ -68,7 +67,7 @@ self.addEventListener("fetch", function (e) {
     // background so the NEXT load is current. Plain cache-first would pin an old
     // prop forever whenever one is re-exported under the same name — which is
     // exactly what happened when the textures were shrunk.
-    e.respondWith(caches.match(req).then(function (hit) {
+    e.respondWith(caches.match(req, { cacheName: ASSET_CACHE }).then(function (h1) { return h1 || caches.match(req, { cacheName: SHELL_CACHE }); }).then(function (hit) {   // asset bucket first, then the shell precache (three.js straddles both); a global match let a stale bucket win
       var net = fetch(req).then(function (res) {
         if (res.ok) { var copy = res.clone(); caches.open(ASSET_CACHE).then(function (c) { c.put(req, copy); }); }
         return res;

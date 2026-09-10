@@ -351,7 +351,7 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
   })();
   function bootTick() {
     if (boot.ready || boot.holding || !boot.settled) return;
-    if (boot.glbDone >= boot.glb && boot.texDone >= boot.tex && !loadQ.length && !loadActive) {
+    if (boot.glbDone >= boot.glb && boot.texDone >= boot.tex && !loadQ.length && loadActive <= 0) {   // <= 0: a future double-settle degrades to an early door, never a 20 s wait
       if (SLOW_BOOT) { boot.holding = true; setTimeout(function () { boot.holding = false; bootDone(); }, SLOW_BOOT); }
       else bootDone();
     }
@@ -741,15 +741,21 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
       var job = loadQ.shift();
       loadActive++;
       gltfL.load(job.url, (function (j) {
-        return function (g) { loadActive--; boot.glbDone++;
-          try { j.cb(g); } finally {
+        var settled = false;
+        j.settle = function () { if (settled) return false; settled = true; loadActive--; boot.glbDone++; return true; };
+        return function (g) {
+          /* ⚠️ a throwing callback used to reach BOTH this decrement and, via the
+           * loader's own catch, onError's — loadActive ended at -1 and the boot gate
+           * never closed for anyone. One settle per job, and the callback is caught. */
+          if (!j.settle()) return;
+          try { if (g && g.scene) j.cb(g); } catch (e) { console.error("[room] prop callback failed for " + j.url, e); } finally {
             // ⚠️ a GLB that lands AFTER the environment map is on would otherwise keep
             // three's default envMapIntensity of 1.0 — full-strength reflections on the
             // shiniest things in the house while everything hand-built sits at the
             // weighted value. Stamp it with the same (1-roughness)^2 rule.
             if (envState.on && g && g.scene) envStamp(g.scene, envState.intensity);
             pumpGLB(); bootTick(); } };
-      })(job), undefined, function () { loadActive--; boot.glbDone++; pumpGLB(); bootTick(); }); // a missing prop must never stall the queue
+      })(job), undefined, (function (j) { return function () { if (j.settle()) { pumpGLB(); bootTick(); } }; })(job)); // a missing prop must never stall the queue
     }
   }
   // Generated props ease in instead of popping when their GLB finishes loading.
@@ -2452,6 +2458,7 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
     // ⚠️ SHORT STAFFED stores a bare NAME, not JSON, so it needs `raw` — readSave
     // JSON.parses and would throw on "Cook" and report the game as never started.
     "SHORT STAFFED":  { key: "ss-name", raw: true, pick: function (v) { return v ? 1 : null; }, total: 1, noun: "shifts", attempts: true },
+    "THE LAST LOCAL":  { key: "room-visited-lastlocal", raw: true, pick: function (v) { return v ? 1 : null; }, total: 1, noun: "visits", attempts: true },   // the visit flag was write-only — the only game the notebook never acknowledged
     "HOME BREW":      { key: "mybrew-save-v1",  pick: function (m) { return countOf(m.G && m.G.discovered); }, noun: "recipes", attempts: true },
     /* ⚠️ the game has 48 fixed jobs, and completing the rotating Daily Lawn writes
      * done["daily"] as a 49th key — so a completionist read "49 of 48". The daily is
@@ -3826,7 +3833,7 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
   var UPY = 3.45;
   var KID_LIVING_STATIONS = [
     { x: -11.60, z: 2.60, act: 'idle' },      // middle of the floor, taking the room in
-    { x: -12.60, z: 1.62, act: 'sit' },       // on the good couch, which he is not supposed to
+    { x: -12.60, z: 1.45, act: 'sit', seat: 0, y: 0.52, yaw: 0 },   // on the good couch, which he is not supposed to (seat 0 = the couch ring; cushion measured 0.55 at z 0.9-1.5, floor from 1.7; facing the set at +z)
     { x: -15.80, z: 2.95, act: 'fidget' },    // by the corner lamp
     { x: -13.20, z: 3.05, act: 'idle' },      // right up close to the set, as you do
   ];
@@ -3989,7 +3996,18 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
     kidState.station = s;
     kidState.ignoreObs = (s.seat == null) ? -1 : s.seat; // may sit on the beanbag
     var jx = s.seat == null ? (Math.random() - 0.5) * 0.2 : 0;
-    kidGoto(s.x + jx, s.z + (s.seat == null ? (Math.random() - 0.5) * 0.2 : 0));
+    var gx = s.x + jx, gz = s.z + (s.seat == null ? (Math.random() - 0.5) * 0.2 : 0);
+    /* a station authored INSIDE an obstacle ring can never be arrived at — the clamp
+     * holds him r+KID_R out and arrival needs 0.08 — so he shoved at the furniture for
+     * the full stuck timeout. Seven house stations were (audit #5 only checked the
+     * bedroom). Push the target just outside every ring that is not his seat. */
+    var obsA = (typeof kidObs === "function") ? kidObs() : KID_OBSTACLES;   // the CURRENT space's rings
+    for (var po = 0; po < obsA.length; po++) {
+      if (po === s.seat || po === s.over) continue;
+      var obp = obsA[po], ddx = gx - obp.x, ddz = gz - obp.z, dd = Math.sqrt(ddx * ddx + ddz * ddz), needp = obp.r + KID_R + 0.06;
+      if (dd < needp) { if (dd < 0.01) { ddx = 0; ddz = 1; dd = 1; } gx = obp.x + ddx / dd * needp; gz = obp.z + ddz / dd * needp; }
+    }
+    kidGoto(gx, gz);
   }
   /* He follows you through the house. He arrives a beat after you do, AT THE
    * DOORWAY you both came through, and walks in from there — so it reads as him
@@ -4244,11 +4262,11 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
       var gk = GAME_KEYS[kt];
       kr += nbRow(kt, gameLocked(kt) ? "🎁 wrapped — " + gk.price : "🔑 on your ring");
     }
-    kr += nbRow("Age of Toys", "🔑 came with the room");
-    kr += nbRow("Hood Run", "🔑 came with the room");
-    kr += nbRow("Brainrot", "🔑 came with the room");
-    kr += nbRow("Bloodrift", "🔑 came with the room");
-    kr += nbRow("Victory Lap", "🔑 came with the room");
+    /* every other game in the house, from one roster (this list used to name 5 of the
+     * 19 — it drifted every time a game moved in) */
+    var ringHave = {}; for (var kt2 in GAME_KEYS) ringHave[kt2.toUpperCase()] = 1;
+    Object.keys(GAME_SAVES).forEach(function (t) { if (!ringHave[t.toUpperCase()]) { ringHave[t.toUpperCase()] = 1; kr += nbRow(t, "🔑 came with the room"); } });
+    ["Age of Toys", "Hood Run", "Brainrot"].forEach(function (t) { if (!ringHave[t.toUpperCase()]) { ringHave[t.toUpperCase()] = 1; kr += nbRow(t, "🔑 came with the room"); } });
     nbPages.push({ title: "the key ring", html: kr });
     var rows = [
       ["Choose Wisely", readSave("chooseWisely.meta.v2", function (m) { return countOf(m.endingsFound); }), 56],
@@ -4704,7 +4722,7 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
   // Move (and maybe spin) a movable; every coupled system follows in the same call.
   function applyMove(cfg, x, z, ry, y) {
     markShadowDirty(2);   // the shadow map is on demand now; a dragged prop owes it one
-    var r = cfg.root;
+    var r = cfg.root, px = r.position.x, pz = r.position.z;
     x = Math.max(-3.35, Math.min(3.35, x)); // stay inside the walls
     z = Math.max(-2.35, Math.min(3.05, z)); // ...and in front of the camera
     r.position.x = x; r.position.z = z;
@@ -4722,6 +4740,19 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
       a.o.position.set(x + a.dx * c + a.dz * s, a.dy, z - a.dx * s + a.dz * c);
     });
     if (cfg.onMove) cfg.onMove(x, z, dry);
+    /* anchored treasures ride their furniture: placeColl only applied the anchor's
+     * offset for the FIRST home and then persisted an absolute spot, so a dragged desk
+     * left its trophies hovering over carpet (and a reload kept them there) */
+    if (cfg.kind !== "coll") {
+      var mdx = x - px, mdz = z - pz;
+      if (Math.abs(mdx) + Math.abs(mdz) > 1e-6) movables.forEach(function (m) {
+        if (m.kind !== "coll") return;
+        var ce = null; for (var ci = 0; ci < COLLECT.length; ci++) if ("coll:" + COLLECT[ci].key === m.key) { ce = COLLECT[ci]; break; }
+        if (!ce || ce.anchor !== cfg.key) return;
+        m.root.position.x += mdx; m.root.position.z += mdz;
+        if (shoeState && shoeState.placed && shoeState.placed[ce.key]) persistColl(m);
+      });
+    }
     fixHub();
     kidEvict(cfg);
   }
@@ -5664,9 +5695,10 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
     });
     Object.keys(want).forEach(function (k) {
       var cfg = movableByKey["coll:" + k], w = want[k];
-      if (cfg && w && w.x != null) applyMove(cfg, w.x, w.z, w.ry, w.y);
+      if (cfg && w && w.x != null) { applyMove(cfg, w.x, w.z, w.ry, w.y); persistColl(cfg); }   // the root is the truth (applyMove clamps); undo / My Rooms / share never persisted these, so a reload reverted them
     });
     rebuildStickers(b.k || []);
+    persistStickers();   // symmetric with startFresh — an undone sticker came back on reload
     if (decorMode) dwRender();
   }
 
@@ -7051,8 +7083,13 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
       tourTimer = setTimeout(function () { tourStep(i + 1); }, s.dur * 1000 + 500);
     }, 450);
   }
+  var tourRearm = 0;
   function startTour() {
     if (tourOn || decorMode) return;
+    /* not under a game, not in walk mode, not from another room: the tour is bedroom
+     * choreography, and a first-timer who opened a book early used to burn its one
+     * run under the iframe (five steps talking to nobody, then room-toured set) */
+    if (gamePaused || tp.on || (hall && hall.space && hall.space() !== "bedroom")) { clearTimeout(tourRearm); tourRearm = setTimeout(startTour, 1500); return; }
     tourOn = true;
     document.body.insertAdjacentHTML("beforeend",
       '<button id="tour-skip" type="button">skip the tour</button>');
@@ -7167,9 +7204,21 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
       setTimeout(dismissNudge, 8000);
     }
   }
-  function welKey(e) { if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); closeWelcome(); } }   // capture-phase on document: stops the room's own Escape stack from ALSO leaving the space
+  var welOpener = null;
+  function welKey(e) {   // capture-phase on document: stops the room's own Escape stack from ALSO leaving the space
+    if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); closeWelcome(); return; }
+    if (e.key === "Tab") {   // aria-modal promised a focus trap; Tab used to walk out onto #wel-btn / #decor-btn behind the backdrop
+      var ov = document.getElementById("wel-ov"); if (!ov) return;
+      var f = Array.prototype.filter.call(ov.querySelectorAll("button, [href], input, select, textarea, [tabindex]:not([tabindex='-1'])"), function (el) { return !el.disabled && el.offsetParent !== null; });
+      if (!f.length) return;
+      var first = f[0], last = f[f.length - 1], inside = ov.contains(document.activeElement);
+      if (e.shiftKey && (document.activeElement === first || !inside)) { e.preventDefault(); last.focus(); }
+      else if (!e.shiftKey && (document.activeElement === last || !inside)) { e.preventDefault(); first.focus(); }
+    }
+  }
   function openWelcome(first) {
     welcomeFirst = !!first;
+    welOpener = (document.activeElement && document.activeElement !== document.body) ? document.activeElement : null;
     try { localStorage.setItem(WELCOME_KEY, "1"); } catch (e) { }
     document.getElementById("wel-ov").classList.add("open");
     document.addEventListener("keydown", welKey, true);
@@ -7178,6 +7227,8 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
   function closeWelcome() {
     document.getElementById("wel-ov").classList.remove("open");
     document.removeEventListener("keydown", welKey, true);
+    try { var ret = (welOpener && welOpener.isConnected) ? welOpener : document.getElementById("list-toggle"); if (ret) ret.focus(); } catch (e) { }   // focus goes back where it came from (first visit: the list toggle), never onto a hidden node
+    welOpener = null;
     if (welcomeFirst) {
       welcomeFirst = false;
       if (tourEligible()) setTimeout(function () { startTour(); }, 1400); // the card hands off to the walking tour

@@ -88,7 +88,7 @@ if (window.top !== window.self) { try { window.top.postMessage({ house: "return"
 <link rel="modulepreload" href="assets/lib/jsm/loaders/DRACOLoader.js">
 <link rel="modulepreload" href="assets/lib/jsm/utils/BufferGeometryUtils.js">
 <style>
-:root{--ink:#05070a;--bone:#e7e3d8;--dim:#a9a99c;--faint:#5f6a72;--line:#1d2833}
+:root{--ink:#05070a;--bone:#e7e3d8;--dim:#a9a99c;--faint:#8a949c;--line:#1d2833}   /* --faint was 3.1:1 on ink; 5.9:1 now */
 *{box-sizing:border-box;margin:0;padding:0}
 html,body{height:100%}
 body{background:var(--ink);color:var(--bone);overflow:hidden;
@@ -199,7 +199,7 @@ body.listing #walk-toggle{display:none}
 .nb-ach-i{font-size:17px;line-height:1.1;width:22px;text-align:center;flex:0 0 22px}
 .nb-ach b{display:block;font-family:"Inter",sans-serif;font-size:12.5px;letter-spacing:.02em}
 .nb-ach i{display:block;font-size:12px;color:#8a7a5e}
-.nb-ach.locked{opacity:.5}
+.nb-ach.locked{color:#6f5c42}   /* colour, not opacity — opacity also dimmed the lock glyph that carries the state */
 .nb-ach.locked .nb-ach-i{color:#a89268}
 #nb-close{margin-top:16px;font-family:"Inter",sans-serif;font-size:11px;letter-spacing:.14em;
   text-transform:uppercase;background:#5a4632;border:1px solid #5a4632;border-radius:7px;
@@ -581,8 +581,7 @@ document.getElementById("room-return").addEventListener("click", function(e){ e.
   var bootT0 = Date.now();
   function fallBackToList(why){
     if (document.body.classList.contains("listing")) return;
-    document.body.classList.add("listing");
-    if (enterEl) enterEl.classList.add("gone");
+    document.body.classList.add("listing");   // (the card is NOT stamped gone — body.listing hides it, and if the room boots late 'back to the room' finds a real, ready card)
     if (txt) txt.textContent = why;
     try { console.error("[house] falling back to the list: " + why); } catch (e) {}
   }
@@ -606,8 +605,11 @@ document.getElementById("room-return").addEventListener("click", function(e){ e.
        * background tab — a 150-try budget at 60 ms can take many minutes there, so the
        * count-based version I wrote first simply never fired. A deadline fires on the
        * first tick after it passes, however slow the ticks are. */
-      if (Date.now() - bootT0 > 9000) { fallBackToList("the room didn't load — here's the list"); return; }
-      setTimeout(poll, 60); return;
+      /* ⚠️ and it guards only a SLOW NETWORK now — element error / unhandledrejection
+       * above catch every hard failure instantly. 9 s raced the cold ~600 KB module
+       * download and the fallback was one-way; the list stays up while we keep polling. */
+      if (Date.now() - bootT0 > 25000) fallBackToList("the room is taking a while — here's the list");
+      setTimeout(poll, document.body.classList.contains("listing") ? 500 : 60); return;
     }
     boot.onReady(ready);
     (function tick(){
@@ -635,11 +637,11 @@ document.getElementById("room-return").addEventListener("click", function(e){ e.
 (function(){ // progress badges on the shelf — the same saves the notebook reads
   function saved(key){ try { return JSON.parse(localStorage.getItem(key)||"null"); } catch(e){ return null; } }
   function n(o){ return o==null ? 0 : (Array.isArray(o) ? o.length : Object.keys(o).length); }
-  function endings(key, field, total){
+  function endings(key, field, total, noun){
     return function(){
       var s = saved(key); if (!s) return null;
       var c = n(field ? s[field] : s.endings);
-      return c ? c + (total ? " / " + total : "") + " endings" : null;
+      return c ? c + (total ? " / " + total : "") + " " + (noun || "endings") : null;
     };
   }
   var badge = {
@@ -648,6 +650,8 @@ document.getElementById("room-return").addEventListener("click", function(e){ e.
     "nine-circles/": endings("nc_persist"),
     "choose-wisely/": endings("chooseWisely.meta.v2", "endingsFound", 56),
     "nobody/": endings("nobody_persist"),
+    "dracula/": endings("dracula_persist", null, 15),
+    "george/": endings("gg_persist", null, 14, "tellings"),   // the notebook already read both saves; the list never showed them
     "alice/": function(){
       var s = saved("alice_persist"); if (!s) return null;
       var c = n(s.wakings); if (!c) return null;
