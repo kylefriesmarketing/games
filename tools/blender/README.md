@@ -55,3 +55,13 @@ node strip-stowaways.mjs rigged.glb final.glb
 Mixamo (needs an Adobe login and a marker-drag UI), Anything World (needs an account
 + API key), AccuRIG (GUI-only), and Higgsfield's 8cr rigging (humanoids only — its
 clip library is biped-only). This does all of it, for any creature, free.
+
+## Authored basement den
+
+`build-den.py` preserves the original couch silhouette and UVs, bakes a corduroy normal map, fits a tartan throw against the cushion mesh, and builds matching arcade chassis. It exports `den-sofa.glb`, `den-arcade-rift.glb`, and `den-arcade-issue.glb`. Source .blend files and temporary bake images go to a separate work directory.
+
+Run Blender in background mode with `-P tools/blender/build-den.py -- <games-hub> <work-directory>`, then run `node tools/blender/pack-den.cjs <gltf-kit/node_modules> <sharp/node_modules> <games-hub>` to pack the sofa textures as WebP. Dependencies: Blender with NumPy, @gltf-transform/core and extensions, draco3dgltf, and sharp.
+
+The cabinet static geometry is batched by material (six mesh draws per cabinet, plus the two live art planes). Named ScreenSocket and MarqueeSocket carry the mounting transforms. Three.js planes need local X rotation -PI/2 to account for Blender's Z-up basis. StartButton retains the one-shot press_start animation; the room triggers it on approach and respects reduced motion. DenAfghan owns its binding and fringe so the existing stash choices hide the whole throw and restore correctly after asynchronous loading.
+
+Validation: render from standing and oblique camera angles; check both game portals and return; cycle all blanket choices and reload with folded-away saved; verify the button moves and returns; verify reduced-motion prevents the press. The general room audit currently mistakes the roaming char1 in the basement for bedroom geometry penetrating its ceiling; compare findings against the previous revision.

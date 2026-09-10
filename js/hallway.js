@@ -95,7 +95,7 @@ export function buildHallway(ctx) {
         var _h = bb.max.y - bb.min.y, _sx = (bb.max.x - bb.min.x) / 2, _sz = (bb.max.z - bb.min.z) / 2;
         var _box = { x0: (fit.x || 0) - _sx, x1: (fit.x || 0) + _sx,
                      z0: (fit.z || 0) - _sz, z1: (fit.z || 0) + _sz, top: (fit.y || 0) + _h };
-        if (fit.onPlaced) try { fit.onPlaced(_box.top, _box, inner); } catch (e2) { console.warn("propSwap onPlaced failed", e2); }
+        if (fit.onPlaced) try { fit.onPlaced(_box.top, _box, inner, g.animations); } catch (e2) { console.warn("propSwap onPlaced failed", e2); }
       } catch (e) { console.warn("propSwap failed", e); }   // a silent catch hid a real floor-height bug for a week
     }, undefined, function () { bootN2.glbDone(); /* 404: the box sketch stays */ });
   }
@@ -7446,9 +7446,13 @@ export function buildHallway(ctx) {
   var afghan = box(0.72, 0.05, 0.55, mat(0x8a2f2a, 0.98));
   afghan.position.set(-0.55, 1.02, 0.30); afghan.rotation.x = -0.25; couchG.add(afghan);
   couchG.children.forEach(function (m) { bstag(m, "the couch", null, "it eats remotes. it has eaten three."); });
-  // the baked corduroy couch; the afghan goes with the sketch, which is a real loss —
-  // if anyone ever bakes an afghan, it goes back on
-  propSwap('dencouch', couchG, couchG.children.slice(), { w: 2.05, d: 1.0, ry: Math.PI });
+  // Blender-fitted wool follows the existing sofa; saved stash choices survive loading.
+  var denAfghan = null, denAfghanMode = 0;
+  propSwap('den-sofa', couchG, couchG.children.slice(), { w: 2.05, d: 1.0,
+    onPlaced: function (top, bounds, inner) {
+      denAfghan = inner.getObjectByName('DenAfghan');
+      setAfghan(denAfghanMode);
+    } });
   var ctG = new THREE.Group(); ctG.position.set(0.6, BSM.fl, 2.92); add(ctG);
   var ctTop = box(1.05, 0.06, 0.55, mat(0x6b5638, 0.85)); ctTop.position.y = 0.40; ctG.add(ctTop);
   [[-0.46, -0.2], [0.46, -0.2], [-0.46, 0.2], [0.46, 0.2]].forEach(function (cl2) {
@@ -7856,60 +7860,37 @@ export function buildHallway(ctx) {
     },
   });
 
-  /* THE BAKED CABINETS — the two arcade portals get real bodies. The v81 TV law
-   * applies twice over: each cabinet's SCREEN [child 23] and MARQUEE [child 26] are
-   * canvas-emissive planes carrying the games' actual cover art and wordmarks —
-   * they survive the swap and re-seat proud of the baked front (+z). Their glow
-   * PointLights live outside the groups in dimLights and keep breathing. The
-   * ±3-degree toe-in lives on the GROUPS, so the bakes inherit it — that lean is
-   * what makes it an arcade corner and not furniture. NO plant() disc in makeCab:
-   * child[0] is the kick plinth, so the hide filter is by-screen-and-marquee only.
-   * ⚠️ fit d stays under 0.78 — the block wall's inner face is 8 cm behind. */
-  /* THE LIVING SCREENS, SECOND ATTEMPT (Kyle: 'if we can make it work for the
-   * TVs lets try the cabinets'). v82's raw floating planes were deleted on his
-   * call; this is the TV treatment instead — the cover-art SCREEN [23] survives
-   * wearing crtMask (squarer arcade corners) and seats on the bake's raked
-   * monitor face via seatOnGlass. The MARQUEE [26] stays deleted forever: the
-   * bakes print their own marquees, and the floating marquee was the worst of
-   * it. Heights scale by top/1.59 (the sketch cab's height) per bake. */
-  /* per-bake numbers, photographed: BLOODRIFT's monitor centre sits at 0.73 of
-   * its height, THE LAST ISSUE's at 0.65 — one formula cannot fit both bakes.
-   * TLI also scales up 1.15 so our living art fully covers the bake's brighter
-   * printed screen (a mismatched ring of print peeked around the mask). */
-  /* TLI at 1.15x leaned out of the raked face (a tall plane spans more rake——the seat is front-most, so the deep top edge floats). 1.0 + centre ON the print: both arts are the same cover, so the thin print ring around the mask is invisible, which is exactly why BLOODRIFT already worked. */
-  /* pair[2] = the FULLY CALIBRATED screen {cx, cy, w, h, tilt, z}, all measured:
-   * rects from ruler-marker photos, tilt + depth from a ray sweep down each
-   * rect's centre column. ⚠️ THE TILT IS THE WHOLE FIX for 'not flush / half
-   * blocked': a VERTICAL plane seated at centre depth on a raked face pokes
-   * out at the top and buries at the bottom — invisible in a straight-on shot,
-   * half-occluded from every real standing angle. TLI's face is a clean plane
-   * leaning back 13 deg (slope -0.227, z 0.081 -> 0.018 across the rect);
-   * BLOODRIFT's is a steep 28 deg rake (z 0.107 -> -0.002 over y 0.76..0.97)
-   * diving under a forward overhang at the top — the art tucks under the hood
-   * like a real recessed CRT. h is measured ALONG the raked face (vertical
-   * print height / cos(tilt)), and the seat rides 5-6 mm proud of the face. */
-  /* v88 (Kyle: TLI too small at the top, BR too high/tilted with screen bare):
-   * rects grown from the PRINT zones to the full monitor OPENINGS — the mask
-   * margins are transparent, so the plane overhangs while its LIT region fills
-   * the opening exactly (lit = 0.859 x 0.854 of the plane). BR re-profiled to
-   * y 0.55..1.08: its recess is a convex curve; best-fit plane over the usable
-   * face (y 0.59..1.00) is 18.5 deg — more upright — with the whole plane
-   * biased 2 cm proud so the mid-curve bulge never buries it. */
-  [[cabBR, 'arcade1', { cx: 0.020, cy: 0.7945, w: 0.477, h: 0.503, tilt: -0.323, z: 0.099 }],
-   [cabTLI, 'arcade2', { cx: -0.004, cy: 1.033, w: 0.519, h: 0.454, tilt: -0.224, z: 0.058 }]].forEach(function (pair) {
-    var cab5 = pair[0];
-    var scr5 = cab5.children[23];
+  // Blender chassis share exact mounting sockets. Live art remains the portal surface.
+  var denCabinetMixers = [];
+  [[cabBR, 'den-arcade-rift'], [cabTLI, 'den-arcade-issue']].forEach(function (pair) {
+    var cab5 = pair[0], scr5 = cab5.children[23], mq5 = cab5.children[26];
     crtMask(scr5.material, 0.12);
-    propSwap(pair[1], cab5,
-      cab5.children.filter(function (m) { return m !== scr5; }),
-      { z: 0.05, w: 0.82, d: 0.84, h: 1.62, ry: 0,
-        onPlaced: function (top, box) {
-          var r5 = pair[2];
-          var gw5 = (scr5.geometry.parameters && scr5.geometry.parameters.width) || 0.46;
-          var gh5 = (scr5.geometry.parameters && scr5.geometry.parameters.height) || 0.345;
-          scr5.scale.set(r5.w / gw5, r5.h / gh5, 1);
-          scr5.position.set(r5.cx, r5.cy, r5.z);
-          scr5.rotation.x = r5.tilt;
+    propSwap(pair[1], cab5, cab5.children.filter(function (m) { return m !== scr5 && m !== mq5; }),
+      { z: 0.05, w: 0.746, d: 0.84, h: 1.62,
+        onPlaced: function (top, bounds, inner, clips) {
+          function mount(plane, name, w, h) {
+            var socket = inner.getObjectByName(name);
+            if (!socket) throw new Error('Missing den mount: ' + name);
+            socket.add(plane);
+            plane.position.set(0, 0, 0);
+            // Blender sockets use local XY; glTF converts their basis to Y-up.
+            plane.rotation.set(-Math.PI / 2, 0, 0);
+            plane.scale.set(w / plane.geometry.parameters.width, h / plane.geometry.parameters.height, 1);
+            plane.visible = true;
+          }
+          mount(scr5, 'ScreenSocket', 0.595, 0.408);
+          mount(mq5, 'MarqueeSocket', 0.596, 0.158);
+          var clip = THREE.AnimationClip.findByName(clips || [], 'press_start');
+          if (clip) {
+            var mixer = new THREE.AnimationMixer(inner), action = mixer.clipAction(clip);
+            action.setLoop(THREE.LoopOnce, 1);
+            denCabinetMixers.push(mixer);
+            var press = function () {
+              if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+              action.reset().play();
+            };
+            inner.traverse(function (o) { if (o.isMesh) o.userData.onApproach = press; });
+          }
         } }, cab5.children[1]);
   });
 
@@ -8213,7 +8194,8 @@ export function buildHallway(ctx) {
   clickable(bsUpHit, "the stairs up", function () { leaveBasement(); }, "back up to the hall — mind the low bit");
   bsUpHit.userData.space = "basement";
   // the den breathes: static crawls, fish patrol, the tank light sways
-  function bsmTick(t) {
+  function bsmTick(t, dt) {
+    denCabinetMixers.forEach(function (m) { m.update(Math.min(dt || 0, 0.1)); });
     if (crtOn) {
       staticT.offset.y = (t * 3.1) % 1;   // wraps because staticT is RepeatWrapping — see its declaration
       crtScr.material.emissiveIntensity = 0.62 + Math.sin(t * 23) * 0.08 + Math.sin(t * 7.3) * 0.05;
@@ -8241,8 +8223,13 @@ export function buildHallway(ctx) {
     aqWater.material.emissiveIntensity = mode3 === 2 ? 0.15 : 0.85;
   }
   function setAfghan(mode4) {  // 0 plaid red · 1 orange · 2 folded away
-    afghan.visible = mode4 !== 2;
+    denAfghanMode = mode4;
+    afghan.visible = !denAfghan && mode4 !== 2;
     afghan.material.color.setHex(mode4 === 1 ? 0xc4742a : 0x8a2f2a);
+    if (denAfghan) {
+      denAfghan.visible = mode4 !== 2;
+      denAfghan.material.color.setHex(mode4 === 1 ? 0xffb66f : 0xffffff);
+    }
   }
   function setBike(faceTv) { bikeG2.rotation.y = faceTv ? 0.35 : Math.PI; }
 
@@ -9761,7 +9748,7 @@ export function buildHallway(ctx) {
     gBulb.material.emissiveIntensity = 1.6 * dim * gon;
     gSpill.material.opacity = 0.12 * dim * gon;
     poolTick(t, dt);   // the water never stops, even seen through the glass
-    bsmTick(t);        // and neither do the static or the fish
+    bsmTick(t, dt);        // and neither do the static or the fish
     // the porch light is OUTSIDE, so the pull chain doesn't touch it — that's the
     // point of it: turn the hall off and the yard is still faintly there
     porchLight.intensity = 1.5 * dim * backPorchOn;

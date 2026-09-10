@@ -4106,6 +4106,7 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
     if (pendingNav) return;
     endTour(true);   // they've found their own way — the tour bows out
     pendingNav = mesh.userData.action; navTarget = mesh;
+    if (mesh.userData.onApproach) mesh.userData.onApproach();
     /* the failsafe is armed HERE, before the space check: a portal clicked from
      * another room used to have none, so a stalled rAF left it never opening and
      * every further click swallowed by `if (pendingNav) return`. Identity-captured

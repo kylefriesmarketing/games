@@ -32,6 +32,9 @@ for (const src of sources) {
     .replace(/\/\*[\s\S]*?\*\//g, "")       // block comments are prose, not references
     .replace(/^\s*\/\/.*$/gm, "");          // and so are line comments
   for (const m of text.matchAll(/assets\/[a-zA-Z0-9_\-./]+\.[a-z0-9]+/g)) refs.add(m[0]);
+  // House GLB swaps and the paired Blender den cabinet keys.
+  for (const m of text.matchAll(/propSwap\(\s*['"]([a-z0-9-]+)['"]/g)) refs.add("assets/props/house/" + m[1] + ".glb");
+  for (const m of text.matchAll(/\[cab(?:BR|TLI),\s*['"]([a-z0-9-]+)['"]/g)) refs.add("assets/props/house/" + m[1] + ".glb");
   // paths assembled at runtime, which no literal-string sweep can see.
   // ⚠️ `painted: true` entries never request a .jpg — they go straight to POSTER_PAINT —
   // so counting them as references would report two permanent MISSINGs and put this
