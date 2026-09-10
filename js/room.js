@@ -3738,11 +3738,15 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
   var KID_PORCH_OBSTACLES = [
     { x: -7.60, z: -5.23, r: 0.42 }, // the one chair
   ];
+  /* ⚠️ re-derived 2026-09-10 against the live bboxes: these were authored for the
+   * kitchen's OLD south wall (KZ1 2.05 — it is 0.30 now), so 'the fridge' ring sat in
+   * the living room and the real fridge (SW corner), table and counters were unfenced. */
   var KID_KITCHEN_OBSTACLES = [
-    { x: -10.3, z: -3.2, r: 0.85 },  // the counter run along the far wall
-    { x: -12.7, z: -0.8, r: 0.75 },  // the counter down the west wall
-    { x: -9.72, z: 0.30, r: 0.80 },  // the table and chairs
-    { x: -8.50, z: 1.55, r: 0.60 },  // the fridge
+    { x: -11.9, z: -2.9, r: 0.75 },   // the far counter run (x -12.95..-9.45 along z -3.5)
+    { x: -9.8, z: -2.9, r: 0.75 },    //   …its east half, with the cooker
+    { x: -12.64, z: -1.75, r: 0.75 }, // the west run down to the fridge
+    { x: -9.73, z: -0.58, r: 0.80 },  // the table and chairs (bbox -10.52..-8.66 x -1.21..-0.05)
+    { x: -12.45, z: -0.15, r: 0.62 }, // the fridge, SW corner, facing the door
   ];
   var KID_BASEMENT_OBSTACLES = [
     { x: 0.60, z: 4.05, r: 1.15 },   // the couch
@@ -3751,6 +3755,7 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
     { x: -2.10, z: -0.75, r: 1.50 }, // ping-pong
     { x: -2.40, z: 2.20, r: 0.25 },  // the pole (he has run into it; see the pole)
     { x: -6.62, z: -1.62, r: 0.55 }, // the water heater
+    { x: -1.15, z: 2.45, r: 0.72 },  // TOYBOX: LAST WATCH — the diorama (bbox 1.46 x 1.26)
     { x: -5.30, z: -1.85, r: 0.60 }, // the furnace
     { x: 2.82, z: 2.55, r: 0.55 },   // the aquarium
     { x: 2.62, z: -1.72, r: 0.50 },  // the bike
@@ -3765,6 +3770,9 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
     { x: -0.20, z: 17.0, r: 1.75 },
     { x: -11.5, z: 20.2, r: 0.85 },  // the tree
     { x: -8.5,  z: 11.7, r: 0.60 },  // the grill
+    { x: -9.34, z: 13.3, r: 1.10 },  // THE KILN on its pad (bbox 2.92 x 2.10)
+    { x: -8.26, z: 14.87, r: 1.10 }, // CLEAN THE ZOO (bbox 2.14 x 1.16)
+    { x: 0.07,  z: 19.03, r: 0.36 }, // the cooler by the pool
     { x: -1.85, z: 19.6, r: 1.10 },  // loungers + the cooler
     { x: -11.4, z: 15.4, r: 0.30 },  // washing line posts
     { x: -5.6,  z: 15.4, r: 0.30 },
@@ -3804,8 +3812,8 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
   ];
   var KID_KITCHEN_STATIONS = [
     { x: -9.0, z: -1.8, act: "idle" },     // mid-floor, near the cooker
-    { x: -11.5, z: 0.9, act: "fidget" },   // by the sink end
-    { x: -8.6, z: -0.6, act: "idle" },     // hovering near the fridge, obviously
+    { x: -11.55, z: -0.40, act: "fidget" }, // in front of the fridge, obviously (z 0.9 was THROUGH the south wall, in the living room)
+    { x: -8.6, z: -0.6, act: "idle" },      // at the table's east end
   ];
   var KID_BASEMENT_STATIONS = [   // every station carries y: the den floor is -2.42
     { x: -4.30, z: 3.20, y: -2.42, act: "idle" },    // mid-den, taking it in
@@ -3861,12 +3869,16 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
     { x: -13.30, z: 2.16, r: 0.64 },   // the coffee table (front-left of the couch — the couch–TV lane is open)
     { x: -16.35, z: 3.50, r: 0.40 },   // the corner lamp
   { x: -15.45, z: 1.95, r: 0.55 },   // the reading chair (v81)
+    { x: -10.42, z: 1.16, r: 0.40 },   // the side table with the telephone — on the door->couch line
   ];
+  /* ⚠️ MEASURED, not remembered (2026-09-10): the old table/hamper circles were phantoms in
+   * the open corridor 2.5 m from the real props. Index 3 is the stairwell slot itself —
+   * the roam AI has no void guard — and STAIRS[0].fence stands it down for the walker. */
   var KID_UP_OBSTACLES = [
-    { x: -8.10, z: 1.55, r: 0.55 },    // the hall table
-    { x: -10.90, z: 1.60, r: 0.45 },   // the hamper
-    /* the stairwell used to be fenced at (-4.90, 4.90) — the OLD east-wall well. The
-     * real slot (x -7.55..-6.43, z 2.60..7.45) is guarded by tpClamp's void guard. */
+    { x: -10.65, z: 2.15, r: 0.50 },   // the hall table (bbox -11.13..-10.17 x 1.81..2.49)
+    { x: -16.10, z: 1.47, r: 0.36 },   // the laundry hamper
+    { x: -3.15, z: 1.39, r: 0.32 },    // the hoover, parked where it will be tripped over
+    { x: -6.99, z: 5.02, r: 1.10 },    // the stairwell slot (x -7.55..-6.43, z 2.60..7.45)
   ];
   var KID_R0_OBSTACLES = [{ x: -12.60, z: -1.70, r: 1.20 }, { x: -16.15, z: 0.50, r: 0.75 }];
   var KID_R1_OBSTACLES = [{ x: -6.60, z: -1.90, r: 1.00 }, { x: -2.35, z: -2.65, r: 0.70 }];
@@ -7333,7 +7345,7 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
    * down-flight 11 steps x -7.40..-6.55, z 0.35 (y 0) -> 2.55 (y -2.42). */
   var STAIRS = [
     { x: [-7.45, -6.45], zTop: 3.115, zBot: 7.515, yTop: 3.45, yBot: 0,   // tread TOPS (slope = UP_RISE/UP_GO); the footprint line had him 20 cm inside the top treads
-      lo: "hall", hi: "upstairs", topSp: "upstairs", botSp: "hall", fence: { hall: 0 } },
+      lo: "hall", hi: "upstairs", topSp: "upstairs", botSp: "hall", fence: { hall: 0, upstairs: 3 } },
     { x: [-7.40, -6.55], zTop: 0.49, zBot: 2.68, yTop: 0, yBot: -2.42,   // tread tops; the mesh flight ends at -2.12 over a -2.42 floor — the last 27 cm is a missing 12th riser
       lo: "basement", hi: "hall", topSp: "hall", botSp: "basement", fence: { hall: 1 } },
   ];
@@ -7345,6 +7357,28 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
     kidFollowT = -1; kidFollowTo = null;   // the boy IS the player — no follow-teleport
   }
   var TP_BEDROOM = { x: [-4.25, 4.25], z: [-2.55, 3.45] };
+  var walkGround = null, walkGroundRay = new THREE.Raycaster(), walkGroundBox = new THREE.Box3(), walkGroundSize = new THREE.Vector3();
+  function groundY(x, z) {
+    if (!walkGround) {
+      walkGround = [];
+      try {
+        hall.group.updateMatrixWorld(true);
+        hall.group.traverse(function (o) {
+          if (!o.isMesh || !o.geometry) return;
+          walkGroundBox.setFromObject(o); walkGroundBox.getSize(walkGroundSize);
+          // flat (<= 25 cm tall), low (top <= 1.0), and big enough to stand on
+          if (walkGroundSize.y > 0.25 || walkGroundBox.max.y > 1.0 || walkGroundBox.min.y < -1.6) return;
+          if (walkGroundSize.x * walkGroundSize.z < 0.3) return;
+          walkGround.push(o);
+        });
+      } catch (e) { walkGround = []; }
+    }
+    if (!walkGround.length) return null;
+    walkGroundRay.set(new THREE.Vector3(x, 1.4, z), new THREE.Vector3(0, -1, 0));
+    walkGroundRay.far = 3.2;
+    var hits = walkGroundRay.intersectObjects(walkGround, false);
+    return hits.length ? hits[0].point.y : null;
+  }
   function tpBounds() {
     var b = null;
     try { b = (kidSpace !== "bedroom" && hall.bounds) ? hall.bounds[kidSpace] : null; } catch (e) { }
@@ -7440,6 +7474,14 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
      * storey sits at 3.45) and a helper that dragged him toward 0 once walked him
      * through the landing and along the inside of the hall ceiling. Clamping can only
      * ever stop him leaving a floor he is already standing on. */
+    /* OUTDOORS THE GROUND IS NOT ONE HEIGHT: deck 0, porch steps 0 -> -0.40 over 1.1 m,
+     * the walk -0.40/-0.20, the lawn -0.45, the back steps -0.20 / -0.40. The walker
+     * used to leave the deck and hover 0.45 m over the grass. One ray down onto the
+     * FLAT LOW meshes (decks, steps, paths, lawn — gathered once) settles him. */
+    if (kidSpace === "porch" || kidSpace === "back") {
+      var gy = groundY(kid.position.x, kid.position.z);
+      if (gy != null && Math.abs(gy - kid.position.y) < 1.2) kid.position.y = gy;
+    }
     if (b.y) kid.position.y = Math.max(b.y[0], Math.min(b.y[1], kid.position.y));
     /* ⚠️ AND OBSTACLES WIN THE TIE. The toy chest sits flush against the south wall,
      * so the gap behind it is narrower than the boy: the wall clamp pulls him in, the
