@@ -543,7 +543,7 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
     if (gameWrap) return;
     gameWrap = document.createElement("div"); gameWrap.id = "game-wrap";
     var ifr = document.createElement("iframe");
-    ifr.id = "game-frame"; ifr.src = url;
+    ifr.id = "game-frame"; ifr.src = url; ifr.title = "the game — Esc Esc, or the corner tab, returns to the house";
     ifr.allow = "fullscreen; pointer-lock; gamepad; autoplay";
     ifr.allowFullscreen = true;
     var btn = document.createElement("button");
@@ -569,6 +569,8 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
     });
     gameWrap.appendChild(ifr); gameWrap.appendChild(btn);
     document.body.appendChild(gameWrap);
+    // everything under the overlay is inert: not focusable, not announced
+    Array.prototype.forEach.call(document.body.children, function (el) { if (el !== gameWrap) { try { el.inert = true; } catch (e) { } } });
     /* Back means 'back to the house', not 'leave the hub': one history entry per
      * open game; popstate closes it; the button/Esc paths unwind through history */
     try { history.pushState({ house: "game", url: url }, "", location.href); } catch (e) { }
@@ -589,6 +591,7 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
       if (ours) { history.back(); setTimeout(function () { if (gameWrap) closeGame(true); }, 250); return; }
     }
     gameWrap.remove(); gameWrap = null;   // (no about:blank first — that adds a frame history entry)
+    Array.prototype.forEach.call(document.body.children, function (el) { try { el.inert = false; } catch (e) { } });
     gamePaused = false; window.__gameOpen = false;
     try { post && post.restore && post.restore(); } catch (e) { }   // the render targets we released for the game
     try { lampLight.shadow.needsUpdate = true; shadowDirty = 2; } catch (e) { }
@@ -1607,7 +1610,7 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
       sp: { bg: "#0a0f18", fg: "#e7e5dc", rule: "rgba(224,168,74,0.55)",            // panel navy, bone, one amber lantern
         art: "assets/tex/spines/south.jpg", plate: "rgba(4,6,12,0.62)", glow: "rgba(224,168,74,0.30)",
         after: function (g, w, h) { g.fillStyle = "#e0a84a"; g.beginPath(); g.arc(w / 2, h - 42, 5, 0, 7); g.fill(); } } },
-    { t: "STILL BREATHING", c: 0x9a3b1e, url: BASE + "still-breathing/", tip: "STILL BREATHING — four true ordeals",
+    { t: "STILL BREATHING", c: 0x9a3b1e, url: BASE + "still-breathing/", tip: "STILL BREATHING — six true ordeals",
       sp: { bg: "#05070a", fg: "#e7e3d8", rule: "rgba(230,96,58,0.6)",              // the dark instrument panel, one warn-orange vital
         art: "assets/tex/spines/stillbreathing.jpg", plate: "rgba(5,7,10,0.62)", glow: "rgba(230,96,58,0.28)",
         after: function (g, w, h) { g.strokeStyle = "#7cc47a"; g.lineWidth = 3; g.beginPath(); g.arc(w / 2, 44, 9, 0, 7); g.stroke(); } } },
@@ -2519,6 +2522,7 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
     if (!text) return;
     if (!kidBubbleEl) {
       kidBubbleEl = document.createElement("div");
+      kidBubbleEl.setAttribute("role", "status"); kidBubbleEl.setAttribute("aria-live", "polite");
       kidBubbleEl.setAttribute("style", "position:fixed;z-index:7;pointer-events:none;transform:translate(-50%,-100%);" +
         "font-family:'Inter',system-ui,sans-serif;font-size:12.5px;line-height:1.3;letter-spacing:.01em;color:#f3efe4;" +
         "background:rgba(12,16,24,.9);border:1px solid rgba(150,160,180,.4);border-radius:12px;padding:7px 12px;" +
@@ -2545,6 +2549,7 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
      * for up to an hour, and 'storm' lacked its 1.4x. applyWeather is the one
      * authority for that volume; and a deferred enter (clicked while loading,
      * then tabbed away) must not start the tape in a hidden tab. */
+    window.__roomInside = true;   // a deploy landing now must not yank the visitor back to the card
     try { applyWeather(); } catch (e) { }
     try { AUDIO.followVisibility(document.hidden || gamePaused); } catch (e) { }
     kidGreet = true; // he looks up and waves as you walk in
@@ -3156,7 +3161,7 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
   var POSTER_ART = [ // title = the GAME_KEYS/PLAY title, so ownership flows into the frames
     { key: "ageoftoys", label: "AGE OF TOYS", url: BASE + "toybox-tactics/", tip: "AGE OF TOYS — the toy chest's own war story" },
     { key: "south", label: "SOUTH", title: "SOUTH", url: BASE + "south/", tip: "SOUTH — bring all 27 home" },
-    { key: "stillbreathing", label: "STILL BREATHING", title: "STILL BREATHING", url: BASE + "still-breathing/", tip: "STILL BREATHING — four true ordeals" },
+    { key: "stillbreathing", label: "STILL BREATHING", title: "STILL BREATHING", url: BASE + "still-breathing/", tip: "STILL BREATHING — six true ordeals" },
     { key: "ninecircles", label: "NINE CIRCLES", title: "NINE CIRCLES", url: BASE + "nine-circles/", tip: "NINE CIRCLES — a descent" },
     { key: "choosewisely", label: "CHOOSE WISELY", title: "CHOOSE WISELY", url: BASE + "choose-wisely/", tip: "CHOOSE WISELY — the shop remembers you" },
     { key: "nobody", label: "NOBODY", title: "NOBODY", url: BASE + "nobody/", tip: "NOBODY — the Odyssey; argue with the poem" },
@@ -4032,6 +4037,14 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
     }
   }
   var pendingNav = null, navTarget = null, navTimer = 0, _wantV = new THREE.Vector3();
+  function overlayOpen() {
+    var nb = document.getElementById("notebook"), so = document.getElementById("store-ov"), we = document.getElementById("wel-ov");
+    if (nb && nb.classList.contains("open")) return true;
+    if (so && so.classList.contains("open")) return true;
+    if (we && we.offsetParent !== null) return true;
+    return false;
+  }
+  var touchPick = null;
   /* the hover line for a tagged thing. Save-derived hints are FUNCTIONS (re-read on
    * every hover, so a game played in the overlay is reflected without a reload).
    * In walk mode the doors toggle instead of flying, and the stairs are walked —
@@ -4395,7 +4408,14 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
      * wrong (they are kept: decorPointerDown also owns drag initiation). */
     if (e.target !== renderer.domElement) return;
     if (decorPointerDown(e)) return; // rearrange mode (and open panels) own the pointer
+    /* touch picks on RELEASE, and only for a tap: with touch-action none a finger
+     * drag pans the gaze (pointermove feeds setPointer), and picking on the down
+     * opened a game under every pinch and every drag start */
+    if (e.pointerType === "touch") { touchPick = { id: e.pointerId, x: e.clientX, y: e.clientY }; return; }
     setPointer(e);
+    pickAndAct();
+  });
+  function pickAndAct() {
     var o = pickAt();
     if (o && o.userData.action) {
       if (o.userData.action.__nav) kidSummon(o); // doorways go through the kid
@@ -4405,6 +4425,14 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
       tip.textContent = hintText(o.userData); tip.classList.add("show");
       setTimeout(function () { tip.classList.remove("show"); }, 1600);
     }
+  }
+  window.addEventListener("pointerup", function (e) {
+    if (!touchPick || e.pointerId !== touchPick.id) return;
+    var tpk = touchPick; touchPick = null;
+    if (Math.hypot(e.clientX - tpk.x, e.clientY - tpk.y) > 12) return;   // a drag, not a tap
+    if (hall.busy() || gamePaused || e.target !== renderer.domElement) return;
+    setPointer(e);
+    pickAndAct();
   });
 
   // Shared hover/focus highlight — a warm emissive on a CLONED material (never the shared
@@ -4463,8 +4491,16 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
     if (gamePaused) { if (e.key === "Escape") { closeGame(); e.preventDefault(); e.stopImmediatePropagation(); } return; }   // ⚠️ or the SAME event reaches the walk handler after gamePaused flips and switches walk mode off
     if (e.key === "Escape") {
       var sto = document.getElementById("store-ov");
-      if (sto && sto.classList.contains("open")) { closeStore(); return; }
-      if (decorMode) { decorSet(false); return; }
+      /* a consumed Escape stops HERE — the walk handler listens too, and an Esc that
+       * closed the notebook used to also switch walk mode off */
+      if (sto && sto.classList.contains("open")) { closeStore(); e.stopImmediatePropagation(); return; }
+      if (decorMode) { decorSet(false); e.stopImmediatePropagation(); return; }
+      /* the notebook and the list view close FIRST — before this, Esc with the
+       * notebook open in the hall flew you to the bedroom and left it open */
+      var nbEsc = document.getElementById("notebook");
+      if (nbEsc && nbEsc.classList.contains("open")) { nbEsc.classList.remove("open"); e.stopImmediatePropagation(); return; }
+      if (document.body.classList.contains("listing")) { document.body.classList.remove("listing"); e.stopImmediatePropagation(); return; }
+      if (tp.on) return;   // walking: the walk handler's Escape stops the walk; a leave() here would swing a door
       /* ⚠️ ESCAPE ONLY EVER WORKED IN THE HALL. hall.leave() is specifically the
        * hall→bedroom walk and returns immediately anywhere else, so in the other ten
        * spaces Esc silently did nothing — which is how four of them stayed one-way
@@ -4495,11 +4531,16 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
      * ⚠️ Do NOT 'fix' this by making the canvas focusable: it lives inside
      * <div id="room" aria-hidden="true">, and a focusable node inside an aria-hidden
      * subtree is its own conformance failure. */
+    if (overlayOpen()) return;   // a modal (notebook, store, welcome) owns Tab/Enter; its own handlers close it
     if (e.key === "Tab" && document.activeElement && document.activeElement !== document.body) return;
     if (e.key === "Tab") {
-      e.preventDefault();
       var L = kbList();
       if (!L.length) return;
+      /* past the last object, Tab moves ON to the page's own controls — the cycle
+       * used to swallow every forward Tab from the body forever, so #list-toggle,
+       * #walk-toggle and the rest were unreachable from the 3D room */
+      if (!e.shiftKey && kbIndex >= L.length - 1) { try { highlightOff(kbFocus); } catch (e0) { } kbFocus = null; kbIndex = -1; tip.classList.remove("show"); return; }
+      e.preventDefault();
       kbIndex = (kbIndex + (e.shiftKey ? -1 : 1) + L.length) % L.length;
       kbShow(L[kbIndex]);
     } else if ((e.key === "Enter" || e.key === " ") && kbFocus) {
@@ -4805,6 +4846,7 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
   window.addEventListener("pointercancel", endDrag);
   window.addEventListener("wheel", function (e) {
     if (!decorMode) return;
+    if (e.target !== renderer.domElement) return;   // a scroll over the drawer spun the selected furniture (and saved every tick)
     var cfg = dragging ? dragging.cfg : selCfg;
     if (!cfg) return;
     if (cfg.isSticker) { scaleSticker(cfg.entry, e.deltaY > 0 ? -0.1 : 0.1); return; } // scroll resizes a sticker
@@ -5678,7 +5720,7 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
   function extractCode(str) { // accept a full share link OR a bare TR1. code
     if (!str) return null;
     var m = /room=([^&\s]+)/.exec(str);
-    var raw = m ? decodeURIComponent(m[1]) : str.trim();
+    var raw; try { raw = m ? decodeURIComponent(m[1]) : str.trim(); } catch (e) { return null; }   // a malformed % escape used to throw uncaught
     return raw.slice(0, 4) === "TR1." ? raw : null;
   }
   function pasteRoom(str) {
@@ -7125,7 +7167,7 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
       setTimeout(dismissNudge, 8000);
     }
   }
-  function welKey(e) { if (e.key === "Escape") { e.preventDefault(); closeWelcome(); } }
+  function welKey(e) { if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); closeWelcome(); } }   // capture-phase on document: stops the room's own Escape stack from ALSO leaving the space
   function openWelcome(first) {
     welcomeFirst = !!first;
     try { localStorage.setItem(WELCOME_KEY, "1"); } catch (e) { }
@@ -7680,7 +7722,7 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
       lookAt.lerpVectors(zoomLookFrom, zoomLookTo, kz);
       camera.lookAt(lookAt);
       if (zoomT >= 1 && pendingNav) { var navF = pendingNav; pendingNav = null; navF(); }
-    } else if (hall.camTick(t, dt, mx, my)) {
+    } else if ((updateRoomShell(), hall.camTick(t, dt, mx, my))) {   // ⚠️ the south wall's hide-while-busy check must run during FLIGHTS too — tpUpdate (its other caller) bails while busy, so it could only ever SHOW the wall
       // the hallway owns the camera — walking the door, or standing in the hall
     } else {
       if (introT >= 0 && introT < 1) { // the dolly in from the doorway
@@ -8431,7 +8473,7 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
   (function checkSharedRoom() {
     var m = /[?&]room=([^&]+)/.exec(location.search);
     if (!m) return;
-    var blob = decodeRoom(decodeURIComponent(m[1]));
+    var blob = null; try { blob = decodeRoom(decodeURIComponent(m[1])); } catch (e) { blob = null; }
     if (!blob) return;
     var bar = document.createElement("div");
     bar.setAttribute("style", "position:fixed;left:50%;top:14px;transform:translateX(-50%);z-index:31;" +

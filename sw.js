@@ -15,7 +15,7 @@
  * several a day — deleted 13 MB of props along with the code and every visitor
  * re-downloaded the entire house. The shell is bumped freely; the asset bucket is
  * bumped only when a prop is re-exported under a name it already had. */
-var SHELL_CACHE = "the-room-shell-v93"; // v92: boot in half the time — the six-second frame nobody saw
+var SHELL_CACHE = "the-room-shell-v94"; // v94: the second review workflow — copy, a11y, touch, the SW sweep
 var ASSET_CACHE = "the-room-assets-v1"; // bump ONLY when an existing asset changes
 var CACHE = SHELL_CACHE;                // kept: older code in this file reads it
 var SHELL = ["./", "./index.html", "./manifest.webmanifest", "./icon.svg",
@@ -47,6 +47,7 @@ self.addEventListener("activate", function (e) {
   // current one, which took the asset bucket with it on every single deploy.
   e.waitUntil(caches.keys().then(function (keys) {
     return Promise.all(keys.map(function (k) {
+      if (k.indexOf("the-room-") !== 0) return null;   // ⚠️ CacheStorage is per ORIGIN: every game on kylefriesmarketing.github.io shares it — never touch another game's buckets (and they used to sweep ours)
       if (k === SHELL_CACHE || k === ASSET_CACHE) return null;
       if (k.indexOf("the-room-assets-") === 0) return null;   // a future asset bucket
       return caches.delete(k);

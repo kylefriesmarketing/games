@@ -224,8 +224,19 @@ export function isOn() { return audioOn; }
 /* First real gesture: build the graph and start the tape. */
 export function start(initialRain) {
   if (!ac) buildAudio(initialRain == null ? 0.05 : initialRain);
-  audioOn = true; ac.resume();
+  audioOn = true; ac.resume(); armResume();
   return true;
+}
+/* a deferred enter (the click landed while the card was loading) starts the
+ * context outside any gesture; engines that still gate Web Audio on one leave it
+ * suspended with the LED lit. The next real gesture resumes it. */
+function armResume() {
+  if (!ac || ac.state === "running") return;
+  var once = function () {
+    try { if (audioOn) ac.resume(); } catch (e) { }
+    document.removeEventListener("pointerdown", once, true); document.removeEventListener("keydown", once, true);
+  };
+  document.addEventListener("pointerdown", once, true); document.addEventListener("keydown", once, true);
 }
 /* The boombox switch: returns the new state so the caller can colour its LED. */
 export function toggle(initialRain) {

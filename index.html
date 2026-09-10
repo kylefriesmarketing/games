@@ -45,7 +45,7 @@ if (window.top !== window.self) { try { window.top.postMessage({ house: "return"
         { "@type": "ListItem", "position": 4, "item": { "@type": "VideoGame", "name": "CHOOSE WISELY", "url": "https://kylefriesmarketing.github.io/choose-wisely/", "genre": "Interactive fiction", "gamePlatform": "Web browser", "description": "A corner shop where every gift takes something back. Fifty-six endings, and the shop remembers you." } },
         { "@type": "ListItem", "position": 5, "item": { "@type": "VideoGame", "name": "NOBODY", "url": "https://kylefriesmarketing.github.io/nobody/", "genre": "Interactive fiction", "gamePlatform": "Web browser", "description": "You are Odysseus, twenty years from home. Argue with the poem." } },
         { "@type": "ListItem", "position": 6, "item": { "@type": "VideoGame", "name": "ELEMENTARY", "url": "https://kylefriesmarketing.github.io/sherlock/", "genre": "Interactive fiction", "gamePlatform": "Web browser", "description": "A Sherlock Holmes deduction game. Observe the tells, draw the red thread of the Index, name the guilty — and live with it when you are wrong. Being wrong is a branch, not a retry." } },
-        { "@type": "ListItem", "position": 7, "item": { "@type": "VideoGame", "name": "AGE OF TOYS", "url": "https://kylefriesmarketing.github.io/toybox-tactics/", "genre": "Real-time strategy", "gamePlatform": "Web browser", "description": "A storybook RTS: plastic armies, nine maps, a bathtub naval theatre, and an 18-mission campaign." } },
+        { "@type": "ListItem", "position": 7, "item": { "@type": "VideoGame", "name": "AGE OF TOYS", "url": "https://kylefriesmarketing.github.io/toybox-tactics/", "genre": "Real-time strategy", "gamePlatform": "Web browser", "description": "A storybook RTS: plastic armies, fourteen maps, a bathtub naval theatre, and a 28-mission campaign." } },
         { "@type": "ListItem", "position": 8, "item": { "@type": "VideoGame", "name": "BRAINROT: RISE OF THE MEME", "url": "https://dumb-tony.github.io/GameRepos/brainrot/", "genre": "Strategy", "gamePlatform": "Web browser", "author": { "@type": "Person", "name": "Dumb Tony" }, "description": "Infect humanity with terminal brainrot before the world cures itself. Ride Trend Heat, outrun The Cure." } },
         { "@type": "ListItem", "position": 9, "item": { "@type": "VideoGame", "name": "TIDEBOUND", "url": "https://dumb-tony.github.io/GameRepos/tidebound/", "genre": "Interactive fiction", "gamePlatform": "Web browser", "author": { "@type": "Person", "name": "Dumb Tony" }, "description": "A survival visual novel: a plane down beside an uncharted island, one animal companion, and a Ledger that forgets nothing." } },
         { "@type": "ListItem", "position": 10, "item": { "@type": "VideoGame", "name": "CURIOUSER", "url": "https://kylefriesmarketing.github.io/alice/", "genre": "Interactive fiction", "gamePlatform": "Web browser", "description": "Alice's Adventures in Wonderland, playable. A dream of nonsense you must move through without losing yourself. Size is bidirectional, reason is usually the trap, and the goal is to wake as yourself, not to win." } },
@@ -100,7 +100,8 @@ body{background:var(--ink);color:var(--bone);overflow:hidden;
 #vignette{position:fixed;inset:0;z-index:2;pointer-events:none;
   background:radial-gradient(ellipse 78% 78% at 50% 46%,transparent 55%,rgba(3,4,8,.55) 100%)}
 body.listing #vignette,body.no3d #vignette{display:none}
-#room canvas{display:block}
+#room canvas{display:block;touch-action:none}
+@media (pointer:coarse){input,textarea,select{font-size:16px}}
 .hud{position:fixed;top:18px;left:22px;z-index:5;pointer-events:none}
 .hud .eyebrow{font-family:"Inter","Segoe UI",system-ui,sans-serif;font-size:10px;
   letter-spacing:.3em;text-transform:uppercase;color:var(--faint)}
@@ -237,7 +238,7 @@ a.game:hover{transform:translateY(-2px);border-color:var(--acc);
 a.game,.foot a{touch-action:manipulation;-webkit-tap-highlight-color:transparent}
 .g-done{font-family:"Inter","Segoe UI",system-ui,sans-serif;font-size:10.5px;letter-spacing:.12em;
   text-transform:uppercase;color:var(--acc,#7be08a);margin-top:6px;opacity:.85}
-a.game:focus-visible,#list-toggle:focus-visible,#walk-toggle:focus-visible,#nb-close:focus-visible,.foot a:focus-visible,#enter:focus-visible{
+#game-home:focus-visible,#hall-turn:focus-visible,a.game:focus-visible,#list-toggle:focus-visible,#walk-toggle:focus-visible,#nb-close:focus-visible,.foot a:focus-visible,#enter:focus-visible{
   outline:2px solid #ff5aa8;outline-offset:3px}
 @media (prefers-reduced-motion: reduce){ a.game{transition:none} a.game:hover{transform:none} }
 
@@ -306,9 +307,9 @@ body.no3d #enter,body.listing #enter{display:none}
   <div class="hint">click the books · the chest · the notebook · the shoebox</div>
 </div>
 <button id="list-toggle" type="button">list view</button>
-<button id="walk-toggle" type="button" aria-pressed="false" title="walk the boy around the room (C)">walk</button>
+<button id="walk-toggle" type="button" aria-pressed="false" aria-keyshortcuts="c" title="walk the boy around the room (C)">walk</button>
 <div id="walk-pad" hidden aria-label="walk"><button data-dir="up" aria-label="forward">▲</button><button data-dir="left" aria-label="left">◀</button><button data-dir="down" aria-label="back">▼</button><button data-dir="right" aria-label="right">▶</button></div>
-<div id="tip"></div>
+<div id="tip" role="status" aria-live="polite"></div>
 
 <!-- the notebook: your progress across every game (same-origin saves) -->
 <div id="notebook">
@@ -388,7 +389,7 @@ body.no3d #enter,body.listing #enter{display:none}
       <svg class="emb" viewBox="0 0 24 24" fill="none" stroke="#7be08a" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="10" width="16" height="10" rx="1.5"/><path d="M4 13h16M9 10V7a3 3 0 0 1 6 0v3"/></svg>
       <div><div class="g-name">AGE OF TOYS</div>
       <div class="g-tag">real-time strategy · the toybox war</div>
-      <div class="g-hook">Nine maps, plastic armies, and a bathtub naval theatre. The floor is the front line.</div></div>
+      <div class="g-hook">Fourteen maps, plastic armies, and a bathtub naval theatre. The floor is the front line.</div></div>
     </a>
     <a class="game" style="--acc:#d98cf5" href="https://dumb-tony.github.io/GameRepos/brainrot/">
       <svg class="emb" viewBox="0 0 24 24" fill="none" stroke="#d98cf5" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M9 4a3 3 0 0 0-3 3c-1.7.3-3 1.6-3 3.3 0 1.2.6 2.2 1.5 2.8-.3.5-.5 1.1-.5 1.7A3.2 3.2 0 0 0 7.2 18c.4 1.2 1.5 2 2.8 2h2c2.8 0 5-2.2 5-5h1.5a2.5 2.5 0 0 0 0-5H18c0-3.3-2.7-6-6-6Z"/><path d="M12 8v4M10 14h4"/></svg>
@@ -540,6 +541,8 @@ if ("serviceWorker" in navigator && location.protocol !== "file:" && !SW_DEV) {
     // a deploy mid-game must not reload the page under the running game —
     // room.js raises __gameOpen; the reload waits for '⌂ back to the house'
     if (window.__gameOpen) { window.__reloadOnGameClose = true; return; }
+    // and a visitor already inside the room is not yanked back to the entry card
+    if (window.__roomInside) { try { window.__room.kidSay("a fresh coat of paint just landed — it's yours next time you come in.", 5); } catch (e) {} return; }
     swapped = true;
     location.reload();
   });
@@ -611,9 +614,10 @@ document.getElementById("room-return").addEventListener("click", function(e){ e.
       if (roomReady) return;
       var pr = boot.progress();
       if (bar) bar.style.width = Math.round((pr.settled ? pr.frac : 0.04) * 100) + "%";
-      if (txt) txt.textContent = pr.settled
+      var lt = pr.settled
         ? ((window.__roomBoot && window.__roomBoot.compiling) ? "warming up the lights…" : "unpacking the house · " + pr.done + " of " + pr.total)
         : "waking the room…";
+      if (txt && txt.textContent !== lt) txt.textContent = lt;   // a live region rewritten every 120 ms read as a stream
       setTimeout(tick, 120);
     })();
   })();
@@ -662,9 +666,11 @@ document.getElementById("room-return").addEventListener("click", function(e){ e.
     "toybox-tactics/": function(){
       var p = saved("tt-campaign"); if (!p) return null;
       var ids = ["naptime","sandbox","bathtub","hill","finale","crumbs","sofa","canyonrun",
-                 "nightlight","shelfking","tagged","boxed","bargain","stranger","wayhome"], c = 0;
+                 "nightlight","shelfking","tagged","boxed","bargain","stranger","wayhome",
+                 "doorstep","dunes","gardenwar","washout","oakcrown",
+                 "unboxing","portcullis","carpetkings","oldguard","hearth"], c = 0;   // the 25 open missions — keep in step with room.js TT_IDS
       ids.forEach(function(id){ if (p[id]) c++; });
-      return c ? c + " / 15 missions" : null;
+      return c ? c + " / 25 missions" : null;
     }
   };
   /* re-run when a game closes in the overlay: the page no longer reloads between

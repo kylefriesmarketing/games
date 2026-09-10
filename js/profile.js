@@ -12,7 +12,7 @@ import { loadJSON, saveJSON } from "./util.js";
 var KEY = "room-profile";
 
 export function profileState() {
-  var p = loadJSON(KEY) || {};
+  var p = loadJSON(KEY); if (!p || typeof p !== "object") p = {};   // a stored primitive threw at module top level and took the boot gate with it
   if (!p.days) p.days = {};      // { "2026-07-26": 1, ... } — distinct days seen
   if (!p.ach) p.ach = {};        // { achId: isoDate } — when each was earned
   if (!p.seen) p.seen = {};      // which earned awards have been shown to you

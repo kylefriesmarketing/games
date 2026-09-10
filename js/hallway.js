@@ -95,8 +95,8 @@ export function buildHallway(ctx) {
         var _h = bb.max.y - bb.min.y, _sx = (bb.max.x - bb.min.x) / 2, _sz = (bb.max.z - bb.min.z) / 2;
         var _box = { x0: (fit.x || 0) - _sx, x1: (fit.x || 0) + _sx,
                      z0: (fit.z || 0) - _sz, z1: (fit.z || 0) + _sz, top: (fit.y || 0) + _h };
-        if (fit.onPlaced) try { fit.onPlaced(_box.top, _box, inner); } catch (e2) { }
-      } catch (e) { }
+        if (fit.onPlaced) try { fit.onPlaced(_box.top, _box, inner); } catch (e2) { console.warn("propSwap onPlaced failed", e2); }
+      } catch (e) { console.warn("propSwap failed", e); }   // a silent catch hid a real floor-height bug for a week
     }, undefined, function () { bootN2.glbDone(); /* 404: the box sketch stays */ });
   }
 
