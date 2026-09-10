@@ -24,6 +24,7 @@ import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
 import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
 import { mat, box, canvasTex, esc, loadJSON, saveJSON } from "./util.js";
 function canvasTexLinear(w, h, draw) { return canvasTex(w, h, draw, true); }   // masks/dust/rain: see util.js
+import { craftDen } from "./den.js";
 import * as PROFILE from "./profile.js";
 import * as AUDIO from "./audio.js";
 
@@ -55,6 +56,7 @@ export function buildHallway(ctx) {
   var housePropLoader = null;
   var bootN2 = (ctx && ctx.bootCount) || { glb: function () { }, glbDone: function () { } };
   function propSwap(key, parent, hide, fit, proto) {
+    hide.forEach(function (m) { m.userData.bakedFallback = true; });
     if (!housePropLoader) {
       var dr = new DRACOLoader(); dr.setDecoderPath("assets/lib/draco/");
       housePropLoader = new GLTFLoader(); housePropLoader.setDRACOLoader(dr);
@@ -537,10 +539,17 @@ export function buildHallway(ctx) {
    [0.92, 1.34, 2.73, 2.10]]     // the header over the opening ONLY
     .forEach(function (p9) {
       var m9 = paperWallM(p9[0], p9[1]);
-      m9.polygonOffset = true; m9.polygonOffsetFactor = -6; m9.polygonOffsetUnits = -6;
+      /* ⚠️⚠️ NO SLOPE-SCALED OFFSET ON A WALL WITH THINGS HANGING ON IT. factor -6 pulled
+       * this plane's depth toward the camera by six times the depth SLOPE per pixel —
+       * nothing at 4 m, but at a walking angle down the hall the slope is steep and the
+       * bias dwarfed the 16-22 mm the frames, hooks and closet hang in front: the photos
+       * were half-eaten and popped in and out as you moved ("an invisible wall in front
+       * of them" — Kyle). A constant 2-unit bias holds off the slab face 6 mm behind and
+       * cannot grow with the angle. */
+      m9.polygonOffset = true; m9.polygonOffsetFactor = 0; m9.polygonOffsetUnits = -2;
       var sk9 = new THREE.Mesh(new THREE.PlaneGeometry(p9[0], p9[1]), m9);
       sk9.rotation.y = -Math.PI / 2;
-      sk9.position.set(E_IN - 0.004, p9[2], p9[3]); add(sk9);
+      sk9.position.set(E_IN - 0.006, p9[2], p9[3]); add(sk9);
     });
 
   // the NORTH cap is cut too, now that the front door opens onto a real porch.
@@ -637,7 +646,7 @@ export function buildHallway(ctx) {
   // the depth test, never the position. At +0.002 it strobed like the skirting did.
   var hstripe = new THREE.Mesh(new THREE.PlaneGeometry(Z_S - Z_N, 0.22),
     new THREE.MeshStandardMaterial({ color: 0x6e3c4b, roughness: 0.95,
-      polygonOffset: true, polygonOffsetFactor: -6, polygonOffsetUnits: -6 }));
+      polygonOffset: true, polygonOffsetFactor: 0, polygonOffsetUnits: -2 /* constant bias only: a slope-scaled -6 on a wall eats whatever hangs in front of it at walking angles (the photo wall lesson) */ }));
   hstripe.rotation.y = Math.PI / 2; hstripe.position.set(W_IN + 0.004, 2.45, (Z_S + Z_N) / 2); add(hstripe); // the border tries to follow you out of the bedroom
 
   /* ---- doors that aren't ready yet -------------------------------------------
@@ -3216,7 +3225,7 @@ export function buildHallway(ctx) {
   var SK_X = KX0 + 0.36, SK_Z = KCZ - 0.6;
   var basin = new THREE.Mesh(new THREE.PlaneGeometry(0.42, 0.34),
     new THREE.MeshStandardMaterial({ color: 0x64696d, roughness: 0.3, metalness: 0.5,
-      polygonOffset: true, polygonOffsetFactor: -6, polygonOffsetUnits: -6 }));
+      polygonOffset: true, polygonOffsetFactor: 0, polygonOffsetUnits: -2 /* constant bias only: a slope-scaled -6 on a wall eats whatever hangs in front of it at walking angles (the photo wall lesson) */ }));
   basin.rotation.x = -Math.PI / 2; basin.position.set(SK_X, CT_TOP, SK_Z); kadd(basin);
   [[0, -0.19, 0.50, 0.04], [0, 0.19, 0.50, 0.04], [-0.23, 0, 0.04, 0.42], [0.23, 0, 0.04, 0.42]]
     .forEach(function (rb) {
@@ -3614,7 +3623,7 @@ export function buildHallway(ctx) {
   function kDecal(tex, x, y, z, rx, rz, op, ry) {
     var m = new THREE.Mesh(new THREE.PlaneGeometry(rx * 2, rz * 2),
       new THREE.MeshBasicMaterial({ map: tex, transparent: true, opacity: op, depthWrite: false,
-        polygonOffset: true, polygonOffsetFactor: -6, polygonOffsetUnits: -6 }));
+        polygonOffset: true, polygonOffsetFactor: 0, polygonOffsetUnits: -2 /* constant bias only: a slope-scaled -6 on a wall eats whatever hangs in front of it at walking angles (the photo wall lesson) */ }));
     m.rotation.x = -Math.PI / 2; if (ry) m.rotation.z = ry;
     m.position.set(x, y, z); m.renderOrder = 2; kadd(m); return m;
   }
@@ -4063,7 +4072,7 @@ export function buildHallway(ctx) {
   function groundShade(x, z, rx, rz, op, y) {
     var m = new THREE.Mesh(shadeGeo, new THREE.MeshBasicMaterial({
       map: shadeTex, transparent: true, opacity: op == null ? 0.5 : op,
-      depthWrite: false, polygonOffset: true, polygonOffsetFactor: -6, polygonOffsetUnits: -6,
+      depthWrite: false, polygonOffset: true, polygonOffsetFactor: 0, polygonOffsetUnits: -2 /* constant bias only: a slope-scaled -6 on a wall eats whatever hangs in front of it at walking angles (the photo wall lesson) */,
     }));
     m.rotation.x = -Math.PI / 2; m.scale.set(rx * 2, rz * 2, 1);
     m.position.set(x, y == null ? GROUND + 0.015 : y, z);
@@ -6651,7 +6660,7 @@ export function buildHallway(ctx) {
   function hDecal(addFn, tex, x, y, z, rx, rz, op) {
     var m = new THREE.Mesh(new THREE.PlaneGeometry(rx * 2, rz * 2),
       new THREE.MeshBasicMaterial({ map: tex, transparent: true, opacity: op, depthWrite: false,
-        polygonOffset: true, polygonOffsetFactor: -6, polygonOffsetUnits: -6 }));
+        polygonOffset: true, polygonOffsetFactor: 0, polygonOffsetUnits: -2 /* constant bias only: a slope-scaled -6 on a wall eats whatever hangs in front of it at walking angles (the photo wall lesson) */ }));
     m.rotation.x = -Math.PI / 2; m.position.set(x, y, z); m.renderOrder = 2; addFn(m); return m;
   }
   // contact shade under the heavy things, so they sit IN the hall instead of on it
@@ -7344,6 +7353,7 @@ export function buildHallway(ctx) {
    * at -2.42, ceiling hung at -0.10 just under the hall floor. Everything is in
    * `g`, so it gates with the hall; all three lights are distance-capped so they
    * cannot climb through the floor and re-light the corridor. */
+  var denStart = g.children.length;
   var bstag = function (m, name, action, hint) { clickable(m, name, action, hint); m.userData.space = "basement"; return m; };
   // ⚠️ ce is -0.28, NOT -0.10: the bedroom's movables live at y 0 directly above,
   // and several GLBs sag below their own origin — Rex's toes and tail reach -0.15,
@@ -7740,7 +7750,7 @@ export function buildHallway(ctx) {
     [-1, 1].forEach(function (sd2) {
       var sm2 = new THREE.Mesh(new THREE.PlaneGeometry(AD2 - 0.02, 0.76),
         new THREE.MeshStandardMaterial({ map: sdT, roughness: 0.8,
-          polygonOffset: true, polygonOffsetFactor: -6, polygonOffsetUnits: -6 }));
+          polygonOffset: true, polygonOffsetFactor: 0, polygonOffsetUnits: -2 /* constant bias only: a slope-scaled -6 on a wall eats whatever hangs in front of it at walking angles (the photo wall lesson) */ }));
       sm2.position.set(sd2 * (AW2 / 2 + 0.004), 0.49, 0); sm2.rotation.y = sd2 * Math.PI / 2; cab.add(sm2);
     });
     var cl3 = new THREE.PointLight(opts.glow, 0.6, 3.0, 2);
@@ -8193,6 +8203,17 @@ export function buildHallway(ctx) {
   bsUpHit.position.set(-6.9, BSM.fl + 0.95, 2.3); add(bsUpHit);
   clickable(bsUpHit, "the stairs up", function () { leaveBasement(); }, "back up to the hall — mind the low bit");
   bsUpHit.userData.space = "basement";
+  var den = craftDen({ roots: g.children.slice(denStart), parent: g, boot: bootN2, clickable: bstag,
+    anchors: { coffee: ctG, cigar: cigG, cart: cartG, records: rcG, aquarium: aqCab,
+      heater: whG, furnace: furn, neon: llG, haunt: hxG, watch: lwG, lamp: lampShade,
+      window: hopFrame, rug: bsRug, pole: lally, rolled: rolled },
+    named: { floor: bsFloor, coffeeTop: ctTop, boardgame: bgBox, console: conSole,
+      aquariumCabinet: aqCab, gravel: aqGravel, recordBody: rcBody, recordCrate: crate,
+      platter: platter, heaterBody: whBody, furnaceBody: furn, lampShade: lampShade,
+      fishOrange: aqFish[0].m, fishGold: aqFish[1].m, hauntBox: hxBody, bat: bat,
+      cigarBody: cigBody, cigarLid: cigLid, rolled: rolled, rug: bsRug },
+    preserve: [crtScr,aqWater,aqGlass,llTube,lwMat,hxLabel,hxPol,hxMarq,hopGlass,bsBulb]
+  });
   // the den breathes: static crawls, fish patrol, the tank light sways
   function bsmTick(t, dt) {
     denCabinetMixers.forEach(function (m) { m.update(Math.min(dt || 0, 0.1)); });
@@ -9951,6 +9972,7 @@ export function buildHallway(ctx) {
     back: { enter: enterBack, leave: leaveBack },
     // `box` is the den's real extent so room.js can PROVE nothing upstairs hangs
     // through the ceiling into it — see the clearance check in audit().
+    den: den,
     basement: { enter: enterBasement, leave: leaveBasement, box: BSM },
     /* Where each space physically IS, derived from the same constants that build
      * it so the two can never drift. audit() checks every clickable against its
