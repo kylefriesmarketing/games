@@ -2066,7 +2066,7 @@ export function buildHallway(ctx) {
     dimLights.push({ l: acLite, base: 0.5 });
     // a chair on the landing that is not for sitting on, which every house has
     var lchG = new THREE.Group();
-    lchG.position.set(1.85, UPF.fl, LAN.z0 + 0.42); lchG.rotation.y = -0.72; add(lchG);
+    lchG.position.set(3.20, UPF.fl, LAN.z0 + 0.42); lchG.rotation.y = -0.72; add(lchG);   // between the attic door (1.90) and the east window — it was centred ON the attic door
     plant(lchG, 0.30, 0.30, 0.40, 0);
     var lcS = box(0.40, 0.045, 0.40, mat(0x7a6248, 0.8)); lcS.position.y = 0.44; lchG.add(lcS);
     var lcB = box(0.40, 0.50, 0.045, mat(0x7a6248, 0.8)); lcB.position.set(0, 0.70, -0.18); lchG.add(lcB);
@@ -2076,7 +2076,7 @@ export function buildHallway(ctx) {
     });
     grpU(lchG, 'the landing chair', 'nobody sits on it. it holds whatever is on its way up or down.');
     var lcPile = box(0.30, 0.09, 0.26, mat(0xd8d2c2, 0.95));
-    lcPile.position.set(1.85, UPF.fl + 0.51, LAN.z0 + 0.42); lcPile.rotation.y = -0.72 + 0.24; add(lcPile);
+    lcPile.position.set(3.20, UPF.fl + 0.51, LAN.z0 + 0.42); lcPile.rotation.y = -0.72 + 0.24; add(lcPile);
     // ⚠️ utag is (mesh, name, ACTION, hint) — this passed the hint as the action, so
     // clicking the ironing called a string and threw a TypeError. The audit rule at
     // the bottom of room.js now catches this shape for every pickable in the house.
@@ -2237,7 +2237,7 @@ export function buildHallway(ctx) {
     hampG.children.forEach(function (m) { utag(m, 'the laundry hamper', null,
       'the lid went missing years ago. it has been overfull ever since and nobody connects the two.'); });
     // the hoover, parked where it will be tripped over
-    var hvG = new THREE.Group(); hvG.position.set(-3.15, UPF.fl, LAN.z0 + 0.34); hvG.rotation.y = 0.62; add(hvG);
+    var hvG = new THREE.Group(); hvG.position.set(-1.20, UPF.fl, LAN.z0 + 0.36); hvG.rotation.y = 0.62; add(hvG);   // the blank stretch between her door and the airing cupboard — it overlapped her doorway
     var hvBody = box(0.30, 0.22, 0.42, mat(0x9a4a3a, 0.6)); hvBody.position.y = 0.13; hvG.add(hvBody);
     var hvWheel = new THREE.Mesh(new THREE.CylinderGeometry(0.055, 0.055, 0.04, 10), mat(0x2b2e33, 0.6));
     hvWheel.rotation.z = Math.PI / 2; hvWheel.position.set(0, 0.055, -0.15); hvG.add(hvWheel);
@@ -2407,7 +2407,7 @@ export function buildHallway(ctx) {
         gar.position.set(cx + 2.35 + gm[2], fl + gm[1], RZ0 + 2.28); gar.rotation.y = gm[3]; add(gar);
         rtag(gar, 0, 'the clothes on the chair', 'the third pile down is the one that actually gets worn.');
       });
-      var dg = new THREE.Group(); dg.position.set(cx + 1.05, fl, RZ1 - 0.42); dg.rotation.y = 0.04; add(dg);
+      var dg = new THREE.Group(); dg.position.set(cx + 1.55, fl, RZ1 - 0.42); dg.rotation.y = 0.04; add(dg);   // +0.50: the door (rest 0.34 rad, opens to 1.92) stood with its last 37 cm inside the dresser and swept through it
       plant(dg, 0.55, 0.30, 0.50, 0);
       [[1.35, 0.78, 0.50, 0.39], [1.42, 0.05, 0.56, 0.80]].forEach(function (q) {
         var m = box(q[0], q[1], q[2], woodM); m.position.y = q[3]; dg.add(m); });
@@ -2420,19 +2420,19 @@ export function buildHallway(ctx) {
       grp(0, dg, 'the dresser', 'the mirror is angled for somebody a bit shorter than either of them.');
       [[0x2f4f8a, 0.05, -0.30, 0.05], [0xc8a24a, 0.03, 0.10, 0.04], [0x9a3a3a, 0.045, 0.34, 0.03]].forEach(function (tk, ti) {
         var tr = new THREE.Mesh(new THREE.CylinderGeometry(tk[1], tk[1], tk[3], 10), mat(tk[0], 0.55));
-        tr.position.set(cx + 1.05 + tk[2], fl + 0.84, RZ1 - 0.50); tr.rotation.set(0.1 * ti, 0, 0.06 * ti); add(tr);
+        tr.position.set(cx + 1.55 + tk[2], fl + 0.84, RZ1 - 0.50); tr.rotation.set(0.1 * ti, 0, 0.06 * ti); add(tr);
         rtag(tr, 0, 'the things on the dresser', 'coins, a watch that stopped, and a button off something.');
       });
       var wgl = new THREE.Mesh(new THREE.PlaneGeometry(1.30, 1.05),
         new THREE.MeshStandardMaterial({ color: 0x2a3a4e, emissive: 0x7f9dc4, emissiveIntensity: 0.30, roughness: 0.25 }));
-      wgl.position.set(cx - 0.30, fl + 1.42, RZ0 + 0.04); add(wgl);
+      wgl.position.set(cx - 0.30, fl + 1.42, UPF.z0 + 0.04); add(wgl);
       rtag(wgl, 0, 'their window', 'faces the road. they can tell whose car it is before it has parked.');
       [fl + 0.87, fl + 1.97].forEach(function (fy) {
-        var f7 = box(1.44, 0.07, 0.06, mat(0xe4e0d2, 0.8)); f7.position.set(cx - 0.30, fy, RZ0 + 0.06); add(f7);
+        var f7 = box(1.44, 0.07, 0.06, mat(0xe4e0d2, 0.8)); f7.position.set(cx - 0.30, fy, UPF.z0 + 0.06); add(f7);
         rtag(f7, 0, 'their window', 'faces the road. they can tell whose car it is before it has parked.'); });
       [-0.68, 0.68].forEach(function (cxo, cxi) {
         var cur2 = box(0.30, 1.10, 0.05, mat(0x9a8a6a, 0.95));
-        cur2.position.set(cx - 0.30 + cxo, fl + 1.42, RZ0 + 0.09); cur2.rotation.z = (cxi ? -1 : 1) * 0.012; add(cur2);
+        cur2.position.set(cx - 0.30 + cxo, fl + 1.42, UPF.z0 + 0.09); cur2.rotation.z = (cxi ? -1 : 1) * 0.012; add(cur2);
         rtag(cur2, 0, 'the curtains', 'they never quite meet in the middle. they have stopped trying.');
       });
       // the streetlight through the road-facing glass — the cold half the lamps
@@ -2454,7 +2454,7 @@ export function buildHallway(ctx) {
        * — a radio, a hatbox, a rod, knobs — because those are the shapes a bedroom of
        * this vintage actually has, and each is built from parts rather than one lump. */
       var wl = new THREE.Group();
-      wl.position.set(cx + 1.32, fl + 0.83, RZ1 - 0.52); wl.rotation.y = -0.34; add(wl);
+      wl.position.set(cx + 1.82, fl + 0.83, RZ1 - 0.52); wl.rotation.y = -0.34; add(wl);
       var wlBody = box(0.30, 0.19, 0.16, mat(0x6a4630, 0.55)); wlBody.position.y = 0.095; wl.add(wlBody);
       var wlTop = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.08, 0.30, 14, 1, false, 0, Math.PI), mat(0x6a4630, 0.55));
       wlTop.rotation.z = Math.PI / 2; wlTop.position.y = 0.19; wl.add(wlTop);
@@ -2487,7 +2487,7 @@ export function buildHallway(ctx) {
       // drawer knobs — brass, round, and the reason a dresser reads as a dresser
       [[0.22, -0.36], [0.22, 0.36], [0.56, -0.36], [0.56, 0.36]].forEach(function (kk) {
         var dk = new THREE.Mesh(new THREE.SphereGeometry(0.020, 10, 8), mat(0xc8a24a, 0.35));
-        dk.position.set(cx + 1.05 + kk[1], fl + kk[0], RZ1 - 0.42 + 0.26); add(dk);
+        dk.position.set(cx + 1.55 + kk[1], fl + kk[0], RZ1 - 0.42 + 0.26); add(dk);
         rtag(dk, 0, 'the dresser', 'the mirror is angled for somebody a bit shorter than either of them.');
       });
       // his slippers, exactly where they are stepped out of
@@ -2574,7 +2574,7 @@ export function buildHallway(ctx) {
         pt.colorSpace = THREE.SRGBColorSpace;
         var pm = new THREE.Mesh(new THREE.PlaneGeometry(0.44, 0.60),
           new THREE.MeshStandardMaterial({ map: pt, roughness: 0.94 }));
-        pm.position.set(cx + po[0], fl + 1.54 + poi * 0.04, RZ0 + 0.045);
+        pm.position.set(cx + po[0], fl + 1.54 + poi * 0.04, UPF.z0 + 0.045);
         pm.rotation.z = (poi - 1) * 0.026; add(pm);
         rtag(pm, 1, 'her posters', 'taped at the corners. one corner always comes down in the night.');
       });
@@ -2588,14 +2588,15 @@ export function buildHallway(ctx) {
       koT.colorSpace = THREE.SRGBColorSpace;
       var ko = new THREE.Mesh(new THREE.PlaneGeometry(0.24, 0.16),
         new THREE.MeshStandardMaterial({ map: koT, roughness: 0.95 }));
-      ko.position.set(R.doorX, fl + 1.42, RZ1 + 0.055); ko.rotation.y = Math.PI; ko.rotation.z = 0.05; add(ko);
-      rtag(ko, 1, 'KEEP OUT', 'three colours, because one colour would not have been serious enough.');
+      // on the door PIVOT (measured: slab local x 0.015..0.935, z -0.025..0.025, panels to +0.038 on the LANDING side), 7 mm proud of the panels, facing the landing — it was embedded in the slab and parented to the hall group, so it neither swung nor hovered
+      ko.position.set(0.475, 1.42, 0.045); ko.rotation.y = 0; ko.rotation.z = 0.05; roomDoors[1].add(ko);
+      utag(ko, 'KEEP OUT', null, 'three colours, because one colour would not have been serious enough.');   // a sign for the LANDING side reads from the landing
       (function () {
         var pts = [];
         for (var f8 = 0; f8 <= 8; f8++) {
           var t7 = f8 / 8;
           pts.push(new THREE.Vector3(R.x0 + 0.40 + t7 * (R.x1 - R.x0 - 0.8),
-                                     fl + 2.00 - Math.sin(t7 * Math.PI) * 0.15, RZ0 + 0.07));
+                                     fl + 2.00 - Math.sin(t7 * Math.PI) * 0.15, UPF.z0 + 0.07));
         }
         var cur = new THREE.CatmullRomCurve3(pts, false, 'centripetal');
         var wire = new THREE.Mesh(new THREE.TubeGeometry(cur, 32, 0.006, 5, false), mat(0x3a3f46, 0.7));
@@ -2678,8 +2679,8 @@ export function buildHallway(ctx) {
       var slope = box(R.x1 - R.x0, 0.10, 3.1, mat(0x6a5a48, 0.95));
       slope.position.set(cx, fl + 1.76, RZ0 + 1.15); slope.rotation.x = -0.40; add(slope);
       rtag(slope, 2, 'the roof slope', 'you learn where you can stand up straight and you never forget it.');
-      [[-1.30, 0.30, 0.55, 0.62, 'XMAS'], [-1.22, 0.82, 0.05, 0.55, 'BABY'],
-       [0.55, 0.30, 0.42, 0.68, 'TAX'], [0.60, 0.78, -0.12, 0.42, 'KITCHEN'],
+      [[-1.30, 0.30, 0.55, 0.62, 'XMAS'], [-1.22, 0.76, 0.55, 0.55, 'BABY'],   // 0.76 = the lid top of the box beneath (0.46 + the 0.30 the table subtracts); z shares XMAS's — BABY hung 6 cm up with 75% of its footprint over air
+       [0.55, 0.30, 0.42, 0.68, 'TAX'], [0.60, 0.76, 0.42, 0.42, 'KITCHEN'],
        [1.58, 0.30, 0.70, 0.32, 'DAD'], [-0.30, 0.30, -0.35, 0.94, 'SCHOOL']].forEach(function (bx) {
         var bg3 = new THREE.Group();
         bg3.position.set(cx + bx[0], fl + bx[1] - 0.30, RZ0 + 1.30 + bx[2]); bg3.rotation.y = bx[3]; add(bg3);
@@ -2762,7 +2763,7 @@ export function buildHallway(ctx) {
       [tin, tinL].forEach(function (m) { rtag(m, 2, 'the biscuit tin',
         'there have never been biscuits in it. there are buttons and a tape measure.'); });
       var doll = new THREE.Group();
-      doll.position.set(cx - 1.22, fl + 0.99, RZ0 + 1.35); doll.rotation.set(0.2, 0.9, 0.34); add(doll);
+      doll.position.set(cx - 1.22, fl + 0.94, RZ0 + 1.85); doll.rotation.set(0.2, 0.9, 0.34); add(doll);   // rides BABY: its lid top is fl + 0.935 now
       var dBody = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.05, 0.16, 10), mat(0xd8b8a0, 0.85));
       doll.add(dBody);
       var dHead = new THREE.Mesh(new THREE.SphereGeometry(0.045, 10, 8), mat(0xe8ccb8, 0.8));
@@ -2772,7 +2773,7 @@ export function buildHallway(ctx) {
       doll.children.forEach(function (m) { rtag(m, 2, 'the doll',
         'sat on top of the BABY box, facing out, which somebody did on purpose.'); });
       var skates = box(0.22, 0.07, 0.09, mat(0xf0ece0, 0.7));
-      skates.position.set(cx + 0.62, fl + 1.02, RZ0 + 1.18); skates.rotation.set(0, 0.42, 0.08); add(skates);
+      skates.position.set(cx + 0.62, fl + 0.97, RZ0 + 1.72); skates.rotation.set(0, 0.42, 0.08); add(skates);   // ride KITCHEN's lid (fl + 0.935) plus their own half-height
       var blade = box(0.20, 0.012, 0.012, new THREE.MeshStandardMaterial({ color: 0xc8cdd4, roughness: 0.25, metalness: 0.7 }));
       blade.position.set(cx + 0.62, fl + 0.98, RZ0 + 1.18); blade.rotation.set(0, 0.42, 0.08); add(blade);
       [skates, blade].forEach(function (m) { rtag(m, 2, 'the skates',
@@ -3077,6 +3078,7 @@ export function buildHallway(ctx) {
     ground(linoT, 11, 7.77, 0xffffff, 0.55, 0.6));   // square cells on a 5.45x3.85 room (11x11 skewed 42%)
   kFloor.rotation.x = -Math.PI / 2; kFloor.position.set(KCX, 0.005, KCZ); kadd(kFloor);
   ktag(kFloor, "the kitchen floor", null, "lino. there is a worn track from the fridge to the kettle.");
+  var kThresh = box(0.14, 0.02, KDO.z1 - KDO.z0, mat(0x6b5638, 0.85)); kThresh.position.set(-7.50, 0.005, (KDO.z0 + KDO.z1) / 2); add(kThresh);   // like the garage's: there was a 10 cm x 1.10 m hole in the floor between kFloor and the hall runner
 
   var kWallT = canvasTex(128, 128, function (c, w, h) {
     c.fillStyle = "#e4dcc6"; c.fillRect(0, 0, w, h);
@@ -3630,10 +3632,10 @@ export function buildHallway(ctx) {
   // scene, visible, correctly placed, and completely impossible to see. Two numbers
   // that each look reasonable alone can multiply into nothing; check the product.
   var kShadeT = radialTex("0,0,0", 0.62), kWearT = radialTex("104,94,74", 0.62);
-  [[KX1 - 3.35, KZ1 - 0.5, 0.52, 0.48, 0.55],   // the fridge
+  [[KX0 + 0.55, KZ1 - 0.45, 0.50, 0.52, 0.55],   // the fridge (SW corner — the shade sat at the sketch's old spot, 1.5 m east of the real one)
    [cookX, KZ0 + 0.36, 0.42, 0.40, 0.50],       // the cooker
    [KCX + 0.55, KCZ + 1.05, 0.70, 0.52, 0.34],  // the table
-   [KX0 + 0.45, KZ1 - 0.55, 0.24, 0.24, 0.45]   // the bin, below
+   [KX0 + 1.20, KZ1 - 0.28, 0.24, 0.24, 0.45]   // the bin, below
   ].forEach(function (s) { kDecal(kShadeT, s[0], 0.012, s[1], s[2], s[3], s[4]); });
 
   // ⚠️ the worn track is a STRING OF DECALS at real world positions, not a stripe
@@ -3652,7 +3654,7 @@ export function buildHallway(ctx) {
       }
     }
     kDecal(kWearT, -12.40, 0.010, -1.35, 0.38, 0.34, 0.62);   // standing at the sink
-    kDecal(kWearT, -8.62, 0.010, 1.02, 0.36, 0.32, 0.58);     // and at the fridge door
+    kDecal(kWearT, -11.85, 0.010, -0.15, 0.36, 0.32, 0.58);   // and at the fridge door (the bake's front, SW corner — the old spot was the sketch's, 3 m away)
   })();
 
   // --- the dish rack, still draining
@@ -3682,7 +3684,7 @@ export function buildHallway(ctx) {
   ktag(towel, "the tea towel", null, "damp. it is always slightly damp.");
 
   // --- the bin, and the plant on the windowsill
-  var binG = new THREE.Group(); binG.position.set(KX0 + 0.45, 0, KZ1 - 0.55); kadd(binG);
+  var binG = new THREE.Group(); binG.position.set(KX0 + 1.20, 0, KZ1 - 0.28); kadd(binG);   // east of the fridge (front -12.04; the bin's 0.17 rim reaches -11.97): it stood fully INSIDE the baked fridge
   var binBody = new THREE.Mesh(new THREE.CylinderGeometry(0.17, 0.14, 0.52, 14, 1, true), mat(0x9fa4a8, 0.6));
   binBody.material.side = THREE.DoubleSide; binBody.position.y = 0.26; binG.add(binBody);
   var binLid = new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.18, 0.035, 14), mat(0x8b9094, 0.5));
@@ -3834,7 +3836,7 @@ export function buildHallway(ctx) {
     }
   });
   var pdeckM = ground(deckT, 3, 2, 0xffffff, 0.95, 1.0);   // boards you can feel now
-  var PX0 = -8.45, PX1 = -3.25, PZ0 = HOUSE_F, PZ1 = HOUSE_F - 2.35;
+  var PX0 = -8.45, PX1 = -3.25, PZ0 = HOUSE_F + 0.06, PZ1 = HOUSE_F - 2.35;   // +0.06: the deck stopped 5 cm short of the front sill
   var pdeck = box(PX1 - PX0, 0.14, PZ0 - PZ1, pdeckM);
   pdeck.position.set((PX0 + PX1) / 2, -0.07, (PZ0 + PZ1) / 2); pdeck.receiveShadow = true; yadd(pdeck);
   ytag(pdeck, "the porch", null, "the porch. the boards know exactly which one creaks.");
@@ -6386,6 +6388,7 @@ export function buildHallway(ctx) {
   var coolLid = box(0.54, 0.09, 0.36, mat(0xece8dc, 0.5)); coolLid.position.y = 0.385; coolG.add(coolLid);
   var coolHandle = box(0.06, 0.04, 0.30, mat(0xece8dc, 0.5)); coolHandle.position.set(0.30, 0.24, 0); coolG.add(coolHandle);
   // the grill, at a dad-approved distance from anything flammable
+  groundShade(XC - 2.6, Z_S + 2.9, 0.45, 0.45, 0.45, GROUND); groundShade(XC - 5.6, Z_S + 11.4, 2.2, 2.2, 0.45, GROUND);   // the grill and the tree sit ON the lawn now, not over it
   var grillG = new THREE.Group(); grillG.position.set(XC - 2.6, GROUND, Z_S + 2.9); grillG.rotation.y = 0.5; badd(grillG);
   var kettle = new THREE.Mesh(new THREE.SphereGeometry(0.30, 14, 10), mat(0x1d1f22, 0.55));
   kettle.scale.y = 0.72; kettle.position.y = 0.68; grillG.add(kettle);
@@ -6609,7 +6612,7 @@ export function buildHallway(ctx) {
    * the flight is 2.8-3.1 up. The garage was checked first and is full — a grid
    * search found no clear 0.7x1.3 floor anywhere but one column, and no free wall
    * at shelf height at all. */
-  var FRZ_X = W_IN + 0.40, FRZ_Z = 5.20, SHV_X = W_IN + 0.24, SHV_Z = 3.60;
+  var FRZ_X = W_IN + 0.40, FRZ_Z = 5.20, SHV_X = W_IN + 0.24, SHV_Z = 3.25;   // 3.25: the top bin used to pierce tread 11 by 13 cm; at 3.25 the bins end at z 4.00 (tread 11's face is 4.0525) and the uprights (2.53/3.97, top 2.30) clear tread 12's underside (2.557)
   var frz = box(1.24, 0.86, 0.66, mat(0xe8eae6, 0.5));
   frz.position.set(FRZ_X, 0.43, FRZ_Z); frz.rotation.y = Math.PI / 2; frz.castShadow = true; badd(frz);
   var frzLid = box(1.2, 0.07, 0.64, mat(0xdcdedb, 0.45));
@@ -6627,7 +6630,7 @@ export function buildHallway(ctx) {
     });
   });
   [-0.72, 0.72].forEach(function (uz) {
-    var up = box(0.05, 2.3, 0.05, shelfM); up.position.set(W_IN + 0.24, 1.15, 7.5 + uz); badd(up);
+    var up = box(0.05, 2.3, 0.05, shelfM); up.position.set(SHV_X, 1.15, SHV_Z + uz); badd(up);   // ⚠️ derived from the shelf: both posts were left at the OLD corner (z 6.78 / 8.22) when the shelves moved — one stood through stair tread 2, the other in the garage doorway
   });
 
   // the way home: the open doorway itself is clickable (an invisible hitbox in
@@ -6655,15 +6658,14 @@ export function buildHallway(ctx) {
   [[TBL_X, TBL_Z, 0.34, 0.26, 0.42],          // the hall table
    [-6.35, -2.55, 0.42, 0.36, 0.46],          // the moving boxes under the stairs
    [STAND_X, STAND_Z, 0.16, 0.16, 0.44],      // the umbrella stand
-   [FRZ_X, FRZ_Z, 0.40, 0.68, 0.44],          // the chest freezer (under the flight, where it now stands)
-   [E_IN - 0.62, 6.60, 0.34, 0.46, 0.34]      // the mud room's boots, in their new spot
+   [FRZ_X, FRZ_Z, 0.40, 0.68, 0.44]           // the chest freezer (under the flight, where it now stands); the boots decal that followed was orphaned — nothing stands there
   ].forEach(function (s) { hDecal(add, kShadeT, s[0], 0.010, s[1], s[2], s[3], s[4]); });
 
   // ⚠️ WEAR GOES WHERE FEET GO, and in a hall that is not the middle of the floor —
   // it is the doorways. A hall's traffic is a series of pinch points: the mat, the
   // foot of the stairs, and one patch outside every door somebody actually opens.
   [[FRONT_X, -2.75, 0.40, 0.34, 0.50],        // inside the front door
-   [-6.95, -2.30, 0.42, 0.38, 0.52],          // the foot of the stairs
+   [-6.60, 7.60, 0.42, 0.38, 0.52],           // the foot of the stairs (the up-flight's foot is z 7.55 now; -2.30 was the OLD stair)
    [W_IN + 0.62, -0.35, 0.30, 0.34, 0.44],    // the kitchen door
    [W_IN + 0.62, 1.90, 0.28, 0.32, 0.38],     // the living room door
    [E_IN - 0.55, 0.10, 0.30, 0.38, 0.42],     // the bedroom doorway
@@ -7105,7 +7107,7 @@ export function buildHallway(ctx) {
   });
   var dart = new THREE.Mesh(new THREE.CylinderGeometry(0.23, 0.23, 0.03, 20),
     new THREE.MeshStandardMaterial({ map: dartT, roughness: 0.85 }));
-  dart.rotation.z = Math.PI / 2; dart.position.set(-7.80, 1.30, 7.05); add(dart);
+  dart.rotation.z = Math.PI / 2; dart.position.set(-7.86, 1.30, 7.05); add(dart);   // 4 cm proud of the garage face (-7.82) — it was buried in the thickened wall, unhoverable
   gtag(dart, "the dartboard", null, "501, straight in, double out. nobody in this house has ever finished a game.");
   var pennT = new THREE.CanvasTexture(document.createElement("canvas"));
   pennT.image.width = 128; pennT.image.height = 48;
@@ -7121,7 +7123,7 @@ export function buildHallway(ctx) {
   pennantDraw("#2f5e3a", "HAZEL PARK");
   var penn = new THREE.Mesh(new THREE.PlaneGeometry(0.62, 0.22),
     new THREE.MeshBasicMaterial({ map: pennT, transparent: true }));
-  penn.rotation.y = -Math.PI / 2; penn.position.set(-7.79, 1.80, 7.05); add(penn);
+  penn.rotation.y = -Math.PI / 2; penn.position.set(-7.85, 1.80, 7.05); add(penn);   // 3 cm proud of the garage face
   gtag(penn, "the pennant", null, "they were never good. that was never the point.");
   var frG = new THREE.Group(); frG.position.set(-8.14, 0, 7.90); add(frG);
   var frBody = box(0.62, 1.30, 0.60, mat(0xe8eae6, 0.5)); frBody.position.y = 0.71; frG.add(frBody);
@@ -7432,6 +7434,7 @@ export function buildHallway(ctx) {
   bsRug.rotation.x = -Math.PI / 2; bsRug.position.set(0.7, BSM.fl + 0.006, 3.0); bsRug.renderOrder = 1; add(bsRug);
   var plaidM = mat(0x6e4a30, 0.95);
   var couchG = new THREE.Group(); couchG.position.set(0.6, BSM.fl, 4.02); add(couchG);
+  plant(couchG, 1.05, 0.55, 0.55, 0);   // the den had no contact shadows at all
   var cBase = box(2.05, 0.42, 0.85, plaidM); cBase.position.y = 0.28; couchG.add(cBase);
   var cBack = box(2.05, 0.55, 0.24, plaidM); cBack.position.set(0, 0.72, 0.32); couchG.add(cBack);
   [[-1.06], [1.06]].forEach(function (ar2) {
@@ -9663,7 +9666,7 @@ export function buildHallway(ctx) {
     basement: { x: [BSM.x0 - 0.15, BSM.x1 + 0.15], z: [BSM.z0 - 0.15, BSM.z1 + 0.15],
                 y: [BSM.fl - 0.15, BSM.ce + 0.10] },
     porch:    { x: [-60, 60], z: [-62, HOUSE_F + 0.60], y: [GROUND - 0.20, GROUND + 14] },
-    back:     { x: [-32, 26], z: [Z_S - 0.70, 46], y: [GROUND - 1.60, GROUND + 12] },
+    back:     { x: [-17.25, 5.45], z: [Z_S - 0.70, 24.8], y: [GROUND - 1.60, GROUND + 12] },   // the fenced yard — the walker used to stroll through the pickets into the neighbours' lots
   };
 
   /* ⚠️⚠️ PER-SPACE LIGHT GATING WAS HERE, AND IT WAS A NET LOSS — DO NOT REBUILD IT.

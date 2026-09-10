@@ -588,7 +588,19 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
        * the popstate does the teardown. If a game navigated inside its frame, Back
        * steps THAT first and no popstate reaches us — the timer finishes the job. */
       var ours = false; try { ours = !!(history.state && history.state.house === "game"); } catch (e) { }
-      if (ours) { history.back(); setTimeout(function () { if (gameWrap) closeGame(true); }, 250); return; }
+      if (ours) {
+        history.back();
+        setTimeout(function () {
+          if (!gameWrap) return;
+          closeGame(true);
+          /* Back popped the FRAME's own entry (a game that navigated in-frame — e.g. its
+           * 'back to the house' link). The frame is gone now, and with it its entries,
+           * so our entry is current again: unwind it (measured live: state still
+           * {house:'game'} after the framed-hub close). */
+          try { if (history.state && history.state.house === "game") history.back(); } catch (e) { }
+        }, 250);
+        return;
+      }
     }
     gameWrap.remove(); gameWrap = null;   // (no about:blank first — that adds a frame history entry)
     Array.prototype.forEach.call(document.body.children, function (el) { try { el.inert = false; } catch (e) { } });
@@ -3728,7 +3740,7 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
     { x: -7.00, z: 0.82, r: 0.72 },  // the hole down to the basement
     { x: -4.60, z: -3.15, r: 0.42 }, // the hall table
     { x: -4.70, z: 5.45, r: 0.62 },  // the laundry
-    { x: -4.62, z: 7.75, r: 0.5 },   // the boots
+    /* 'the boots' ring (-4.62, 7.75) removed: the boots moved to the mud room and the ring only fenced the closet doorway */
     /* ⚠️ the chest freezer used to be fenced here at (-7.10, 7.50) — its OLD corner,
      * which is now the FOOT of the up-flight. The freezer moved under the stairs
      * (hallway.js FRZ_Z 5.20), inside the staircase circle above, and the fossil
@@ -3779,7 +3791,8 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
   ];
   var KID_GARAGE_OBSTACLES = [
     { x: -11.65, z: 6.30, r: 0.90 },  // the workbench run
-    { x: -9.55, z: 6.75, r: 1.40 },   // the project, under its tarp
+    { x: -9.55, z: 5.90, r: 1.00 },   // the project, under its tarp — two rings for a 1.8 x 3.4 tarp (one r 1.40 disc left no room for a station)
+    { x: -9.55, z: 7.60, r: 1.00 },   //   …its back half
     { x: -7.94, z: 7.90, r: 0.55 },   // the fridge
     { x: -10.30, z: 8.20, r: 0.60 },  // the shelf wall
     { x: -11.86, z: 4.72, r: 0.45 },  // the leaning tools
@@ -3801,7 +3814,7 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
     { x: -5.55, z: 2.50, act: "idle" },    // by the closet
     { x: -5.95, z: 0.30, act: "fidget" },  // mid-hall, under the bulb
     { x: -5.10, z: -2.30, act: "idle" },   // at the photo wall
-    { x: -6.10, z: 4.60, act: "fidget" },  // down the back
+    { x: -5.60, z: 4.60, act: "fidget" },  // down the back (was 0.35 inside the staircase ring)
     { x: -5.40, z: 7.60, act: "idle" },    // looking out the slider
     { x: -5.90, z: -0.90, act: "idle" },   // the middle of his own house
   ];
@@ -3817,19 +3830,19 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
   ];
   var KID_BASEMENT_STATIONS = [   // every station carries y: the den floor is -2.42
     { x: -4.30, z: 3.20, y: -2.42, act: "idle" },    // mid-den, taking it in
-    { x: -0.90, z: 0.20, y: -2.42, act: "fidget" },  // at the ping-pong table, ready
+    { x: -0.72, z: 0.36, y: -2.42, act: "fidget" },  // at the ping-pong table, ready (clear of its ring now)
     { x: 1.90, z: 2.30, y: -2.42, act: "idle" },     // in the aquarium glow
     { x: 0.75, z: -0.92, y: -2.42, act: "fidget" },  // between the two cabinets, agonising
   ];
   var KID_BACK_STATIONS = [   // lawn stations carry y — the yard is 45cm below the deck
     { x: -5.30, z: 9.65, act: "idle" },                 // on the deck boards
     { x: -4.30, z: 15.2, y: -0.45, act: "fidget" },     // poolside, north-west corner
-    { x: 1.60,  z: 17.3, y: -0.45, act: "idle" },       // the far rail, watching the water
+    { x: 1.85,  z: 17.6, y: -0.45, act: "idle" },       // the far rail, watching the water (clear of the pool ring)
   ];
   var KID_GARAGE_STATIONS = [
     { x: -8.55, z: 5.05, act: "idle" },    // just inside, taking it in
     { x: -10.70, z: 4.95, act: "fidget" }, // at the big door, willing it open
-    { x: -8.75, z: 7.35, act: "idle" },    // by the project's back bumper
+    { x: -8.20, z: 7.15, act: "idle" },    // by the project's back bumper (0.79 from the fridge ring, 0.38 off the wall)
   ];
   /* ⚠️ THE KID COULD NOT FOLLOW YOU INTO SIX SPACES. hall.space() returns 'living',
    * 'upstairs' and 'room0'..'room2', and none of them had an entry in ANY of his
@@ -3841,7 +3854,7 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
   var UPY = 3.45;
   var KID_LIVING_STATIONS = [
     { x: -11.60, z: 2.60, act: 'idle' },      // middle of the floor, taking the room in
-    { x: -12.60, z: 1.45, act: 'sit', seat: 0, y: 0.52, yaw: 0 },   // on the good couch, which he is not supposed to (seat 0 = the couch ring; cushion measured 0.55 at z 0.9-1.5, floor from 1.7; facing the set at +z)
+    { x: -12.60, z: 1.20, act: 'sit', seat: 0, y: 0.50, yaw: 0 },   // on the good couch, which he is not supposed to (seat 0 = the couch ring; cushion top measured 0.55 over z 0.9-1.5, its front edge ~1.6; facing the set at +z)
     { x: -15.80, z: 2.95, act: 'fidget' },    // by the corner lamp
     { x: -13.20, z: 3.05, act: 'idle' },      // right up close to the set, as you do
   ];
@@ -3877,7 +3890,7 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
   var KID_UP_OBSTACLES = [
     { x: -10.65, z: 2.15, r: 0.50 },   // the hall table (bbox -11.13..-10.17 x 1.81..2.49)
     { x: -16.10, z: 1.47, r: 0.36 },   // the laundry hamper
-    { x: -3.15, z: 1.39, r: 0.32 },    // the hoover, parked where it will be tripped over
+    { x: -1.20, z: 1.41, r: 0.32 },    // the hoover, parked where it will be tripped over (moved out of her doorway)
     { x: -6.99, z: 5.02, r: 1.10 },    // the stairwell slot (x -7.55..-6.43, z 2.60..7.45)
   ];
   var KID_R0_OBSTACLES = [{ x: -12.60, z: -1.70, r: 1.20 }, { x: -16.15, z: 0.50, r: 0.75 }];
@@ -3913,9 +3926,9 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
     room2:    { x: 1.90, y: 3.45, z: 0.80 },
   };
   var KID_HUBS = { bedroom: { x: 0.3, z: 1.35 }, hall: { x: -5.9, z: 1.2 }, porch: { x: -5.9, z: -4.8 },
-    kitchen: { x: -10.4, z: -1.2 }, garage: { x: -9.0, z: 5.15 }, back: { x: -4.6, z: 13.4 },
+    kitchen: { x: -10.55, z: -1.35 }, garage: { x: -9.0, z: 5.15 }, back: { x: -4.6, z: 13.4 },   // kitchen hub nudged clear of the table ring (was 0.07 inside)
     basement: { x: -3.2, z: 1.9 }, living: { x: -11.8, z: 2.4 }, upstairs: { x: -9.0, z: 1.75 },
-    room0: { x: -12.5, z: -0.6 }, room1: { x: -4.1, z: -0.6 }, room2: { x: 2.0, z: -0.9 } };
+    room0: { x: -12.5, z: 0.20 }, room1: { x: -4.1, z: -0.6 }, room2: { x: 2.0, z: -0.9 } };   // room0 hub was inside their bed's ring
   var kidFollowT = -1, kidFollowTo = null;
 
   // One avoidance step toward (tx,tz): steer around obstacles, then hard-clamp out
@@ -7356,6 +7369,11 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
     kidState.ignoreObs = -1;   // obstacle indices mean different things per space
     kidFollowT = -1; kidFollowTo = null;   // the boy IS the player — no follow-teleport
   }
+  /* RAILS: a plane inside ONE space, closed except across `span` (the steps). The porch
+   * deck's outer edge is one; the walker used to step through the pickets anywhere. */
+  var RAILS = [
+    { plane: "z", at: -5.80, span: [-6.45, -4.95], x: [-8.45, -3.25], y: 0, space: "porch" },
+  ];
   var TP_BEDROOM = { x: [-4.25, 4.25], z: [-2.55, 3.45] };
   var walkGround = null, walkGroundRay = new THREE.Raycaster(), walkGroundBox = new THREE.Box3(), walkGroundSize = new THREE.Vector3();
   function groundY(x, z) {
@@ -7437,6 +7455,15 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
      * the corridor was open to the dead bay behind it everywhere but the slot
      * (STW x -7.55..-6.43), which is the up-flight's mouth and the void guard's job. */
     if (kidSpace === "upstairs" && tpOnStair < 0 && (kid.position.x < -7.55 - KID_R || kid.position.x > -6.43 + KID_R) && kid.position.z > 2.45 - mp) kid.position.z = 2.45 - mp;
+    for (var rl = 0; rl < RAILS.length; rl++) {
+      var rr = RAILS[rl];
+      if (kidSpace !== rr.space || Math.abs(kid.position.y - rr.y) > 1) continue;
+      if (kid.position.x < rr.x[0] || kid.position.x > rr.x[1]) continue;
+      var spr = rr.plane === "z" ? kid.position.x : kid.position.z;
+      if (spr >= rr.span[0] + KID_R && spr <= rr.span[1] - KID_R) continue;   // the steps
+      var cpr = rr.plane === "z" ? kid.position.z : kid.position.x, dr = cpr - rr.at;
+      if (Math.abs(dr) < mp) { var sd = dr < 0 ? -1 : 1; if (rr.plane === "z") kid.position.z = rr.at + sd * mp; else kid.position.x = rr.at + sd * mp; }
+    }
     /* mid-stair the run axis stands aside too: the upstairs box ended 40 cm
      * short of the descent’s crossing threshold and clamped him to a stop
      * at z 7.05 forever (measured). Both flights run along z. */
