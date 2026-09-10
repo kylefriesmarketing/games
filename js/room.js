@@ -4483,7 +4483,7 @@ var clickSfx = AUDIO.clickSfx, rumble = AUDIO.rumble, ratchetSfx = AUDIO.ratchet
   // originals like woodM). Used by both the mouse and the keyboard so focus is visible.
   var HL = new THREE.Color(0xffc27d);
   function highlightOn(o) {
-    if (!o || o.userData.__origMat) return;
+    if (!o || o.userData.__origMat || o.userData.noHighlight) return;
     if (o === shade || o === screen || o === pcScreen) return; // these own their emissive
     var m = o.material; if (!m) return;
     if (Array.isArray(m)) { // multi-material things (the books, the notebook) — glow every face

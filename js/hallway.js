@@ -1754,9 +1754,10 @@ export function buildHallway(ctx) {
   // south rail post the way an unhooked chain actually lives. The full flight
   // is ELEVEN risers: the original five stopped at y -1.0 in a room that needs
   // to reach -2.42, a staircase into nothing.
+  var denStairSources = [];
   for (var ds = 0; ds < 11; ds++) {
     var dstep = new THREE.Mesh(new THREE.BoxGeometry(HOLE.x1 - HOLE.x0 - 0.06, 0.16, 0.24), dstepM);
-    dstep.position.set((HOLE.x0 + HOLE.x1) / 2, -0.1 - ds * 0.21, HOLE.z0 + 0.16 + ds * 0.19); add(dstep);
+    dstep.position.set((HOLE.x0 + HOLE.x1) / 2, -0.1 - ds * 0.21, HOLE.z0 + 0.16 + ds * 0.19); add(dstep); denStairSources.push(dstep);
   }
   /* ⚠️ THE SHAFT. A hole in a floor is not an opening until it has SIDES. Cutting
    * the lawn out from under the stairwell opened the view down — and also opened the
@@ -7561,23 +7562,28 @@ export function buildHallway(ctx) {
   });
   propSwap('pingpong', ppG, ppG.children.slice(), { w: 2.45, d: 1.40, ry: 0 });
   // the aquarium — the green light the hall has been promising for months
-  var aqCab = box(0.9, 0.62, 0.42, mat(0x4a3524, 0.85)); aqCab.position.set(2.82, BSM.fl + 0.31, 2.55); add(aqCab);
+  var aqCab = box(0.9, 0.62, 0.42, mat(0x4a3524, 0.85)); aqCab.position.set(2.68, BSM.fl + 0.31, 2.55); add(aqCab);
   var aqGlass = new THREE.Mesh(new THREE.BoxGeometry(0.82, 0.5, 0.36),
     new THREE.MeshStandardMaterial({ color: 0x9fd8c8, roughness: 0.1, transparent: true, opacity: 0.35 }));
-  aqGlass.position.set(2.82, BSM.fl + 0.90, 2.55); add(aqGlass);
+  aqGlass.position.set(2.68, BSM.fl + 0.90, 2.55); add(aqGlass);
   var aqWater = new THREE.Mesh(new THREE.BoxGeometry(0.76, 0.4, 0.30),
     new THREE.MeshStandardMaterial({ color: 0x77d9a8, emissive: 0x3fae76, emissiveIntensity: 0.85, roughness: 0.3, transparent: true, opacity: 0.55 }));
-  aqWater.position.set(2.82, BSM.fl + 0.87, 2.55); add(aqWater);
-  var aqGravel = box(0.76, 0.05, 0.30, mat(0x6a5540, 0.95)); aqGravel.position.set(2.82, BSM.fl + 0.685, 2.55); add(aqGravel);
+  aqWater.position.set(2.68, BSM.fl + 0.87, 2.55); add(aqWater);
+  var aqGravel = box(0.76, 0.05, 0.30, mat(0x6a5540, 0.95)); aqGravel.position.set(2.68, BSM.fl + 0.685, 2.55); add(aqGravel);
   var aqFish = [];
   [[0.2, 0.94, 0xe0713a], [-0.18, 0.82, 0xe0b03a]].forEach(function (ff2) {
     var fsh = box(0.06, 0.03, 0.015, mat(ff2[2], 0.5));
-    fsh.position.set(2.82 + ff2[0], BSM.fl + ff2[1], 2.55); add(fsh); aqFish.push({ m: fsh, ph: ff2[0] * 9 });
+    fsh.position.set(2.68 + ff2[0], BSM.fl + ff2[1], 2.55); add(fsh); aqFish.push({ m: fsh, ph: ff2[0] * 9 });
   });
   var aqLite = new THREE.PointLight(0x77d9a8, 1.1, 3.4, 1.8);
-  aqLite.position.set(2.82, BSM.fl + 1.05, 2.55); add(aqLite);
+  aqLite.position.set(2.68, BSM.fl + 1.05, 2.55); add(aqLite);
   [aqGlass, aqWater].forEach(function (m) {
     bstag(m, "the aquarium", null, "the cold green glow, explained. two fish, zero names that stuck.");
+  });
+  // The broad glass face looks into the den; the entire aquarium clears the paneling.
+  var tankG = new THREE.Group(); tankG.position.set(2.88, BSM.fl, 2.55); tankG.rotation.y = -Math.PI / 2; add(tankG);
+  [aqCab,aqGlass,aqWater,aqGravel,aqLite].concat(aqFish.map(function (f) { return f.m; })).forEach(function (o) {
+    o.position.x -= 2.68; o.position.y -= BSM.fl; o.position.z -= 2.55; tankG.add(o);
   });
   // the record console and its crate
   // ⚠️ 2.20, not 2.55: the crate sits at +0.85 and the sleeves fan to +0.92, so at
@@ -8203,7 +8209,7 @@ export function buildHallway(ctx) {
   bsUpHit.position.set(-6.9, BSM.fl + 0.95, 2.3); add(bsUpHit);
   clickable(bsUpHit, "the stairs up", function () { leaveBasement(); }, "back up to the hall — mind the low bit");
   bsUpHit.userData.space = "basement";
-  var den = craftDen({ roots: g.children.slice(denStart), parent: g, boot: bootN2, clickable: bstag,
+  var den = craftDen({ roots: g.children.slice(denStart).concat(denStairSources), parent: g, boot: bootN2, clickable: bstag,
     anchors: { coffee: ctG, cigar: cigG, cart: cartG, records: rcG, aquarium: aqCab,
       heater: whG, furnace: furn, neon: llG, haunt: hxG, watch: lwG, lamp: lampShade,
       window: hopFrame, rug: bsRug, pole: lally, rolled: rolled },
@@ -8212,7 +8218,7 @@ export function buildHallway(ctx) {
       platter: platter, heaterBody: whBody, furnaceBody: furn, lampShade: lampShade,
       fishOrange: aqFish[0].m, fishGold: aqFish[1].m, hauntBox: hxBody, bat: bat,
       cigarBody: cigBody, cigarLid: cigLid, rolled: rolled, rug: bsRug },
-    preserve: [crtScr,aqWater,aqGlass,llTube,lwMat,hxLabel,hxPol,hxMarq,hopGlass,bsBulb]
+    preserve: [crtScr,aqWater,aqGlass,llTube,lwMat,hxLabel,hxPol,hxMarq,hopGlass,bsBulb,cabBR.children[23],cabBR.children[26],cabTLI.children[23],cabTLI.children[26]]
   });
   // the den breathes: static crawls, fish patrol, the tank light sways
   function bsmTick(t, dt) {
@@ -8224,7 +8230,7 @@ export function buildHallway(ctx) {
     }
     for (var af2 = 0; af2 < aqFish.length; af2++) {
       var fo2 = aqFish[af2];
-      fo2.m.position.x = 2.82 + Math.sin(t * 0.5 + fo2.ph) * 0.28;
+      fo2.m.position.x = Math.sin(t * 0.5 + fo2.ph) * 0.28;
       fo2.m.rotation.y = Math.cos(t * 0.5 + fo2.ph) > 0 ? 0 : Math.PI;
     }
     if (aqLite.intensity > 0) aqLite.intensity = 1.1 + Math.sin(t * 1.3) * 0.12;
@@ -8509,7 +8515,7 @@ export function buildHallway(ctx) {
      * detach a map directly. ⚠️ material.needsUpdate = true is MANDATORY when a
      * mapless material first gains a map — without it the slab renders black. */
     if (!idx || !opt[1]) {
-      bsFloorM.map = null; bsFloorM.bumpMap = null; bsFloorM.needsUpdate = true; return;
+      bsFloorM.map = den.defaultFloor || null; bsFloorM.bumpMap = null; bsFloorM.needsUpdate = true; return;
     }
     if (!bsFloorM.userData.swapT) {
       var st = canvasTex(512, 512, function () { });

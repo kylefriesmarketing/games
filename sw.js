@@ -15,13 +15,13 @@
  * several a day — deleted 13 MB of props along with the code and every visitor
  * re-downloaded the entire house. The shell is bumped freely; the asset bucket is
  * bumped only when a prop is re-exported under a name it already had. */
-var SHELL_CACHE = "the-room-shell-v100"; // v100: den.js consistent again (v99 shipped a mid-edit snapshot that called finishSurfaces before it existed); the enter card falls back to the list if the room dies late
+var SHELL_CACHE = "the-room-shell-v101"; // complete Blender den: geometry, surfaces, and fittings
 var ASSET_CACHE = "the-room-assets-v1"; // bump ONLY when an existing asset changes
 var CACHE = SHELL_CACHE;                // kept: older code in this file reads it
 var SHELL = ["./", "./index.html", "./manifest.webmanifest", "./icon.svg",
   // room.js imports these at parse time — miss one and the offline room won't boot
   "./js/room.js", "./js/util.js", "./js/stickers.js", "./js/collectibles.js",
-  "./js/profile.js", "./js/audio.js", "./js/post.js", "./js/hallway.js",
+  "./js/profile.js", "./js/audio.js", "./js/post.js", "./js/hallway.js", "./js/den.js",
   // ⚠️ and these, which the importmap resolves at parse time too. The comment above
   // was already right about the consequence and the list was missing the biggest one.
   "./assets/lib/three.module.min.js",

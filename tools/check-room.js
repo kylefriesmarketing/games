@@ -22,7 +22,7 @@ const fs = require("fs");
 const path = require("path");
 
 const root = path.resolve(__dirname, "..");
-const sources = ["js/room.js", "js/hallway.js", "js/collectibles.js", "js/profile.js",
+const sources = ["js/room.js", "js/hallway.js", "js/den.js", "js/collectibles.js", "js/profile.js",
   "js/stickers.js", "js/audio.js", "js/post.js", "js/util.js", "index.html", "sw.js"]
   .map(f => path.join(root, f)).filter(f => fs.existsSync(f));
 

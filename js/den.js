@@ -26,7 +26,10 @@ export function craftDen(ctx) {
       matrix:o.matrixWorld.elements,label:o.userData.name||'',color:o.material.color?.getHexString(),mapped:!!o.material.map})),
     anchors:Object.fromEntries(Object.entries(ctx.anchors).map(([k,o])=>[k,o.matrixWorld.elements]))
   })};
-  finishSurfaces(ctx, sources);
+  Object.assign(ctx.anchors.coffee.userData,{name:'the coffee table',action:null,hint:'rings from mugs. a shelf for things you will read later.'});
+  ctx.clickable(ctx.named.coffeeTop,'the coffee table',null,ctx.anchors.coffee.userData.hint);
+  ctx.clickable(ctx.named.aquariumCabinet,'the aquarium',null,'two fish, a small jungle, and the cold green glow.');
+  state.defaultFloor = finishSurfaces(ctx, sources);
   if(new URLSearchParams(location.search).has('denAuthor')) return state;
   const draco=new DRACOLoader(); draco.setDecoderPath('assets/lib/draco/');
   const loader=new GLTFLoader(); loader.setDRACOLoader(draco);
@@ -66,12 +69,14 @@ function finishSurfaces(ctx, sources) {
     const m=ctx.named[k].material;m.map=grain;m.roughness=.72;m.needsUpdate=true;
   }
   const concrete=canvasTex(512,512,(c,w,h)=>{
-    c.fillStyle='#aaa79e';c.fillRect(0,0,w,h);
+    c.fillStyle='#96968f';c.fillRect(0,0,w,h);
     for(let i=0;i<17000;i++) {const n=80+random()*130;c.fillStyle=`rgba(${n},${n},${n},.12)`;c.fillRect(random()*w,random()*h,1+random()*2,1+random()*2);}
-    for(let i=0;i<40;i++){const x=random()*w,y=random()*h,r=20+random()*80,g=c.createRadialGradient(x,y,0,x,y,r);g.addColorStop(0,'rgba(45,42,36,.035)');g.addColorStop(1,'rgba(45,42,36,0)');c.fillStyle=g;c.fillRect(x-r,y-r,r*2,r*2);}
+    for(let i=0;i<40;i++){const x=random()*w,y=random()*h,r=20+random()*80,g=c.createRadialGradient(x,y,0,x,y,r);g.addColorStop(0,'rgba(45,42,36,.13)');g.addColorStop(1,'rgba(45,42,36,0)');c.fillStyle=g;c.fillRect(x-r,y-r,r*2,r*2);}
   });
+  const cc=concrete.image.getContext('2d');cc.strokeStyle='rgba(48,47,42,.28)';cc.lineWidth=1.2;cc.strokeRect(1,1,510,510);concrete.needsUpdate=true;
+  ctx.named.lampShade.material.color.setHex(0xa38c6c);
   concrete.wrapS=concrete.wrapT=THREE.RepeatWrapping;concrete.repeat.set(5.35,3.5);
-  ctx.named.floor.material.userData.denDefaultMap=concrete;
+  ctx.named.floor.userData.noHighlight=true;
   ctx.named.floor.material.map=concrete;ctx.named.floor.material.needsUpdate=true;
   const rug=canvasTex(768,576,(c,w,h)=>{
     c.fillStyle='#633b31';c.fillRect(0,0,w,h);
@@ -105,5 +110,6 @@ function finishSurfaces(ctx, sources) {
     for(let i=0;i<3;i++){const x=124+i*112;c.fillStyle=['#a74632','#d5aa59','#427469'][i];c.fillRect(x-39,191,78,78);c.fillStyle='#f3e5cc';for(let d=0;d<=i;d++){c.beginPath();c.arc(x-18+d*18,214+d*16,7,0,Math.PI*2);c.fill();}}c.fillStyle='#dbc59b';c.font='18px Georgia';c.fillText('2–6 PLAYERS • AGES 8 AND UP',w/2,319);
   })}));
   cover.position.y=.0308;cover.rotation.x=-Math.PI/2;game.add(cover);ctx.clickable(cover,game.userData.name,game.userData.action,game.userData.hint);
+  return concrete;
 }
 
